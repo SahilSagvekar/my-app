@@ -1800,3 +1800,85 @@ export async function sendStorageAlertEmail(data: {
     console.error(`❌ Failed to send storage alert:`, error);
   }
 }
+
+// ==========================================
+// CLIENT FEEDBACK ("Report a Problem") EMAIL
+// ==========================================
+
+export async function sendClientFeedbackEmail(data: {
+  clientName: string;
+  userName: string;
+  userEmail: string;
+  message: string;
+  pageUrl: string;
+  userAgent: string;
+  screenshotBase64: string | null; // data URL, e.g. "data:image/png;base64,...."
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log(`📧 [DEV] Client feedback from ${data.userName} (${data.clientName}): ${data.message || '(no message)'}`);
+    return { success: true, debug: true };
+  }
+
+  const attachments = [];
+  if (data.screenshotBase64) {
+    const base64Data = data.screenshotBase64.replace(/^data:image\/\w+;base64,/, "");
+    attachments.push({
+      filename: "screenshot.png",
+      content: base64Data,
+      encoding: "base64" as const,
+      cid: "feedback-screenshot",
+    });
+  }
+
+  const mailOptions = {
+    from: `"E8 Client Feedback" <${process.env.SMTP_USER}>`,
+    to: "sahilsagvekar230@gmail.com",
+    subject: `📸 Feedback from ${data.clientName} — ${data.userName}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f1f5f9; }
+            .container { max-width: 600px; margin: 0 auto; padding: 30px 20px; }
+            .header { background: #0073EA; color: white; padding: 24px 30px; border-radius: 16px 16px 0 0; }
+            .content { background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px; }
+            .info-box { background: #f9fafb; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 16px 0; font-size: 13px; }
+            .message-box { background: #E6F1FD; border-left: 4px solid #0073EA; padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 16px 0; white-space: pre-wrap; }
+            img.screenshot { width: 100%; border-radius: 8px; border: 1px solid #e5e7eb; margin-top: 16px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2 style="margin: 0;">📸 New Client Feedback</h2>
+            </div>
+            <div class="content">
+              <div class="info-box">
+                <p style="margin: 4px 0;"><strong>Client:</strong> ${data.clientName}</p>
+                <p style="margin: 4px 0;"><strong>Reported by:</strong> ${data.userName} (${data.userEmail})</p>
+                <p style="margin: 4px 0;"><strong>Page:</strong> ${data.pageUrl}</p>
+                <p style="margin: 4px 0;"><strong>Device:</strong> ${data.userAgent}</p>
+              </div>
+
+              ${data.message ? `<div class="message-box">${data.message}</div>` : `<p style="color: #94a3b8; font-size: 13px;">No message was included — just the screenshot.</p>`}
+
+              ${data.screenshotBase64 ? `<img class="screenshot" src="cid:feedback-screenshot" alt="Screenshot" />` : ""}
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+    attachments,
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Client feedback email sent for ${data.clientName} (${data.userName})`);
+    return { success: true };
+  } catch (error) {
+    console.error(`❌ Failed to send client feedback email:`, error);
+    return { success: false, error: (error as any).message };
+  }
+}
