@@ -77,6 +77,8 @@ model User {
   securityPin             UserSecurityPin?
   twoFactorAuth           UserTwoFactorAuth?
   folderStatusUpdates     FolderStatus[]
+  hiringCandidatesAdded   HiringCandidate[]
+  hiringTestTasksReviewed HiringTestTask[]
 
   @@index([email])
   @@index([role])
@@ -1929,6 +1931,73 @@ model OnboardingToken {
   expiresAt DateTime
   createdAt DateTime  @default(now())
   client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+enum HiringCandidateStatus {
+  NEW
+  CONTACTED
+  TEST_SENT
+  TEST_SUBMITTED
+  IN_REVIEW
+  HIRED
+  REJECTED
+}
+
+enum HiringTestTaskStatus {
+  PENDING
+  SENT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// Editor hiring pipeline: candidate DB -> emailed test task (token link,
+// no login required) -> candidate submits (pasted link or direct upload) ->
+// admin reviews in QC-style approve/reject flow.
+model HiringCandidate {
+  id           String                @id @default(cuid())
+  name         String
+  email        String
+  phone        String?
+  portfolioUrl String?
+  resumeUrl    String?
+  source       String?
+  notes        String?
+  status       HiringCandidateStatus @default(NEW)
+  createdById  Int?
+  createdBy    User?                 @relation(fields: [createdById], references: [id])
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  testTasks    HiringTestTask[]
+
+  @@index([status])
+  @@index([email])
+}
+
+model HiringTestTask {
+  id              String               @id @default(cuid())
+  candidateId     String
+  candidate       HiringCandidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  title           String
+  instructions    String
+  rawFootageUrl   String?
+  submissionToken String               @unique @default(cuid())
+  status          HiringTestTaskStatus @default(PENDING)
+  submissionUrl   String?
+  submissionS3Key String?
+  sentAt          DateTime?
+  submittedAt     DateTime?
+  reviewedById    Int?
+  reviewedBy      User?                @relation(fields: [reviewedById], references: [id])
+  reviewNotes     String?
+  reviewedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@index([candidateId])
+  @@index([status])
 }
 
 model PreClient {
