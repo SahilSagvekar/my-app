@@ -23,6 +23,15 @@ function getUserFromToken(req: Request): { userId: number; role: string } | null
   }
 }
 
+// Schedulers often paste URLs without a scheme (e.g. "facebook.com/12345").
+// Without normalizing, that gets stored and later rendered as a relative
+// <a href>, which the browser resolves against the current origin —
+// producing "https://e8productions.com/facebook.com/12345".
+function normalizeUrl(url: string): string {
+  const trimmed = url.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -62,9 +71,10 @@ export async function POST(
 
     // Add new link with user info
     const postedAtValue = postedAt || new Date().toISOString();
+    const normalizedUrl = normalizeUrl(url);
     const newLink = {
       platform,
-      url,
+      url: normalizedUrl,
       postedAt: postedAtValue,
       addedBy: user?.userId || null,
     };
@@ -92,7 +102,7 @@ export async function POST(
             clientId: task.clientId,
             title: task.title || task.description || null,
             platform: platform.toLowerCase(),
-            url: url,
+            url: normalizedUrl,
             postedAt: new Date(postedAtValue),
             deliverableType: deliverableType,
             taskId: id,
@@ -161,12 +171,13 @@ export async function PATCH(
       : [];
 
     const oldLink = existingLinks.find(l => l.platform.toLowerCase() === platform.toLowerCase());
+    const normalizedUrl = normalizeUrl(url);
 
     const updatedLinks = existingLinks.map((link) => {
       if (link.platform.toLowerCase() === platform.toLowerCase()) {
         return {
           ...link,
-          url,
+          url: normalizedUrl,
           ...(postedAt ? { postedAt } : {}),
           updatedAt: new Date().toISOString(),
           updatedBy: user?.userId || null,

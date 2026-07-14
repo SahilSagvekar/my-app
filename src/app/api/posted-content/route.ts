@@ -158,12 +158,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedUrl = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
+
     const content = await prisma.postedContent.create({
       data: {
         clientId,
         title,
         platform: platform.toLowerCase(),
-        url,
+        url: normalizedUrl,
         postedAt: postedAt ? new Date(postedAt) : new Date(),
         deliverableType,
         taskId,

@@ -81,15 +81,20 @@ export async function fillW9Pdf(input: W9Input): Promise<Buffer> {
   form.flatten();
 
   const page = pdf.getPage(0);
-  const { height } = page.getSize();
-  page.drawText(`Signed electronically by: ${input.signedName}`, {
-    x: 50,
-    y: height - 705,
+  // Coordinates measured directly off the "Sign Here ▶ Signature of U.S.
+  // person ▶ ... Date ▶" row on this exact template (Part II, bottom of
+  // page 1): the "Signature of U.S. person" label sits at x=76/y≈196-204,
+  // "Date" label at x=385.6/y≈196. Text goes on the blank line between/after
+  // those labels — NOT at a hardcoded page-relative offset, which previously
+  // landed ~110pt too low, inside the General Instructions paragraph text.
+  page.drawText(input.signedName, {
+    x: 210,
+    y: 200,
     size: 9,
   });
-  page.drawText(`Date: ${input.signedDate}`, {
-    x: 400,
-    y: height - 705,
+  page.drawText(input.signedDate, {
+    x: 420,
+    y: 200,
     size: 9,
   });
 
