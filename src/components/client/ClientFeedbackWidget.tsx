@@ -28,29 +28,36 @@ export function ClientFeedbackWidget() {
     try {
       // Loaded dynamically so it never affects initial page load weight —
       // it's only needed the moment someone taps the button.
-      // Using html2canvas-pro (not plain html2canvas) because this app's
-      // Tailwind v4 design tokens use oklch() colors, which the original
-      // html2canvas can't parse and throws on — the -pro fork adds support
-      // for oklch/lab/lch/color-mix.
-      const html2canvas = (await import("html2canvas-pro")).default;
+      // Using modern-screenshot rather than html2canvas: html2canvas
+      // re-parses the page's raw CSS text to replicate it, and chokes
+      // silently on modern syntax this app's Tailwind v4 setup uses
+      // (oklch(), @property, @layer, etc.) — producing a fully unstyled
+      // capture instead of erroring. modern-screenshot instead reads each
+      // element's already-resolved computed style from the browser itself
+      // and renders via an SVG foreignObject, so it can't hit that failure
+      // mode, and it degrades a failed cross-origin image (e.g. an
+      // R2-hosted thumbnail without CORS headers) to a placeholder instead
+      // of breaking the whole capture.
+      const { domToJpeg } = await import("modern-screenshot");
 
       // Capture only what's currently visible, not the full scrollable page —
       // a full-page capture of a long dashboard can run several MB and blow
       // past server body-size limits. A capped, viewport-only JPEG is plenty
       // for a bug report and keeps the payload small and fast to send.
-      const canvas = await html2canvas(document.body, {
-        useCORS: true,
-        logging: false,
+      const dataUrl = await domToJpeg(document.body, {
+        quality: 0.7,
+        backgroundColor: "#ffffff",
         scale: Math.min(window.devicePixelRatio || 1, 1.5),
-        x: window.scrollX,
-        y: window.scrollY,
         width: window.innerWidth,
         height: window.innerHeight,
-        windowWidth: window.innerWidth,
-        windowHeight: window.innerHeight,
-        ignoreElements: (el) => el.hasAttribute("data-feedback-widget-ignore"),
+        filter: (node) => {
+          if (node instanceof Element && node.hasAttribute("data-feedback-widget-ignore")) {
+            return false;
+          }
+          return true;
+        },
       });
-      setScreenshot(canvas.toDataURL("image/jpeg", 0.7));
+      setScreenshot(dataUrl);
     } catch (err) {
       console.error("Feedback screenshot capture failed:", err);
       toast.error("Couldn't grab a screenshot, but you can still send a note.");
