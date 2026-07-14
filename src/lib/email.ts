@@ -1824,7 +1824,7 @@ export async function sendClientFeedbackEmail(data: {
   if (data.screenshotBase64) {
     const base64Data = data.screenshotBase64.replace(/^data:image\/\w+;base64,/, "");
     attachments.push({
-      filename: "screenshot.png",
+      filename: "screenshot.jpg",
       content: base64Data,
       encoding: "base64" as const,
       cid: "feedback-screenshot",

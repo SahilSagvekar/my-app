@@ -33,13 +33,24 @@ export function ClientFeedbackWidget() {
       // html2canvas can't parse and throws on — the -pro fork adds support
       // for oklch/lab/lch/color-mix.
       const html2canvas = (await import("html2canvas-pro")).default;
+
+      // Capture only what's currently visible, not the full scrollable page —
+      // a full-page capture of a long dashboard can run several MB and blow
+      // past server body-size limits. A capped, viewport-only JPEG is plenty
+      // for a bug report and keeps the payload small and fast to send.
       const canvas = await html2canvas(document.body, {
         useCORS: true,
         logging: false,
-        scale: Math.min(window.devicePixelRatio || 1, 2),
+        scale: Math.min(window.devicePixelRatio || 1, 1.5),
+        x: window.scrollX,
+        y: window.scrollY,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
         ignoreElements: (el) => el.hasAttribute("data-feedback-widget-ignore"),
       });
-      setScreenshot(canvas.toDataURL("image/png"));
+      setScreenshot(canvas.toDataURL("image/jpeg", 0.7));
     } catch (err) {
       console.error("Feedback screenshot capture failed:", err);
       toast.error("Couldn't grab a screenshot, but you can still send a note.");
