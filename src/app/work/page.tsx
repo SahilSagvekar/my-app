@@ -2,6 +2,7 @@
 
 import { Navigation } from "@/components/landing/Navigation";
 import { Footer } from "@/components/landing/Footer";
+import { BeforeAfterJourney } from "@/components/landing/BeforeAfterJourney";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 import {
   Play,
@@ -378,6 +379,8 @@ export default function WorkPage() {
           </div>
         </div>
       </section>
+
+        <BeforeAfterJourney />
 
         {/* Who We Work With - Infinite Scroll Carousel */}
         <section className="pt-14 pb-20 px-4 sm:px-6 lg:px-8 bg-black/[0.02]">
