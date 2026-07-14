@@ -11,6 +11,16 @@ import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner';
 
+interface SweepFileResult {
+  fileId: string;
+  s3Key: string;
+  taskId: string;
+  monthFolder: string;
+  sizeBytes: number;
+  outcome: 'would_delete' | 'deleted' | 'skipped_not_on_nas' | 'failed';
+  reason?: string;
+}
+
 interface SweepSummary {
   dryRun: boolean;
   clientId: string | null;
@@ -21,6 +31,7 @@ interface SweepSummary {
   failedCount: number;
   bytesFreed: number;
   monthsSwept: string[];
+  results: SweepFileResult[];
 }
 
 interface ClientOption {
@@ -172,7 +183,10 @@ export function NasBackupAdmin() {
       if (dryRun) {
         setPreview(data.summary);
       } else {
-        setPreview(null);
+        // Keep the result visible (not just the toast) so the skip/failure
+        // reason breakdown below is available for real runs too — this is
+        // exactly what's needed to diagnose "192 skipped" at a glance.
+        setPreview(data.summary);
         await load();
       }
       toast.success(dryRun ? 'Preview ready' : 'Sweep complete', { description: data.message });
@@ -364,7 +378,7 @@ export function NasBackupAdmin() {
                   <div className="font-semibold text-zinc-800">Before {preview.cutoffMonthFolder}</div>
                 </div>
                 <div>
-                  <div className="text-zinc-500">Would delete</div>
+                  <div className="text-zinc-500">{preview.dryRun ? 'Would delete' : 'Deleted'}</div>
                   <div className="font-semibold text-zinc-800">{preview.deletedCount} file(s)</div>
                 </div>
                 <div>
@@ -372,11 +386,46 @@ export function NasBackupAdmin() {
                   <div className="font-semibold text-amber-600">{preview.skippedCount} file(s)</div>
                 </div>
                 <div>
-                  <div className="text-zinc-500">Would free</div>
+                  <div className="text-zinc-500">{preview.dryRun ? 'Would free' : 'Freed'}</div>
                   <div className="font-semibold text-zinc-800">{formatBytes(preview.bytesFreed)}</div>
                 </div>
               </div>
             )}
+
+            {/* Why files were skipped/failed — grouped, since a systemic issue
+                (e.g. NAS mount not present on this server) shows up as the
+                exact same reason repeated for every file. */}
+            {preview && preview.results.some(r => r.outcome !== 'deleted' && r.outcome !== 'would_delete') && (() => {
+              const reasonCounts = new Map<string, number>();
+              for (const r of preview.results) {
+                if (r.outcome === 'deleted' || r.outcome === 'would_delete') continue;
+                const key = r.reason || r.outcome;
+                reasonCounts.set(key, (reasonCounts.get(key) || 0) + 1);
+              }
+              const sorted = [...reasonCounts.entries()].sort((a, b) => b[1] - a[1]);
+              return (
+                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs">
+                  <div className="font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Why files weren't swept
+                  </div>
+                  <ul className="space-y-1">
+                    {sorted.map(([reason, count]) => (
+                      <li key={reason} className="text-amber-700">
+                        <span className="font-semibold">{count}×</span> {reason}
+                      </li>
+                    ))}
+                  </ul>
+                  {sorted.some(([r]) => r.includes('NAS mount not found')) && (
+                    <p className="mt-2 text-amber-600">
+                      This means the NAS drive isn't mounted on this server's filesystem right now —
+                      that's an infrastructure issue (check the mount on the server), not something
+                      fixable from this panel.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Sync history */}
