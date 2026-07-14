@@ -28,7 +28,11 @@ export function ClientFeedbackWidget() {
     try {
       // Loaded dynamically so it never affects initial page load weight —
       // it's only needed the moment someone taps the button.
-      const html2canvas = (await import("html2canvas")).default;
+      // Using html2canvas-pro (not plain html2canvas) because this app's
+      // Tailwind v4 design tokens use oklch() colors, which the original
+      // html2canvas can't parse and throws on — the -pro fork adds support
+      // for oklch/lab/lch/color-mix.
+      const html2canvas = (await import("html2canvas-pro")).default;
       const canvas = await html2canvas(document.body, {
         useCORS: true,
         logging: false,
