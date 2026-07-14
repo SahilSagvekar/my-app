@@ -316,7 +316,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }, [loadFolderStatuses]);
 
   const updateFolderStatus = async (item: DriveItem, status: "IN_PROGRESS" | "COMPLETED" | null) => {
-    if (!effectiveClientId) return;
+    if (!effectiveClientId) {
+      console.warn("[folder-status] No client resolved for this folder — nothing sent.", {
+        role,
+        browsingClientId,
+        browsingCompanyName,
+        breadcrumb: breadcrumb.map((b) => b.name),
+      });
+      toast.error("Couldn't identify which client this folder belongs to — try refreshing the page.");
+      return;
+    }
     const s3KeyPrefix = getS3Key(item);
     const previous = folderStatuses[s3KeyPrefix];
 
@@ -773,12 +782,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return (
       <Select
         value={current}
+        disabled={!effectiveClientId}
         onValueChange={(value) =>
           updateFolderStatus(item, value === "NOT_SET" ? null : (value as "IN_PROGRESS" | "COMPLETED"))
         }
       >
         <SelectTrigger
           onClick={(e) => e.stopPropagation()}
+          title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
           className={cn(
             "h-6 px-2 text-[10px] sm:text-xs w-auto min-w-0 gap-1 border-0",
             current === "IN_PROGRESS" && "bg-amber-100 text-amber-800",
