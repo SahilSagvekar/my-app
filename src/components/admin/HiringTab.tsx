@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   UserPlus, Search, Mail, Phone, Link as LinkIcon, Send, CheckCircle2, XCircle,
-  Clock, ExternalLink, FileText, MessageCircle, Loader2,
+  Clock, ExternalLink, FileText, MessageCircle, Loader2, UserCheck,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -43,7 +43,11 @@ interface Candidate {
   status: CandidateStatus;
   createdAt: string;
   testTasks: TestTask[];
+  convertedUserId: number | null;
+  convertedAt: string | null;
 }
+
+const EMPLOYEE_ROLES = ['editor', 'videographer', 'scheduler', 'qc', 'sales', 'manager', 'admin'] as const;
 
 const STATUS_STYLES: Record<CandidateStatus, string> = {
   NEW: 'bg-zinc-100 text-zinc-600 border-zinc-200',
@@ -227,6 +231,7 @@ function CandidateDetailSheet({ candidateId, onClose, onChanged }: { candidateId
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSendTest, setShowSendTest] = useState(false);
+  const [showConvert, setShowConvert] = useState(false);
 
   const load = useCallback(async () => {
     if (!candidateId) return;
@@ -266,31 +271,43 @@ function CandidateDetailSheet({ candidateId, onClose, onChanged }: { candidateId
             <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
           </div>
         ) : (
-          <div className="space-y-6 py-4">
-            <SheetHeader className="px-0">
-              <div className="flex items-center justify-between">
-                <SheetTitle>{candidate.name}</SheetTitle>
+          <div className="space-y-6 px-6 py-6">
+            <SheetHeader className="px-0 pr-8">
+              <div className="flex items-center justify-between gap-2">
+                <SheetTitle className="text-lg">{candidate.name}</SheetTitle>
                 <StatusBadge status={candidate.status} />
               </div>
             </SheetHeader>
 
-            <div className="space-y-1.5 text-sm">
-              <p className="flex items-center gap-2 text-gray-600"><Mail className="h-3.5 w-3.5" />{candidate.email}</p>
-              {candidate.phone && <p className="flex items-center gap-2 text-gray-600"><Phone className="h-3.5 w-3.5" />{candidate.phone}</p>}
+            <div className="space-y-1.5 text-sm bg-gray-50 border border-gray-100 rounded-lg p-3.5">
+              <p className="flex items-center gap-2 text-gray-600"><Mail className="h-3.5 w-3.5 shrink-0" />{candidate.email}</p>
+              {candidate.phone && <p className="flex items-center gap-2 text-gray-600"><Phone className="h-3.5 w-3.5 shrink-0" />{candidate.phone}</p>}
               {candidate.portfolioUrl && (
                 <p className="flex items-center gap-2 text-gray-600">
-                  <LinkIcon className="h-3.5 w-3.5" />
+                  <LinkIcon className="h-3.5 w-3.5 shrink-0" />
                   <a href={candidate.portfolioUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate">{candidate.portfolioUrl}</a>
                 </p>
               )}
               {candidate.notes && <p className="text-gray-500 mt-2 whitespace-pre-wrap">{candidate.notes}</p>}
             </div>
 
-            <Button size="sm" className="gap-1.5" onClick={() => setShowSendTest(true)}>
-              <Send className="h-3.5 w-3.5" /> Send Test Task
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" className="gap-1.5" onClick={() => setShowSendTest(true)}>
+                <Send className="h-3.5 w-3.5" /> Send Test Task
+              </Button>
+              {candidate.status === 'HIRED' && !candidate.convertedUserId && (
+                <Button size="sm" variant="outline" className="gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={() => setShowConvert(true)}>
+                  <UserCheck className="h-3.5 w-3.5" /> Convert to Employee
+                </Button>
+              )}
+              {candidate.convertedUserId && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1.5">
+                  <UserCheck className="h-3.5 w-3.5" /> Converted to employee
+                </span>
+              )}
+            </div>
 
-            <div>
+            <div className="border-t border-gray-100 pt-5">
               <h4 className="text-sm font-semibold text-gray-800 mb-3">Test Task History</h4>
               {candidate.testTasks.length === 0 ? (
                 <p className="text-xs text-gray-400">No test tasks sent yet.</p>
@@ -312,7 +329,75 @@ function CandidateDetailSheet({ candidateId, onClose, onChanged }: { candidateId
         candidate={candidate}
         onSent={() => { load(); onChanged(); }}
       />
+      <ConvertToEmployeeDialog
+        open={showConvert}
+        onOpenChange={setShowConvert}
+        candidate={candidate}
+        onConverted={() => { load(); onChanged(); }}
+      />
     </Sheet>
+  );
+}
+
+/* ── Convert to Employee Dialog ────────────────────────────────── */
+function ConvertToEmployeeDialog({ open, onOpenChange, candidate, onConverted }: {
+  open: boolean; onOpenChange: (v: boolean) => void; candidate: Candidate | null; onConverted: () => void;
+}) {
+  const [role, setRole] = useState<string>('editor');
+  const [converting, setConverting] = useState(false);
+
+  useEffect(() => { if (open) setRole('editor'); }, [open]);
+
+  async function handleConvert() {
+    if (!candidate) return;
+    setConverting(true);
+    try {
+      const res = await fetch(`/api/hiring/candidates/${candidate.id}/convert`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to convert candidate');
+      toast.success(`${candidate.name} is now an employee — welcome email sent`);
+      onOpenChange(false);
+      onConverted();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setConverting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><UserCheck className="h-4 w-4" /> Convert to Employee</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Creates a login for <span className="font-medium text-gray-700">{candidate?.name}</span> ({candidate?.email}) and emails them their credentials.
+          </p>
+          <div>
+            <label className="text-xs font-medium text-gray-500 mb-1.5 block">Role</label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {EMPLOYEE_ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1).replace('_', ' ')}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleConvert} disabled={converting} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+            {converting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+            {converting ? 'Converting…' : 'Convert to Employee'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -79,6 +79,7 @@ model User {
   folderStatusUpdates     FolderStatus[]
   hiringCandidatesAdded   HiringCandidate[]
   hiringTestTasksReviewed HiringTestTask[]
+  convertedFromCandidate  HiringCandidate?         @relation("ConvertedCandidateUser")
 
   @@index([email])
   @@index([role])
@@ -1970,6 +1971,10 @@ model HiringCandidate {
   createdAt    DateTime              @default(now())
   updatedAt    DateTime              @updatedAt
   testTasks    HiringTestTask[]
+
+  convertedUserId Int?      @unique
+  convertedUser   User?     @relation("ConvertedCandidateUser", fields: [convertedUserId], references: [id])
+  convertedAt     DateTime?
 
   @@index([status])
   @@index([email])
