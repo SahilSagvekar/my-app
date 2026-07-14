@@ -12,6 +12,7 @@ import {
     Users, ExternalLink,
 } from 'lucide-react';
 import logoImage from '../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
+import { BeforeAfterJourney } from '@/components/landing/BeforeAfterJourney';
 
 /* ───────────────────────────── types ───────────────────────────── */
 interface PortfolioVideo {
@@ -58,6 +59,10 @@ const ICON_MAP: Record<string, any> = {
 /* "who-we-work-with" renders channel cards (name, avatar, follower count)
    instead of the usual video grid. */
 const CHANNEL_CARD_SUBCATEGORY = 'who-we-work-with';
+
+/* "before-after" category renders the client-picker + progress-slider
+   journey instead of the usual video grid. */
+const BEFORE_AFTER_CATEGORY = 'before-after';
 
 interface PortfolioChannel {
     id: string;
@@ -1013,12 +1018,13 @@ function PortfolioContent() {
 
     useEffect(() => {
         if (!activeSubcategory) return;
+        if (activeCategory === BEFORE_AFTER_CATEGORY) return;
         if (activeSubcategory === CHANNEL_CARD_SUBCATEGORY) {
             fetchChannels(activeSubcategory);
         } else {
             fetchVideos(activeSubcategory);
         }
-    }, [activeSubcategory, fetchVideos, fetchChannels]);
+    }, [activeCategory, activeSubcategory, fetchVideos, fetchChannels]);
 
     const info = findSubcategoryInfo(activeSubcategory, categories);
     const parentCat = categories.find((c) => c.key === activeCategory);
@@ -1121,7 +1127,9 @@ function PortfolioContent() {
                 ) : (
                     <section className="px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20 bg-white">
                         <div className="max-w-7xl mx-auto">
-                            {activeSubcategory === CHANNEL_CARD_SUBCATEGORY ? (
+                            {activeCategory === BEFORE_AFTER_CATEGORY ? (
+                                <BeforeAfterJourney />
+                            ) : activeSubcategory === CHANNEL_CARD_SUBCATEGORY ? (
                                 <ChannelGrid channels={channels} loading={loading} />
                             ) : (
                                 <VideoGrid videos={videos} loading={loading} />
