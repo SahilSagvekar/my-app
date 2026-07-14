@@ -261,6 +261,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // Resolve the client record from the visible company folder. Client users can
   // be linked by email/user relation instead of linkedClientId.
   useEffect(() => {
+    // When the admin/editor client picker is driving browsing, that's the
+    // authoritative source — don't let breadcrumb-guessing (which assumes
+    // breadcrumb[1] is a company-name folder) stomp on it once we've
+    // navigated into a subfolder like "raw-footage" whose name isn't a
+    // company name at all.
+    if ((role === 'admin' || role === 'manager' || role === 'scheduler') && adminSelectedClientId) return;
+    if (role === 'editor' && editorSelectedClientId) return;
+
     // For clients: breadcrumb[0] IS the company name (no "Root" prefix)
     // For admin/manager: breadcrumb[0] is "Root", breadcrumb[1] is the company name
     const companyFolder = role === 'client'
@@ -282,7 +290,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         setBrowsingClientId(data?.clientId || null);
       })
       .catch(() => setBrowsingClientId(null));
-  }, [breadcrumb, browsingCompanyName]);
+  }, [breadcrumb, browsingCompanyName, role, adminSelectedClientId, editorSelectedClientId]);
 
   // Fetch storage info for clients
   useEffect(() => {
@@ -316,7 +324,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }, [loadFolderStatuses]);
 
   const updateFolderStatus = async (item: DriveItem, status: "IN_PROGRESS" | "COMPLETED" | null) => {
-    if (!effectiveClientId) return;
+    if (!effectiveClientId) {
+      console.warn("[folder-status] No client resolved for this folder — nothing sent.", {
+        role,
+        browsingClientId,
+        browsingCompanyName,
+        breadcrumb: breadcrumb.map((b) => b.name),
+      });
+      toast.error("Couldn't identify which client this folder belongs to — try refreshing the page.");
+      return;
+    }
     const s3KeyPrefix = getS3Key(item);
     const previous = folderStatuses[s3KeyPrefix];
 
@@ -773,12 +790,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return (
       <Select
         value={current}
+        disabled={!effectiveClientId}
         onValueChange={(value) =>
           updateFolderStatus(item, value === "NOT_SET" ? null : (value as "IN_PROGRESS" | "COMPLETED"))
         }
       >
         <SelectTrigger
           onClick={(e) => e.stopPropagation()}
+          title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
           className={cn(
             "h-6 px-2 text-[10px] sm:text-xs w-auto min-w-0 gap-1 border-0",
             current === "IN_PROGRESS" && "bg-amber-100 text-amber-800",

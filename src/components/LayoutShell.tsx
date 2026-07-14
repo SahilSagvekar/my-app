@@ -28,6 +28,7 @@ import {
   PlayCircle
 } from 'lucide-react';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
+import { ClientFeedbackWidget } from './client/ClientFeedbackWidget';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
 import {
   ROLE_COLORS,
@@ -462,6 +463,9 @@ export function LayoutShell({
       <main className={`transition-all duration-300 ease-in-out pt-16 ${isSidebarCollapsed ? 'lg:ml-0' : 'lg:ml-72'}`}>
         <div className="p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
+
+      {/* "Report a Problem" — client role only, floating on every screen */}
+      {currentRole.toLowerCase() === 'client' && <ClientFeedbackWidget />}
 
       {/* Settings Dialog */}
       {isSettingsOpen && (

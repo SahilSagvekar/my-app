@@ -60,6 +60,14 @@ const PLATFORMS: Record<string, { label: string; icon: any; color: string; bgCol
 
 type PlatformKey = keyof typeof PLATFORMS;
 
+// Some legacy/manually-entered links are missing a protocol (e.g. "tiktok.com/@x/video/1"),
+// which makes the browser resolve <a href> as relative to the current page instead of opening
+// the external site. Force an absolute URL before rendering any link.
+function toAbsoluteUrl(url: string): string {
+    if (!url) return url;
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface SocialMediaLink {
@@ -698,7 +706,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                                         return (
                                                                             <a
                                                                                 key={i}
-                                                                                href={link.url}
+                                                                                href={toAbsoluteUrl(link.url)}
                                                                                 target="_blank"
                                                                                 rel="noopener noreferrer"
                                                                                 onClick={(e) => e.stopPropagation()}
@@ -842,7 +850,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                                                             </div>
                                                                                             {/* URL */}
                                                                                             <a
-                                                                                                href={link.url}
+                                                                                                href={toAbsoluteUrl(link.url)}
                                                                                                 target="_blank"
                                                                                                 rel="noopener noreferrer"
                                                                                                 className="text-blue-600 hover:underline text-xs truncate flex-1 min-w-0"
@@ -858,7 +866,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                                                                     })}
                                                                                                 </span>
                                                                                                 <a
-                                                                                                    href={link.url}
+                                                                                                    href={toAbsoluteUrl(link.url)}
                                                                                                     target="_blank"
                                                                                                     rel="noopener noreferrer"
                                                                                                     className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs font-medium"
@@ -1000,7 +1008,7 @@ export function ClientPostedContentView({ clientId }: ClientPostedContentViewPro
                                                         return (
                                                             <a
                                                                 key={i}
-                                                                href={link.url}
+                                                                href={toAbsoluteUrl(link.url)}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className={cn(

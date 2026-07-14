@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
     const client = await prisma.client.findFirst({
       where: {
         OR: [
-          { companyName: companyName },
-          { name: companyName },
+          { companyName: { equals: companyName.trim(), mode: 'insensitive' } },
+          { name: { equals: companyName.trim(), mode: 'insensitive' } },
         ]
       },
       select: { id: true, companyName: true, name: true },
