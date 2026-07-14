@@ -10,11 +10,9 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { sendTestTaskInviteEmail } from '@/lib/hiring-email';
 import { sendWhatsAppMessage, isWhatsAppConfigured } from '@/lib/whatsapp';
 
-const APP_URL =
-  process.env.INTERNAL_APP_URL ||
-  process.env.NEXTAUTH_URL ||
-  process.env.BASE_URL ||
-  'https://e8productions.com';
+// Public-facing link (emailed to external candidates) — must never resolve to
+// INTERNAL_APP_URL's private VPC IP, unlike server-to-server calls elsewhere.
+const APP_URL = 'https://e8productions.com';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser2(req);
