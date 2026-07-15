@@ -72,26 +72,12 @@ export function ClientFeedbackWidget() {
       const dataUrl = await domToJpeg(document.body, {
         quality: 0.7,
         backgroundColor: "#ffffff",
-        // Capped at 1: this is a bug-report thumbnail, not a print asset —
-        // going higher roughly quadruples canvas rasterization cost for no
-        // visible benefit at the JPEG quality/size we send.
-        scale: 1,
+        scale: Math.min(window.devicePixelRatio || 1, 1.5),
         width: window.innerWidth,
         height: window.innerHeight,
-        // Bug-report screenshots don't need pixel-exact type. Font embedding
-        // was the single biggest lag source: it walks every font-family found
-        // in the DOM and fetches + base64-encodes each weight/variant on the
-        // main thread before the capture can even start.
-        font: false,
-        // Cap how long a single stuck image/video load can stall the capture.
-        timeout: 4000,
         filter: (node) => {
-          if (node instanceof Element) {
-            if (node.hasAttribute("data-feedback-widget-ignore")) return false;
-            // Video/iframe embeds (e.g. YouTube Studio) are expensive to
-            // decode/clone and add nothing readable to a bug screenshot.
-            const tag = node.tagName;
-            if (tag === "VIDEO" || tag === "IFRAME") return false;
+          if (node instanceof Element && node.hasAttribute("data-feedback-widget-ignore")) {
+            return false;
           }
           return true;
         },
@@ -243,10 +229,10 @@ export function ClientFeedbackWidget() {
           onClick={isSelectingArea ? undefined : handleClose}
         >
           <div
-            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+            className="flex w-[92vw] max-w-4xl h-[88vh] sm:h-[85vh] max-h-[900px] flex-col overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex shrink-0 items-center justify-between mb-3">
               <h3 className="text-base font-bold">Report a Problem</h3>
               {!isSelectingArea && (
                 <button
@@ -264,7 +250,7 @@ export function ClientFeedbackWidget() {
             {isSelectingArea && screenshot ? (
               <>
                 <div
-                  className="relative mb-3 select-none touch-none overflow-hidden rounded-lg border"
+                  className="relative mb-3 flex-1 min-h-0 select-none touch-none overflow-y-auto overflow-x-hidden rounded-lg border"
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
@@ -279,25 +265,20 @@ export function ClientFeedbackWidget() {
                   />
                   {dragRect && (
                     <div
-                      // box-shadow spread dims everything outside the rect (clipped by
-                      // the container's overflow-hidden) — a thin border alone was
-                      // nearly invisible against screenshots that are mostly this same
-                      // blue brand color.
-                      className="absolute pointer-events-none border-2 border-white outline outline-2 outline-[#0073EA]"
+                      className="absolute border-2 border-[#0073EA] bg-[#0073EA]/10"
                       style={{
                         left: dragRect.x,
                         top: dragRect.y,
                         width: dragRect.w,
                         height: dragRect.h,
-                        boxShadow: "0 0 0 9999px rgba(0,0,0,0.5)",
                       }}
                     />
                   )}
                 </div>
-                <p className="mb-3 text-xs text-muted-foreground text-center">
+                <p className="mb-3 shrink-0 text-xs text-muted-foreground text-center">
                   Drag to select the area to include
                 </p>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 gap-2">
                   <Button variant="outline" className="flex-1" onClick={handleCancelSelectArea}>
                     Cancel
                   </Button>
@@ -309,7 +290,7 @@ export function ClientFeedbackWidget() {
             ) : (
               <>
                 {/* Screenshot preview — always shown so they can see exactly what we'll get */}
-                <div className="mb-2 overflow-hidden rounded-lg border bg-muted aspect-video flex items-center justify-center">
+                <div className="mb-2 flex-1 min-h-0 overflow-hidden rounded-lg border bg-muted flex items-center justify-center">
                   {isCapturing ? (
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-6 w-6 animate-spin" />
@@ -330,7 +311,7 @@ export function ClientFeedbackWidget() {
                 </div>
 
                 {screenshot && !isCapturing && (
-                  <div className="mb-3 flex gap-2">
+                  <div className="mb-3 shrink-0 flex gap-2">
                     <Button
                       type="button"
                       variant={!croppedScreenshot ? "secondary" : "outline"}
@@ -360,7 +341,7 @@ export function ClientFeedbackWidget() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="What went wrong? (optional)"
-                  className="mb-4 min-h-[80px] text-base"
+                  className="mb-4 min-h-[80px] shrink-0 text-base"
                   disabled={isSending}
                   autoFocus
                 />
@@ -368,7 +349,7 @@ export function ClientFeedbackWidget() {
                 <Button
                   onClick={handleSend}
                   disabled={isSending || isCapturing}
-                  className="w-full h-11 text-base font-semibold"
+                  className="w-full h-11 shrink-0 text-base font-semibold"
                 >
                   {isSending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   {isSending ? "Sending..." : "Send"}

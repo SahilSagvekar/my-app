@@ -423,36 +423,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   }, []);
 
-  // ─── Resolve clientId for admin when browsing inside a company folder ───
-  useEffect(() => {
-    if (role === 'client') return; // Client already has linkedClientId
-
-    // For admin: breadcrumb[0] is "Root", breadcrumb[1] is the company name
-    // For other non-client roles with company as root, breadcrumb[0] is company
-    const companyFolder = breadcrumb.length >= 2 ? breadcrumb[1]?.name : breadcrumb[0]?.name;
-
-    if (!companyFolder || companyFolder === 'Root') {
-      setBrowsingClientId(null);
-      setBrowsingCompanyName('');
-      return;
-    }
-
-    // Don't re-fetch if same company
-    if (companyFolder === browsingCompanyName) return;
-
-    setBrowsingCompanyName(companyFolder);
-    fetch(`/api/drive/client-lookup?companyName=${encodeURIComponent(companyFolder)}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data?.clientId) {
-          setBrowsingClientId(data.clientId);
-        } else {
-          setBrowsingClientId(null);
-        }
-      })
-      .catch(() => setBrowsingClientId(null));
-  }, [role, breadcrumb, browsingCompanyName]);
-
   // ── Load client list for admin/manager selector ──────────────────────────
   useEffect(() => {
     if (role !== 'admin' && role !== 'manager' && role !== 'scheduler') return;
