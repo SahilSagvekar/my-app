@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/client/feedback/route.ts
 //
-// Receives a screenshot + optional note from the client-facing
-// "Report a Problem" widget and emails it straight out. Nothing is
+// Receives a screenshot + optional note from the "Report a Problem"
+// widget (shown on every portal) and emails it straight out. Nothing is
 // persisted to the database — this is an email pipe, not a ticket system
 // (the internal admin Feedback model at /api/feedback is separate).
 
@@ -46,13 +46,18 @@ export async function POST(req: Request) {
       select: {
         name: true,
         email: true,
+        role: true,
         linkedClient: { select: { name: true, companyName: true } },
       },
     });
     if (!user) return NextResponse.json({ message: "User not found" }, { status: 404 });
 
+    const sourceLabel = user.linkedClient
+      ? user.linkedClient.companyName || user.linkedClient.name || "Unknown Client"
+      : `${user.role || "Unknown"} portal`;
+
     await sendClientFeedbackEmail({
-      clientName: user.linkedClient?.companyName || user.linkedClient?.name || "Unknown Client",
+      clientName: sourceLabel,
       userName: user.name || "Unknown",
       userEmail: user.email,
       message: typeof message === "string" ? message.trim() : "",

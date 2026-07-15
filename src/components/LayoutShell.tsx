@@ -464,8 +464,8 @@ export function LayoutShell({
         <div className="p-4 sm:p-6 lg:p-8">{children}</div>
       </main>
 
-      {/* "Report a Problem" — client role only, floating on every screen */}
-      {currentRole.toLowerCase() === 'client' && <ClientFeedbackWidget />}
+      {/* "Report a Problem" — floating on every screen, every portal */}
+      <ClientFeedbackWidget />
 
       {/* Settings Dialog */}
       {isSettingsOpen && (

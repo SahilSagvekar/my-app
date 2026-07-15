@@ -1832,7 +1832,7 @@ export async function sendClientFeedbackEmail(data: {
   }
 
   const mailOptions = {
-    from: `"E8 Client Feedback" <${process.env.SMTP_USER}>`,
+    from: `"E8 Feedback" <${process.env.SMTP_USER}>`,
     to: "sahilsagvekar230@gmail.com",
     subject: `📸 Feedback from ${data.clientName} — ${data.userName}`,
     html: `
@@ -1852,11 +1852,11 @@ export async function sendClientFeedbackEmail(data: {
         <body>
           <div class="container">
             <div class="header">
-              <h2 style="margin: 0;">📸 New Client Feedback</h2>
+              <h2 style="margin: 0;">📸 New Feedback</h2>
             </div>
             <div class="content">
               <div class="info-box">
-                <p style="margin: 4px 0;"><strong>Client:</strong> ${data.clientName}</p>
+                <p style="margin: 4px 0;"><strong>From:</strong> ${data.clientName}</p>
                 <p style="margin: 4px 0;"><strong>Reported by:</strong> ${data.userName} (${data.userEmail})</p>
                 <p style="margin: 4px 0;"><strong>Page:</strong> ${data.pageUrl}</p>
                 <p style="margin: 4px 0;"><strong>Device:</strong> ${data.userAgent}</p>

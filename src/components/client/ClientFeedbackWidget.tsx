@@ -1,29 +1,54 @@
 // src/components/client/ClientFeedbackWidget.tsx
 //
-// Dead-simple "Report a Problem" button for the client role. One tap:
-// auto-captures a screenshot of the current screen, lets them type an
-// optional note, and emails it straight to us. No categories, no
-// priority pickers, nothing to configure — nothing saved in the app.
+// Dead-simple "Report a Problem" button, shown on every portal (client,
+// editor, admin, etc). One tap: auto-captures a screenshot of the current
+// screen, lets them type an optional note, and emails it straight to us.
+// No categories, no priority pickers, nothing to configure — nothing
+// saved in the app.
+//
+// Two capture modes: full screen (default, captured immediately on open)
+// and area-select (drag a box over the already-captured full screenshot,
+// cropped client-side via canvas — no re-capture, no server involvement).
 
 "use client";
 
-import { useState } from "react";
-import { Camera, X, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Camera, Crop, Maximize2, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+const MIN_SELECTION_PX = 10;
 
 export function ClientFeedbackWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
+  const [croppedScreenshot, setCroppedScreenshot] = useState<string | null>(null);
+  const [isSelectingArea, setIsSelectingArea] = useState(false);
+  const [dragRect, setDragRect] = useState<Rect | null>(null);
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+
+  const imgRef = useRef<HTMLImageElement>(null);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+
+  const finalScreenshot = croppedScreenshot ?? screenshot;
 
   const handleOpen = async () => {
     setIsOpen(true);
     setIsCapturing(true);
     setScreenshot(null);
+    setCroppedScreenshot(null);
+    setIsSelectingArea(false);
+    setDragRect(null);
 
     try {
       // Loaded dynamically so it never affects initial page load weight —
@@ -70,7 +95,88 @@ export function ClientFeedbackWidget() {
     if (isSending) return;
     setIsOpen(false);
     setScreenshot(null);
+    setCroppedScreenshot(null);
+    setIsSelectingArea(false);
+    setDragRect(null);
     setMessage("");
+  };
+
+  const handleEnterSelectArea = () => {
+    setDragRect(null);
+    setIsSelectingArea(true);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const container = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - container.left;
+    const y = e.clientY - container.top;
+    dragStart.current = { x, y };
+    setDragRect({ x, y, w: 0, h: 0 });
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStart.current) return;
+    const container = e.currentTarget.getBoundingClientRect();
+    const curX = Math.min(Math.max(e.clientX - container.left, 0), container.width);
+    const curY = Math.min(Math.max(e.clientY - container.top, 0), container.height);
+    const { x: startX, y: startY } = dragStart.current;
+    setDragRect({
+      x: Math.min(startX, curX),
+      y: Math.min(startY, curY),
+      w: Math.abs(curX - startX),
+      h: Math.abs(curY - startY),
+    });
+  };
+
+  const handlePointerUp = () => {
+    dragStart.current = null;
+  };
+
+  const handleCancelSelectArea = () => {
+    setIsSelectingArea(false);
+    setDragRect(null);
+  };
+
+  const handleConfirmSelectArea = () => {
+    const img = imgRef.current;
+    if (!img || !dragRect || dragRect.w < MIN_SELECTION_PX || dragRect.h < MIN_SELECTION_PX) {
+      toast.error("Drag a bigger area to select.");
+      return;
+    }
+
+    // Displayed image size can differ from its captured pixel resolution
+    // (it's shown scaled to fit the modal) — scale the drag rect from
+    // displayed coordinates back to the image's natural pixel coordinates
+    // before cropping.
+    const scaleX = img.naturalWidth / img.clientWidth;
+    const scaleY = img.naturalHeight / img.clientHeight;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = dragRect.w * scaleX;
+    canvas.height = dragRect.h * scaleY;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(
+      img,
+      dragRect.x * scaleX,
+      dragRect.y * scaleY,
+      dragRect.w * scaleX,
+      dragRect.h * scaleY,
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+    setCroppedScreenshot(canvas.toDataURL("image/jpeg", 0.7));
+    setIsSelectingArea(false);
+    setDragRect(null);
+  };
+
+  const handleUseFullScreen = () => {
+    setCroppedScreenshot(null);
   };
 
   const handleSend = async () => {
@@ -80,7 +186,7 @@ export function ClientFeedbackWidget() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          screenshot,
+          screenshot: finalScreenshot,
           message,
           pageUrl: typeof window !== "undefined" ? window.location.href : "",
         }),
@@ -90,6 +196,7 @@ export function ClientFeedbackWidget() {
       toast.success("Thanks! We've got it and will take a look.");
       setIsOpen(false);
       setScreenshot(null);
+      setCroppedScreenshot(null);
       setMessage("");
     } catch (err) {
       console.error("Failed to send feedback:", err);
@@ -101,7 +208,7 @@ export function ClientFeedbackWidget() {
 
   return (
     <>
-      {/* Floating trigger — always visible, bottom-right, every client page */}
+      {/* Floating trigger — always visible, bottom-right, every page */}
       <button
         type="button"
         data-feedback-widget-ignore
@@ -119,7 +226,7 @@ export function ClientFeedbackWidget() {
         <div
           data-feedback-widget-ignore
           className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/40 p-4"
-          onClick={handleClose}
+          onClick={isSelectingArea ? undefined : handleClose}
         >
           <div
             className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
@@ -127,55 +234,128 @@ export function ClientFeedbackWidget() {
           >
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-bold">Report a Problem</h3>
-              <button
-                type="button"
-                onClick={handleClose}
-                disabled={isSending}
-                className="text-muted-foreground hover:text-foreground disabled:opacity-40"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Screenshot preview — always shown so they can see exactly what we'll get */}
-            <div className="mb-3 overflow-hidden rounded-lg border bg-muted aspect-video flex items-center justify-center">
-              {isCapturing ? (
-                <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                  <span className="text-xs">Capturing screenshot...</span>
-                </div>
-              ) : screenshot ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={screenshot}
-                  alt="Screenshot preview"
-                  className="w-full h-full object-cover object-top"
-                />
-              ) : (
-                <span className="text-xs text-muted-foreground px-4 text-center">
-                  No screenshot — we'll still send your note.
-                </span>
+              {!isSelectingArea && (
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  disabled={isSending}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               )}
             </div>
 
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="What went wrong? (optional)"
-              className="mb-4 min-h-[80px] text-base"
-              disabled={isSending}
-              autoFocus
-            />
+            {isSelectingArea && screenshot ? (
+              <>
+                <div
+                  className="relative mb-3 select-none touch-none overflow-hidden rounded-lg border"
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    ref={imgRef}
+                    src={screenshot}
+                    alt="Select an area"
+                    className="w-full h-auto block pointer-events-none"
+                    draggable={false}
+                  />
+                  {dragRect && (
+                    <div
+                      className="absolute border-2 border-[#0073EA] bg-[#0073EA]/10"
+                      style={{
+                        left: dragRect.x,
+                        top: dragRect.y,
+                        width: dragRect.w,
+                        height: dragRect.h,
+                      }}
+                    />
+                  )}
+                </div>
+                <p className="mb-3 text-xs text-muted-foreground text-center">
+                  Drag to select the area to include
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={handleCancelSelectArea}>
+                    Cancel
+                  </Button>
+                  <Button className="flex-1" onClick={handleConfirmSelectArea}>
+                    Use Selection
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Screenshot preview — always shown so they can see exactly what we'll get */}
+                <div className="mb-2 overflow-hidden rounded-lg border bg-muted aspect-video flex items-center justify-center">
+                  {isCapturing ? (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="text-xs">Capturing screenshot...</span>
+                    </div>
+                  ) : finalScreenshot ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={finalScreenshot}
+                      alt="Screenshot preview"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground px-4 text-center">
+                      No screenshot — we'll still send your note.
+                    </span>
+                  )}
+                </div>
 
-            <Button
-              onClick={handleSend}
-              disabled={isSending || isCapturing}
-              className="w-full h-11 text-base font-semibold"
-            >
-              {isSending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {isSending ? "Sending..." : "Send"}
-            </Button>
+                {screenshot && !isCapturing && (
+                  <div className="mb-3 flex gap-2">
+                    <Button
+                      type="button"
+                      variant={!croppedScreenshot ? "secondary" : "outline"}
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={handleUseFullScreen}
+                      disabled={isSending}
+                    >
+                      <Maximize2 className="h-3.5 w-3.5 mr-1" />
+                      Full Screen
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={croppedScreenshot ? "secondary" : "outline"}
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={handleEnterSelectArea}
+                      disabled={isSending}
+                    >
+                      <Crop className="h-3.5 w-3.5 mr-1" />
+                      Select Area
+                    </Button>
+                  </div>
+                )}
+
+                <Textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="What went wrong? (optional)"
+                  className="mb-4 min-h-[80px] text-base"
+                  disabled={isSending}
+                  autoFocus
+                />
+
+                <Button
+                  onClick={handleSend}
+                  disabled={isSending || isCapturing}
+                  className="w-full h-11 text-base font-semibold"
+                >
+                  {isSending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  {isSending ? "Sending..." : "Send"}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
