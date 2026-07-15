@@ -72,12 +72,26 @@ export function ClientFeedbackWidget() {
       const dataUrl = await domToJpeg(document.body, {
         quality: 0.7,
         backgroundColor: "#ffffff",
-        scale: Math.min(window.devicePixelRatio || 1, 1.5),
+        // Capped at 1: this is a bug-report thumbnail, not a print asset —
+        // going higher roughly quadruples canvas rasterization cost for no
+        // visible benefit at the JPEG quality/size we send.
+        scale: 1,
         width: window.innerWidth,
         height: window.innerHeight,
+        // Bug-report screenshots don't need pixel-exact type. Font embedding
+        // was the single biggest lag source: it walks every font-family found
+        // in the DOM and fetches + base64-encodes each weight/variant on the
+        // main thread before the capture can even start.
+        font: false,
+        // Cap how long a single stuck image/video load can stall the capture.
+        timeout: 4000,
         filter: (node) => {
-          if (node instanceof Element && node.hasAttribute("data-feedback-widget-ignore")) {
-            return false;
+          if (node instanceof Element) {
+            if (node.hasAttribute("data-feedback-widget-ignore")) return false;
+            // Video/iframe embeds (e.g. YouTube Studio) are expensive to
+            // decode/clone and add nothing readable to a bug screenshot.
+            const tag = node.tagName;
+            if (tag === "VIDEO" || tag === "IFRAME") return false;
           }
           return true;
         },
@@ -265,12 +279,17 @@ export function ClientFeedbackWidget() {
                   />
                   {dragRect && (
                     <div
-                      className="absolute border-2 border-[#0073EA] bg-[#0073EA]/10"
+                      // box-shadow spread dims everything outside the rect (clipped by
+                      // the container's overflow-hidden) — a thin border alone was
+                      // nearly invisible against screenshots that are mostly this same
+                      // blue brand color.
+                      className="absolute pointer-events-none border-2 border-white outline outline-2 outline-[#0073EA]"
                       style={{
                         left: dragRect.x,
                         top: dragRect.y,
                         width: dragRect.w,
                         height: dragRect.h,
+                        boxShadow: "0 0 0 9999px rgba(0,0,0,0.5)",
                       }}
                     />
                   )}
