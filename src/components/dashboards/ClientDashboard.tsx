@@ -134,10 +134,6 @@ const persistClientResult = async ({
     metaBody.clientResult = "APPROVED";
     metaBody.route = "scheduler";
     if (feedback) metaBody.clientFeedback = feedback;
-    // 🔥 Batch-send the three posting-content lists on approve
-    if (postingTitles !== undefined) metaBody.postingTitles = postingTitles;
-    if (postingDescriptions !== undefined) metaBody.postingDescriptions = postingDescriptions;
-    if (postingTags !== undefined) metaBody.postingTags = postingTags;
   } else {
     // Client requested revisions → Send back to Editor
     // Use REJECTED as the valid TaskStatus
@@ -150,6 +146,13 @@ const persistClientResult = async ({
       metaBody.feedback = feedback; // Ensure the API recognizes this as the primary feedback field
     }
   }
+
+  // 🔥 Batch-send the three posting-content lists on every status update
+  // (approve AND revision-request) — titles/descriptions/tags must survive
+  // revision rounds and only disappear via manual delete in the review UI.
+  if (postingTitles !== undefined) metaBody.postingTitles = postingTitles;
+  if (postingDescriptions !== undefined) metaBody.postingDescriptions = postingDescriptions;
+  if (postingTags !== undefined) metaBody.postingTags = postingTags;
 
   const res = await fetch(`/api/tasks/${taskId}/status`, {
     method: "PATCH",
@@ -393,6 +396,9 @@ export function ClientDashboard() {
         taskId: selectedTask.id,
         approved: false,
         feedback: revisionNotes,
+        postingTitles,
+        postingDescriptions,
+        postingTags,
       });
 
       // Update task status or keep it?
@@ -476,6 +482,9 @@ export function ClientDashboard() {
         taskId: selectedTask.id,
         approved: false,
         feedback: notes,
+        postingTitles,
+        postingDescriptions,
+        postingTags,
       });
 
       // Remove task from list - Revision requested tasks should disappear as they go back to the editor
@@ -543,6 +552,9 @@ export function ClientDashboard() {
         taskId: selectedTask.id,
         approved: false,
         feedback: notes,
+        postingTitles,
+        postingDescriptions,
+        postingTags,
       });
 
       refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });

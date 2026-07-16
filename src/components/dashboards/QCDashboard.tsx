@@ -195,7 +195,9 @@ const persistQCResult = async ({
 
   metaBody.status = newStatus;
 
-  // 🔥 Batch-send posting content lists on approve
+  // 🔥 Batch-send posting content lists on every status update (approve AND
+  // send-back-to-editor) — titles/descriptions/tags must survive revision
+  // rounds and only disappear via manual delete in the review UI.
   if (postingTitles !== undefined) metaBody.postingTitles = postingTitles;
   if (postingDescriptions !== undefined) metaBody.postingDescriptions = postingDescriptions;
   if (postingTags !== undefined) metaBody.postingTags = postingTags;
@@ -418,6 +420,9 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
         taskId: selectedTask.id,
         approved: false,
         feedback: notes,
+        postingTitles: qcPostingTitles,
+        postingDescriptions: qcPostingDescriptions,
+        postingTags: qcPostingTags,
       });
 
       setQCTasks((prev) =>
@@ -533,6 +538,9 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
         taskId: selectedTask.id,
         approved: false,
         feedback: notes,
+        postingTitles: qcPostingTitles,
+        postingDescriptions: qcPostingDescriptions,
+        postingTags: qcPostingTags,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       toast('📝 Revisions Requested', { description: 'Feedback has been sent back to the editor.' });
