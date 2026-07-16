@@ -29,6 +29,16 @@ function formatMeetingDate(date: Date) {
   });
 }
 
+// client.driveFolderId isn't reliably a real Google Drive folder ID — for some
+// clients it holds something else entirely (their S3/R2 path, e.g. "Testing Client/").
+// Same guard used in src/app/api/admin/tasks/[id]/drive-mirror/route.ts and
+// src/lib/upload-worker.ts — Drive folder IDs are long alphanumeric strings with
+// no slashes, so anything shorter or slash-containing gets treated as absent.
+function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
+  if (!value) return false;
+  return /^[a-zA-Z0-9_-]{25,}$/.test(value);
+}
+
 /**
  * Copies the shared meeting-notes template into a client's Drive folder
  * (if the client has one) and records it as a new MeetingNote row.
@@ -48,7 +58,7 @@ export async function createMeetingNotesDoc(clientId: string, meetingDate: Date 
     fileId: templateId,
     requestBody: {
       name: title,
-      ...(client.driveFolderId ? { parents: [client.driveFolderId] } : {}),
+      ...(isLikelyGoogleDriveFolderId(client.driveFolderId) ? { parents: [client.driveFolderId] } : {}),
     },
     fields: "id, webViewLink",
   });
