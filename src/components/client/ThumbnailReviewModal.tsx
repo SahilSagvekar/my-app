@@ -138,6 +138,8 @@ export function ThumbnailReviewModal({
             if (data.feedback) {
                 const fileFeedback = data.feedback
                     .filter((fb: any) => fb.fileId === fileId)
+                    // QC sees every comment; clients only see comments they authored themselves.
+                    .filter((fb: any) => userRole !== 'client' || String(fb.user?.id || 0) === String(user?.id || 0))
                     .map((fb: any) => ({
                         id: fb.id,
                         taskId,

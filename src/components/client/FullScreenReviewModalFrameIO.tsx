@@ -470,8 +470,14 @@ export function FullScreenReviewModalFrameIO({
         setShowCommentInput(false);
 
         if ((asset as any).taskFeedback) {
+            // QC sees every comment. Clients only see comments they authored themselves —
+            // QC notes (and other clients' notes) stay hidden from the client view.
+            const visibleFeedback = isClientViewer
+                ? (asset as any).taskFeedback.filter((fb: any) => String(fb.user?.id || 0) === viewerAuthorId)
+                : (asset as any).taskFeedback;
+
             setComments(
-                (asset as any).taskFeedback.map((fb: any) => {
+                visibleFeedback.map((fb: any) => {
                     const ts = fb.timestamp || '0:00';
                     const parts = ts.split(':');
                     const tsSeconds = parts.length === 2 ? parseInt(parts[0]) * 60 + parseInt(parts[1]) : 0;
