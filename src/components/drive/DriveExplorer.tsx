@@ -78,6 +78,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import MeetingNotesPanel from "../admin/MeetingNotesPanel";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -177,6 +185,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   // Folder creation states
   const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
+  const [showMeetingNotesSheet, setShowMeetingNotesSheet] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
 
@@ -1607,6 +1616,21 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         />
       )}
 
+      {/* Meeting Notes Sheet — admin only, scoped to whichever client's folder is open */}
+      <Sheet open={showMeetingNotesSheet} onOpenChange={setShowMeetingNotesSheet}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Meeting Notes{effectiveCompanyName ? ` — ${effectiveCompanyName}` : ''}</SheetTitle>
+            <SheetDescription>
+              Start this week's notes doc before your call, then send a copy to the client once it's done.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            {effectiveClientId && <MeetingNotesPanel clientId={effectiveClientId} />}
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Main Content Area */}
       <div className="relative flex-1 flex flex-col min-w-0">
         {isMoving && (
@@ -1715,6 +1739,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               >
                 <Folder className="h-4 w-4" />
                 <span className="hidden sm:inline font-medium">New Folder</span>
+              </Button>
+            )}
+
+            {/* Meeting Notes Button — admin only, shown once we're inside a specific client's folder */}
+            {role === 'admin' && effectiveClientId && (
+              <Button
+                variant="outline"
+                className="gap-2 shrink-0 h-10 px-4"
+                onClick={() => setShowMeetingNotesSheet(true)}
+              >
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline font-medium">Meeting Notes</span>
               </Button>
             )}
 
