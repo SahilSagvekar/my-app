@@ -350,6 +350,7 @@ model Client {
   brandAssets                  BrandAsset[]
   user                         User?                     @relation(fields: [userId], references: [id])
   portalAccess                 ClientPortalAccess?
+  meetingNotes                 MeetingNote[]
   revenues                     ClientRevenue[]
   editorClientPermissions      EditorClientPermission[]  @relation("EditorClientPerms")
   facebookPages                FacebookPage[]
@@ -1951,6 +1952,24 @@ enum HiringTestTaskStatus {
   IN_REVIEW
   APPROVED
   REJECTED
+}
+
+model MeetingNote {
+  id          String    @id @default(cuid())
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id])
+  driveDocId  String
+  driveDocUrl String
+  title       String
+  meetingDate DateTime
+  status      String    @default("draft") // draft | sent
+  sentAt      DateTime?
+  sentBy      String?
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([clientId])
 }
 
 // Editor hiring pipeline: candidate DB -> emailed test task (token link,
