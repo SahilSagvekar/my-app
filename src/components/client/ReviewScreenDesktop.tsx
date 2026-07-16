@@ -7,6 +7,7 @@ import { Card, CardContent } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import {
     Tooltip,
     TooltipContent,
@@ -139,10 +140,13 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     // inline-edit state: which item id is currently being edited, per type
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState('');
-    // new-item input per list type
+    // new-item input per list type (titles still uses the add-button list UI)
     const [newTexts, setNewTexts] = useState({ titles: '', descriptions: '', tags: '' });
+    // freeform tags textbox — local string so commas/newlines aren't eaten mid-type;
+    // parsed into p.postingTags on every change
+    const [tagsText, setTagsText] = useState(() => p.postingTags.map(t => t.text).join(', '));
 
-    // caps per type
+    // caps per type (titles only now — descriptions/tags are freeform boxes)
     const CAPS = { titles: 3, descriptions: 3, tags: 10 };
 
     const addItem = (type: 'titles'|'descriptions'|'tags') => {
@@ -186,6 +190,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setNewTexts({ titles: '', descriptions: '', tags: '' });
         setEditingId(null);
         setEditingText('');
+        setTagsText(p.postingTags.map(t => t.text).join(', '));
     };
 
     const { visibleComments, hasMoreComments } = useMemo(() => {
@@ -269,11 +274,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     )} */}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                    <span className="text-sm text-[var(--review-text-muted)]">
+                                    <span className="text-sm text-white">
                                         {p.duration > 0 ? p.formatTime(p.duration) : p.asset.runtime}
                                     </span>
-                                    <span className="text-[var(--review-text-muted)]">•</span>
-                                    <span className="text-sm text-[var(--review-text-muted)]">{p.measuredResolution || p.asset.resolution}</span>
+                                    <span className="text-white">•</span>
+                                    <span className="text-sm text-white">{p.measuredResolution || p.asset.resolution}</span>
                                 </div>
                                 {/*
                                     Internet speed / recommendation indicator hidden for now.
@@ -306,7 +311,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-yellow-400 hover:text-yellow-400 hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
                                         <Info className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
@@ -315,7 +320,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={p.handleDownload} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                    <Button variant="ghost" size="sm" onClick={p.handleDownload} className="text-white hover:text-white bg-blue-600 hover:bg-blue-700 h-8 w-8 p-0">
                                         <Download className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
@@ -344,7 +349,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             variant="ghost"
                                             size="sm"
                                             onClick={p.onSwitchToThumbnail}
-                                            className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 px-2 gap-1.5"
+                                            className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
                                         >
                                             <ImageIcon className="h-4 w-4" />
                                             <span className="text-xs hidden sm:inline">Thumbnails</span>
@@ -629,7 +634,56 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         tags: { singular: 'tag', placeholder: 'Add a tag…' },
                                     };
                                     const { singular, placeholder } = labels[type];
-                                    
+
+                                    // ── DESCRIPTIONS & TAGS: single freeform textbox — no add button, no cap ──
+                                    if (type === 'descriptions' || type === 'tags') {
+                                        const isTags = type === 'tags';
+                                        return (
+                                            <div key={type} className="border-b border-[var(--review-border)] last:border-0 pb-4 mb-2 last:mb-0">
+                                                <div className="p-3 pb-1 sticky top-0 bg-[var(--review-bg-secondary)] z-10 border-b border-[var(--review-border)]/50">
+                                                    <span className="text-xs font-semibold text-white capitalize">{type}</span>
+                                                </div>
+                                                <div className="px-3 pt-2">
+                                                    {isTags ? (
+                                                        <Textarea
+                                                            value={tagsText}
+                                                            onChange={e => {
+                                                                const raw = e.target.value;
+                                                                setTagsText(raw);
+                                                                const items = raw
+                                                                    .split(/[,\n]/)
+                                                                    .map(t => t.trim())
+                                                                    .filter(Boolean)
+                                                                    .map(text => ({ id: `${Date.now()}-${Math.random()}`, text }));
+                                                                p.onPostingTagsChange(items);
+                                                            }}
+                                                            placeholder="Add tags, separated by commas…"
+                                                            rows={3}
+                                                            className="text-xs bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] resize-y"
+                                                        />
+                                                    ) : (
+                                                        <Textarea
+                                                            value={p.postingDescriptions[0]?.text ?? ''}
+                                                            onChange={e => {
+                                                                const text = e.target.value;
+                                                                if (!text.trim()) {
+                                                                    p.onPostingDescriptionsChange([]);
+                                                                } else if (p.postingDescriptions.length === 0) {
+                                                                    p.onPostingDescriptionsChange([{ id: `${Date.now()}-${Math.random()}`, text }]);
+                                                                } else {
+                                                                    p.onPostingDescriptionsChange([{ ...p.postingDescriptions[0], text }]);
+                                                                }
+                                                            }}
+                                                            placeholder={placeholder}
+                                                            rows={5}
+                                                            className="text-xs bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] resize-y"
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
                                     return (
                                         <div key={type} className="border-b border-[var(--review-border)] last:border-0 pb-4 mb-2 last:mb-0">
                                             <div className="p-3 pb-1 space-y-2 sticky top-0 bg-[var(--review-bg-secondary)] z-10 border-b border-[var(--review-border)]/50">

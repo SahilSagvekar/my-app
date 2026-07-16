@@ -104,8 +104,8 @@ export const ReviewTimeline = memo(function ReviewTimeline({
             <div className="relative flex-1 h-2 flex items-center">
                 {/* Time Display at the top */}
                 <div className="flex justify-between w-full absolute -top-5 left-0 pointer-events-none">
-                    <span className="text-[10px] text-[var(--review-text-muted)] font-mono">{formatTime(currentTime)}</span>
-                    <span className="text-[10px] text-[var(--review-text-muted)] font-mono">{formatTime(duration)}</span>
+                    <span className="text-[10px] text-white font-mono">{formatTime(currentTime)}</span>
+                    <span className="text-[10px] text-white font-mono">{formatTime(duration)}</span>
                 </div>
 
                 {/* Comment Markers */}
