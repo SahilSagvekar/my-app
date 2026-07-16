@@ -38,6 +38,75 @@ const addGlobalBcc = (mailOptions: any) => {
   return mailOptions;
 };
 
+
+export async function sendMeetingNotesEmail(data: {
+  to: string;
+  cc?: string[];
+  clientName: string;
+  meetingDate: Date;
+  pdfBuffer: Buffer;
+  docTitle: string;
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log(`📧 [DEV] Meeting notes for ${data.clientName} would be sent to ${data.to}`);
+    return { success: true, debug: true };
+  }
+
+  const dateLabel = data.meetingDate.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const mailOptions = {
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: data.to,
+    cc: data.cc && data.cc.length > 0 ? data.cc : undefined,
+    subject: `Meeting Notes — ${data.clientName} — ${dateLabel}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f1f5f9; }
+            .container { max-width: 600px; margin: 0 auto; padding: 30px 20px; }
+            .header { background: #0073EA; color: white; padding: 24px 30px; border-radius: 16px 16px 0 0; }
+            .content { background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h2 style="margin: 0;">Meeting Notes</h2>
+            </div>
+            <div class="content">
+              <p>Hi ${data.clientName},</p>
+              <p>Attached are the notes from our meeting on ${dateLabel}.</p>
+              <p>Let us know if you have any questions.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+    attachments: [
+      {
+        filename: `${data.docTitle}.pdf`,
+        content: data.pdfBuffer,
+      },
+    ],
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Meeting notes email sent to ${data.to} (${data.clientName})`);
+    return { success: true };
+  } catch (error) {
+    console.error(`❌ Failed to send meeting notes email:`, error);
+    return { success: false, error: (error as any).message };
+  }
+}
+
 export async function sendOTPEmail(email: string, otp: string) {
   const transporter = createTransporter();
 
