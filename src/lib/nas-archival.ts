@@ -1,18 +1,23 @@
 // src/lib/nas-archival.ts
 // Monthly output-folder sweep: once a task's output month is more than 2
 // calendar months old and the task is finalized, verify the file is really
-// present on the NAS (real filesystem check against the mounted NAS volume —
-// not just the `archivedToNas` flag, which is bulk-set by the daily webhook
-// in src/app/api/nas/backup-complete/route.ts without per-file verification)
-// and only then delete the R2 copy. Raw footage is never touched here.
+// present on the NAS (real check against the NAS's MinIO S3 API over
+// Tailscale — not just the `archivedToNas` flag, which is bulk-set by the
+// daily webhook in src/app/api/nas/backup-complete/route.ts without
+// per-file verification) and only then delete the R2 copy. Raw footage is
+// never touched here.
+//
+// Previously this did an fs.existsSync() check against an NFS mount that
+// was never actually set up (NAS_MOUNT_PATH pointed at nothing on the EC2
+// host, so every file was permanently skipped). Replaced with a live
+// HeadObject call against the NAS's MinIO instance, reached over Tailscale.
+// See src/lib/nas-s3.ts for the client.
 
-import fs from 'node:fs';
-import path from 'node:path';
 import { TaskStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { deleteFromS3 } from '@/lib/s3';
+import { headObjectOnNas, NAS_BUCKET } from '@/lib/nas-s3';
 
-const NAS_MOUNT_PATH = process.env.NAS_MOUNT_PATH || '/mnt/nas/s3-backup';
 const FINALIZED_STATUSES: TaskStatus[] = [TaskStatus.COMPLETED, TaskStatus.SCHEDULED, TaskStatus.POSTED];
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -65,19 +70,17 @@ function isEligibleMonthFolder(monthFolder: string | null, cutoff: Date): boolea
   return parsed.getTime() < cutoff.getTime();
 }
 
-// Real per-file check against the NAS mount — the daily webhook's
-// `archivedToNas` flag is a blanket assumption, not a per-file guarantee.
-function verifyOnNas(s3Key: string, expectedSizeBytes: number): { ok: boolean; reason?: string } {
-  if (!fs.existsSync(NAS_MOUNT_PATH)) {
-    return { ok: false, reason: `NAS mount not found at ${NAS_MOUNT_PATH}` };
+// Real per-file check against the NAS's MinIO instance — the daily
+// webhook's `archivedToNas` flag is a blanket assumption, not a per-file
+// guarantee. This is a live API call, so it also catches size mismatches
+// (truncated/corrupt copies) the same way the old filesystem check did.
+async function verifyOnNas(s3Key: string, expectedSizeBytes: number): Promise<{ ok: boolean; reason?: string }> {
+  const head = await headObjectOnNas(s3Key);
+  if (!head.ok) {
+    return { ok: false, reason: head.reason };
   }
-  const nasFilePath = path.join(NAS_MOUNT_PATH, s3Key);
-  if (!fs.existsSync(nasFilePath)) {
-    return { ok: false, reason: 'not present on NAS' };
-  }
-  const stat = fs.statSync(nasFilePath);
-  if (stat.size !== expectedSizeBytes) {
-    return { ok: false, reason: `size mismatch (NAS ${stat.size}B vs R2 ${expectedSizeBytes}B)` };
+  if (head.sizeBytes !== undefined && head.sizeBytes !== expectedSizeBytes) {
+    return { ok: false, reason: `size mismatch (NAS ${head.sizeBytes}B vs R2 ${expectedSizeBytes}B)` };
   }
   return { ok: true };
 }
@@ -121,7 +124,7 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
     const sizeBytes = Number(file.size);
     const monthFolder = file.task.monthFolder!;
 
-    const verification = verifyOnNas(s3Key, sizeBytes);
+    const verification = await verifyOnNas(s3Key, sizeBytes);
     if (!verification.ok) {
       skippedCount++;
       results.push({
@@ -149,7 +152,7 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
           deletedFromCloudAt: new Date(),
           archivedToNas: true,
           nasArchivedAt: new Date(),
-          nasPath: NAS_MOUNT_PATH,
+          nasPath: `minio://${NAS_BUCKET}`,
         },
       });
 
@@ -171,7 +174,7 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
       data: {
         status: failedCount === 0 ? 'success' : (deletedCount > 0 ? 'partial' : 'failed'),
         completedAt: new Date(),
-        bucketName: null,
+        bucketName: NAS_BUCKET,
         paths: Array.from(monthsSwept),
         filesCount: deletedCount,
         bytesCount: BigInt(bytesFreed),

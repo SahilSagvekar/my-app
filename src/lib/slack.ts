@@ -408,61 +408,19 @@ export async function deliverSlackNotification(
       }
     }
 
-    // Fetch recent revision comments (added during this rejection)
-    let revisionComments = "";
+    // Revision comment text stays out of Slack — link back to the app instead
+    // of pulling feedback content into a public/shared channel.
     const taskId = notification.payload?.taskId;
-    if (taskId) {
-      try {
-        // Get feedback added in the last 5 minutes (likely from this rejection)
-        const recentFeedback = await prisma.taskFeedback.findMany({
-          where: {
-            taskId: taskId,
-            status: "needs_revision",
-            createdAt: {
-              gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
-            },
-          },
-          select: {
-            feedback: true,
-            folderType: true,
-            timestamp: true,
-            user: {
-              select: { name: true },
-            },
-          },
-          orderBy: { createdAt: "asc" },
-          take: 10, // Limit to 10 comments to avoid message overflow
-        });
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const revisionNote = taskId
+      ? `\n\nCheck <${appUrl}/dashboard?task=${taskId}|E8 App> for the comments.`
+      : "\n\nCheck E8 App for the comments.";
 
-        if (recentFeedback.length > 0) {
-          revisionComments = "\n\n*Revision Notes:*\n";
-          revisionComments += recentFeedback
-            .map((fb) => {
-              let comment = `• ${fb.feedback}`;
-              if (fb.timestamp) {
-                comment += ` _(at ${fb.timestamp})_`;
-              }
-              if (fb.folderType && fb.folderType !== "main") {
-                comment += ` [${fb.folderType}]`;
-              }
-              return comment;
-            })
-            .join("\n");
-          
-          console.log(
-            `[Slack Dispatch] Including ${recentFeedback.length} revision comments`
-          );
-        }
-      } catch (err) {
-        console.error("[Slack Dispatch] Failed to fetch revision comments:", err);
-      }
-    }
-
-    // Create modified notification with editor mention and revision comments
+    // Create modified notification with editor mention, no comment text
     const mentionedNotification = {
       ...notification,
       title: `${editorMention}Content Needs Revisions`,
-      body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${revisionComments}`,
+      body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${revisionNote}`,
     };
 
     // Send to client channel ONLY
