@@ -88,9 +88,19 @@ export async function createMeetingNotesDoc(clientId: string, meetingDate: Date 
  */
 export async function exportMeetingNotesPdf(driveDocId: string): Promise<Buffer> {
   const drive = getOAuthDrive();
-  const res = await drive.files.export(
-    { fileId: driveDocId, mimeType: "application/pdf" },
-    { responseType: "arraybuffer" }
-  );
-  return Buffer.from(res.data as ArrayBuffer);
+  try {
+    const res = await drive.files.export(
+      { fileId: driveDocId, mimeType: "application/pdf" },
+      { responseType: "arraybuffer" }
+    );
+    return Buffer.from(res.data as ArrayBuffer);
+  } catch (err: any) {
+    const googleReason =
+      err?.errors?.[0]?.reason ||
+      err?.response?.data?.error?.errors?.[0]?.reason ||
+      err?.response?.data?.error?.message ||
+      err?.message;
+    console.error(`❌ [Meeting Notes] Drive export failed for ${driveDocId} (status ${err?.code}): ${googleReason}`);
+    throw new Error(`Failed to export meeting notes as PDF: ${googleReason || "unknown Drive error"}`);
+  }
 }
