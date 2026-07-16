@@ -101,6 +101,15 @@ export async function exportMeetingNotesPdf(driveDocId: string): Promise<Buffer>
       err?.response?.data?.error?.message ||
       err?.message;
     console.error(`❌ [Meeting Notes] Drive export failed for ${driveDocId} (status ${err?.code}): ${googleReason}`);
+
+    if (googleReason === "fileNotExportable") {
+      throw new Error(
+        "The meeting notes template isn't a native Google Doc (it looks like an uploaded Word file kept in " +
+        "Office format), so it can't be exported to PDF. Open the template in Drive, use File → Save as Google " +
+        "Docs, and update MEETING_NOTES_TEMPLATE_ID to the new file's ID."
+      );
+    }
+
     throw new Error(`Failed to export meeting notes as PDF: ${googleReason || "unknown Drive error"}`);
   }
 }
