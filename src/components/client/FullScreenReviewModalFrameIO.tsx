@@ -259,6 +259,15 @@ export function FullScreenReviewModalFrameIO({
         return filtered.sort((a, b) => a.timestampSeconds - b.timestampSeconds);
     }, [comments, isClientViewer, viewerAuthorId, currentVersionNumber]);
 
+    // All comments left by clients, across every version — feeds the
+    // "Client comments" dropdown so nothing gets lost when switching versions.
+    const allClientComments = useMemo(
+        () => [...comments]
+            .filter(c => c.authorRole === 'client')
+            .sort((a, b) => a.timestampSeconds - b.timestampSeconds),
+        [comments],
+    );
+
     /* ── UI state ── */
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
@@ -470,14 +479,8 @@ export function FullScreenReviewModalFrameIO({
         setShowCommentInput(false);
 
         if ((asset as any).taskFeedback) {
-            // QC sees every comment. Clients only see comments they authored themselves —
-            // QC notes (and other clients' notes) stay hidden from the client view.
-            const visibleFeedback = isClientViewer
-                ? (asset as any).taskFeedback.filter((fb: any) => String(fb.user?.id || 0) === viewerAuthorId)
-                : (asset as any).taskFeedback;
-
             setComments(
-                visibleFeedback.map((fb: any) => {
+                (asset as any).taskFeedback.map((fb: any) => {
                     const ts = fb.timestamp || '0:00';
                     const parts = ts.split(':');
                     const tsSeconds = parts.length === 2 ? parseInt(parts[0]) * 60 + parseInt(parts[1]) : 0;
@@ -486,6 +489,7 @@ export function FullScreenReviewModalFrameIO({
                         taskId: asset.id,
                         authorId: String(fb.user?.id || 0),
                         authorName: fb.user?.name || 'Member',
+                        authorRole: fb.user?.role || undefined,
                         content: fb.feedback,
                         timestamp: ts,
                         timestampSeconds: tsSeconds,
@@ -665,7 +669,13 @@ export function FullScreenReviewModalFrameIO({
 
     /* ── Comment handlers ── */
     const handleCommentSubmit = async (comment: Omit<ReviewComment, 'id' | 'createdAt'>) => {
-        const newComment: ReviewComment = { ...comment, id: Date.now().toString(), createdAt: new Date(), version: currentVersionNumber };
+        const newComment: ReviewComment = {
+            ...comment,
+            authorRole: comment.authorRole ?? userRole,
+            id: Date.now().toString(),
+            createdAt: new Date(),
+            version: currentVersionNumber,
+        };
         setComments(prev => [...prev, newComment]);
         setShowCommentInput(false);
     };
@@ -707,6 +717,18 @@ export function FullScreenReviewModalFrameIO({
         const c = comments.find(c => c.timestampSeconds === ts);
         if (c) setActiveCommentId(c.id);
     }, [comments, handleSeek]);
+
+    // Jumping to a client comment from the "all versions" dropdown may require
+    // switching versions first, since each version is a separate video source.
+    const handleJumpToClientComment = useCallback((comment: ReviewComment) => {
+        const targetVersionNumber = comment.version ?? 1;
+        if (targetVersionNumber !== currentVersionNumber) {
+            const targetVersion = asset?.versions.find(v => Number(v.number) === targetVersionNumber);
+            if (targetVersion) handleVersionChange(targetVersion.id);
+        }
+        handleSeek(comment.timestampSeconds);
+        setActiveCommentId(comment.id);
+    }, [asset?.versions, currentVersionNumber, handleVersionChange, handleSeek]);
 
     const handleMarkerClick = useCallback((comment: ReviewComment) => {
         handleSeek(comment.timestampSeconds);
@@ -993,6 +1015,7 @@ export function FullScreenReviewModalFrameIO({
         isDragging,
         comments,
         sortedComments,
+        allClientComments,
         activeCommentId,
         showCommentInput,
         isOptimizing,
@@ -1019,6 +1042,7 @@ export function FullScreenReviewModalFrameIO({
         handleVersionChange,
         handleMarkerClick,
         handleTimestampClick,
+        onJumpToClientComment: handleJumpToClientComment,
         handleCommentSubmit,
         handleCommentResolve,
         handleCommentDelete,

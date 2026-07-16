@@ -7,6 +7,7 @@ export interface ReviewComment {
     authorId: string;
     authorName: string;
     authorAvatar?: string;
+    authorRole?: string; // e.g. 'client', 'qc', 'admin' — used to filter client-only comments
     timestamp: string; // Video timestamp formatted "1:23"
     timestampSeconds: number; // Video timestamp in seconds
     endTimestamp?: string; // Optional end timestamp for ranges "1:28"

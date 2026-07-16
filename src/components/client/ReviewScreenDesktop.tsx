@@ -9,6 +9,14 @@ import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+} from '../ui/dropdown-menu';
+import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
@@ -61,6 +69,7 @@ export interface ReviewScreenProps {
     /* review state */
     comments: ReviewComment[];
     sortedComments: ReviewComment[];
+    allClientComments: ReviewComment[];
     activeCommentId: string | undefined;
     showCommentInput: boolean;
     confirmFinal: boolean;
@@ -93,6 +102,7 @@ export interface ReviewScreenProps {
     handleVersionChange: (id: string) => void;
     handleMarkerClick: (c: ReviewComment) => void;
     handleTimestampClick: (ts: number) => void;
+    onJumpToClientComment: (c: ReviewComment) => void;
 
     /* review handlers */
     handleCommentSubmit: (c: Omit<ReviewComment, 'id' | 'createdAt'>) => void;
@@ -339,6 +349,45 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     </TooltipTrigger>
                                     <TooltipContent side="bottom">Share link</TooltipContent>
                                 </Tooltip>
+                            )}
+
+                            {/* 💬 All client comments, across every version — only shown if a client has commented */}
+                            {p.allClientComments.length > 0 && (
+                                <DropdownMenu>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="sm" className="relative text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                                    <MessageSquare className="h-4 w-4" />
+                                                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                                                        {p.allClientComments.length}
+                                                    </span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">Client comments — all versions</TooltipContent>
+                                    </Tooltip>
+                                    <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
+                                        <DropdownMenuLabel className="text-white text-xs">
+                                            Client comments — all versions
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuSeparator className="bg-[var(--review-border)]" />
+                                        {p.allClientComments.map(comment => (
+                                            <DropdownMenuItem
+                                                key={comment.id}
+                                                onClick={() => p.onJumpToClientComment(comment)}
+                                                className="flex flex-col items-start gap-0.5 whitespace-normal text-[var(--review-text-secondary)] focus:bg-[var(--review-bg-tertiary)] focus:text-white cursor-pointer"
+                                            >
+                                                <div className="flex items-center gap-2 w-full">
+                                                    <span className="text-xs font-semibold text-white truncate">{comment.authorName}</span>
+                                                    <Badge className="bg-[var(--review-bg-tertiary)] text-[10px] px-1.5 py-0 shrink-0">V{comment.version ?? 1}</Badge>
+                                                    <span className="text-[10px] text-[var(--review-text-muted)] ml-auto shrink-0">{comment.timestamp}</span>
+                                                </div>
+                                                <p className="text-xs leading-snug break-words">{comment.content}</p>
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             )}
 
                             {/* 🖼️ Switch to thumbnail review — only shown when the task has thumbnails */}
