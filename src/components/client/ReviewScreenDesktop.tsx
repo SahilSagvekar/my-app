@@ -299,6 +299,24 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                         {/* Right */}
                         <div className="flex items-center gap-2">
+                            {/* 🖼️ Switch to thumbnail review — only shown when the task has thumbnails */}
+                            {p.onSwitchToThumbnail && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={p.onSwitchToThumbnail}
+                                            className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
+                                        >
+                                            <ImageIcon className="h-4 w-4" />
+                                            <span className="text-xs hidden sm:inline">Thumbnails</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">Switch to Thumbnail Review</TooltipContent>
+                                </Tooltip>
+                            )}
+
                             {/* Version selector */}
                             {p.asset.versions.length > 1 ? (
                                 <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
@@ -318,15 +336,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     v{p.asset.versions[0]?.number || '1'}
                                 </Badge>
                             )}
-
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-yellow-400 hover:text-yellow-400 hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
-                                        <Info className="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">Asset info</TooltipContent>
-                            </Tooltip>
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -390,23 +399,14 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 </DropdownMenu>
                             )}
 
-                            {/* 🖼️ Switch to thumbnail review — only shown when the task has thumbnails */}
-                            {p.onSwitchToThumbnail && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={p.onSwitchToThumbnail}
-                                            className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
-                                        >
-                                            <ImageIcon className="h-4 w-4" />
-                                            <span className="text-xs hidden sm:inline">Thumbnails</span>
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom">Switch to Thumbnail Review</TooltipContent>
-                                </Tooltip>
-                            )}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-yellow-400 hover:text-yellow-400 hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                        <Info className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Asset info</TooltipContent>
+                            </Tooltip>
 
                             {/* 📱 Switch to mobile view */}
                             <Tooltip>
@@ -423,7 +423,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 <TooltipContent side="bottom">Switch to Mobile View</TooltipContent>
                             </Tooltip>
 
-                            <Button variant="ghost" size="sm" onClick={() => p.onOpenChange(false)} className="text-red-500 hover:text-red-400 hover:bg-red-500/10 h-8 w-8 p-0">
+                            <Button variant="ghost" size="sm" onClick={() => p.onOpenChange(false)} className="text-black hover:text-black bg-red-500 hover:bg-red-600 h-8 w-8 p-0">
                                 <X className="h-4 w-4" />
                             </Button>
                         </div>
@@ -835,8 +835,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 <>
                                     <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}>
                                         {p.requiresClientReview
-                                            ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Client</>
-                                            : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Scheduler</>
+                                            ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve</>
+                                            : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve</>
                                         }
                                     </Button>
                                     <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={unresolvedCount === 0 || p.savingFeedback}>
@@ -860,7 +860,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         </label>
                                     </div>
                                     <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={!p.confirmFinal || p.asset.approvalLocked || unresolvedCount > 0}>
-                                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />Approve &amp; Send to Scheduler
+                                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />Approve
                                     </Button>
                                     <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0}>
                                         <MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Request Revisions
