@@ -13,6 +13,7 @@ export type SlackScheduledJobKey =
   | "attendance_export_reminder_am"
   | "attendance_export_reminder_pm"
   | "editor_file_naming_reminder"
+  | "editor_friday_meeting_reminder"
   | "tdbs_filming_reminder";
 
 export interface SlackScheduledJobDefinition {
@@ -98,6 +99,14 @@ export const SLACK_SCHEDULED_JOBS: SlackScheduledJobDefinition[] = [
       "Example: CoinLaundryAssociation_04-01-2026_SF3",
     ].join("\n"),
     enabledEnvVar: "SLACK_EDITOR_FILE_NAMING_REMINDER_ENABLED",
+  },
+  {
+    key: "editor_friday_meeting_reminder",
+    name: "Slack Editor Friday Meeting Reminder",
+    schedule: "0 10 * * 5",
+    channel: "editors",
+    message: "Reminder: today is our weekly editors meeting. See you there!",
+    enabledEnvVar: "SLACK_EDITOR_FRIDAY_MEETING_REMINDER_ENABLED",
   },
   {
     key: "tdbs_filming_reminder",

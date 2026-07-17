@@ -28,6 +28,18 @@ interface ScheduledPost {
   driveUrl?: string;
 }
 
+function isHardPostTask(task: any): boolean {
+  const type = (task?.deliverableType || task?.taskType || '').toLowerCase();
+  return type.includes('hard post') || type.includes('graphic image');
+}
+
+function getHardPostImages(task: any) {
+  if (!task?.files || task.files.length === 0) return [];
+  return task.files
+    .filter((f: any) => f.mimeType?.startsWith('image/') && f.isActive !== false)
+    .sort((a: any, b: any) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+}
+
 export function SchedulerSchedulingPage() {
   const { tasks: allTasks, updateTask } = useGlobalTasks();
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
@@ -311,21 +323,40 @@ export function SchedulerSchedulingPage() {
                       <p className="text-sm text-muted-foreground mb-3">{task.description}</p>
 
                       {task.files && task.files.length > 0 && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span className="text-muted-foreground">
-                            {task.files.length} file{task.files.length > 1 ? 's' : ''} approved by QC
-                          </span>
-                          {task.files && task.files[0]?.url && (
-                            <button
-                              onClick={() => {
-                                setPreviewFile(task.files![0]);
-                                setIsPreviewOpen(true);
-                              }}
-                              className="text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              View <ExternalLink className="h-3 w-3" />
-                            </button>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span className="text-muted-foreground">
+                              {task.files.length} file{task.files.length > 1 ? 's' : ''} approved by QC
+                            </span>
+                            {!isHardPostTask(task) && task.files[0]?.url && (
+                              <button
+                                onClick={() => {
+                                  setPreviewFile(task.files![0]);
+                                  setIsPreviewOpen(true);
+                                }}
+                                className="text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                View <ExternalLink className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                          {isHardPostTask(task) && getHardPostImages(task).length > 0 && (
+                            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                              {getHardPostImages(task).map((f: any, i: number) => (
+                                <img
+                                  key={f.id || i}
+                                  src={f.url}
+                                  alt={`Image ${i + 1}`}
+                                  onClick={() => {
+                                    setPreviewFile(f);
+                                    setIsPreviewOpen(true);
+                                  }}
+                                  className="h-16 w-24 object-cover rounded-md flex-shrink-0 border border-zinc-200 cursor-pointer hover:opacity-80"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              ))}
+                            </div>
                           )}
                         </div>
                       )}

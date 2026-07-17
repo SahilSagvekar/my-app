@@ -52,8 +52,22 @@ function mapStatus(status: string) {
   return "pending";
 }
 
+function isHardPostTask(task: WorkflowTask): boolean {
+  const type = ((task as any).deliverableType || (task as any).taskType || '').toLowerCase();
+  return type.includes('hard post') || type.includes('graphic image');
+}
+
 function getTaskThumbnails(task: WorkflowTask): string[] {
   if (!task.files || task.files.length === 0) return [];
+
+  if (isHardPostTask(task)) {
+    // Hard post tasks store all their images under the main folder — show every one, in upload order
+    const images = task.files
+      .filter((f) => f.mimeType?.startsWith('image/') && (f as any).isActive !== false)
+      .sort((a, b) => new Date((a as any).uploadedAt).getTime() - new Date((b as any).uploadedAt).getTime());
+    return images.map((f) => f.url);
+  }
+
   // All images from the thumbnails folder
   const thumbs = task.files.filter(
     (f) => f.folderType === 'thumbnails' && f.mimeType?.startsWith('image/')
