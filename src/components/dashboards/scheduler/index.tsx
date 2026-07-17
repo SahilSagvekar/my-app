@@ -210,18 +210,6 @@ export function SchedulerSpreadsheetView() {
                                 </th>
                                 <th
                                     className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
-                                    onClick={() => handleSort('client')}
-                                >
-                                    <div className="flex items-center gap-1">
-                                        Client
-                                        <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-                                    </div>
-                                </th>
-                                <th className="px-3 py-3 text-left font-semibold">
-                                    Editor
-                                </th>
-                                <th
-                                    className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSort('postingDate')}
                                 >
                                     <div className="flex items-center gap-1">
@@ -229,11 +217,8 @@ export function SchedulerSpreadsheetView() {
                                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                     </div>
                                 </th>
-                                <th className="px-3 py-3 text-center font-semibold">
-                                    <div className="flex items-center justify-center gap-1">
-                                        <FileText className="h-4 w-4" />
-                                        Files
-                                    </div>
+                                <th className="w-10 px-2 py-3 text-center font-semibold">
+                                    Details
                                 </th>
                                 <th className="px-3 py-3 text-center font-semibold">
                                     <div className="flex items-center justify-center gap-1">
@@ -262,7 +247,7 @@ export function SchedulerSpreadsheetView() {
                         <tbody className={`divide-y ${loading && !isInitialLoad ? 'opacity-50 pointer-events-none' : ''}`}>
                             {tasks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={15} className="px-6 py-12 text-center text-muted-foreground">
+                                    <td colSpan={14} className="px-6 py-12 text-center text-muted-foreground">
                                         {loading ? (
                                             <div className="flex flex-col items-center justify-center">
                                                 <RefreshCw className="h-8 w-8 animate-spin mb-4 text-primary" />

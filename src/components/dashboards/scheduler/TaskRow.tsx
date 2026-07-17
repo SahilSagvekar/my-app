@@ -22,6 +22,7 @@ import {
     RefreshCw,
     ArrowLeft,
     ChevronDown as CD,
+    Info,
 } from 'lucide-react';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
@@ -157,18 +158,6 @@ export function TaskRow({
                     </div>
                 </td>
 
-                {/* Client */}
-                <td className="px-3 py-3">
-                    <span className="text-muted-foreground text-xs">
-                        {task.client?.companyName || task.client?.name || task.clientId}
-                    </span>
-                </td>
-
-                {/* Editor */}
-                <td className="px-3 py-3">
-                    <span className="text-xs text-blue-600">{task.editor?.name || '-'}</span>
-                </td>
-
                 {/* Posted Date */}
                 <td className="px-3 py-3 relative">
                     {showDatePicker ? (
@@ -214,42 +203,62 @@ export function TaskRow({
                     )}
                 </td>
 
-                {/* Files */}
-                <td className="px-3 py-3 text-center">
-                    <div className="flex items-center justify-center gap-1 flex-wrap">
-                        {imageFiles.length > 0 && (
-                            <div className="flex items-center gap-1">
-                                {imageFiles.map((file) => {
-                                    const url = getFileUrl(file);
-                                    return url ? (
-                                        <button
-                                            key={file.id}
-                                            onClick={(e) => { e.stopPropagation(); onPreviewFile(file); }}
-                                            className="w-8 h-8 rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-primary/40 transition-all flex-shrink-0"
-                                            title={file.name}
-                                        >
-                                            <img src={url} alt={file.name} className="w-full h-full object-cover" />
-                                        </button>
-                                    ) : (
-                                        <button
-                                            key={file.id}
-                                            onClick={(e) => { e.stopPropagation(); onPreviewFile(file); }}
-                                            className="w-8 h-8 rounded border border-gray-200 bg-gray-50 flex items-center justify-center hover:ring-2 hover:ring-primary/40 transition-all flex-shrink-0"
-                                            title={file.name}
-                                        >
-                                            <ImageIcon className="h-3 w-3 text-emerald-500" />
-                                        </button>
-                                    );
-                                })}
+                {/* Details: Client / Editor / Files */}
+                <td className="px-2 py-3 text-center">
+                    <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Client, editor & files">
+                                <Info className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" sideOffset={4} className="w-64" onCloseAutoFocus={(e) => e.preventDefault()}>
+                            <div className="px-2 py-1.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Client</p>
+                                <p className="text-xs mt-0.5">{task.client?.companyName || task.client?.name || task.clientId}</p>
                             </div>
-                        )}
-                        {videoFiles.length > 0 && (
-                            <Badge variant="outline" className="text-xs px-1.5">
-                                <Video className="h-3 w-3 mr-1" />{videoFiles.length}
-                            </Badge>
-                        )}
-                        {task.files.length === 0 && <span className="text-muted-foreground text-xs">-</span>}
-                    </div>
+                            <div className="px-2 py-1.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Editor</p>
+                                <p className="text-xs text-blue-600 mt-0.5">{task.editor?.name || '-'}</p>
+                            </div>
+                            <div className="px-2 py-1.5">
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Files</p>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                    {imageFiles.length > 0 && (
+                                        <div className="flex items-center gap-1 flex-wrap">
+                                            {imageFiles.map((file) => {
+                                                const url = getFileUrl(file);
+                                                return url ? (
+                                                    <button
+                                                        key={file.id}
+                                                        onClick={(e) => { e.stopPropagation(); onPreviewFile(file); }}
+                                                        className="w-8 h-8 rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-primary/40 transition-all flex-shrink-0"
+                                                        title={file.name}
+                                                    >
+                                                        <img src={url} alt={file.name} className="w-full h-full object-cover" />
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        key={file.id}
+                                                        onClick={(e) => { e.stopPropagation(); onPreviewFile(file); }}
+                                                        className="w-8 h-8 rounded border border-gray-200 bg-gray-50 flex items-center justify-center hover:ring-2 hover:ring-primary/40 transition-all flex-shrink-0"
+                                                        title={file.name}
+                                                    >
+                                                        <ImageIcon className="h-3 w-3 text-emerald-500" />
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {videoFiles.length > 0 && (
+                                        <Badge variant="outline" className="text-xs px-1.5">
+                                            <Video className="h-3 w-3 mr-1" />{videoFiles.length}
+                                        </Badge>
+                                    )}
+                                    {task.files.length === 0 && <span className="text-muted-foreground text-xs">-</span>}
+                                </div>
+                            </div>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </td>
 
                 {/* Posting Titles */}
@@ -356,7 +365,7 @@ export function TaskRow({
             {/* Expanded Row */}
             {isExpanded && (
                 <tr className="bg-gray-50">
-                    <td colSpan={15} className="px-6 py-4">
+                    <td colSpan={14} className="px-6 py-4">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                             {/* Files Section */}

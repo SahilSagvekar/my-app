@@ -40,7 +40,6 @@ import { ClientPostedContentView } from "../dashboards/Clientpostedcontentview"
 import { PortfolioManagementTab } from "../admin/PortfolioManagementTab";
 import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
-import { CompressionDashboard } from "@/components/admin/CompressionDashboard";
 // import { ProductionTracker } from "../dashboards/ProductionTracker";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
 import { FolderRepairTool } from "../admin/Folderrepairtool";
@@ -171,8 +170,6 @@ export function renderPage(
         return <PortfolioManagementTab />;
       case "contracts":
         return <ContractsDashboard />;
-      case "compression":
-        return <CompressionDashboard />;
       case "production-tracker":
         return <ProductionTracker />;
       case "posting-tracker":

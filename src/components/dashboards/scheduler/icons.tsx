@@ -30,5 +30,5 @@ export const PLATFORMS = {
     facebook: { label: 'FB', icon: Facebook, color: 'text-blue-600', bgColor: 'bg-blue-50' },
     linkedin: { label: 'LI', icon: Linkedin, color: 'text-blue-700', bgColor: 'bg-blue-50' },
     twitter: { label: 'X', icon: Twitter, color: 'text-gray-900', bgColor: 'bg-gray-100' },
-    snapchat: { label: 'SC', icon: SnapchatIcon, color: 'text-yellow-500', bgColor: 'bg-yellow-50' },
+    snapchat: { label: 'SC', icon: SnapchatIcon, color: 'text-[#FFFC00]', bgColor: 'bg-black' },
 };

@@ -229,7 +229,6 @@ export function FullScreenReviewModalFrameIO({
     const [activeCommentId, setActiveCommentId] = useState<string | undefined>();
     const [showCommentInput, setShowCommentInput] = useState(false);
     const [confirmFinal, setConfirmFinal] = useState(false);
-    const [isOptimizing, setIsOptimizing] = useState(false);
     const [savingFeedback, setSavingFeedback] = useState(false);
 
     // Stable identity for the current viewer — logged-in users use their numeric id,
@@ -823,41 +822,6 @@ export function FullScreenReviewModalFrameIO({
         }
     };
 
-    const handleManualOptimize = async () => {
-        if (!asset || isOptimizing) return;
-
-        setIsOptimizing(true);
-        const loadingToast = toast.loading('🚀 Optimizing video for review...');
-
-        try {
-            const fileId = currentVersion || asset.currentVersion;
-            const response = await fetch(`/api/files/${fileId}/optimize`, {
-                method: 'POST',
-            });
-
-            const data = await response.json();
-
-            if (response.status === 202 || data.success) {
-                toast.success('🚀 Optimization Started', {
-                    description: 'The review version is being prepared in the background. This may take a few minutes.',
-                    id: loadingToast
-                });
-            } else {
-                toast.error('❌ Optimization Failed', {
-                    description: data.error || data.details || 'Check server logs for details',
-                    id: loadingToast
-                });
-            }
-        } catch (error) {
-            toast.error('❌ Network Error', {
-                description: 'Failed to connect to optimization service',
-                id: loadingToast
-            });
-        } finally {
-            setIsOptimizing(false);
-        }
-    };
-
     /* ── Reject with typed comment (mobile reject dialog) ── */
     const handleRejectWithComment = async (commentText: string) => {
         if (!asset) return;
@@ -1018,7 +982,6 @@ export function FullScreenReviewModalFrameIO({
         allClientComments,
         activeCommentId,
         showCommentInput,
-        isOptimizing,
         confirmFinal,
         savingFeedback,
         showApprovalSuccess,
@@ -1048,7 +1011,6 @@ export function FullScreenReviewModalFrameIO({
         handleCommentDelete,
         handleCommentEdit,
         handleStatusChange,
-        handleManualOptimize,
         setShowCommentInput,
         setConfirmFinal,
         setShowInfoPanel,

@@ -27,7 +27,7 @@ import {
     CheckCircle2, MessageSquare, Calendar, ChevronRight,
     AlertCircle, SkipBack, SkipForward, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
-    RotateCcw, HardDrive, PenLine, ImageIcon,
+    PenLine, ImageIcon,
 } from 'lucide-react';import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
@@ -74,7 +74,6 @@ export interface ReviewScreenProps {
     showCommentInput: boolean;
     confirmFinal: boolean;
     savingFeedback: boolean;
-    isOptimizing: boolean;
     showApprovalSuccess: boolean;
     showRevisionSuccess: boolean;
     currentVersionNumber: number;
@@ -110,7 +109,6 @@ export interface ReviewScreenProps {
     handleCommentDelete: (id: string) => void;
     handleCommentEdit: (id: string, newContent: string) => void;
     handleStatusChange: (s: 'approved' | 'needs_changes') => void;
-    handleManualOptimize: () => void;
     handleRejectWithComment?: (comment: string) => Promise<void>;
 
     /* ui handlers */
@@ -914,36 +912,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     </div>
                                 )}
 
-                                {/* 🚀 OPTIMIZATION ACTION */}
-                                {(p.userRole === 'qc' || (p as any).userRole === 'admin') && (
-                                    <div className="pt-3 mt-3 border-t border-[var(--review-border)]">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-[var(--review-text-muted)] text-xs">Optimization</span>
-                                        </div>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="w-full h-8 bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 text-xs"
-                                            onClick={p.handleManualOptimize}
-                                            disabled={p.isOptimizing}
-                                        >
-                                            {p.isOptimizing ? (
-                                                <>
-                                                    <RotateCcw className="h-3 w-3 mr-2 animate-spin" />
-                                                    Optimizing...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <HardDrive className="h-3 w-3 mr-2" />
-                                                    Compress for Review
-                                                </>
-                                            )}
-                                        </Button>
-                                        <p className="text-[10px] text-[var(--review-text-muted)] mt-1 italic leading-tight">
-                                            Creates a web-optimized proxy for faster review.
-                                        </p>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     )}

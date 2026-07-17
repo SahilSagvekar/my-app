@@ -28,7 +28,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Maximize,
-  RotateCcw,
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -143,7 +142,6 @@ export function FullScreenReviewModal({
   const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
   const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  const [isOptimizing, setIsOptimizing] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
 
   // Revision logging system
@@ -401,39 +399,6 @@ export function FullScreenReviewModal({
       setShowApprovalSuccess(false);
       onOpenChange(false);
     }, 2000);
-  };
-
-  const handleManualOptimize = async () => {
-    if (!asset || isOptimizing) return;
-
-    setIsOptimizing(true);
-    const loadingToast = toast.loading('🚀 Optimizing video for review...');
-
-    try {
-      const response = await fetch(`/api/files/${currentVersion || asset.id}/optimize`, {
-        method: 'POST',
-      });
-
-      const data = await response.json();
-      if (response.status === 202 || data.success) {
-        toast.success('🚀 Optimization Started', {
-          description: 'The review version is being prepared in the background. This may take a few minutes.',
-          id: loadingToast
-        });
-      } else {
-        toast.error('❌ Optimization Failed', {
-          description: data.error || data.details || 'Check server logs for details',
-          id: loadingToast
-        });
-      }
-    } catch (error) {
-      toast.error('❌ Network Error', {
-        description: 'Failed to connect to optimization service',
-        id: loadingToast
-      });
-    } finally {
-      setIsOptimizing(false);
-    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -833,33 +798,6 @@ export function FullScreenReviewModal({
                   </div>
                 </div>
 
-                {/* Optimization Action - Only for Admin/QC/Editor */}
-                {(userRole === 'qc' || userRole as string === 'admin') && (
-                  <div className="pt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300"
-                      onClick={handleManualOptimize}
-                      disabled={isOptimizing}
-                    >
-                      {isOptimizing ? (
-                        <>
-                          <RotateCcw className="h-3 w-3 mr-2 animate-spin" />
-                          Optimizing...
-                        </>
-                      ) : (
-                        <>
-                          <HardDrive className="h-3 w-3 mr-2" />
-                          Compress for Review
-                        </>
-                      )}
-                    </Button>
-                    <p className="text-[10px] text-gray-500 mt-1 italic px-1">
-                      Creates a low-bitrate version for faster loading on this screen.
-                    </p>
-                  </div>
-                )}
               </div>
 
               {/* Version History */}
