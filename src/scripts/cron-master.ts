@@ -68,6 +68,22 @@ setInterval(async () => {
   }
 }, 3000); // every 3 seconds
 
+
+// ── NAS mirror background worker ────────────────────────────────────────────
+// Processes NasMirrorJob rows every 10 seconds: copies R2 -> NAS MinIO,
+// verifies, deletes verified files from R2, updates File records.
+// Triggered by POST /api/nas/mirror-and-cleanup from the NAS Backup admin panel.
+import { runNasMirrorWorkerTick } from '@/lib/nas-mirror-worker';
+
+console.log('📦 [NAS Mirror Worker] Starting background job processor...');
+setInterval(async () => {
+  try {
+    await runNasMirrorWorkerTick();
+  } catch (err: any) {
+    console.error('[NAS Mirror Worker] Uncaught error in tick:', err.message);
+  }
+}, 10000); // every 10 seconds — jobs are large, no need to poll as often as uploads
+
 /**
  * Utility to trigger a local API endpoint
  */

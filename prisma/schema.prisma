@@ -67,6 +67,7 @@ model User {
   salesManagerPermissions SalesManagerPermission[] @relation("SalesManagerPermissions")
   salesRepPermissions     SalesManagerPermission[] @relation("SalesRepPermissions")
   sessions                Session[]
+  NasMirrorJob            NasMirrorJob[]
   shootDetails            ShootDetail[]            @relation("VideographerShootDetails")
   updatedSocialLogins     SocialLogin[]            @relation("LoginUpdatedBy")
   assignedTasks           Task[]                   @relation("AssignedTasks")
@@ -2097,6 +2098,30 @@ model Quote {
   @@index([preClientId])
   @@index([shareToken])
   @@index([status])
+}
+
+model NasMirrorJob {
+  id            String   @id @default(cuid())
+  clientName    String
+  monthFolder   String
+  status        String   @default("pending") // pending | running | completed | failed
+  scannedCount  Int      @default(0)
+  copiedCount   Int      @default(0)
+  verifiedCount Int      @default(0)
+  deletedCount  Int      @default(0)
+  failedCount   Int      @default(0)
+  currentFile   String?
+  errorMessage  String?
+  triggeredById Int?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  TriggeredBy   User?    @relation(fields: [triggeredById], references: [id])
+
+  @@index([status])
+  @@index([clientName, monthFolder])
+  @@index([createdAt])
 }
 
 enum SubscriptionStatus {

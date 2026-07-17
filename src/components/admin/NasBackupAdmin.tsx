@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   HardDrive, CheckCircle, XCircle, Clock, RefreshCw,
   Server, Database, AlertTriangle, Wifi, WifiOff,
-  FolderSync, Archive, Shield, Eye, Trash2,
+  FolderSync, Archive, Shield, Eye, Trash2, UploadCloud,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -57,6 +57,24 @@ interface BackupStats {
   archivedFiles: number;
   pendingFiles: number;
   lastSync: SyncLog | null;
+}
+
+interface NasMirrorJob {
+  id: string;
+  clientName: string;
+  monthFolder: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  scannedCount: number;
+  copiedCount: number;
+  verifiedCount: number;
+  deletedCount: number;
+  failedCount: number;
+  currentFile: string | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  TriggeredBy?: { id: number; name: string | null } | null;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -133,6 +151,15 @@ export function NasBackupAdmin() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [sweepClientId, setSweepClientId] = useState<string>('all');
 
+  // Copy-to-NAS (mirror job) state
+  const [mirrorClientName, setMirrorClientName] = useState<string>('');
+  const [mirrorMonths, setMirrorMonths] = useState<string[]>([]);
+  const [mirrorMonth, setMirrorMonth] = useState<string>('');
+  const [mirrorMonthsLoading, setMirrorMonthsLoading] = useState(false);
+  const [activeJob, setActiveJob] = useState<NasMirrorJob | null>(null);
+  const [jobHistory, setJobHistory] = useState<NasMirrorJob[]>([]);
+  const [startingMirror, setStartingMirror] = useState(false);
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -165,6 +192,95 @@ export function NasBackupAdmin() {
       .then(data => setClients((data.clients || []).map((c: any) => ({ id: c.id, name: c.name, companyName: c.companyName }))))
       .catch(() => {/* dropdown just stays empty — not critical */});
   }, []);
+
+  // Load available months whenever the selected client changes
+  useEffect(() => {
+    if (!mirrorClientName) {
+      setMirrorMonths([]);
+      setMirrorMonth('');
+      return;
+    }
+    setMirrorMonthsLoading(true);
+    fetch(`/api/nas/available-months?clientName=${encodeURIComponent(mirrorClientName)}`, { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        const months: string[] = data.months || [];
+        setMirrorMonths(months);
+        setMirrorMonth(months[0] || '');
+      })
+      .catch(() => setMirrorMonths([]))
+      .finally(() => setMirrorMonthsLoading(false));
+  }, [mirrorClientName]);
+
+  const loadJobHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/nas/mirror-jobs', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      setJobHistory(data.jobs || []);
+      // Resume polling if a job is already running/pending (e.g. after a page refresh)
+      const inFlight = (data.jobs || []).find((j: NasMirrorJob) => j.status === 'pending' || j.status === 'running');
+      if (inFlight && !activeJob) setActiveJob(inFlight);
+    } catch {
+      /* history is non-critical */
+    }
+  }, [activeJob]);
+
+  useEffect(() => {
+    loadJobHistory();
+  }, [loadJobHistory]);
+
+  // Poll the active job every 3 seconds while it's pending/running
+  useEffect(() => {
+    if (!activeJob || (activeJob.status !== 'pending' && activeJob.status !== 'running')) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/nas/mirror-jobs/${activeJob.id}`, { credentials: 'include', cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        setActiveJob(data.job);
+        if (data.job.status === 'completed' || data.job.status === 'failed') {
+          toast[data.job.status === 'completed' ? 'success' : 'error'](
+            data.job.status === 'completed' ? 'Mirror job complete' : 'Mirror job failed',
+            { description: `${data.job.clientName} / ${data.job.monthFolder} — ${data.job.deletedCount} deleted, ${data.job.failedCount} failed` }
+          );
+          loadJobHistory();
+          load(); // refresh overall stats too
+        }
+      } catch {
+        /* transient poll failure — try again next tick */
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeJob, loadJobHistory, load]);
+
+  const startMirrorJob = useCallback(() => {
+    if (!mirrorClientName || !mirrorMonth) return;
+    const confirmed = window.confirm(
+      `This will copy "${mirrorClientName}" / ${mirrorMonth} output files to the NAS, verify each one, then permanently delete the verified copies from Cloudflare R2. This cannot be undone. Continue?`
+    );
+    if (!confirmed) return;
+
+    setStartingMirror(true);
+    fetch('/api/nas/mirror-jobs', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientName: mirrorClientName, monthFolder: mirrorMonth }),
+    })
+      .then(res => res.json().then(data => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || 'Failed to start job');
+        setActiveJob(data.job);
+        toast[data.alreadyQueued ? 'info' : 'success'](
+          data.alreadyQueued ? 'Already queued' : 'Mirror job started',
+          { description: `${mirrorClientName} / ${mirrorMonth}` }
+        );
+        loadJobHistory();
+      })
+      .catch((err: any) => toast.error('Failed to start mirror job', { description: err.message }))
+      .finally(() => setStartingMirror(false));
+  }, [mirrorClientName, mirrorMonth, loadJobHistory]);
 
   const runSweep = useCallback(async (dryRun: boolean) => {
     const setBusy = dryRun ? setPreviewing : setSweeping;
@@ -327,6 +443,102 @@ export function NasBackupAdmin() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Copy to NAS — targeted client/month mirror + cleanup */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-1">
+              <UploadCloud className="h-4 w-4 text-gray-500" />
+              Copy Client Month to NAS
+            </h3>
+            <p className="text-xs text-gray-400 mb-4">
+              Copies a specific client's output files for one month from R2 to the NAS, verifies each
+              copy, then deletes the verified R2 copies. Runs in the background — safe to navigate away.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <Select value={mirrorClientName} onValueChange={setMirrorClientName}>
+                <SelectTrigger className="w-56 h-8 text-xs">
+                  <SelectValue placeholder="Select client…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map(c => (
+                    <SelectItem key={c.id} value={c.name}>{c.companyName || c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={mirrorMonth} onValueChange={setMirrorMonth} disabled={!mirrorClientName || mirrorMonthsLoading}>
+                <SelectTrigger className="w-40 h-8 text-xs">
+                  <SelectValue placeholder={mirrorMonthsLoading ? 'Loading…' : 'Select month…'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {mirrorMonths.map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                onClick={startMirrorJob}
+                disabled={!mirrorClientName || !mirrorMonth || startingMirror || (activeJob?.status === 'running' || activeJob?.status === 'pending')}
+              >
+                <UploadCloud className={`h-3.5 w-3.5 ${startingMirror ? 'animate-pulse' : ''}`} />
+                {startingMirror ? 'Starting…' : 'Copy, Verify & Delete'}
+              </Button>
+            </div>
+
+            {/* Live progress for the active/most recent job */}
+            {activeJob && (
+              <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 text-xs mb-2">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-semibold text-zinc-800">
+                    {activeJob.clientName} / {activeJob.monthFolder}
+                  </span>
+                  <span className={`inline-flex items-center gap-1.5 font-semibold px-2 py-0.5 rounded-full ${
+                    activeJob.status === 'completed' ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                    : activeJob.status === 'failed' ? 'text-red-700 bg-red-50 border border-red-200'
+                    : 'text-blue-700 bg-blue-50 border border-blue-200'
+                  }`}>
+                    {(activeJob.status === 'running' || activeJob.status === 'pending') && <RefreshCw className="h-3 w-3 animate-spin" />}
+                    {activeJob.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div><div className="text-zinc-500">Scanned</div><div className="font-semibold text-zinc-800">{activeJob.scannedCount}</div></div>
+                  <div><div className="text-zinc-500">Copied</div><div className="font-semibold text-zinc-800">{activeJob.copiedCount}</div></div>
+                  <div><div className="text-zinc-500">Verified</div><div className="font-semibold text-zinc-800">{activeJob.verifiedCount}</div></div>
+                  <div><div className="text-zinc-500">Deleted</div><div className="font-semibold text-zinc-800">{activeJob.deletedCount}</div></div>
+                  <div><div className="text-zinc-500">Failed</div><div className="font-semibold text-red-600">{activeJob.failedCount}</div></div>
+                </div>
+                {activeJob.currentFile && (activeJob.status === 'running') && (
+                  <p className="mt-3 text-zinc-400 truncate">Current: {activeJob.currentFile}</p>
+                )}
+                {activeJob.errorMessage && (
+                  <p className="mt-3 text-red-500">{activeJob.errorMessage}</p>
+                )}
+              </div>
+            )}
+
+            {/* Recent job history */}
+            {jobHistory.length > 0 && (
+              <details className="text-xs">
+                <summary className="cursor-pointer text-gray-400 hover:text-gray-600 select-none">
+                  {jobHistory.length} past mirror job{jobHistory.length !== 1 ? 's' : ''}
+                </summary>
+                <div className="mt-2 divide-y divide-gray-50 border border-gray-100 rounded-lg overflow-hidden">
+                  {jobHistory.map(j => (
+                    <div key={j.id} className="flex items-center justify-between px-3 py-2">
+                      <span className="text-gray-700">{j.clientName} / {j.monthFolder}</span>
+                      <span className="text-gray-400">{j.deletedCount} deleted, {j.failedCount} failed — {j.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
 
           {/* Monthly output-folder sweep */}
