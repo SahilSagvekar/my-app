@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { Youtube, Facebook, TrendingUp } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback, type ComponentType } from "react";
+import { Youtube, Facebook, Instagram, Twitter, TrendingUp } from "lucide-react";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
+import { TikTokIcon } from "@/components/dashboards/scheduler/icons";
 import {
   Carousel,
   CarouselContent,
@@ -17,42 +18,54 @@ interface JourneyStep {
   caption: string;
 }
 
+type IconComponent = ComponentType<{ className?: string }>;
+
 interface JourneyClient {
   id: string;
   label: string;
   sublabel?: string;
-  icon?: typeof Youtube;
+  icon?: IconComponent;
   images: JourneyStep[];
 }
 
-const STEP_CAPTIONS = ["Month 1", "Month 3", "Month 6", "Month 9", "Today"];
-
-function buildSteps(seed: string): JourneyStep[] {
-  return STEP_CAPTIONS.map((caption, i) => ({
-    src: `https://picsum.photos/seed/${seed}-${i}/900/560`,
-    caption,
-  }));
-}
-
-const CLIENTS: JourneyClient[] = [
-  { id: "cole-yt", label: "Cole", sublabel: "YouTube", icon: Youtube, images: buildSteps("cole-yt") },
-  { id: "cole-fb", label: "Cole", sublabel: "Facebook", icon: Facebook, images: buildSteps("cole-fb") },
-  { id: "investment-joy", label: "Investment Joy", images: buildSteps("investment-joy") },
-  { id: "peter-mayberry", label: "Peter Mayberry", images: buildSteps("peter-mayberry") },
-  { id: "cla", label: "CLA", images: buildSteps("cla") },
-  { id: "following-keenan", label: "Following Keenan", images: buildSteps("following-keenan") },
-  { id: "danny-dangelo", label: "Danny D'Angelo", images: buildSteps("danny-dangelo") },
-  { id: "tdbs", label: "The Dating Blind Show", images: buildSteps("tdbs") },
-];
+const ICONS: Record<string, IconComponent> = {
+  youtube: Youtube,
+  facebook: Facebook,
+  instagram: Instagram,
+  tiktok: TikTokIcon,
+  twitter: Twitter,
+};
 
 export function BeforeAfterJourney() {
-  const [activeClientId, setActiveClientId] = useState(CLIENTS[0].id);
+  const [clients, setClients] = useState<JourneyClient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeClientId, setActiveClientId] = useState<string | null>(null);
   const [api, setApi] = useState<CarouselApi>();
   const [step, setStep] = useState(0);
 
+  useEffect(() => {
+    fetch("/api/portfolio/journey-clients")
+      .then((res) => res.json())
+      .then((data) => {
+        const loaded: JourneyClient[] = (data.clients || [])
+          .filter((c: any) => c.steps?.length > 0)
+          .map((c: any) => ({
+            id: c.id,
+            label: c.label,
+            sublabel: c.sublabel || undefined,
+            icon: c.iconKey ? ICONS[c.iconKey] : undefined,
+            images: c.steps.map((s: any) => ({ src: s.imageUrl, caption: s.caption })),
+          }));
+        setClients(loaded);
+        if (loaded.length > 0) setActiveClientId(loaded[0].id);
+      })
+      .catch(() => setClients([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   const activeClient = useMemo(
-    () => CLIENTS.find((c) => c.id === activeClientId) ?? CLIENTS[0],
-    [activeClientId]
+    () => clients.find((c) => c.id === activeClientId) ?? clients[0],
+    [activeClientId, clients]
   );
 
   function selectClient(id: string) {
@@ -74,6 +87,8 @@ export function BeforeAfterJourney() {
 
   const scrollTo = useCallback((i: number) => api?.scrollTo(i), [api]);
 
+  if (loading || !activeClient) return null;
+
   return (
     <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-white">
       <div className="max-w-5xl mx-auto">
@@ -92,7 +107,7 @@ export function BeforeAfterJourney() {
 
         {/* Client picker */}
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5 mb-8 sm:mb-10 px-1">
-          {CLIENTS.map((client) => {
+          {clients.map((client) => {
             const isActive = client.id === activeClientId;
             const Icon = client.icon;
             return (
@@ -121,7 +136,7 @@ export function BeforeAfterJourney() {
         <Carousel key={activeClientId} setApi={setApi} opts={{ align: "start" }} className="relative px-1 sm:px-6">
           <CarouselContent>
             {activeClient.images.map((img, i) => (
-              <CarouselItem key={img.caption}>
+              <CarouselItem key={i}>
                 <div className="relative aspect-video rounded-2xl sm:rounded-3xl overflow-hidden shadow-xl bg-black/5">
                   <ImageWithFallback
                     src={img.src}
@@ -146,7 +161,7 @@ export function BeforeAfterJourney() {
         <div className="flex items-center justify-center gap-2 mt-5 sm:mt-6">
           {activeClient.images.map((img, i) => (
             <button
-              key={img.caption}
+              key={i}
               onClick={() => scrollTo(i)}
               aria-label={`Go to ${img.caption}`}
               className={`transition-all rounded-full ${

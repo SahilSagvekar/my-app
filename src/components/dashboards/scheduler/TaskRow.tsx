@@ -23,6 +23,7 @@ import {
     ArrowLeft,
     ChevronDown as CD,
     Info,
+    AlertTriangle,
 } from 'lucide-react';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
@@ -261,6 +262,21 @@ export function TaskRow({
                     </DropdownMenu>
                 </td>
 
+                {/* Cover image check — only meaningful for Short Form tasks on clients that require one */}
+                <td className="px-2 py-3 text-center">
+                    {(task.deliverableType || '').toLowerCase().includes('short form') && task.client?.requiresCoverImage ? (
+                        task.files.some((f) => f.folderType === 'covers') ? (
+                            <span title="Cover image uploaded" className="inline-flex items-center justify-center">
+                                <Check className="h-4 w-4 text-green-600" />
+                            </span>
+                        ) : (
+                            <span title="No cover image uploaded yet" className="inline-flex items-center justify-center">
+                                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                            </span>
+                        )
+                    ) : null}
+                </td>
+
                 {/* Posting Titles */}
                 <td className="px-3 py-3 max-w-[180px]">
                     {task.postingTitles && task.postingTitles.length > 0 ? (
@@ -365,7 +381,7 @@ export function TaskRow({
             {/* Expanded Row */}
             {isExpanded && (
                 <tr className="bg-gray-50">
-                    <td colSpan={14} className="px-6 py-4">
+                    <td colSpan={15} className="px-6 py-4">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                             {/* Files Section */}

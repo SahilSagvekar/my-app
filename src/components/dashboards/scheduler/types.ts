@@ -30,6 +30,7 @@ export interface SchedulerTask {
         id?: string;
         name: string;
         companyName?: string;
+        requiresCoverImage?: boolean;
     };
     editor?: {
         id: number;

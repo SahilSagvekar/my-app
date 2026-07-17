@@ -119,6 +119,7 @@ export async function GET(req: Request) {
               id: true,
               name: true,
               companyName: true,
+              requiresCoverImage: true,
             },
           },
           user: true,

@@ -2245,6 +2245,50 @@ export function ClientManagement() {
                 </CardContent>
               </Card>
 
+              {/* Cover Image Setting */}
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 flex items-center gap-2">
+                    <Image className="h-5 w-5" />
+                    Cover Image Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Requires Cover Image</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        When enabled, the Scheduler shows a checkmark on this client's Short Form tasks confirming the editor uploaded a cover image before posting.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={(selectedClient as any).requiresCoverImage ?? false}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          const res = await fetch(`/api/clients/${selectedClient.id}/cover-image`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ requiresCoverImage: checked }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Failed');
+
+                          setClients(prev => prev.map(c =>
+                            c.id === selectedClient.id ? { ...c, requiresCoverImage: checked } as any : c
+                          ));
+                          setSelectedClient({ ...selectedClient, requiresCoverImage: checked } as any);
+
+                          toast.success(checked ? 'Cover image requirement enabled' : 'Cover image requirement disabled');
+                        } catch (err: any) {
+                          console.error('Toggle cover image setting error:', err);
+                          toast.error(err.message || 'Failed to update cover image setting');
+                        }
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Trial Client Setting */}
               <Card className="bg-white border-gray-200">
                 <CardHeader>

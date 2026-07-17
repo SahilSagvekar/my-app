@@ -318,6 +318,7 @@ model Client {
   lastActivity                 DateTime?
   requiresClientReview         Boolean                   @default(false)
   requiresVideographer         Boolean                   @default(false)
+  requiresCoverImage           Boolean                   @default(false)
   createdAt                    DateTime                  @default(now())
   updatedAt                    DateTime                  @updatedAt
   uploadedFiles                Json?
@@ -1542,6 +1543,33 @@ model PortfolioVideo {
   @@index([category])
   @@index([category, order])
   @@index([isActive])
+}
+
+// Admin-managed content for the public /portfolio "Before & After" tab —
+// replaces the hardcoded picsum.photos placeholder client list.
+model PortfolioJourneyClient {
+  id        String                 @id @default(cuid())
+  label     String
+  sublabel  String?
+  iconKey   String?
+  order     Int                    @default(0)
+  isActive  Boolean                @default(true)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  steps     PortfolioJourneyStep[]
+}
+
+model PortfolioJourneyStep {
+  id        String                 @id @default(cuid())
+  clientId  String
+  imageUrl  String
+  caption   String
+  order     Int                    @default(0)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  client    PortfolioJourneyClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
 }
 
 model Contract {

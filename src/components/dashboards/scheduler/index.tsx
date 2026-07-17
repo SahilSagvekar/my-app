@@ -220,6 +220,9 @@ export function SchedulerSpreadsheetView() {
                                 <th className="w-10 px-2 py-3 text-center font-semibold">
                                     Details
                                 </th>
+                                <th className="w-10 px-2 py-3 text-center font-semibold" title="Cover image (Short Form)">
+                                    Cover
+                                </th>
                                 <th className="px-3 py-3 text-center font-semibold">
                                     <div className="flex items-center justify-center gap-1">
                                         <Sparkles className="h-4 w-4 text-yellow-500" />
@@ -247,7 +250,7 @@ export function SchedulerSpreadsheetView() {
                         <tbody className={`divide-y ${loading && !isInitialLoad ? 'opacity-50 pointer-events-none' : ''}`}>
                             {tasks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={14} className="px-6 py-12 text-center text-muted-foreground">
+                                    <td colSpan={15} className="px-6 py-12 text-center text-muted-foreground">
                                         {loading ? (
                                             <div className="flex flex-col items-center justify-center">
                                                 <RefreshCw className="h-8 w-8 animate-spin mb-4 text-primary" />

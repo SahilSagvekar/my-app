@@ -33,6 +33,7 @@ import {
     TableRow,
 } from "../ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import PortfolioJourneyManager from "./PortfolioJourneyManager";
 import {
     Plus,
     Video,
@@ -1739,7 +1740,7 @@ export function PortfolioManagementTab() {
             </div>
 
             <Tabs defaultValue="leads" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 max-w-xl">
+                <TabsList className="grid w-full grid-cols-4 max-w-2xl">
                     <TabsTrigger value="leads" className="flex items-center gap-2">
                         <Users className="h-4 w-4" />
                         Leads
@@ -1751,6 +1752,10 @@ export function PortfolioManagementTab() {
                     <TabsTrigger value="content" className="flex items-center gap-2">
                         <Film className="h-4 w-4" />
                         Videos
+                    </TabsTrigger>
+                    <TabsTrigger value="journey" className="flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        Before & After
                     </TabsTrigger>
                 </TabsList>
 
@@ -1772,6 +1777,10 @@ export function PortfolioManagementTab() {
                             <ChannelControl category={CHANNEL_CATEGORY_KEY} label={channelSub.label} />
                         ) : null;
                     })()}
+                </TabsContent>
+
+                <TabsContent value="journey" className="mt-6">
+                    <PortfolioJourneyManager />
                 </TabsContent>
             </Tabs>
         </div>
