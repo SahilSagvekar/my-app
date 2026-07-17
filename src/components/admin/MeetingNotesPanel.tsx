@@ -10,7 +10,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { ExternalLink, FileText, Send, Plus, Loader2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
+import { ExternalLink, FileText, Send, Plus, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MeetingNote {
@@ -27,6 +37,8 @@ export default function MeetingNotesPanel({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [noteToDelete, setNoteToDelete] = useState<MeetingNote | null>(null);
 
   const loadNotes = useCallback(async () => {
     try {
@@ -61,6 +73,22 @@ export default function MeetingNotesPanel({ clientId }: { clientId: string }) {
       toast.error(err.message || 'Failed to create notes doc');
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleDelete(noteId: string) {
+    setDeletingId(noteId);
+    try {
+      const res = await fetch(`/api/admin/meeting-notes/${noteId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setNotes((prev) => prev.filter((n) => n.id !== noteId));
+      toast.success('Meeting note deleted');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete meeting note');
+    } finally {
+      setDeletingId(null);
+      setNoteToDelete(null);
     }
   }
 
@@ -140,11 +168,49 @@ export default function MeetingNotesPanel({ clientId }: { clientId: string }) {
                   )}
                   {note.status === 'sent' ? 'Sent' : 'Send Notes'}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => setNoteToDelete(note)}
+                  disabled={deletingId === note.id}
+                >
+                  {deletingId === note.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
             </div>
           ))
         )}
       </CardContent>
+
+      <AlertDialog open={!!noteToDelete} onOpenChange={(open) => !open && setNoteToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete meeting note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {noteToDelete && (
+                <>
+                  This deletes "{noteToDelete.title}"
+                  {noteToDelete.status === 'sent' ? ' — it was already sent to the client, this only removes it from the app.' : '.'} The underlying Google Doc is not deleted. This can't be undone.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => noteToDelete && handleDelete(noteToDelete.id)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
