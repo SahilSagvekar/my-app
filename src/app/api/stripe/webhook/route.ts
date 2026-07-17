@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe, constructWebhookEvent, STRIPE_WEBHOOK_EVENTS, generateInvoiceNumber } from '@/lib/stripe';
+import { stripe, constructWebhookEvent, STRIPE_WEBHOOK_EVENTS, generateInvoiceNumber, captureTechFeeFromCharge, getChargeIdFromPaymentIntent } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
 import { sendPaymentNotificationEmail } from '@/lib/email';
@@ -127,6 +127,15 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       },
     });
   });
+
+  // Tech Fees: pass Stripe's real processing fee on to the client's next invoice
+  const chargeId = typeof paymentIntent.latest_charge === 'string'
+    ? paymentIntent.latest_charge
+    : (paymentIntent.latest_charge as any)?.id;
+  const stripeCustomerId = typeof paymentIntent.customer === 'string'
+    ? paymentIntent.customer
+    : (paymentIntent.customer as any)?.id;
+  await captureTechFeeFromCharge(stripeCustomerId, chargeId, `PaymentIntent ${paymentIntent.id}`);
 }
 
 async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
@@ -150,6 +159,26 @@ async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
 
 async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
   console.log(`✅ Stripe Invoice paid: ${stripeInvoice.id}`);
+
+  // Tech Fees: capture Stripe's real processing fee and queue it for this
+  // customer's next invoice. Runs regardless of whether we already have a
+  // local Invoice record for this one — every successful client payment
+  // should generate a Tech Fee.
+  {
+    const stripeCustomerId = typeof stripeInvoice.customer === 'string'
+      ? stripeInvoice.customer
+      : (stripeInvoice.customer as any)?.id;
+    let chargeId = typeof (stripeInvoice as any).charge === 'string'
+      ? (stripeInvoice as any).charge
+      : (stripeInvoice as any).charge?.id;
+    if (!chargeId && stripeInvoice.payment_intent) {
+      const piId = typeof stripeInvoice.payment_intent === 'string'
+        ? stripeInvoice.payment_intent
+        : (stripeInvoice.payment_intent as any).id;
+      chargeId = await getChargeIdFromPaymentIntent(piId);
+    }
+    await captureTechFeeFromCharge(stripeCustomerId, chargeId, `Invoice ${stripeInvoice.id}`);
+  }
 
   // Find our invoice by Stripe invoice ID
   const invoice = await prisma.invoice.findUnique({
@@ -413,6 +442,18 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         stripePaymentIntentId: session.payment_intent as string,
       },
     });
+
+    // Tech Fees: pass Stripe's real processing fee on to the client's next invoice
+    const stripeCustomerId = typeof session.customer === 'string'
+      ? session.customer
+      : (session.customer as any)?.id;
+    const paymentIntentId = typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : (session.payment_intent as any)?.id;
+    if (paymentIntentId) {
+      const chargeId = await getChargeIdFromPaymentIntent(paymentIntentId);
+      await captureTechFeeFromCharge(stripeCustomerId, chargeId, `Checkout ${session.id}`);
+    }
   }
 }
 

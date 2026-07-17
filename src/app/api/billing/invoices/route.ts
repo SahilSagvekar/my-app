@@ -8,7 +8,8 @@ import {
   getOrCreateStripeCustomer, 
   createStripeInvoice,
   sendStripeInvoice,
-  toCents 
+  toCents,
+  stripe,
 } from '@/lib/stripe';
 
 // GET - List invoices (with filters)
@@ -208,6 +209,11 @@ export async function POST(req: NextRequest) {
     let stripeInvoiceId = null;
     let stripeHostedInvoiceUrl = null;
     let stripePdfUrl = null;
+    // Defaults to what the admin typed in; overwritten below with Stripe's
+    // authoritative totals when a Stripe invoice is actually created, so any
+    // pending Tech Fee item Stripe swept in is reflected locally too.
+    let finalLineItems = processedLineItems;
+    let finalTotalAmount = totalAmount;
 
     // Create Stripe invoice if requested
     if (useStripeInvoicing) {
@@ -234,6 +240,16 @@ export async function POST(req: NextRequest) {
         stripeHostedInvoiceUrl = sentInvoice.hosted_invoice_url;
         stripePdfUrl = sentInvoice.invoice_pdf;
       }
+
+      // Re-fetch so the local record reflects anything Stripe swept in
+      // (e.g. a pending Tech Fees item), not just what was typed into this form.
+      const authoritative = await stripe.invoices.retrieve(stripeInvoiceId);
+      finalLineItems = authoritative.lines.data.map((line: any) => ({
+        description: line.description || 'Line item',
+        amount: line.amount,
+        quantity: line.quantity || 1,
+      }));
+      finalTotalAmount = authoritative.total ?? authoritative.amount_due ?? totalAmount;
     }
 
     // Create invoice in our database
@@ -243,11 +259,11 @@ export async function POST(req: NextRequest) {
         stripeInvoiceId,
         invoiceNumber,
         status: sendImmediately ? 'SENT' : 'DRAFT',
-        amount: totalAmount,
+        amount: finalTotalAmount,
         currency: 'usd',
         dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         description,
-        lineItems: processedLineItems,
+        lineItems: finalLineItems,
         notes,
         stripeHostedInvoiceUrl,
         stripePdfUrl,

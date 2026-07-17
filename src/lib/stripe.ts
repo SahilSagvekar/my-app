@@ -212,6 +212,7 @@ export async function createStripeInvoice(
     metadata,
     description: invoiceDescription || undefined, // Invoice-level description shown to customer
     auto_advance: false, // Don't auto-finalize, we'll do it manually after adding items
+    pending_invoice_items_behavior: 'include', // sweep in any pending Tech Fee items for this customer
   });
   
   console.log('🔵 Created draft invoice:', invoice.id);
@@ -246,6 +247,94 @@ export async function sendStripeInvoice(invoiceId: string): Promise<Stripe.Invoi
   // Finalize and send
   const finalizedInvoice = await stripe.invoices.finalizeInvoice(invoiceId);
   return stripe.invoices.sendInvoice(finalizedInvoice.id);
+}
+
+// ── Tech Fees: pass Stripe's own processing fee on to the client ──────────
+// Whenever a client payment succeeds, Stripe deducts a processing fee. We
+// capture that real fee and queue it as a pending Stripe invoice item so it
+// automatically rolls into whatever invoice is generated next for that
+// customer — a subscription renewal or the next createStripeInvoice() call —
+// without us having to track a separate balance ourselves.
+
+/**
+ * Fetches the real fee Stripe took on a charge (in cents). Requires an extra
+ * API call since the fee lives on the charge's balance_transaction, which
+ * isn't included by default. Returns null if unavailable (e.g. the balance
+ * transaction hasn't attached yet, which can lag a second or two) rather
+ * than throwing — callers should treat null as "skip, don't block anything."
+ */
+export async function getStripeFeeForCharge(chargeId: string): Promise<number | null> {
+  try {
+    const charge: any = await stripe.charges.retrieve(chargeId, {
+      expand: ['balance_transaction'],
+    });
+    const bt = charge.balance_transaction;
+    if (bt && typeof bt === 'object' && typeof bt.fee === 'number') {
+      return bt.fee;
+    }
+    console.warn(`⚠️ [Tech Fees] No balance_transaction fee available yet for charge ${chargeId}`);
+    return null;
+  } catch (err: any) {
+    console.error(`❌ [Tech Fees] Failed to fetch fee for charge ${chargeId}:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Given a PaymentIntent ID, resolves the charge ID it produced (needed to
+ * look up the Stripe fee). Returns null if there's no charge yet.
+ */
+export async function getChargeIdFromPaymentIntent(paymentIntentId: string): Promise<string | null> {
+  try {
+    const pi: any = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const chargeId = pi.latest_charge;
+    return typeof chargeId === 'string' ? chargeId : chargeId?.id || null;
+  } catch (err: any) {
+    console.error(`❌ [Tech Fees] Failed to resolve charge from PaymentIntent ${paymentIntentId}:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Creates a pending Stripe invoice item ("Tech Fees") on a customer's
+ * account. Not attached to any specific invoice — Stripe automatically rolls
+ * pending items into whichever invoice is generated next for that customer.
+ */
+export async function addTechFeeForCustomer(
+  stripeCustomerId: string,
+  feeAmountCents: number,
+  sourceDescription = 'Payment processing'
+): Promise<void> {
+  if (feeAmountCents <= 0) return;
+  try {
+    const item = await stripe.invoiceItems.create({
+      customer: stripeCustomerId,
+      amount: feeAmountCents,
+      currency: 'usd',
+      description: 'Tech Fees',
+      metadata: { source: sourceDescription },
+    });
+    console.log(`💳 [Tech Fees] Queued $${(feeAmountCents / 100).toFixed(2)} pending Tech Fee for ${stripeCustomerId} (item ${item.id})`);
+  } catch (err: any) {
+    console.error(`❌ [Tech Fees] Failed to add pending Tech Fee for ${stripeCustomerId}:`, err.message);
+  }
+}
+
+/**
+ * Convenience wrapper: captures the fee from a charge and queues it as a
+ * pending Tech Fee for that customer, in one call. Safe to call from any
+ * webhook handler — swallows errors internally so a Tech Fee capture issue
+ * never blocks the underlying payment from being recorded.
+ */
+export async function captureTechFeeFromCharge(
+  stripeCustomerId: string | null | undefined,
+  chargeId: string | null | undefined,
+  sourceDescription: string
+): Promise<void> {
+  if (!stripeCustomerId || !chargeId) return;
+  const fee = await getStripeFeeForCharge(chargeId);
+  if (fee === null) return;
+  await addTechFeeForCustomer(stripeCustomerId, fee, sourceDescription);
 }
 
 // Cancel a subscription
