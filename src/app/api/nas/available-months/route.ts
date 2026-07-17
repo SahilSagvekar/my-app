@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       where: {
         status: { in: FINALIZED_STATUSES as any },
         monthFolder: { not: null },
-        client: { name: clientName },
+        client: { OR: [{ companyName: clientName }, { name: clientName }] },
       },
       select: { monthFolder: true },
       distinct: ['monthFolder'],

@@ -463,7 +463,7 @@ export function NasBackupAdmin() {
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map(c => (
-                    <SelectItem key={c.id} value={c.name}>{c.companyName || c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.companyName || c.name}>{c.companyName || c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
