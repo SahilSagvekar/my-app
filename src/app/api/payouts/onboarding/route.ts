@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   try {
     const { accountId } = await getOrCreateConnectAccount(user.id, country, user.email);
 
-    const origin = req.nextUrl.origin;
+    const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || req.nextUrl.origin;
     const url = await createOnboardingLink(
       accountId,
       `${origin}/dashboard?payoutOnboarding=refresh`,
