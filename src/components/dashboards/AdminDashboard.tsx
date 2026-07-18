@@ -13,7 +13,6 @@ import {
 } from '../ui/dropdown-menu';
 import { useEffect, useState } from "react";
 import {
-  TrendingUp,
   Users,
   FileText,
   Clock,
@@ -482,58 +481,11 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           </CardContent>
         </Card>
 
-        {/* Recent Activity + Recent Tasks — side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentActivity && recentActivity.length > 0 ? (
-                  recentActivity.map((activity) => (
-                    <div
-                      key={activity.id}
-                      className="flex items-start gap-3 pb-3 border-b last:border-b-0"
-                    >
-                      <div
-                        className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${activity.status === "success"
-                          ? "bg-green-500"
-                          : activity.status === "error"
-                            ? "bg-red-500"
-                            : activity.status === "warning"
-                              ? "bg-yellow-500"
-                              : "bg-blue-500"
-                          }`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm">{activity.message}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {activity.time}
-                          {activity.user && ` • ${activity.user}`}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No recent activity
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recently Assigned Tasks */}
-          <RecentTasksCard
-            title="Recently Assigned Tasks"
-            showCreateButton={true}
-          />
-        </div>
+        {/* Recently Assigned Tasks */}
+        <RecentTasksCard
+          title="Recently Assigned Tasks"
+          showCreateButton={true}
+        />
 
         {/* Job Management — full width */}
         <JobManagementSection />
