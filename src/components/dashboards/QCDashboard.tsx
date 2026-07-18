@@ -267,6 +267,16 @@ const [pendingApprovalType, setPendingApprovalType] = useState<"client" | "sched
 const [qcPostingTitles, setQcPostingTitles] = useState<{ id: string; text: string }[]>([]);
 const [qcPostingDescriptions, setQcPostingDescriptions] = useState<{ id: string; text: string }[]>([]);
 const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[]>([]);
+// 🔥 Client's template hashtags — fetched per task's client, shown as selectable chips in the tags tab
+const [clientTemplateHashtags, setClientTemplateHashtags] = useState<string[]>([]);
+
+useEffect(() => {
+  if (!selectedTask?.clientId) { setClientTemplateHashtags([]); return; }
+  fetch(`/api/clients/${selectedTask.clientId}/hashtags`, { credentials: 'include' })
+    .then((res) => res.json())
+    .then((data) => setClientTemplateHashtags(data.hashtags || []))
+    .catch(() => setClientTemplateHashtags([]));
+}, [selectedTask?.clientId]);
 
   // QC Reassign state
   const [showReassignDialog, setShowReassignDialog] = useState(false);
@@ -1665,6 +1675,7 @@ const [qcPostingTags, setQcPostingTags] = useState<{ id: string; text: string }[
             onPostingTitlesChange={setQcPostingTitles}
             onPostingDescriptionsChange={setQcPostingDescriptions}
             onPostingTagsChange={setQcPostingTags}
+            templateHashtags={clientTemplateHashtags}
           />
         )}
 

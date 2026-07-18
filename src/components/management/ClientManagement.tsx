@@ -56,6 +56,7 @@ import {
   CreditCard,
   GripVertical,
   MessageSquare,
+  Hash,
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Separator } from "../ui/separator";
@@ -168,6 +169,7 @@ interface Client {
   requiresVideographer: string;
   hasPostingServices: boolean;
   isTrial: boolean;
+  templateHashtags: string[];
   brandAssets: BrandAsset[];
   brandGuidelines: {
     primaryColors: string[];
@@ -308,6 +310,7 @@ export function ClientManagement() {
     clientReviewDeliverableTypes: [],
     videographerRequired: "no",
     hasPostingServices: true,
+    templateHashtags: [],
     monthlyDeliverables: [],
     oneOffDeliverables: [],
     brandAssets: [],
@@ -331,6 +334,26 @@ export function ClientManagement() {
     slackChannelName: "",
     slackEnabled: false,
   });
+
+  const [hashtagInput, setHashtagInput] = useState("");
+
+  const addTemplateHashtag = () => {
+    const raw = hashtagInput.trim().replace(/^#/, "");
+    if (!raw) return;
+    const tag = `#${raw}`;
+    const current = newClient.templateHashtags || [];
+    if (!current.includes(tag)) {
+      setNewClient({ ...newClient, templateHashtags: [...current, tag] });
+    }
+    setHashtagInput("");
+  };
+
+  const removeTemplateHashtag = (tag: string) => {
+    setNewClient({
+      ...newClient,
+      templateHashtags: (newClient.templateHashtags || []).filter((t) => t !== tag),
+    });
+  };
 
   const addEmail = () => {
     setNewClient({
@@ -1326,6 +1349,7 @@ export function ClientManagement() {
         clientReviewRequired: "no",
         clientReviewDeliverableTypes: [],
         videographerRequired: "no",
+        templateHashtags: [],
         monthlyDeliverables: [],
         brandAssets: [],
         brandGuidelines: {
@@ -1345,6 +1369,7 @@ export function ClientManagement() {
           quickTurnaroundAvailable: false,
         },
       });
+      setHashtagInput("");
     } catch (err) {
       console.error("Save client failed:", err);
       toast.error("Server error");
@@ -1369,6 +1394,7 @@ export function ClientManagement() {
       clientReviewDeliverableTypes: (client as any).clientReviewDeliverableTypes ?? [],
       videographerRequired: client.requiresVideographer ? "yes" : "no",
       hasPostingServices: client.hasPostingServices ?? true,
+      templateHashtags: (client as any).templateHashtags ?? [],
       accountManagerId: client.accountManagerId,
       startDate: client.startDate,
       renewalDate: client.renewalDate,
@@ -2953,6 +2979,58 @@ export function ClientManagement() {
                   />
                 </div>
               </div>
+            </div>
+
+            <Separator className="bg-gray-200" />
+
+            {/* Template Hashtags */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-gray-900 flex items-center gap-2">
+                  <Hash className="h-5 w-5 text-blue-500" />
+                  Template Hashtags
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Default hashtags for this client — selectable in the review screen when approving posts. The client can add more from their portal.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={hashtagInput}
+                  onChange={(e) => setHashtagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addTemplateHashtag();
+                    }
+                  }}
+                  placeholder="e.g. contentcreation"
+                  className="bg-white border-gray-200 text-gray-900"
+                />
+                <Button type="button" variant="outline" onClick={addTemplateHashtag}>
+                  Add
+                </Button>
+              </div>
+              {(newClient.templateHashtags || []).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {(newClient.templateHashtags || []).map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className="gap-1.5 pr-1.5 bg-blue-50 text-blue-700 border-blue-200"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTemplateHashtag(tag)}
+                        className="text-blue-400 hover:text-blue-700"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
 
             <Separator className="bg-gray-200" />

@@ -129,6 +129,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       slackWebhookUrl,
       slackChannelName,
       slackEnabled,
+      templateHashtags,
       monthlyDeliverables = [],
       oneOffDeliverables = [],
     } = data;
@@ -167,6 +168,9 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         ...(slackWebhookUrl !== undefined && { slackWebhookUrl }),
         ...(slackChannelName !== undefined && { slackChannelName }),
         ...(slackEnabled !== undefined && { slackEnabled }),
+        ...(templateHashtags !== undefined && {
+          templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
+        }),
       },
     });
 

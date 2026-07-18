@@ -202,6 +202,16 @@ export function ClientDashboard() {
   const [postingTitles, setPostingTitles] = useState<{ id: string; text: string }[]>([]);
   const [postingDescriptions, setPostingDescriptions] = useState<{ id: string; text: string }[]>([]);
   const [postingTags, setPostingTags] = useState<{ id: string; text: string }[]>([]);
+  // 🔥 Client's own template hashtags — shown as selectable chips in the tags tab
+  const [clientTemplateHashtags, setClientTemplateHashtags] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!selectedTask?.clientId) { setClientTemplateHashtags([]); return; }
+    fetch(`/api/clients/${selectedTask.clientId}/hashtags`, { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => setClientTemplateHashtags(data.hashtags || []))
+      .catch(() => setClientTemplateHashtags([]));
+  }, [selectedTask?.clientId]);
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [showVideoReview, setShowVideoReview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
@@ -1510,6 +1520,7 @@ export function ClientDashboard() {
               onPostingTitlesChange={setPostingTitles}
               onPostingDescriptionsChange={setPostingDescriptions}
               onPostingTagsChange={setPostingTags}
+              templateHashtags={clientTemplateHashtags}
             />
           )}
         {/* File Preview Modal */}

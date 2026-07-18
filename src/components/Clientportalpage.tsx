@@ -1137,14 +1137,33 @@ function IntakeFormSection() {
     primaryContactEmail: '',
     primaryContactPhone: '',
     additionalNotes: '',
+    hashtags: [] as string[],
   });
+  const [hashtagInput, setHashtagInput] = React.useState('');
 
   React.useEffect(() => {
     fetch('/api/portal/intake', { credentials: 'include' })
       .then(r => r.json())
-      .then(d => setStatus(d.completed ? 'completed' : 'form'))
+      .then(d => {
+        setStatus(d.completed ? 'completed' : 'form');
+        if (Array.isArray(d.hashtags)) setForm(p => ({ ...p, hashtags: d.hashtags }));
+      })
       .catch(() => setStatus('form'));
   }, []);
+
+  function addHashtag() {
+    const raw = hashtagInput.trim().replace(/^#/, '');
+    if (!raw) return;
+    const tag = `#${raw}`;
+    if (!form.hashtags.includes(tag)) {
+      setForm(p => ({ ...p, hashtags: [...p.hashtags, tag] }));
+    }
+    setHashtagInput('');
+  }
+
+  function removeHashtag(tag: string) {
+    setForm(p => ({ ...p, hashtags: p.hashtags.filter(h => h !== tag) }));
+  }
 
   async function handleSubmit() {
     setSaving(true);
@@ -1157,6 +1176,7 @@ function IntakeFormSection() {
           ...form,
           brandColors: form.brandColors.split(',').map(s => s.trim()).filter(Boolean),
           brandFonts: form.brandFonts.split(',').map(s => s.trim()).filter(Boolean),
+          hashtags: form.hashtags,
         }),
       });
       if (res.ok) setStatus('success');
@@ -1296,6 +1316,40 @@ function IntakeFormSection() {
             <input type="text" value={form.competitorChannels} onChange={e => setForm(p => ({ ...p, competitorChannels: e.target.value }))}
               placeholder="@channel1, @channel2" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
+        </div>
+
+        {/* Hashtags */}
+        <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+          <div>
+            <h3 className="font-semibold text-gray-900">Template hashtags</h3>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Hashtags you'd like used on your posts. Your account manager may have already added some — feel free to add more.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={hashtagInput}
+              onChange={e => setHashtagInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addHashtag(); } }}
+              placeholder="e.g. contentcreation"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Button type="button" variant="outline" onClick={addHashtag}>Add</Button>
+          </div>
+          {form.hashtags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {form.hashtags.map(tag => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 text-sm rounded-full bg-blue-50 text-blue-700 border border-blue-200"
+                >
+                  {tag}
+                  <button type="button" onClick={() => removeHashtag(tag)} className="text-blue-400 hover:text-blue-700">✕</button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Scheduling */}

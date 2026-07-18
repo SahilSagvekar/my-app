@@ -48,6 +48,8 @@ export interface ReviewScreenProps {
     onPostingTitlesChange: (items: { id: string; text: string }[]) => void;
     onPostingDescriptionsChange: (items: { id: string; text: string }[]) => void;
     onPostingTagsChange: (items: { id: string; text: string }[]) => void;
+    // 🔥 Client's template hashtags — selectable chips above the freeform tags box
+    templateHashtags?: string[];
 
     /* video state */
     videoRef: RefObject<HTMLVideoElement | null>;
@@ -190,6 +192,16 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setCurrentList(currentList.map(i => i.id === editingId ? { ...i, text } : i));
         setEditingId(null);
         setEditingText('');
+    };
+
+    // toggle a client template hashtag in/out of the tags list (chip picker)
+    const toggleTemplateHashtag = (tag: string) => {
+        const isSelected = p.postingTags.some(t => t.text === tag);
+        const nextItems = isSelected
+            ? p.postingTags.filter(t => t.text !== tag)
+            : [...p.postingTags, { id: `${Date.now()}-${Math.random()}`, text: tag }];
+        p.onPostingTagsChange(nextItems);
+        setTagsText(nextItems.map(t => t.text).join(', '));
     };
 
     // clear new-item inputs and editing state when tab changes
@@ -691,6 +703,32 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                     <span className="text-xs font-semibold text-white capitalize">{type}</span>
                                                 </div>
                                                 <div className="px-3 pt-2">
+                                                    {isTags && (p.templateHashtags?.length ?? 0) > 0 && (
+                                                        <div className="mb-2.5">
+                                                            <span className="text-[10px] font-medium text-[var(--review-text-muted)] uppercase tracking-wide">
+                                                                Client tags
+                                                            </span>
+                                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                                {p.templateHashtags!.map(tag => {
+                                                                    const selected = p.postingTags.some(t => t.text === tag);
+                                                                    return (
+                                                                        <button
+                                                                            key={tag}
+                                                                            type="button"
+                                                                            onClick={() => toggleTemplateHashtag(tag)}
+                                                                            className={`px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                                                                                selected
+                                                                                    ? 'bg-[var(--review-status-approved)] border-[var(--review-status-approved)] text-white'
+                                                                                    : 'bg-transparent border-[var(--review-border)] text-[var(--review-text-muted)] hover:border-[var(--review-status-approved)]/60 hover:text-white'
+                                                                            }`}
+                                                                        >
+                                                                            {tag}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                     {isTags ? (
                                                         <Textarea
                                                             value={tagsText}

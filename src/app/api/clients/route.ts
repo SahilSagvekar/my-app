@@ -186,6 +186,7 @@ export async function POST(req: Request) {
       clientReviewDeliverableTypes,
       videographerRequired,
       hasPostingServices,
+      templateHashtags,
     } = body;
 
     if (!name || !email)
@@ -246,6 +247,7 @@ export async function POST(req: Request) {
           clientReviewDeliverableTypes: clientReviewDeliverableTypes ?? [],
           requiresVideographer: videographer,
           hasPostingServices: hasPostingServices ?? true,
+          templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
           currentProgress: { completed: 0, total: 0 },
         },
       });

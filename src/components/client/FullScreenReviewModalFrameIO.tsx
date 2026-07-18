@@ -73,6 +73,8 @@ interface FullScreenReviewModalProps {
     onPostingTitlesChange?: (items: { id: string; text: string }[]) => void;
     onPostingDescriptionsChange?: (items: { id: string; text: string }[]) => void;
     onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
+    // 🔥 Client's template hashtags — shown as selectable chips in the tags tab
+    templateHashtags?: string[];
 }
 
 interface RevisionRequest {
@@ -187,6 +189,7 @@ export function FullScreenReviewModalFrameIO({
     onPostingTitlesChange,
     onPostingDescriptionsChange,
     onPostingTagsChange,
+    templateHashtags = [],
 }: FullScreenReviewModalProps) {
     const { user } = useAuth();
 
@@ -962,6 +965,7 @@ export function FullScreenReviewModalFrameIO({
         onPostingTitlesChange: onPostingTitlesChange ?? (() => {}),
         onPostingDescriptionsChange: onPostingDescriptionsChange ?? (() => {}),
         onPostingTagsChange: onPostingTagsChange ?? (() => {}),
+        templateHashtags,
         videoRef,
         iframeRef,
         containerRef,

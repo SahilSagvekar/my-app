@@ -28,6 +28,8 @@ export interface IntakeData {
   primaryContactPhone: string;
   // Additional
   additionalNotes: string;
+  // Client-added template hashtags (merged with any admin-set defaults)
+  hashtags: string[];
 }
 
 // POST /api/portal/intake
@@ -51,10 +53,23 @@ export async function POST(req: NextRequest) {
 
     const body: IntakeData = await req.json();
 
+    // Merge client-submitted hashtags with any admin-set defaults — never overwrite
+    const existing = await prisma.client.findUnique({
+      where: { id: client.id },
+      select: { templateHashtags: true },
+    });
+    const mergedHashtags = Array.from(
+      new Set([
+        ...(existing?.templateHashtags ?? []),
+        ...(body.hashtags || []).map((h) => h.trim()).filter(Boolean),
+      ])
+    );
+
     // Save intake data into existing brandGuidelines and projectSettings JSON fields
     await prisma.client.update({
       where: { id: client.id },
       data: {
+        templateHashtags: mergedHashtags,
         brandGuidelines: {
           primaryColors: body.brandColors || [],
           secondaryColors: [],
@@ -104,13 +119,17 @@ export async function GET(req: NextRequest) {
 
     const client = await prisma.client.findFirst({
       where: { OR: [{ userId: user.id }, { email: user.email }] },
-      select: { projectSettings: true },
+      select: { projectSettings: true, templateHashtags: true },
     });
 
     const settings = client?.projectSettings as any;
     const completed = !!settings?.intakeCompletedAt;
 
-    return NextResponse.json({ completed, completedAt: settings?.intakeCompletedAt || null });
+    return NextResponse.json({
+      completed,
+      completedAt: settings?.intakeCompletedAt || null,
+      hashtags: client?.templateHashtags ?? [],
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

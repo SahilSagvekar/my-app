@@ -78,6 +78,15 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
         if (tab === 'titles' && p.userRole === 'client' && list.length <= 1) return;
         setList(list.filter(i => i.id !== id));
     };
+    const toggleMobileTemplateHashtag = (tag: string) => {
+        const selected = p.postingTags.some(t => t.text === tag);
+        if (!selected && p.postingTags.length >= POSTING_CAPS.tags) return;
+        p.onPostingTagsChange(
+            selected
+                ? p.postingTags.filter(t => t.text !== tag)
+                : [...p.postingTags, { id: `${Date.now()}-${Math.random()}`, text: tag }]
+        );
+    };
     const commitMobileEdit = () => {
         if (!mobileEditId || !mobileEditType) return;
         const setList = getPostingSetList(mobileEditType);
@@ -704,6 +713,27 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                                     {list.length}/{cap}
                                                 </span>
                                             </div>
+                                            {type === 'tags' && (p.templateHashtags?.length ?? 0) > 0 && (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {p.templateHashtags!.map(tag => {
+                                                        const selected = p.postingTags.some(t => t.text === tag);
+                                                        return (
+                                                            <button
+                                                                key={tag}
+                                                                type="button"
+                                                                onClick={() => toggleMobileTemplateHashtag(tag)}
+                                                                className={`px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                                                                    selected
+                                                                        ? 'bg-[var(--review-status-approved)] border-[var(--review-status-approved)] text-white'
+                                                                        : 'bg-transparent border-[var(--review-border)] text-[var(--review-text-muted)]'
+                                                                }`}
+                                                            >
+                                                                {tag}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                             <div className="flex gap-1.5">
                                                 <Input
                                                     value={mobileNewTexts[type]}

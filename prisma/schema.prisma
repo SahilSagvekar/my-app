@@ -349,6 +349,7 @@ model Client {
   portalPasswordSet            Boolean                   @default(false)
   preClientId                  String?                   @unique
   welcomeVideoWatched          Boolean                   @default(false)
+  templateHashtags             String[]                  @default([])
   brandAssets                  BrandAsset[]
   user                         User?                     @relation(fields: [userId], references: [id])
   portalAccess                 ClientPortalAccess?
