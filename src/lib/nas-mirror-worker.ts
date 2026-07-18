@@ -1,7 +1,12 @@
 // src/lib/nas-mirror-worker.ts
-// Background worker — processes NasMirrorJob rows (copy R2 -> NAS MinIO,
-// verify, delete verified files from R2, update File records).
-// Called by cron-master on an interval, same pattern as upload-worker.ts.
+// Background worker — processes NasMirrorJob rows (copy R2 -> NAS as plain
+// files via SFTP, verify, delete verified files from R2, update File
+// records). Called by cron-master on an interval, same pattern as
+// upload-worker.ts.
+//
+// Switched from MinIO (S3 API) to SFTP: MinIO stored files in its own
+// internal chunked object format, not as directly playable video files —
+// SFTP writes genuine files straight into NAS folders instead.
 //
 // Unlike the upload worker (which pops up to 3 small jobs per tick), a
 // mirror job can involve many large video files and take a long time — so
@@ -9,10 +14,10 @@
 // The job runs to completion within that single tick call; cron-master's
 // setInterval just won't re-enter while isRunning is true.
 
-import { S3Client, ListObjectsV2Command, HeadObjectCommand, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/prisma';
 import { getS3, BUCKET as R2_BUCKET } from '@/lib/s3';
-import { getNasS3, NAS_BUCKET } from '@/lib/nas-s3';
+import { NasSftpSession } from '@/lib/nas-sftp';
 import {
   popPendingNasMirrorJob,
   updateNasMirrorJobProgress,
@@ -52,40 +57,18 @@ async function* listR2Keys(r2: S3Client, prefix: string) {
   } while (ContinuationToken);
 }
 
-async function headOnNas(nas: S3Client, key: string): Promise<{ ok: boolean; size?: number }> {
-  try {
-    const head = await nas.send(new HeadObjectCommand({ Bucket: NAS_BUCKET, Key: key }));
-    return { ok: true, size: head.ContentLength };
-  } catch {
-    return { ok: false };
-  }
-}
-
-async function copyToNas(r2: S3Client, nas: S3Client, key: string, expectedSize: number) {
-  const { Body, ContentType } = await r2.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
-  await nas.send(new PutObjectCommand({
-    Bucket: NAS_BUCKET,
-    Key: key,
-    Body: Body as any,
-    ContentLength: expectedSize,
-    ContentType,
-  }));
-}
-
 async function processJob(jobId: string, clientName: string, monthFolder: string) {
   console.log(`[NasMirrorWorker] Starting job ${jobId}: ${clientName} / ${monthFolder}`);
 
   const r2 = getS3();
-  const nas = getNasS3();
   const prefix = `${clientName}/outputs/${monthFolder}/`;
+  const nas = new NasSftpSession();
 
   try {
-    await nas.send(new CreateBucketCommand({ Bucket: NAS_BUCKET }));
+    await nas.connect();
   } catch (err: any) {
-    if (err.name !== 'BucketAlreadyOwnedByYou' && err.name !== 'BucketAlreadyExists') {
-      await failNasMirrorJob(jobId, `Failed to ensure NAS bucket: ${err.message}`);
-      return;
-    }
+    await failNasMirrorJob(jobId, `Failed to connect to NAS via SFTP: ${err.message}`);
+    return;
   }
 
   let scanned = 0, copied = 0, verified = 0, deleted = 0, failed = 0;
@@ -97,12 +80,13 @@ async function processJob(jobId: string, clientName: string, monthFolder: string
       scanned++;
       await updateNasMirrorJobProgress(jobId, { scannedCount: scanned, currentFile: key });
 
-      let head = await headOnNas(nas, key);
-      if (!(head.ok && head.size === size)) {
+      let onNas = await nas.existsWithSize(key, size);
+      if (!onNas) {
         try {
-          await copyToNas(r2, nas, key, size);
+          const { Body } = await r2.send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+          await nas.upload(key, Body as any);
           copied++;
-          head = await headOnNas(nas, key);
+          onNas = await nas.existsWithSize(key, size);
         } catch (err: any) {
           console.error(`[NasMirrorWorker] Copy failed for ${key}: ${err.message}`);
           failed++;
@@ -111,7 +95,7 @@ async function processJob(jobId: string, clientName: string, monthFolder: string
         }
       }
 
-      if (!(head.ok && head.size === size)) {
+      if (!onNas) {
         console.error(`[NasMirrorWorker] Verify failed for ${key}`);
         failed++;
         await updateNasMirrorJobProgress(jobId, { copiedCount: copied, failedCount: failed });
@@ -130,7 +114,7 @@ async function processJob(jobId: string, clientName: string, monthFolder: string
             deletedFromCloudAt: new Date(),
             archivedToNas: true,
             nasArchivedAt: new Date(),
-            nasPath: `minio://${NAS_BUCKET}`,
+            nasPath: `sftp://${process.env.NAS_SFTP_ROOT_PATH || '/volume2/Backup'}`,
           },
         });
         deleted++;
@@ -152,5 +136,7 @@ async function processJob(jobId: string, clientName: string, monthFolder: string
   } catch (err: any) {
     console.error(`[NasMirrorWorker] Job ${jobId} crashed:`, err.message);
     await failNasMirrorJob(jobId, err.message);
+  } finally {
+    await nas.disconnect();
   }
 }
