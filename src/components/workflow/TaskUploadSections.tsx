@@ -93,6 +93,11 @@ export function TaskUploadSections({
     return t.includes('hard post') || t.includes('graphic image');
   };
 
+  const isStoryDeliverable = (deliverableType: string) => {
+    const t = (deliverableType || '').toLowerCase();
+    return t.includes('stories') || t.includes('story');
+  };
+
   const isTextPostDeliverable = (deliverableType: string) => {
     return (deliverableType || '').toLowerCase().includes('text post');
   };
@@ -102,7 +107,11 @@ export function TaskUploadSections({
 
     const mainSection: UploadSection = {
       folderType: "main",
-      label: isHardPostDeliverable(deliverableType) ? "Images (PNG / JPG)" : "Main Task File",
+      label: isHardPostDeliverable(deliverableType)
+        ? "Images (PNG / JPG)"
+        : isStoryDeliverable(deliverableType)
+        ? "Main Task File (Video or Image)"
+        : "Main Task File",
       required: true,
       icon: isHardPostDeliverable(deliverableType) ? "🖼️" : "img:/icons/main-task-file.svg",
       uploaded: false,

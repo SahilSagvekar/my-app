@@ -154,9 +154,16 @@ export function FileUploadDialog({
     return type.includes('hard post') || type.includes('graphic image');
   };
 
+  const isStoryPost = () => {
+    const type = (task?.deliverableType || task?.taskType || '').toLowerCase();
+    return type.includes('stories') || type.includes('story');
+  };
+
   const getAcceptedTypes = (folder: string): string => {
     if (folder === "main" && isHardPost())
       return ".png,.jpg,.jpeg,image/png,image/jpeg";
+    if (folder === "main" && isStoryPost())
+      return ".mp4,.mov,.png,.jpg,.jpeg,video/mp4,video/quicktime,image/png,image/jpeg";
     switch (folder) {
       case "main":
         return ".mp4,.mov,video/mp4,video/quicktime";
@@ -174,6 +181,8 @@ export function FileUploadDialog({
   const getAcceptedTypesLabel = (folder: string): string => {
     if (folder === "main" && isHardPost())
       return "PNG, JPG or JPEG files only";
+    if (folder === "main" && isStoryPost())
+      return "MP4, MOV, PNG, JPG or JPEG files only";
     switch (folder) {
       case "main":
         return "MP4 or MOV files only";
@@ -193,6 +202,8 @@ export function FileUploadDialog({
     const mime = file.type.toLowerCase();
     if (folder === "main" && isHardPost())
       return ['png', 'jpg', 'jpeg'].includes(ext) || ['image/png', 'image/jpeg'].includes(mime);
+    if (folder === "main" && isStoryPost())
+      return ['mp4', 'mov', 'png', 'jpg', 'jpeg'].includes(ext) || ['video/mp4', 'video/quicktime', 'image/png', 'image/jpeg'].includes(mime);
     switch (folder) {
       case "main":
         return ['mp4', 'mov'].includes(ext) || ['video/mp4', 'video/quicktime'].includes(mime);
