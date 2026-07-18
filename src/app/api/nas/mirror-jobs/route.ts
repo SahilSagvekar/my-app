@@ -3,9 +3,14 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
-import { createNasMirrorJob } from '@/lib/nas-mirror-queue';
+import { createNasMirrorJob, NasFolderType } from '@/lib/nas-mirror-queue';
 
-// POST /api/nas/mirror-jobs — create a new mirror job (client + month).
+// POST /api/nas/mirror-jobs — create a new mirror job.
+// Body for outputs:      { clientName, monthFolder }
+// Body for raw-footage:  { clientName, folderType: "raw-footage", folderPath }
+//   folderPath is the full relative path under <clientName>/raw-footage/,
+//   e.g. "June-2025" (whole month) or "June-2025/SF12" (one shoot folder).
+//
 // The job is inserted with status "pending" and picked up by
 // nas-mirror-worker.ts on cron-master's next tick — this route returns
 // immediately, it does not wait for the copy to happen.
@@ -17,20 +22,50 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
-    const { clientName, monthFolder } = await req.json();
-    if (!clientName || !monthFolder) {
-      return NextResponse.json({ error: 'clientName and monthFolder are required' }, { status: 400 });
+    const body = await req.json();
+    const clientName: string | undefined = body.clientName;
+    const folderType: NasFolderType = body.folderType === 'raw-footage' ? 'raw-footage' : 'outputs';
+
+    if (!clientName) {
+      return NextResponse.json({ error: 'clientName is required' }, { status: 400 });
     }
 
-    // Avoid queuing a duplicate if one's already pending/running for the same client+month.
+    let monthFolder: string;
+    let folderPath: string | undefined;
+
+    if (folderType === 'raw-footage') {
+      folderPath = (body.folderPath || '').replace(/^\/+|\/+$/g, '');
+      if (!folderPath) {
+        return NextResponse.json({ error: 'folderPath is required for raw-footage jobs' }, { status: 400 });
+      }
+      monthFolder = folderPath.split('/')[0]; // first segment, for display/history
+    } else {
+      monthFolder = body.monthFolder;
+      if (!monthFolder) {
+        return NextResponse.json({ error: 'monthFolder is required for outputs jobs' }, { status: 400 });
+      }
+    }
+
+    // Avoid queuing a duplicate if one's already pending/running for the same target.
     const existing = await prisma.nasMirrorJob.findFirst({
-      where: { clientName, monthFolder, status: { in: ['pending', 'running'] } },
+      where: {
+        clientName,
+        folderType,
+        status: { in: ['pending', 'running'] },
+        ...(folderType === 'raw-footage' ? { folderPath } : { monthFolder }),
+      },
     });
     if (existing) {
       return NextResponse.json({ job: existing, alreadyQueued: true });
     }
 
-    const job = await createNasMirrorJob(clientName, monthFolder, user.id);
+    const job = await createNasMirrorJob({
+      clientName,
+      folderType,
+      monthFolder,
+      folderPath,
+      triggeredById: user.id,
+    });
     return NextResponse.json({ job, alreadyQueued: false });
   } catch (err: any) {
     console.error('[NAS Mirror Jobs POST]', err.message);

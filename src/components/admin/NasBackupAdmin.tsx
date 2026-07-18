@@ -10,6 +10,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { toast } from 'sonner';
+import RawFootageMirrorPanel from '@/components/admin/RawFootageMirrorPanel';
 
 interface SweepFileResult {
   fileId: string;
@@ -444,6 +445,8 @@ export function NasBackupAdmin() {
               ))}
             </div>
           </div>
+
+          <RawFootageMirrorPanel clients={clients} onJobsStarted={() => { loadJobHistory(); load(); }} />
 
           {/* Copy to NAS — targeted client/month mirror + cleanup */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">

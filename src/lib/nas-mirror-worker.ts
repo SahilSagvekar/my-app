@@ -3,8 +3,13 @@
 // verify, delete verified files from R2, update File records).
 // Called by cron-master on an interval, same pattern as upload-worker.ts.
 //
-// Unlike the upload worker (which pops up to 3 small jobs per tick), a
-// mirror job can involve many large video files and take a long time — so
+// Handles both job types:
+//   - outputs:     prefix = <clientName>/outputs/<monthFolder>/
+//   - raw-footage: prefix = <clientName>/raw-footage/<folderPath>/
+//                  (folderPath can be a whole month or a specific shoot
+//                  subfolder, selected via the folder-browser UI)
+//
+// A mirror job can involve many large video files and take a long time — so
 // one tick either starts a new job (if none is running) or does nothing.
 // The job runs to completion within that single tick call; cron-master's
 // setInterval just won't re-enter while isRunning is true.
@@ -33,7 +38,7 @@ export async function runNasMirrorWorkerTick(): Promise<void> {
     const job = await popPendingNasMirrorJob();
     if (!job) return;
 
-    await processJob(job.id, job.clientName, job.monthFolder);
+    await processJob(job.id, job.clientName, job.folderType, job.monthFolder, job.folderPath);
   } catch (err: any) {
     console.error('[NasMirrorWorker] Tick error:', err.message);
   } finally {
@@ -72,12 +77,27 @@ async function copyToNas(r2: S3Client, nas: S3Client, key: string, expectedSize:
   }));
 }
 
-async function processJob(jobId: string, clientName: string, monthFolder: string) {
-  console.log(`[NasMirrorWorker] Starting job ${jobId}: ${clientName} / ${monthFolder}`);
+function buildPrefix(clientName: string, folderType: string, monthFolder: string, folderPath: string | null): string {
+  if (folderType === 'raw-footage') {
+    const relPath = folderPath || monthFolder;
+    return `${clientName}/raw-footage/${relPath}/`;
+  }
+  return `${clientName}/outputs/${monthFolder}/`;
+}
+
+async function processJob(
+  jobId: string,
+  clientName: string,
+  folderType: string,
+  monthFolder: string,
+  folderPath: string | null
+) {
+  const label = folderType === 'raw-footage' ? (folderPath || monthFolder) : monthFolder;
+  console.log(`[NasMirrorWorker] Starting job ${jobId}: ${clientName} / ${folderType} / ${label}`);
 
   const r2 = getS3();
   const nas = getNasS3();
-  const prefix = `${clientName}/outputs/${monthFolder}/`;
+  const prefix = buildPrefix(clientName, folderType, monthFolder, folderPath);
 
   try {
     await nas.send(new CreateBucketCommand({ Bucket: NAS_BUCKET }));

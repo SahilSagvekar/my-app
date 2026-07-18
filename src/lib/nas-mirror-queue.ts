@@ -3,20 +3,37 @@
 // instead of Redis (unlike upload-queue.ts) — because these rows also serve
 // as the permanent history the admin UI shows, not just transient queue state.
 //
-// One job = one client + one month. Triggered from the NAS Backup admin
-// panel, picked up by nas-mirror-worker.ts on the next cron-master tick.
+// A job is either:
+//   - an "outputs" job: clientName + monthFolder (e.g. "March-2026")
+//   - a "raw-footage" job: clientName + folderPath (full relative path under
+//     <clientName>/raw-footage/, e.g. "June-2025/SF12" or just "June-2025"
+//     if a whole month was selected). monthFolder is still set to the first
+//     path segment for display/history purposes even for raw-footage jobs.
+//
+// Triggered from the NAS Backup admin panel, picked up by
+// nas-mirror-worker.ts on the next cron-master tick.
 
 import { prisma } from '@/lib/prisma';
 
 const STUCK_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour — mirror jobs can be big
 
-export async function createNasMirrorJob(clientName: string, monthFolder: string, triggeredById?: number | null) {
+export type NasFolderType = 'outputs' | 'raw-footage';
+
+export async function createNasMirrorJob(params: {
+  clientName: string;
+  folderType: NasFolderType;
+  monthFolder: string; // for outputs: the month, e.g. "March-2026". for raw-footage: first path segment, for display.
+  folderPath?: string; // only for raw-footage — full relative path under raw-footage/
+  triggeredById?: number | null;
+}) {
   return prisma.nasMirrorJob.create({
     data: {
-      clientName,
-      monthFolder,
+      clientName: params.clientName,
+      folderType: params.folderType,
+      monthFolder: params.monthFolder,
+      folderPath: params.folderPath ?? null,
       status: 'pending',
-      triggeredById: triggeredById ?? null,
+      triggeredById: params.triggeredById ?? null,
     },
   });
 }

@@ -2110,6 +2110,8 @@ model NasMirrorJob {
   verifiedCount Int      @default(0)
   deletedCount  Int      @default(0)
   failedCount   Int      @default(0)
+  folderType    String   @default("outputs") // 'outputs' | 'raw-footage'
+  folderPath    String?  // full relative path under clientName for raw-footage jobs, e.g. "June-2025/SF12"
   currentFile   String?
   errorMessage  String?
   triggeredById Int?
