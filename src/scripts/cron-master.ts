@@ -345,14 +345,6 @@ cron.schedule('0 * * * *', () => {
 }, { timezone: 'America/New_York' });
 
 // ==========================================
-// 6. Billing warning emails (Daily at 10 AM)
-// Sends warning email to clients whose next billing date is in 3 days
-// ==========================================
-cron.schedule('0 10 * * *', () => {
-    triggerJob('Billing Warning Emails', '/api/cron/billing-warnings', 'GET');
-}, { timezone: 'America/New_York' });
-
-// ==========================================
 // 7. Daily Posting Target Check (Every 2 hours)
 // Notifies a client's Slack channel (falls back to scheduling channel)
 // once all its daily posting targets are met for today (EST).

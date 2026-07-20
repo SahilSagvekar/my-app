@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         details = {
           ...details,
           platform: login.platform,
-          clientName: login.client.companyName,
+          clientName: login.client?.companyName ?? null,
           username: login.username,
         };
       }
