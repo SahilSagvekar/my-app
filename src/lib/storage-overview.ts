@@ -60,35 +60,42 @@ export async function getNasStorageOverview(): Promise<StorageOverview> {
     return errored('mc admin info returned non-JSON output — check `mc` version/output format');
   }
 
-  // mc's JSON shape has varied across versions. Try the newer aggregated
-  // `info.usage` field first; fall back to summing per-disk figures.
-  // If your output doesn't match either shape, log `data` on the server
-  // and adjust the field names below to match.
+  // Confirmed against a real `mc admin info --json` output:
+  //  - info.usage.size exists but reflects MinIO's background object-usage
+  //    scanner, which can lag well behind actual disk usage (seen ~258GB
+  //    reported there vs ~3.6TB actually used on disk in testing) — not
+  //    reliable for "how much room is left".
+  //  - The physical, authoritative figures live under info.servers[].drives[]
+  //    (NOT "disks" — that was a wrong guess in an earlier version of this
+  //    file), as totalspace/usedspace/availspace per drive.
   const info = data.info || data;
 
   let total: number | null = null;
   let used: number | null = null;
 
-  if (info.usage?.total != null && info.usage?.used != null) {
-    total = Number(info.usage.total);
-    used = Number(info.usage.used);
-  } else if (Array.isArray(info.servers)) {
+  if (Array.isArray(info.servers)) {
     let sumTotal = 0;
     let sumUsed = 0;
-    let foundDisk = false;
+    let foundDrive = false;
     for (const server of info.servers) {
-      for (const disk of server.disks || []) {
-        if (disk.totalspace != null && disk.usedspace != null) {
-          sumTotal += Number(disk.totalspace);
-          sumUsed += Number(disk.usedspace);
-          foundDisk = true;
+      for (const drive of server.drives || []) {
+        if (drive.totalspace != null && drive.usedspace != null) {
+          sumTotal += Number(drive.totalspace);
+          sumUsed += Number(drive.usedspace);
+          foundDrive = true;
         }
       }
     }
-    if (foundDisk) {
+    if (foundDrive) {
       total = sumTotal;
       used = sumUsed;
     }
+  }
+
+  // Fallback for older/other mc versions that do report an aggregated total.
+  if ((total == null || used == null) && info.usage?.total != null && info.usage?.used != null) {
+    total = Number(info.usage.total);
+    used = Number(info.usage.used);
   }
 
   if (total == null || used == null) {
@@ -100,7 +107,7 @@ export async function getNasStorageOverview(): Promise<StorageOverview> {
     total,
     available: total - used,
     percentage: total > 0 ? (used / total) * 100 : 0,
-    objectCount: null,
+    objectCount: info.objects?.count != null ? Number(info.objects.count) : null,
     asOf: new Date().toISOString(),
     error: null,
   };
@@ -122,12 +129,12 @@ export async function getR2StorageOverview(): Promise<StorageOverview> {
   }
 
   const query = `
-    query R2Storage($accountTag: string!, $bucketName: string) {
+    query R2Storage($accountTag: string!, $bucketName: string, $dateGeq: Date!, $dateLeq: Date!) {
       viewer {
         accounts(filter: { accountTag: $accountTag }) {
           r2StorageAdaptiveGroups(
             limit: 1
-            filter: { bucketName: $bucketName }
+            filter: { bucketName: $bucketName, date_geq: $dateGeq, date_leq: $dateLeq }
             orderBy: [date_DESC]
           ) {
             max {
@@ -144,6 +151,14 @@ export async function getR2StorageOverview(): Promise<StorageOverview> {
     }
   `;
 
+  // Cloudflare rejects queries with no date bound (or too wide a range —
+  // max ~4.5 weeks). We only want the latest snapshot, so a small trailing
+  // window is enough; storage metrics are reported roughly daily.
+  const today = new Date();
+  const dateLeq = today.toISOString().slice(0, 10);
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const dateGeq = weekAgo.toISOString().slice(0, 10);
+
   let json: any;
   try {
     const res = await fetch('https://api.cloudflare.com/client/v4/graphql', {
@@ -154,7 +169,7 @@ export async function getR2StorageOverview(): Promise<StorageOverview> {
       },
       body: JSON.stringify({
         query,
-        variables: { accountTag: accountId, bucketName },
+        variables: { accountTag: accountId, bucketName, dateGeq, dateLeq },
       }),
     });
     json = await res.json();

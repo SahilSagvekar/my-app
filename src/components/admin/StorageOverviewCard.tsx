@@ -76,7 +76,10 @@ export function StorageOverviewCard() {
             <>
               <Progress value={data.nas.percentage ?? 0} indicatorColor={barColor(data.nas.percentage)} />
               <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                <span>{data.nas.usedFormatted} used</span>
+                <span>
+                  {data.nas.usedFormatted} used
+                  {data.nas.objectCount != null && ` · ${data.nas.objectCount.toLocaleString()} objects`}
+                </span>
                 <span>{data.nas.availableFormatted} free of {data.nas.totalFormatted}</span>
               </div>
             </>
