@@ -170,6 +170,7 @@ export async function POST(
         email: preClient.email,
         phone: preClient.phone || '',
         companyName: preClient.companyName || null,
+        address: preClient.address || null,
         status: 'active',
         startDate: new Date(),
         lastActivity: new Date(),

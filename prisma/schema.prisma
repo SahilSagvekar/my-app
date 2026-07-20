@@ -310,6 +310,7 @@ model Client {
   name                         String
   email                        String
   companyName                  String?
+  address                      String?
   phone                        String
   createdBy                    String?
   status                       String                    @default("active")

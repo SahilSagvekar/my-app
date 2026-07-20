@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser2 } from '@/lib/auth';
+import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { sendContractViaSignWell } from '@/lib/contracts';
 
 // GET /api/contracts — list contracts
@@ -21,8 +21,9 @@ export async function GET(req: NextRequest) {
       if (status && status !== 'all') where.status = status;
       if (clientId) where.clientId = clientId;
     } else if (user.role === 'client') {
+      const clientId = await resolveClientIdForUser(user.id);
       where.OR = [
-        { clientId: user.linkedClientId },
+        { clientId },
         { signers: { some: { email: user.email } } },
       ];
       if (status && status !== 'all') where.status = status;

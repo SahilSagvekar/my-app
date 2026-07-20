@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getCurrentUser2 } from '@/lib/auth';
+import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { stripe } from '@/lib/stripe';
 
 export async function GET(req: NextRequest) {
@@ -36,13 +36,7 @@ export async function GET(req: NextRequest) {
       }
     } else {
       // Client role - only sync their own client ID
-      // Retrieve their linkedClientId
-      const userRecord = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { linkedClientId: true }
-      });
-      
-      const effectiveClientId = userRecord?.linkedClientId;
+      const effectiveClientId = await resolveClientIdForUser(user.id);
       if (!effectiveClientId) {
         return NextResponse.json({ success: true, message: 'No client profile associated with this user.' });
       }
@@ -253,8 +247,14 @@ export async function GET(req: NextRequest) {
           
           const now = new Date();
           let shouldLock = overdueInvoicesCount > 0 || hasPastDueSubscriptions > 0;
-          
-          if (shouldLock && portalAccess.status !== 'LOCKED') {
+
+          // Admin-unlocked clients get one billing period's grace before the
+          // sync job is allowed to re-lock them for an overdue invoice.
+          const adminUnlockExempt = portalAccess.status === 'ADMIN_UNLOCKED'
+            && portalAccess.adminUnlockedAt
+            && portalAccess.adminUnlockedAt > new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+          if (shouldLock && portalAccess.status !== 'LOCKED' && !adminUnlockExempt) {
             await prisma.clientPortalAccess.update({
               where: { clientId: customer.clientId },
               data: {

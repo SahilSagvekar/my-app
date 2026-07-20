@@ -146,6 +146,7 @@ interface Client {
   id: string;
   name: string;
   companyName: string;
+  address?: string | null;
   email: string;
   emails?: string[]; // Additional emails
   phone: string;
@@ -298,6 +299,7 @@ export function ClientManagement() {
   const [newClient, setNewClient] = useState<Partial<Client>>({
     name: "",
     companyName: "",
+    address: "",
     email: "",
     emails: [], // Initialize additional emails
     phone: "",
@@ -1338,6 +1340,7 @@ export function ClientManagement() {
       setNewClient({
         name: "",
         companyName: "",
+        address: "",
         email: "",
         emails: [],
         phone: "",
@@ -1386,6 +1389,7 @@ export function ClientManagement() {
     setNewClient({
       name: client.name,
       companyName: client.companyName,
+      address: client.address ?? "",
       email: client.email,
       emails: client.emails || [],
       phone: client.phone,
@@ -2684,6 +2688,23 @@ export function ClientManagement() {
                       setNewClient({
                         ...newClient,
                         companyName: e.target.value,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address" className="text-gray-700">
+                    Address
+                  </Label>
+                  <Input
+                    id="address"
+                    value={newClient.address ?? ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        address: e.target.value,
                       })
                     }
                     className="bg-white border-gray-200 text-gray-900"

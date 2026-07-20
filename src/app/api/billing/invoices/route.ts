@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
+import { resolveClientIdForUser } from '@/lib/auth';
 import { 
   generateInvoiceNumber, 
   getOrCreateStripeCustomer, 
@@ -34,20 +35,16 @@ export async function GET(req: NextRequest) {
     const isClientRole = currentUser.role === 'client' || currentUser.role === 'CLIENT';
     
     if (isClientRole) {
-      // Fetch the user to get their linkedClientId
-      const user = await prisma.user.findUnique({
-        where: { id: currentUser.userId || currentUser.id },
-        select: { linkedClientId: true },
-      });
+      const resolvedClientId = await resolveClientIdForUser(currentUser.userId || currentUser.id);
 
-      if (!user?.linkedClientId) {
-        console.log('Client user has no linkedClientId:', currentUser.userId);
+      if (!resolvedClientId) {
+        console.log('Client user has no linked client:', currentUser.userId);
         return NextResponse.json({ ok: true, invoices: [], total: 0 });
       }
 
       // Get the stripe customer for this client
       const stripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId: user.linkedClientId },
+        where: { clientId: resolvedClientId },
       });
 
       if (stripeCustomer) {
