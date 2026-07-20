@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback, DragEvent } from "react";
+import { useState, useEffect, useRef, useCallback, DragEvent, ReactNode } from "react";
 import {
   Folder,
   FolderPlus,
@@ -98,6 +98,7 @@ interface DriveItem {
   children?: DriveItem[];
   size?: number;
   url?: string;
+  thumbnailUrl?: string | null;
   lastModified?: string;
 }
 
@@ -115,6 +116,35 @@ interface SearchResult {
 
 interface DriveExplorerProps {
   role: string;
+}
+
+// Renders a video thumbnail image when one exists, falling back to the
+// regular extension icon otherwise (no thumbnail yet, non-video file, or
+// the image failed to load — e.g. the signed URL expired in a long-open tab).
+function FileThumbnail({
+  thumbnailUrl,
+  fallback,
+  className,
+}: {
+  thumbnailUrl?: string | null;
+  fallback: ReactNode;
+  className: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  if (!thumbnailUrl || failed) {
+    return <>{fallback}</>;
+  }
+
+  return (
+    <img
+      src={thumbnailUrl}
+      alt=""
+      loading="lazy"
+      className={className}
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 
@@ -2225,8 +2255,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       {item.type === "folder" ? (
                         <Folder className="h-12 w-12 sm:h-16 sm:w-16 text-blue-500 mb-1 sm:mb-2" />
                       ) : (
-                        <div className="mb-1 sm:mb-2 scale-75 sm:scale-100">
-                          {getFileIcon(item.name)}
+                        <div className="mb-1 sm:mb-2 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-md overflow-hidden bg-muted/40">
+                          <FileThumbnail
+                            thumbnailUrl={item.thumbnailUrl}
+                            className="w-full h-full object-cover"
+                            fallback={
+                              <div className="scale-75 sm:scale-100">
+                                {getFileIcon(item.name)}
+                              </div>
+                            }
+                          />
                         </div>
                       )}
 
@@ -2382,11 +2420,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       </div>
 
                       {/* Icon */}
-                      <div className="w-6 shrink-0 flex items-center justify-center">
+                      <div className="w-8 h-8 shrink-0 flex items-center justify-center rounded overflow-hidden bg-muted/40">
                         {item.type === "folder" ? (
                           <Folder className="h-5 w-5 text-blue-500" />
                         ) : (
-                          <div className="scale-90">{getFileIcon(item.name)}</div>
+                          <FileThumbnail
+                            thumbnailUrl={item.thumbnailUrl}
+                            className="w-full h-full object-cover"
+                            fallback={<div className="scale-90">{getFileIcon(item.name)}</div>}
+                          />
                         )}
                       </div>
 
