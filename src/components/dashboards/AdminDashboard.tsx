@@ -37,6 +37,7 @@ import {
 
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { RecentTasksCard } from '../tasks/RecentTasksCard';
+import { StorageOverviewCard } from '../admin/StorageOverviewCard';
 import { QuickAddClientDialog } from '../client/QuickAddClientDialog';
 
 // ============================================
@@ -486,6 +487,9 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           title="Recently Assigned Tasks"
           showCreateButton={true}
         />
+
+        {/* Storage */}
+        <StorageOverviewCard />
 
         {/* Job Management — full width */}
         <JobManagementSection />
