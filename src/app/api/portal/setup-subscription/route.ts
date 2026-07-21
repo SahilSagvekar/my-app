@@ -67,6 +67,30 @@ export async function POST(req: NextRequest) {
       { clientId: client.id, source: 'onboarding_pipeline' }
     );
 
+    // Idempotency: a double-click (or a retry before the redirect fires)
+    // must not mint a second subscription for the same client. If they
+    // already have an active subscription, or an open checkout session from
+    // a previous call, reuse/reject instead of creating another one.
+    const existingActiveSubscription = await stripe.subscriptions.list({
+      customer: stripeCustomer.id,
+      status: 'active',
+      limit: 1,
+    });
+    if (existingActiveSubscription.data.length > 0) {
+      return NextResponse.json({ error: 'A subscription already exists for this account' }, { status: 400 });
+    }
+
+    const recentSessions = await stripe.checkout.sessions.list({
+      customer: stripeCustomer.id,
+      limit: 5,
+    });
+    const reusableSession = recentSessions.data.find(
+      (s) => s.status === 'open' && s.mode === 'subscription' && s.metadata?.source === 'onboarding_pipeline'
+    );
+    if (reusableSession) {
+      return NextResponse.json({ checkoutUrl: reusableSession.url });
+    }
+
     // Create a Stripe Price on the fly (recurring monthly)
     const price = await stripe.prices.create({
       currency: 'usd',

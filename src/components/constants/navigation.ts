@@ -27,6 +27,7 @@ import {
   History,
   PlayCircle,
   UserPlus,
+  Activity,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -46,6 +47,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
+    { id: 'scheduler-activity', label: 'Scheduler Activity', icon: Activity },
     { id: 'hiring', label: 'Editor Hiring', icon: UserPlus },
   ],
   editor: [

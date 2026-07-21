@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./../components/auth/AuthContext";
+import { SchedulerActivityTracker } from "@/components/tracking/SchedulerActivityTracker";
 import { Toaster } from 'sonner';
 import { buildMetadata } from "@/lib/seo";
 import CookieConsent from "@/components/CookieConsent";
@@ -38,6 +39,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           {children}
+          <SchedulerActivityTracker />
           <Toaster position="bottom-left" />
           {/* GA is NOT loaded unconditionally — CookieConsent handles opt-in */}
           <CookieConsent measurementId={GA_MEASUREMENT_ID} />

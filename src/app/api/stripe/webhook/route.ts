@@ -28,6 +28,22 @@ export async function POST(req: NextRequest) {
 
     console.log(`📩 Stripe webhook received: ${event.type}`);
 
+    // Idempotency: Stripe retries deliveries that don't get a fast 2xx, and
+    // can occasionally send the same event twice. Claim the event id up
+    // front — if another delivery already claimed it, skip processing so we
+    // never double-create Payments or double-credit an invoice.
+    try {
+      await prisma.stripeWebhookEvent.create({
+        data: { id: event.id, type: event.type },
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        console.log(`⏭️ Duplicate Stripe webhook event, skipping: ${event.id} (${event.type})`);
+        return NextResponse.json({ received: true, duplicate: true });
+      }
+      throw err;
+    }
+
     // Handle the event
     switch (event.type) {
       case STRIPE_WEBHOOK_EVENTS.PAYMENT_INTENT_SUCCEEDED:
@@ -114,14 +130,18 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
       },
     });
 
-    // Update invoice
-    const newAmountPaid = invoice.amountPaid + paymentIntent.amount;
-    const isPaid = newAmountPaid >= invoice.amount;
+    // Atomic increment — avoids a lost update if two payments for this
+    // invoice land concurrently (a plain read-then-write here would let one
+    // overwrite the other's amountPaid).
+    const updated = await tx.invoice.update({
+      where: { id: invoiceId },
+      data: { amountPaid: { increment: paymentIntent.amount } },
+    });
 
+    const isPaid = updated.amountPaid >= updated.amount;
     await tx.invoice.update({
       where: { id: invoiceId },
       data: {
-        amountPaid: newAmountPaid,
         status: isPaid ? 'PAID' : 'PARTIALLY_PAID',
         paidAt: isPaid ? new Date() : null,
       },

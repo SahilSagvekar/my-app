@@ -50,6 +50,12 @@ export async function PATCH(
       return NextResponse.json({ message: 'Unauthorized — missing role' }, { status: 401 });
     }
 
+    // 🔥 Role-switch support: a scheduler viewing as QC (see ViewAsRoleContext)
+    // must be treated as QC/admin for QC-gated behavior below — same pattern
+    // already used in /api/tasks (GET) for the queue view itself.
+    const viewingAs = (req.headers.get('x-viewing-as') || '').toLowerCase();
+    const effectiveRole = (role === 'scheduler' && viewingAs === 'qc') ? 'admin' : role;
+
     const body = await req.json();
     const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags } = body;
 
@@ -154,7 +160,7 @@ export async function PATCH(
     console.log("ROLE" + role);
     // Handle client review requirement
     if (
-      (role === "qc" || role === "admin") &&
+      (effectiveRole === "qc" || effectiveRole === "admin") &&
       status === "COMPLETED" &&
       task.client?.requiresClientReview === true
     ) {
@@ -203,7 +209,7 @@ export async function PATCH(
 
     // Update task
     // 🔥 Track QC reviewer when QC approves/rejects
-    const isQCAction = (role === "qc" || role === "admin") &&
+    const isQCAction = (effectiveRole === "qc" || effectiveRole === "admin") &&
       (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW" || finalStatus === "REJECTED");
 
     if (isQCAction) {

@@ -66,6 +66,8 @@ model User {
   salesLeadGenerationJobs SalesLeadGenerationJob[]
   salesManagerPermissions SalesManagerPermission[] @relation("SalesManagerPermissions")
   salesRepPermissions     SalesManagerPermission[] @relation("SalesRepPermissions")
+  schedulerActivityEvents SchedulerActivityEvent[]
+  schedulerActivityDailySummaries SchedulerActivityDailySummary[]
   sessions                Session[]
   NasMirrorJob            NasMirrorJob[]
   shootDetails            ShootDetail[]            @relation("VideographerShootDetails")
@@ -310,7 +312,6 @@ model Client {
   name                         String
   email                        String
   companyName                  String?
-  address                      String?
   phone                        String
   createdBy                    String?
   status                       String                    @default("active")
@@ -590,6 +591,47 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([timestamp])
   @@index([userId])
+}
+
+// Raw interaction events — clicks, page opens, idle transitions — captured
+// client-side for scheduler-role users only. Pruned after 30 days by the
+// nightly rollup job; SchedulerActivityDailySummary is what survives long
+// term for reporting.
+model SchedulerActivityEvent {
+  id          String   @id @default(cuid())
+  userId      Int
+  sessionId   String
+  eventType   String   // click | navigation | idle_start | idle_end | session_start | session_end | visibility_hidden | visibility_visible
+  path        String?
+  targetLabel String?
+  targetTag   String?
+  metadata    Json?
+  timestamp   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, timestamp])
+  @@index([sessionId])
+  @@index([eventType])
+}
+
+// One row per scheduler per calendar day. Built by the nightly rollup job
+// from SchedulerActivityEvent before the raw rows for that day get pruned.
+// This is what the admin dashboard actually queries — never the raw table
+// directly, so it stays fast no matter how much raw data has accumulated.
+model SchedulerActivityDailySummary {
+  id            String    @id @default(cuid())
+  userId        Int
+  date          DateTime  // normalized to midnight UTC — one row per user per day
+  activeMinutes Int       @default(0)
+  idleMinutes   Int       @default(0)
+  clickCount    Int       @default(0)
+  sessionCount  Int       @default(0)
+  firstEventAt  DateTime?
+  lastEventAt   DateTime?
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+  @@index([userId, date])
 }
 
 model Feedback {

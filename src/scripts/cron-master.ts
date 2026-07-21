@@ -321,6 +321,15 @@ cron.schedule('0 3 * * *', () => {
 }, { timezone: 'America/New_York' });
 
 // ==========================================
+// 5b. Scheduler Activity Rollup (Daily at 3:30 AM)
+// Summarizes yesterday's SchedulerActivityEvent rows into
+// SchedulerActivityDailySummary, then prunes raw rows older than 30 days.
+// ==========================================
+cron.schedule('30 3 * * *', () => {
+    triggerJob('Scheduler Activity Rollup', '/api/cron/scheduler-activity-rollup', 'POST');
+}, { timezone: 'America/New_York' });
+
+// ==========================================
 // 6. Auto-Invoice Generation (Daily at 9 AM)
 // Creates DRAFT invoices for clients whose billingDay = today,
 // then emails admin to review before anything is sent to clients.
@@ -342,6 +351,14 @@ cron.schedule('*/30 * * * * *', () => {
 // ==========================================
 cron.schedule('0 * * * *', () => {
     console.log(`💓 [Heartbeat] Cron Master is alive and tracking ${cron.getTasks().size} jobs.`);
+}, { timezone: 'America/New_York' });
+
+// ==========================================
+// 6. Billing warning emails (Daily at 10 AM)
+// Sends warning email to clients whose next billing date is in 3 days
+// ==========================================
+cron.schedule('0 10 * * *', () => {
+    triggerJob('Billing Warning Emails', '/api/cron/billing-warnings', 'GET');
 }, { timezone: 'America/New_York' });
 
 // ==========================================

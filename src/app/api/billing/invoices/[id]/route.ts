@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
+import { resolveClientIdForUser } from '@/lib/auth';
 import { 
   stripe, 
   sendStripeInvoice, 
@@ -48,9 +49,10 @@ export async function GET(
 
     // Check access for client users
     if (currentUser.role === 'client') {
-      const clientStripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId: currentUser.linkedClientId || '' },
-      });
+      const resolvedClientId = await resolveClientIdForUser(currentUser.userId || currentUser.id);
+      const clientStripeCustomer = resolvedClientId
+        ? await prisma.stripeCustomer.findUnique({ where: { clientId: resolvedClientId } })
+        : null;
       if (!clientStripeCustomer || clientStripeCustomer.id !== invoice.stripeCustomerId) {
         return NextResponse.json({ ok: false, message: 'Access denied' }, { status: 403 });
       }

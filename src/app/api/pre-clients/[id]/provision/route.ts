@@ -143,6 +143,24 @@ export async function POST(
       return NextResponse.json({ error: 'A client with this email already exists' }, { status: 400 });
     }
 
+    // Atomically claim this pre-client for provisioning. The two checks
+    // above are plain reads and can't stop a double-click (or two admins
+    // clicking at once) from both passing them and racing to create
+    // duplicate R2 folders, Slack channels, contracts, and onboarding
+    // emails. This update only succeeds for whichever request gets there
+    // first — everyone else sees count === 0 and bails before doing any
+    // side effects.
+    const claim = await prisma.preClient.updateMany({
+      where: { id: preClientId, status: 'QUOTE_ACCEPTED' },
+      data: { status: 'PROVISIONING' },
+    });
+    if (claim.count === 0) {
+      return NextResponse.json(
+        { error: 'Pre-client is already being provisioned' },
+        { status: 409 }
+      );
+    }
+
     // 1. Create R2 folders (outside DB — slow, keep separate)
     const folders = await createClientFolders(
       preClient.companyName || preClient.name
@@ -292,6 +310,16 @@ export async function POST(
     });
   } catch (err: any) {
     console.error('POST /api/pre-clients/[id]/provision error:', err);
+    // Best-effort rollback — otherwise a failed provision leaves the
+    // pre-client stuck in PROVISIONING forever with no Client ever created,
+    // and the claim above would reject every retry.
+    try {
+      const { id: pid } = await params;
+      await prisma.preClient.updateMany({
+        where: { id: pid, status: 'PROVISIONING' },
+        data: { status: 'QUOTE_ACCEPTED' },
+      });
+    } catch {}
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }

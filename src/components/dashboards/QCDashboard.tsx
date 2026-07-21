@@ -170,6 +170,7 @@ const persistQCResult = async ({
   postingTitles,
   postingDescriptions,
   postingTags,
+  viewingAsRole,
 }: {
   taskId: string;
   approved: boolean;
@@ -178,6 +179,7 @@ const persistQCResult = async ({
   postingTitles?: { id: string; text: string }[];
   postingDescriptions?: { id: string; text: string }[];
   postingTags?: { id: string; text: string }[];
+  viewingAsRole?: string | null;
 }) => {
   const newStatus = approved ? "COMPLETED" : "REJECTED";
   const metaBody: any = {};
@@ -204,7 +206,10 @@ const persistQCResult = async ({
 
   const metaRes = await fetch(`/api/tasks/${taskId}/status`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(viewingAsRole ? { "x-viewing-as": viewingAsRole } : {}),
+    },
     credentials: "include",
     body: JSON.stringify(metaBody),
   });
@@ -407,6 +412,7 @@ useEffect(() => {
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
+        viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       toast("✅ Approved – Sent to Client", { description: "Content has been moved to the next stage." });
@@ -433,6 +439,7 @@ useEffect(() => {
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
+        viewingAsRole,
       });
 
       setQCTasks((prev) =>
@@ -495,6 +502,7 @@ useEffect(() => {
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
+        viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       toast("✅ Thumbnail Approved", { description: "Task has been moved to the next stage." });
@@ -522,6 +530,7 @@ useEffect(() => {
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
+        viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== task.id));
       toast("✅ Approved – Sent to " + (pendingApprovalType === "client" ? "Client" : "Scheduler"), {
@@ -551,6 +560,7 @@ useEffect(() => {
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
+        viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       toast('📝 Revisions Requested', { description: 'Feedback has been sent back to the editor.' });
@@ -871,6 +881,7 @@ useEffect(() => {
           taskId,
           approved: true,
           requiresClientReview: qcTasks.find((t) => t.id === taskId)?.requiresClientReview,
+          viewingAsRole,
         })
       )
     );
@@ -912,6 +923,7 @@ useEffect(() => {
           taskId,
           approved: false,
           feedback: bulkRejectFeedback.trim() || undefined,
+          viewingAsRole,
         })
       )
     );
