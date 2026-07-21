@@ -285,7 +285,6 @@ export function FullScreenReviewModalFrameIO({
     const containerRef = useRef<HTMLDivElement>(null);
     const commentsRef = useRef<HTMLDivElement>(null);
     const lastTimeUpdateRef = useRef<number>(0);
-    const durationRecoveryAttemptedRef = useRef<boolean>(false);
     const lastBufferEventRef = useRef(0);
 
     /* ── Video source ── */
@@ -470,7 +469,6 @@ export function FullScreenReviewModalFrameIO({
         setIsPlaying(false);
         setCurrentTime(0);
         setDuration(0);
-        durationRecoveryAttemptedRef.current = false;
         setMeasuredResolution('');
         setConfirmFinal(false);
         setShowApprovalSuccess(false);
@@ -554,64 +552,6 @@ export function FullScreenReviewModalFrameIO({
             video.removeEventListener('pause', clearBuffering);
         };
     }, [open, videoError, videoSource.type, videoSource.src, viewMode]);
-
-    // ── Resilient scrubber sync (fixes "video plays but bar doesn't move") ──
-    // `timeupdate`/`loadedmetadata` can silently stop firing (or fire with a
-    // non-finite duration) for certain video encodings — most commonly raw,
-    // untranscoded footage that hasn't been re-muxed with "fast start" (moov
-    // atom at the front). When that happens the DOM-event-driven state above
-    // can get stuck, even though the video element itself is genuinely still
-    // playing. This loop polls the video element directly every frame while
-    // playing, so the UI always reflects real playback position regardless
-    // of whether those events behave for a given file.
-    useEffect(() => {
-        if (!open || videoSource.type !== 'video' || !isPlaying) return;
-        const video = videoRef.current;
-        if (!video) return;
-
-        let rafId: number;
-        const sync = () => {
-            if (video.paused || video.ended) return;
-
-            if (Number.isFinite(video.currentTime) && Math.abs(video.currentTime - lastTimeUpdateRef.current) >= 0.05) {
-                setCurrentTime(video.currentTime);
-                lastTimeUpdateRef.current = video.currentTime;
-            }
-
-            // duration sometimes reports Infinity until the browser has
-            // scanned further into the file (classic "no fast start" quirk).
-            // Nudging currentTime forward and back forces most browsers to
-            // resolve the real duration — do this once, quietly, the first
-            // time we notice it's broken.
-            if (!Number.isFinite(video.duration) && !durationRecoveryAttemptedRef.current) {
-                durationRecoveryAttemptedRef.current = true;
-                const resumeAt = video.currentTime;
-                video.currentTime = 1e10;
-                setTimeout(() => {
-                    if (Number.isFinite(video.duration)) {
-                        setDuration(video.duration);
-                    }
-                    video.currentTime = resumeAt;
-                }, 50);
-            } else if (Number.isFinite(video.duration) && video.duration !== duration) {
-                setDuration(video.duration);
-            }
-
-            // Same fallback logic for resolution — measuredResolution only
-            // gets set inside onLoadedMetadata; if that never fires for a
-            // given file, the UI silently falls back to the stored
-            // asset.resolution, which may not match what's actually
-            // playing (e.g. a lighter review-proxy encode).
-            if (!measuredResolution && video.videoWidth && video.videoHeight) {
-                setMeasuredResolution(`${video.videoWidth}x${video.videoHeight}`);
-            }
-
-            rafId = requestAnimationFrame(sync);
-        };
-        rafId = requestAnimationFrame(sync);
-
-        return () => cancelAnimationFrame(rafId);
-    }, [open, videoSource.type, isPlaying, duration, measuredResolution]);
 
     const fetchExistingShareLinks = async (id: string) => {
         try {
@@ -717,7 +657,6 @@ export function FullScreenReviewModalFrameIO({
             setIsPlaying(false);
             setCurrentTime(0);
             setDuration(0);
-            durationRecoveryAttemptedRef.current = false;
             setMeasuredResolution('');
             setVideoError(false);
             setIframeLoaded(false);
@@ -725,7 +664,6 @@ export function FullScreenReviewModalFrameIO({
     };
 
     const formatTime = (time: number) => {
-        if (!Number.isFinite(time) || time < 0) return '--:--';
         const m = Math.floor(time / 60);
         const s = Math.floor(time % 60);
         return `${m}:${s.toString().padStart(2, '0')}`;
