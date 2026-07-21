@@ -1,6 +1,8 @@
 'use client';
 
 import { RefObject, useMemo, useState } from 'react';
+import { YoutubePlayer } from '../review/YoutubePlayer';
+import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
@@ -54,9 +56,11 @@ export interface ReviewScreenProps {
     /* video state */
     videoRef: RefObject<HTMLVideoElement | null>;
     iframeRef: RefObject<HTMLIFrameElement | null>;
+    youtubePlayerRef: RefObject<YoutubePlayerHandle | null>;
+    handleYoutubeReady: () => void;
     containerRef: RefObject<HTMLDivElement | null>;
     commentsRef: RefObject<HTMLDivElement | null>;
-    videoSource: { type: 'video' | 'iframe'; src: string };
+    videoSource: { type: 'video' | 'iframe' | 'youtube'; src: string };
     isPlaying: boolean;
     isMuted: boolean;
     currentTime: number;
@@ -480,6 +484,19 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             onError={() => p.setVideoError(true)}
                                         />
                                     </div>
+                                ) : p.videoSource.type === 'youtube' ? (
+                                    <YoutubePlayer
+                                        ref={p.youtubePlayerRef}
+                                        videoId={p.videoSource.src}
+                                        className="w-full h-full bg-black rounded-lg border border-[var(--review-border)] overflow-hidden"
+                                        onReady={p.handleYoutubeReady}
+                                        onPlay={() => p.setIsPlaying(true)}
+                                        onPause={() => p.setIsPlaying(false)}
+                                        onEnded={() => p.setIsPlaying(false)}
+                                        onError={() => p.handleVideoError()}
+                                        onTimeUpdate={p.setCurrentTime}
+                                        onDurationChange={p.setDuration}
+                                    />
                                 ) : (
                                     <>
                                         <video
@@ -513,7 +530,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                         {/* Timeline + controls */}
                         <div className="flex-shrink-0 px-4 pt-3 pb-2">
-                            {p.videoSource.type === 'video' && (
+                            {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
                                 <ReviewTimeline
                                     duration={p.duration}
                                     currentTime={p.currentTime}
@@ -528,7 +545,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             )}
                             <div className="flex items-center justify-between mt-3">
                                 <div className="flex items-center gap-1">
-                                    {p.videoSource.type === 'video' && (
+                                    {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
                                         <>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>

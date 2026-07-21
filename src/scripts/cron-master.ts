@@ -373,15 +373,11 @@ cron.schedule('0 */2 * * *', () => {
 // ==========================================
 // 8. Daily Posting Target Team Summaries (Scheduling channel)
 // SOD 8:30 AM: how many posts are needed today
-// Midday 12:00 PM: progress + what's missing
 // EOD 3:00 PM: what's still missing, fix ASAP
+// (Midday 12:00 PM update disabled by request)
 // ==========================================
 cron.schedule('30 8 * * *', () => {
     triggerJob('Daily Target Summary (SOD)', '/api/cron/daily-target-summary?stage=sod', 'GET');
-}, { timezone: 'America/New_York' });
-
-cron.schedule('0 12 * * *', () => {
-    triggerJob('Daily Target Summary (Midday)', '/api/cron/daily-target-summary?stage=midday', 'GET');
 }, { timezone: 'America/New_York' });
 
 cron.schedule('0 15 * * *', () => {

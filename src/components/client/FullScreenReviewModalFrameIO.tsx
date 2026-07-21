@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import { ReviewScreenDesktop } from './ReviewScreenDesktop';
 import { ReviewScreenMobile } from './ReviewScreenMobile';
+import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
 
 /* ─── Types ───────────────────────────────────────────────────── */
 interface Version {
@@ -21,6 +22,7 @@ interface Version {
     url?: string;
     proxyUrl?: string | null;
     reviewDriveUrl?: string | null;
+    youtubeVideoId?: string | null;
     sizeBytes?: number;
 }
 
@@ -47,6 +49,7 @@ interface ReviewAsset {
     approvalLocked: boolean;
     proxyUrl?: string | null;
     reviewDriveUrl?: string | null;
+    youtubeVideoId?: string | null;
     taskFeedback?: any[];
 }
 
@@ -281,6 +284,7 @@ export function FullScreenReviewModalFrameIO({
 
     /* ── Refs ── */
     const videoRef = useRef<HTMLVideoElement>(null);
+    const youtubePlayerRef = useRef<YoutubePlayerHandle>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const commentsRef = useRef<HTMLDivElement>(null);
@@ -301,6 +305,7 @@ export function FullScreenReviewModalFrameIO({
             id: fileId,
             proxyUrl: v?.proxyUrl || asset.proxyUrl,
             reviewDriveUrl: v?.reviewDriveUrl || asset.reviewDriveUrl,
+            youtubeVideoId: v?.youtubeVideoId || asset.youtubeVideoId,
         });
 
         // Append cache-busting param on retries to avoid stale/failed responses
@@ -599,6 +604,11 @@ export function FullScreenReviewModalFrameIO({
 
     /* ── Video controls ── */
     const togglePlay = useCallback(() => {
+        if (videoSource.type === 'youtube') {
+            if (isPlaying) youtubePlayerRef.current?.pause();
+            else youtubePlayerRef.current?.play();
+            return;
+        }
         const video = videoRef.current;
         if (!video) return;
 
@@ -609,22 +619,39 @@ export function FullScreenReviewModalFrameIO({
         } else {
             video.pause();
         }
-    }, []);
+    }, [videoSource.type, isPlaying]);
 
 
     const toggleMute = useCallback(() => {
+        if (videoSource.type === 'youtube') {
+            youtubePlayerRef.current?.setMuted(!isMuted);
+            setIsMuted(!isMuted);
+            return;
+        }
         if (!videoRef.current) return;
         videoRef.current.muted = !isMuted;
         setIsMuted(!isMuted);
-    }, [isMuted]);
+    }, [isMuted, videoSource.type]);
 
     const seekBackward = useCallback(() => {
-        if (videoRef.current) videoRef.current.currentTime = Math.max(0, currentTime - 10);
-    }, [currentTime]);
+        const target = Math.max(0, currentTime - 10);
+        if (videoSource.type === 'youtube') {
+            youtubePlayerRef.current?.seekTo(target);
+            setCurrentTime(target);
+            return;
+        }
+        if (videoRef.current) videoRef.current.currentTime = target;
+    }, [currentTime, videoSource.type]);
 
     const seekForward = useCallback(() => {
-        if (videoRef.current) videoRef.current.currentTime = Math.min(duration, currentTime + 10);
-    }, [duration, currentTime]);
+        const target = Math.min(duration, currentTime + 10);
+        if (videoSource.type === 'youtube') {
+            youtubePlayerRef.current?.seekTo(target);
+            setCurrentTime(target);
+            return;
+        }
+        if (videoRef.current) videoRef.current.currentTime = target;
+    }, [duration, currentTime, videoSource.type]);
 
     const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
         const time = e.currentTarget.currentTime;
@@ -635,18 +662,36 @@ export function FullScreenReviewModalFrameIO({
     };
 
     const handleSeek = useCallback((time: number) => {
+        if (videoSource.type === 'youtube') {
+            youtubePlayerRef.current?.seekTo(time);
+            setCurrentTime(time);
+            lastTimeUpdateRef.current = time;
+            return;
+        }
         if (videoRef.current) {
             videoRef.current.currentTime = time;
             setCurrentTime(time);
             lastTimeUpdateRef.current = time;
         }
-    }, []);
+    }, [videoSource.type]);
 
     const handlePlaybackSpeedChange = (speed: string) => {
         const s = parseFloat(speed);
         setPlaybackSpeed(s);
+        if (videoSource.type === 'youtube') {
+            youtubePlayerRef.current?.setPlaybackRate(s);
+            return;
+        }
         if (videoRef.current) videoRef.current.playbackRate = s;
     };
+
+    const handleYoutubeReady = useCallback(() => {
+        // Apply whatever playback speed/mute state was already selected
+        // (e.g. from a previous version's source) to the newly mounted player.
+        youtubePlayerRef.current?.setPlaybackRate(playbackSpeed);
+        youtubePlayerRef.current?.setMuted(isMuted);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleVersionChange = (versionId: string) => {
         if (!asset) return;
@@ -968,6 +1013,8 @@ export function FullScreenReviewModalFrameIO({
         templateHashtags,
         videoRef,
         iframeRef,
+        youtubePlayerRef,
+        handleYoutubeReady,
         containerRef,
         commentsRef,
         videoSource,
