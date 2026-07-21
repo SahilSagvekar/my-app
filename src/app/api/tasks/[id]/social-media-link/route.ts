@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { invalidatePostedContentCache } from '@/lib/redis';
+import { sendToChannel } from '@/lib/slack';
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -133,6 +134,20 @@ export async function POST(
       });
     }
 
+    // 📣 Notify #e8-app — one message per link added (this route fires once
+    // per link, never batched per task), so schedulers see each post as it happens.
+    try {
+      const taskTitle = task.title || task.description || 'Task';
+      await sendToChannel('e8app', {
+        type: 'link_posted',
+        title: `🔗 Link Posted — ${platform}`,
+        body: `*${taskTitle}* was posted to ${platform}.\n${normalizedUrl}`,
+        payload: { taskId: id, clientId: task.clientId },
+      });
+    } catch (err) {
+      console.error('[Slack] Failed to notify e8app channel for posted link:', err);
+    }
+
     return NextResponse.json({ link: newLink });
   } catch (error) {
     console.error("Error adding social media link:", error);
@@ -156,7 +171,7 @@ export async function PATCH(
 
     const task = await prisma.task.findUnique({
       where: { id: id },
-      select: { socialMediaLinks: true, title: true, description: true }
+      select: { socialMediaLinks: true, title: true, description: true, clientId: true }
     });
 
     if (!task) {
@@ -192,6 +207,28 @@ export async function PATCH(
         socialMediaLinks: updatedLinks,
       },
     });
+
+    // Keep the mirrored PostedContent row (client-facing view + daily-target
+    // counting) in sync — without this, a corrected URL never reaches the
+    // client and the old URL keeps counting toward daily targets.
+    if (oldLink) {
+      try {
+        await prisma.postedContent.updateMany({
+          where: {
+            taskId: id,
+            platform: oldLink.platform.toLowerCase(),
+            url: oldLink.url,
+          },
+          data: {
+            url: normalizedUrl,
+            ...(postedAt ? { postedAt: new Date(postedAt) } : {}),
+          },
+        });
+        if (task.clientId) await invalidatePostedContentCache(task.clientId);
+      } catch (err) {
+        console.error('Failed to sync PostedContent on link update:', err);
+      }
+    }
 
     if (user) {
       await createAuditLog({
@@ -250,7 +287,7 @@ export async function DELETE(
 
     const task = await prisma.task.findUnique({
       where: { id: id },
-      select: { socialMediaLinks: true, title: true, description: true }
+      select: { socialMediaLinks: true, title: true, description: true, clientId: true }
     });
 
     if (!task) {
@@ -278,6 +315,24 @@ export async function DELETE(
         socialMediaLinks: filteredLinks,
       },
     });
+
+    // Remove the mirrored PostedContent row too — otherwise a deleted link
+    // keeps showing on the client's posted-content page and keeps counting
+    // toward that day's daily-target completion.
+    if (deletedLink) {
+      try {
+        await prisma.postedContent.deleteMany({
+          where: {
+            taskId: id,
+            platform: deletedLink.platform.toLowerCase(),
+            url: deletedLink.url,
+          },
+        });
+        if (task.clientId) await invalidatePostedContentCache(task.clientId);
+      } catch (err) {
+        console.error('Failed to sync PostedContent on link delete:', err);
+      }
+    }
 
     if (user) {
       await createAuditLog({
