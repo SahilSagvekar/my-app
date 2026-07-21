@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser2 } from '@/lib/auth';
+import { computeActivityStats, startOfUTCDay } from '@/lib/scheduler-activity-rollup';
 
 export async function GET(req: NextRequest) {
   try {
@@ -53,9 +54,25 @@ export async function GET(req: NextRequest) {
       orderBy: [{ userId: 'asc' }, { date: 'desc' }],
     });
 
+    // Today never has a summary row yet (that only gets written by tonight's
+    // rollup) — compute it live instead, straight from raw events. Bounded
+    // to "today, per scheduler" so it stays cheap even as the raw table
+    // grows over the day.
+    const todayStart = startOfUTCDay(new Date());
+    const todayLive = await Promise.all(
+      schedulers.map(async (s) => {
+        const events = await prisma.schedulerActivityEvent.findMany({
+          where: { userId: s.id, timestamp: { gte: todayStart } },
+          orderBy: { timestamp: 'asc' },
+        });
+        return { userId: s.id, date: todayStart.toISOString(), ...computeActivityStats(events) };
+      })
+    );
+
     return NextResponse.json({
       schedulers,
       summaries,
+      todayLive,
       rawRetentionNote: 'Raw click-level events are only queryable for the last 30 days; older days only have the daily summary.',
     });
   } catch (err: any) {

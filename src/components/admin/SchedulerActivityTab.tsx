@@ -28,6 +28,17 @@ interface DailySummary {
   lastEventAt: string | null;
 }
 
+interface TodayLive {
+  userId: number;
+  date: string;
+  activeMinutes: number;
+  idleMinutes: number;
+  clickCount: number;
+  sessionCount: number;
+  firstEventAt: string | null;
+  lastEventAt: string | null;
+}
+
 interface RawEvent {
   id: string;
   eventType: string;
@@ -46,6 +57,7 @@ function fmtMinutes(m: number) {
 export function SchedulerActivityTab() {
   const [schedulers, setSchedulers] = useState<Scheduler[]>([]);
   const [summaries, setSummaries] = useState<DailySummary[]>([]);
+  const [todayLive, setTodayLive] = useState<TodayLive[]>([]);
   const [loading, setLoading] = useState(true);
   const [drilldown, setDrilldown] = useState<{ userId: number; date: string } | null>(null);
   const [rawEvents, setRawEvents] = useState<RawEvent[] | null>(null);
@@ -58,6 +70,7 @@ export function SchedulerActivityTab() {
       const json = await res.json();
       setSchedulers(json.schedulers || []);
       setSummaries(json.summaries || []);
+      setTodayLive(json.todayLive || []);
     } finally {
       setLoading(false);
     }
@@ -65,6 +78,14 @@ export function SchedulerActivityTab() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  // Today's numbers change constantly while she's active — refresh them on
+  // a short interval rather than making the admin manually hit refresh to
+  // see whether anything's actually happening right now.
+  useEffect(() => {
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
   }, [load]);
 
   const openDrilldown = async (userId: number, date: string) => {
@@ -99,6 +120,7 @@ export function SchedulerActivityTab() {
         const rows = summaries
           .filter((s) => s.userId === sch.id)
           .sort((a, b) => (a.date < b.date ? 1 : -1));
+        const live = todayLive.find((t) => t.userId === sch.id);
 
         return (
           <Card key={sch.id}>
@@ -106,6 +128,22 @@ export function SchedulerActivityTab() {
               <CardTitle className="text-base">{sch.name || sch.email}</CardTitle>
             </CardHeader>
             <CardContent>
+              {live && (live.clickCount > 0 || live.sessionCount > 0) ? (
+                <div className="mb-4 p-3 rounded-md border bg-muted/30 flex items-center gap-6 text-sm">
+                  <Badge variant="secondary">Today — live</Badge>
+                  <span>Active: <strong>{fmtMinutes(live.activeMinutes)}</strong></span>
+                  <span>Idle: <strong>{fmtMinutes(live.idleMinutes)}</strong></span>
+                  <span>Clicks: <strong>{live.clickCount}</strong></span>
+                  <span>Sessions: <strong>{live.sessionCount}</strong></span>
+                  <span className="text-muted-foreground">
+                    Last seen: {live.lastEventAt ? new Date(live.lastEventAt).toLocaleTimeString() : '—'}
+                  </span>
+                </div>
+              ) : (
+                <div className="mb-4 p-3 rounded-md border bg-muted/30 text-sm text-muted-foreground">
+                  No activity recorded today yet.
+                </div>
+              )}
               {rows.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No activity recorded yet.</div>
               ) : (

@@ -13,9 +13,65 @@
 
 import { prisma } from '@/lib/prisma';
 import { RAW_RETENTION_DAYS } from '@/lib/scheduler-activity-shared';
+import type { SchedulerActivityEvent } from '@prisma/client';
 
-function startOfUTCDay(d: Date): Date {
+export function startOfUTCDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+export interface ComputedActivityStats {
+  activeMinutes: number;
+  idleMinutes: number;
+  clickCount: number;
+  sessionCount: number;
+  firstEventAt: Date | null;
+  lastEventAt: Date | null;
+}
+
+/**
+ * Shared math between the nightly rollup and the admin dashboard's live
+ * "today" view — both need the exact same active/idle computation, just
+ * over a different (and differently-sized) slice of events.
+ */
+export function computeActivityStats(events: SchedulerActivityEvent[]): ComputedActivityStats {
+  if (events.length === 0) {
+    return { activeMinutes: 0, idleMinutes: 0, clickCount: 0, sessionCount: 0, firstEventAt: null, lastEventAt: null };
+  }
+
+  const firstEventAt = events[0].timestamp;
+  const lastEventAt = events[events.length - 1].timestamp;
+  const clickCount = events.filter((e) => e.eventType === 'click').length;
+  const sessionCount = events.filter((e) => e.eventType === 'session_start').length;
+
+  // Walk idle_start/idle_end pairs chronologically to total up idle time.
+  // An idle_start with no matching idle_end (session ended while idle, or
+  // — for the live view — she's idle *right now*) counts as idle through
+  // lastEventAt.
+  let idleMs = 0;
+  let openIdleStart: Date | null = null;
+  for (const e of events) {
+    if (e.eventType === 'idle_start') {
+      openIdleStart = e.timestamp;
+    } else if (e.eventType === 'idle_end' && openIdleStart) {
+      idleMs += e.timestamp.getTime() - openIdleStart.getTime();
+      openIdleStart = null;
+    }
+  }
+  if (openIdleStart) {
+    idleMs += lastEventAt.getTime() - openIdleStart.getTime();
+  }
+
+  const totalSpanMs = lastEventAt.getTime() - firstEventAt.getTime();
+  const activeMs = Math.max(0, totalSpanMs - idleMs);
+
+  return {
+    activeMinutes: Math.round(activeMs / 60000),
+    idleMinutes: Math.round(idleMs / 60000),
+    clickCount,
+    sessionCount,
+    firstEventAt,
+    lastEventAt,
+  };
 }
 
 /** Roll up all scheduler activity for one UTC calendar day. */
@@ -35,51 +91,12 @@ async function rollupDay(dayStart: Date): Promise<void> {
     });
     if (events.length === 0) continue;
 
-    const firstEventAt = events[0].timestamp;
-    const lastEventAt = events[events.length - 1].timestamp;
-    const clickCount = events.filter((e) => e.eventType === 'click').length;
-    const sessionCount = events.filter((e) => e.eventType === 'session_start').length;
-
-    // Walk idle_start/idle_end pairs chronologically to total up idle time.
-    // An idle_start with no matching idle_end (session ended while idle)
-    // counts as idle through lastEventAt.
-    let idleMs = 0;
-    let openIdleStart: Date | null = null;
-    for (const e of events) {
-      if (e.eventType === 'idle_start') {
-        openIdleStart = e.timestamp;
-      } else if (e.eventType === 'idle_end' && openIdleStart) {
-        idleMs += e.timestamp.getTime() - openIdleStart.getTime();
-        openIdleStart = null;
-      }
-    }
-    if (openIdleStart) {
-      idleMs += lastEventAt.getTime() - openIdleStart.getTime();
-    }
-
-    const totalSpanMs = lastEventAt.getTime() - firstEventAt.getTime();
-    const activeMs = Math.max(0, totalSpanMs - idleMs);
+    const stats = computeActivityStats(events);
 
     await prisma.schedulerActivityDailySummary.upsert({
       where: { userId_date: { userId, date: dayStart } },
-      create: {
-        userId,
-        date: dayStart,
-        activeMinutes: Math.round(activeMs / 60000),
-        idleMinutes: Math.round(idleMs / 60000),
-        clickCount,
-        sessionCount,
-        firstEventAt,
-        lastEventAt,
-      },
-      update: {
-        activeMinutes: Math.round(activeMs / 60000),
-        idleMinutes: Math.round(idleMs / 60000),
-        clickCount,
-        sessionCount,
-        firstEventAt,
-        lastEventAt,
-      },
+      create: { userId, date: dayStart, ...stats },
+      update: { ...stats },
     });
   }
 }
