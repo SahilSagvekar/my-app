@@ -206,6 +206,7 @@ export async function GET(req: NextRequest) {
       notes: login.notes,
       backupCodesLocation: login.backupCodesLocation,
       adminOnly: login.adminOnly,
+      accessRole: login.accessRole,
       allowedRoles: login.allowedRoles || [],
       allowedUserIds: login.allowedUserIds || [],
       passwordChangedAt: login.passwordChangedAt?.toISOString() || login.createdAt.toISOString(),
@@ -272,15 +273,23 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly, allowedRoles, allowedUserIds } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly, allowedRoles, allowedUserIds, accessRole } = body;
 
     const isAdminOnlyLogin = adminOnly === true;
 
-    if (!platform || !username || !password) {
-      return NextResponse.json(
-        { message: "Missing required fields" },
-        { status: 400 }
-      );
+    // Facebook/YouTube grant access via email invite + a role, not a shared
+    // password — see EMAIL_INVITE_PLATFORMS in Sociallogins.tsx.
+    const isEmailInvitePlatform = platform === "Facebook" || platform === "YouTube";
+
+    if (!platform) {
+      return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
+    }
+    if (isEmailInvitePlatform) {
+      if (!email || !accessRole) {
+        return NextResponse.json({ message: "Email and access role are required" }, { status: 400 });
+      }
+    } else if (!username || !password) {
+      return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
     }
 
     if (!isAdminOnlyLogin && !clientId) {
@@ -340,13 +349,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const encryptedPassword = encrypt(password);
+    const effectiveUsername = isEmailInvitePlatform ? email : username;
+    const encryptedPassword = encrypt(isEmailInvitePlatform ? "" : password);
 
     const login = await prisma.socialLogin.create({
       data: {
         clientId: isAdminOnlyLogin ? null : (clientId || null),
         platform,
-        username,
+        username: effectiveUsername,
         encryptedPassword,
         loginUrl: loginUrl || null,
         recoveryEmail: email || null,
@@ -354,6 +364,7 @@ export async function POST(req: NextRequest) {
         notes: notes || null,
         backupCodesLocation: backupCodesLocation || null,
         adminOnly: isAdminOnlyLogin,
+        accessRole: isEmailInvitePlatform ? accessRole : null,
         allowedRoles: allowedRoles || [],
         allowedUserIds: allowedUserIds || [],
         updatedById: userId,
@@ -387,13 +398,14 @@ export async function POST(req: NextRequest) {
         }),
         platform: login.platform,
         username: login.username,
-        password: password,
+        password: isEmailInvitePlatform ? "" : password,
         loginUrl: login.loginUrl,
         email: login.recoveryEmail,
         phone: login.recoveryPhone,
         notes: login.notes,
         backupCodesLocation: login.backupCodesLocation,
         adminOnly: login.adminOnly,
+        accessRole: login.accessRole,
         allowedRoles: login.allowedRoles,
         allowedUserIds: login.allowedUserIds,
         passwordChangedAt: login.createdAt.toISOString(),

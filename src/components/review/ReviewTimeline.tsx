@@ -36,18 +36,19 @@ export const ReviewTimeline = memo(function ReviewTimeline({
     const isDragging = useRef(false);
 
     const formatTime = (time: number) => {
+        if (!Number.isFinite(time) || time < 0) return '--:--';
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
     const getPositionFromTime = (time: number) => {
-        if (duration === 0) return 0;
+        if (!Number.isFinite(duration) || duration === 0) return 0;
         return (time / duration) * 100;
     };
 
     const getTimeFromPosition = (clientX: number) => {
-        if (!trackRef.current || duration === 0) return 0;
+        if (!trackRef.current || !Number.isFinite(duration) || duration === 0) return 0;
         const rect = trackRef.current.getBoundingClientRect();
         const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
         return percentage * duration;

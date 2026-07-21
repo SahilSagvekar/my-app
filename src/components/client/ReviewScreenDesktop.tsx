@@ -447,7 +447,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     <div className="flex-1 flex flex-col p-4 pr-0 overflow-hidden">
                         {/* Video area */}
                         <div className="flex-1 flex items-center justify-center min-h-0">
-                            <div className="relative w-full max-w-5xl aspect-video review-video-container">
+                            <div className="relative w-full max-w-none aspect-video review-video-container">
                                 {p.videoError ? (
                                     <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white rounded-lg">
                                         <div className="text-center p-8">
@@ -488,7 +488,9 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             src={p.videoSource.src}
                                             onTimeUpdate={p.handleTimeUpdate}
                                             onLoadedMetadata={(e) => {
-                                                p.setDuration(e.currentTarget.duration);
+                                                if (Number.isFinite(e.currentTarget.duration)) {
+                                                    p.setDuration(e.currentTarget.duration);
+                                                }
                                                 if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
                                                     p.setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
                                                 }
@@ -598,7 +600,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                     {/* ── SIDEBAR ── */}
                     <div
-                        className="w-96 flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
+                        className="w-[28rem] flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
                         style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
                     >
                         {/* ── SIDEBAR HEADER — tab switcher ── */}
@@ -908,7 +910,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                     {/* ── INFO PANEL ── */}
                     {p.showInfoPanel && (
-                        <div className="w-64 flex-shrink-0 flex flex-col bg-[var(--review-bg-secondary)] border-l border-[var(--review-border)] p-4 review-animate-slide-in review-scrollbar overflow-y-auto">
+                        <div className="w-80 flex-shrink-0 flex flex-col bg-[var(--review-bg-secondary)] border-l border-[var(--review-border)] p-4 review-animate-slide-in review-scrollbar overflow-y-auto">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-medium text-white text-sm">Asset Details</h3>
                                 <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(false)} className="h-6 w-6 p-0 text-[var(--review-text-muted)] hover:text-white">

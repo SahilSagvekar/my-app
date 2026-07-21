@@ -86,7 +86,9 @@ export async function PUT(
 
     const { id } = await params;
     const body = await req.json();
-    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly, allowedRoles, allowedUserIds } = body;
+    const { clientId, platform, username, password, loginUrl, email, phone, notes, backupCodesLocation, adminOnly, allowedRoles, allowedUserIds, accessRole } = body;
+
+    const isEmailInvitePlatform = platform === "Facebook" || platform === "YouTube";
 
     // Check if login exists
     const existingLogin = await prisma.socialLogin.findUnique({
@@ -154,13 +156,14 @@ export async function PUT(
 
     const isNewAdminOnly = adminOnly ?? existingLogin.adminOnly;
     const finalClientId = isNewAdminOnly ? null : (clientId || null);
+    const effectiveUsername = isEmailInvitePlatform ? (email || existingLogin.username) : username;
 
     const login = await prisma.socialLogin.update({
       where: { id },
       data: {
         clientId: finalClientId,
         platform,
-        username,
+        username: effectiveUsername,
         encryptedPassword,
         loginUrl: loginUrl || null,
         recoveryEmail: email || null,
@@ -168,6 +171,7 @@ export async function PUT(
         notes: notes || null,
         backupCodesLocation: backupCodesLocation || null,
         adminOnly: adminOnly ?? existingLogin.adminOnly,
+        accessRole: isEmailInvitePlatform ? (accessRole ?? existingLogin.accessRole) : null,
         // Only update permissions if provided (admin only)
         ...(allowedRoles !== undefined ? { allowedRoles } : {}),
         ...(allowedUserIds !== undefined ? { allowedUserIds } : {}),
@@ -210,6 +214,7 @@ export async function PUT(
         notes: login.notes,
         backupCodesLocation: login.backupCodesLocation,
         adminOnly: login.adminOnly,
+        accessRole: login.accessRole,
         allowedRoles: login.allowedRoles,
         allowedUserIds: login.allowedUserIds,
         passwordChangedAt: passwordIsChanging

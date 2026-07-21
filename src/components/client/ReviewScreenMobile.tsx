@@ -120,7 +120,9 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
 
     /* Detect aspect ratio when video metadata loads */
     const handleVideoMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-        p.setDuration(e.currentTarget.duration);
+        if (Number.isFinite(e.currentTarget.duration)) {
+            p.setDuration(e.currentTarget.duration);
+        }
         if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
             p.setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
             const ratio = e.currentTarget.videoWidth / e.currentTarget.videoHeight;

@@ -756,6 +756,7 @@ model SocialLogin {
   passwordChangedAt   DateTime        @default(now())
   allowedRoles        String[]        @default([])
   allowedUserIds      Int[]           @default([])
+  accessRole          String?         // For platforms added via email-invite (Facebook, YouTube) — e.g. "Editor", "Admin", "Advertiser" — instead of a shared password
   auditLogs           LoginAuditLog[]
   client              Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedByUser       User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])

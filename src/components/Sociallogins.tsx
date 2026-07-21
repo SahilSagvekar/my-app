@@ -99,6 +99,7 @@ interface SocialLogin {
   notes?: string;
   backupCodesLocation?: string;
   adminOnly?: boolean;
+  accessRole?: string; // For email-invite platforms (Facebook, YouTube) — e.g. "Editor", "Admin", "Advertiser"
   // Per-login delegation — stored on the login record itself, saved via PUT /api/logins/:id
   allowedRoles?: string[];
   allowedUserIds?: number[];
@@ -135,6 +136,12 @@ const PLATFORMS: SocialPlatform[] = [
   "Email",
   "Other",
 ];
+
+// Facebook and YouTube grant access via email invite + a role (Editor,
+// Admin, Advertiser, etc.) — not a shared username/password. For these two,
+// the form collects an email + access role instead.
+const EMAIL_INVITE_PLATFORMS = new Set(["Facebook", "YouTube"]);
+const ACCESS_ROLE_OPTIONS = ["Admin", "Editor", "Advertiser", "Analyst", "Moderator"];
 
 const GRANTABLE_ROLES = [
   { value: "manager", label: "Manager" },
@@ -468,6 +475,7 @@ function LoginFormDialog({
     notes: "",
     backupCodesLocation: "",
     adminOnly: false,
+    accessRole: "",
     allowedRoles: [] as string[],
     allowedUserIds: [] as number[],
   });
@@ -493,6 +501,7 @@ function LoginFormDialog({
         notes: login.notes || "",
         backupCodesLocation: login.backupCodesLocation || "",
         adminOnly: login.adminOnly || false,
+        accessRole: login.accessRole || "",
         allowedRoles: login.allowedRoles || [],
         allowedUserIds: login.allowedUserIds || [],
       });
@@ -504,7 +513,7 @@ function LoginFormDialog({
         platform: "Instagram",
         username: "", password: "", loginUrl: "",
         email: "", phone: "", notes: "", backupCodesLocation: "",
-        adminOnly: false, allowedRoles: [], allowedUserIds: [],
+        adminOnly: false, accessRole: "", allowedRoles: [], allowedUserIds: [],
       });
     }
     setShowPassword(false);
@@ -516,10 +525,17 @@ function LoginFormDialog({
   };
 
   const handleSubmit = () => {
-    if (!formData.username) { toast.error("Username is required"); return; }
-    if (!formData.password) { toast.error("Password is required"); return; }
     const finalPlatform = selectedPlatform === "Other" ? customPlatformName : selectedPlatform;
     if (!finalPlatform) { toast.error("Platform name is required"); return; }
+
+    if (EMAIL_INVITE_PLATFORMS.has(finalPlatform)) {
+      if (!formData.email) { toast.error("Email is required"); return; }
+      if (!formData.accessRole) { toast.error("Access role is required"); return; }
+    } else {
+      if (!formData.username) { toast.error("Username is required"); return; }
+      if (!formData.password) { toast.error("Password is required"); return; }
+    }
+
     onSave({ ...formData, platform: finalPlatform });
     onOpenChange(false);
   };
@@ -622,25 +638,54 @@ function LoginFormDialog({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label>Username / Handle *</Label>
-            <Input value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              placeholder="@username or email" />
-          </div>
+          {EMAIL_INVITE_PLATFORMS.has(selectedPlatform) ? (
+            <>
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                <Label>Email *</Label>
+                <Input type="email" value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="the email to invite/grant access with" />
+                <p className="text-xs text-gray-500">
+                  {selectedPlatform} grants access by inviting an email address, not by sharing a password —
+                  we'll add this email to the account with the role below.
+                </p>
+              </div>
 
-          <div className="space-y-2">
-            <Label>Password *</Label>
-            <div className="relative">
-              <Input type={showPassword ? "text" : "password"} value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="Enter password" className="pr-10" />
-              <Button type="button" size="sm" variant="ghost"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                onClick={() => setShowPassword(!showPassword)}>
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                <Label>Access Role *</Label>
+                <Select value={formData.accessRole} onValueChange={(v) => setFormData({ ...formData, accessRole: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select the role granted" /></SelectTrigger>
+                  <SelectContent>
+                    {ACCESS_ROLE_OPTIONS.map((r) => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label>Username / Handle *</Label>
+                <Input value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  placeholder="@username or email" />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Password *</Label>
+                <div className="relative">
+                  <Input type={showPassword ? "text" : "password"} value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Enter password" className="pr-10" />
+                  <Button type="button" size="sm" variant="ghost"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                    onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label>Login Page URL</Label>
@@ -1234,7 +1279,9 @@ export function SocialLogins() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-gray-900 truncate block">{login.platform}</span>
-                        <p className="text-xs text-gray-500 truncate mt-0.5">@{login.username}</p>
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                          {EMAIL_INVITE_PLATFORMS.has(login.platform) ? login.username : `@${login.username}`}
+                        </p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           Updated {new Date(login.lastUpdated).toLocaleDateString()}
                         </p>
@@ -1243,11 +1290,20 @@ export function SocialLogins() {
 
                     {/* Details */}
                     <div className="mt-3 pl-0 sm:pl-[60px] space-y-1.5">
-                      <PasswordField
-                        password={login.password} loginId={login.id}
-                        canView={canViewLogin(login)}
-                        onView={logPasswordView} onCopy={logPasswordCopy}
-                      />
+                      {EMAIL_INVITE_PLATFORMS.has(login.platform) ? (
+                        login.accessRole && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <Badge variant="outline" className="text-xs">{login.accessRole} access</Badge>
+                            <span className="text-gray-400">granted via email invite</span>
+                          </div>
+                        )
+                      ) : (
+                        <PasswordField
+                          password={login.password} loginId={login.id}
+                          canView={canViewLogin(login)}
+                          onView={logPasswordView} onCopy={logPasswordCopy}
+                        />
+                      )}
 
                       {(login.email || login.phone) && (
                         <div className="flex flex-wrap gap-3 text-xs text-gray-500">
