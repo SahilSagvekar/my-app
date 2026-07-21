@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const schedulers = await prisma.user.findMany({
-      where: { role: { equals: 'scheduler', mode: 'insensitive' } },
+      where: { role: 'scheduler' },
       select: { id: true, name: true, email: true },
     });
 
