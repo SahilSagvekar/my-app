@@ -96,16 +96,26 @@ export function convertToGoogleDrivePreview(url: string): string | null {
 /**
  * Gets the appropriate video source for a video element or iframe.
  * Priority:
- * 1. proxyUrl - If a lower-quality version exists, use it for speed.
- * 2. streamProxy - If it's an S3/R2 file, use the byte-range streaming proxy.
- * 3. original - Fallback to the original URL.
+ * 1. youtubeVideoId - Review-mirror uploaded this to YouTube (Unlisted) — use
+ *    the real IFrame Player API for adaptive bitrate + proper seek support.
+ * 2. reviewDriveUrl - Drive mirror fallback (used when YouTube upload failed
+ *    or quota was exhausted — see review-mirror.ts).
+ * 3. proxyUrl - If a lower-quality version exists, use it for speed.
+ * 4. streamProxy - If it's an S3/R2 file, use the byte-range streaming proxy.
+ * 5. original - Fallback to the original URL.
  * 
  * @param file - The file object containing url and optional proxyUrl/id
  */
-export function getVideoSource(file: { url: string; id?: string; proxyUrl?: string | null; reviewDriveUrl?: string | null }): { type: 'video' | 'iframe', src: string } {
-  const { url, id, proxyUrl, reviewDriveUrl } = file;
+export function getVideoSource(file: { url: string; id?: string; proxyUrl?: string | null; reviewDriveUrl?: string | null; youtubeVideoId?: string | null }): { type: 'video' | 'iframe' | 'youtube', src: string } {
+  const { url, id, proxyUrl, reviewDriveUrl, youtubeVideoId } = file;
 
-  // 0. Google Drive mirror — proxied through server so <video> tag works with full review features
+  // 0. YouTube mirror — highest priority. Real IFrame Player API, unlike
+  // Drive's dumb preview embed (see YoutubePlayer.tsx for why).
+  if (youtubeVideoId) {
+    return { type: 'youtube', src: youtubeVideoId };
+  }
+
+  // 0.5 Google Drive mirror — proxied through server so <video> tag works with full review features
   // /api/files/drive-proxy fetches from Drive server-side, no CORS issues, range requests supported
   if (reviewDriveUrl) {
     const fileId = extractGoogleDriveFileId(reviewDriveUrl) ||

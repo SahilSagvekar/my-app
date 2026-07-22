@@ -18,6 +18,7 @@ import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
 import { ReviewConnectionIndicator } from './ReviewConnectionIndicator';
+import { YoutubePlayer } from '../review/YoutubePlayer';
 import type { ReviewScreenProps } from './ReviewScreenDesktop';
 
 type MobileTab = 'comments' | 'actions' | 'info' | 'titles';
@@ -421,6 +422,19 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                             onError={() => p.setVideoError(true)}
                         />
                     </>
+                ) : p.videoSource.type === 'youtube' ? (
+                    <YoutubePlayer
+                        ref={p.youtubePlayerRef}
+                        videoId={p.videoSource.src}
+                        className="w-full h-full bg-black"
+                        onReady={p.handleYoutubeReady}
+                        onPlay={() => p.setIsPlaying(true)}
+                        onPause={() => p.setIsPlaying(false)}
+                        onEnded={() => p.setIsPlaying(false)}
+                        onError={() => p.handleVideoError()}
+                        onTimeUpdate={p.setCurrentTime}
+                        onDurationChange={p.setDuration}
+                    />
                 ) : (
                     <>
                         <video

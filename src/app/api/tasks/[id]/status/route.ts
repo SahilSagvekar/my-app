@@ -9,6 +9,8 @@ import { prisma } from "../../../../../lib/prisma";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { startTitlingJob } from '@/lib/titling-service';
 import { notifyUser } from "@/lib/notify";
+import { triggerReviewMirror } from "@/lib/review-mirror";
+import { deleteYoutubeVideo } from "@/lib/youtube-mirror";
 import jwt from "jsonwebtoken";
 
 function sanitizeBigInt(obj: any): any {
@@ -401,6 +403,20 @@ export async function PATCH(
             payload: { taskId: task.id, clientId: task.clientId },
           });
         }
+
+        // 🔥 Mirror review videos to YouTube (falls back to Drive) so the
+        // review screen can play them — fire-and-forget, don't block the
+        // status update response. See review-mirror.ts.
+        triggerReviewMirror({
+          taskId: task.id,
+          taskTitle: task.title,
+          clientName: task.client?.companyName || task.client?.name || null,
+          driveFolderId: task.driveFolderId || null,
+          userId,
+          userRole: role,
+        }).catch((err: any) =>
+          console.error(`⚠️ Review mirror failed to start for task ${id}:`, err.message)
+        );
       // } else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
       //   // Notify Editor that it's approved
       //   await notifyUser({
@@ -447,6 +463,28 @@ export async function PATCH(
         }
       }
       console.log(`🗑️ Queued Drive cleanup for ${filesWithDrive.length} file(s) on task ${id}`);
+    }
+
+    // 🔥 Same cleanup for YouTube mirror uploads (no longer needed once approved)
+    const filesWithYoutube = await prisma.file.findMany({
+      where: { taskId: id, youtubeVideoId: { not: null } },
+      select: { id: true, youtubeVideoId: true },
+    });
+
+    if (filesWithYoutube.length > 0) {
+      for (const file of filesWithYoutube) {
+        if (file.youtubeVideoId) {
+          // Fire-and-forget — don't block the response
+          deleteYoutubeVideo(file.youtubeVideoId).catch(err =>
+            console.error(`⚠️ YouTube cleanup failed for file ${file.id}:`, err)
+          );
+        }
+        await prisma.file.update({
+          where: { id: file.id },
+          data: { youtubeVideoId: null, youtubeUploadedAt: null },
+        });
+      }
+      console.log(`🗑️ Queued YouTube cleanup for ${filesWithYoutube.length} file(s) on task ${id}`);
     }
   }
 
