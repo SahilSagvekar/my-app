@@ -362,29 +362,6 @@ cron.schedule('0 10 * * *', () => {
 }, { timezone: 'America/New_York' });
 
 // ==========================================
-// 7. Daily Posting Target Check (Every 2 hours)
-// Notifies a client's Slack channel (falls back to scheduling channel)
-// once all its daily posting targets are met for today (EST).
-// ==========================================
-cron.schedule('0 */2 * * *', () => {
-    triggerJob('Daily Target Check', '/api/cron/daily-target-check', 'GET');
-}, { timezone: 'America/New_York' });
-
-// ==========================================
-// 8. Daily Posting Target Team Summaries (Scheduling channel)
-// SOD 8:30 AM: how many posts are needed today
-// EOD 3:00 PM: what's still missing, fix ASAP
-// (Midday 12:00 PM update disabled by request)
-// ==========================================
-cron.schedule('30 8 * * *', () => {
-    triggerJob('Daily Target Summary (SOD)', '/api/cron/daily-target-summary?stage=sod', 'GET');
-}, { timezone: 'America/New_York' });
-
-cron.schedule('0 15 * * *', () => {
-    triggerJob('Daily Target Summary (EOD)', '/api/cron/daily-target-summary?stage=eod', 'GET');
-}, { timezone: 'America/New_York' });
-
-// ==========================================
 // 9. Weekly Commission Payout Batch (Fridays at 5 PM EST)
 // Sends Stripe transfers for every APPROVED commission past its hold window
 // and above the configured minimum threshold. See src/lib/stripe-payouts.ts.

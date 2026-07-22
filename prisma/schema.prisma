@@ -369,7 +369,6 @@ model Client {
   oneOffDeliverables           OneOffDeliverable[]
   postedContents               PostedContent[]
   postingTargets               PostingTarget[]
-  dailyTargetNotifications     DailyTargetNotification[]
   recurringTasks               RecurringTask[]
   SocialAccount                SocialAccount[]
   socialLogins                 SocialLogin[]
@@ -1930,17 +1929,6 @@ model PostingTarget {
   client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@unique([clientId, platform, deliverableType])
-  @@index([clientId])
-}
-
-model DailyTargetNotification {
-  id       String   @id @default(cuid())
-  clientId String
-  date     String
-  sentAt   DateTime @default(now())
-  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  @@unique([clientId, date])
   @@index([clientId])
 }
 
