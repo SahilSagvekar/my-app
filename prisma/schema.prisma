@@ -313,6 +313,7 @@ model Client {
   email                        String
   companyName                  String?
   phone                        String
+  address                      String?
   createdBy                    String?
   status                       String                    @default("active")
   accountManagerId             String?
@@ -367,7 +368,7 @@ model Client {
   monthlyRuns                  MonthlyRun[]
   OnboardingToken              OnboardingToken?
   oneOffDeliverables           OneOffDeliverable[]
-  postedContents               PostedContent[]
+  postedContents                PostedContent[]
   postingTargets               PostingTarget[]
   recurringTasks               RecurringTask[]
   SocialAccount                SocialAccount[]
