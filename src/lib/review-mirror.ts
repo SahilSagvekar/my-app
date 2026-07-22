@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma';
 import { uploadVideoToYoutube, QuotaExceededError } from '@/lib/youtube-mirror';
 import { triggerDriveMirror } from '@/lib/drive-mirror';
+// import { triggerDriveMirror } from '@/lib/drive-mirror';
 
 export async function triggerReviewMirror(params: {
   taskId: string;
