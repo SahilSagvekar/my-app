@@ -40,6 +40,7 @@ export async function GET(
             codec: true,
             proxyUrl: true,
             reviewDriveUrl: true,
+            youtubeVideoId: true,
           },
           orderBy: {
             uploadedAt: "desc",

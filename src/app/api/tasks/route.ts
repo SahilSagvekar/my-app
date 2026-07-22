@@ -354,6 +354,7 @@ const { searchParams } = new URL(req.url);
               codec: true,
               proxyUrl: true,
               reviewDriveUrl: true,
+              youtubeVideoId: true,
             },
           },
           driveLinks: true,

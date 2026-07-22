@@ -9,7 +9,12 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 );
 
-const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
+// const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
+
+const SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/youtube.upload',
+];
 
 const authUrl = oauth2Client.generateAuthUrl({
   access_type: 'offline',
