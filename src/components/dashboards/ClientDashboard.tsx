@@ -735,6 +735,14 @@ export function ClientDashboard() {
     return task.files?.find((f) => f.mimeType?.startsWith('image/') && f.folderType === 'thumbnails') || null;
   };
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   // NOTE: this used to be a plain function called inline as
   // `asset={getVideoAssetFromFile(selectedFile)}` in JSX. That rebuilt a
   // brand-new object (and a brand-new `versions` array) on every render of
@@ -745,6 +753,12 @@ export function ClientDashboard() {
   // intermittently snap back to 0:00 while a video was actively playing.
   // Memoizing keeps the object reference stable unless selectedTask or
   // selectedFile actually change.
+  //
+  // IMPORTANT: this must stay BELOW formatFileSize's declaration — the
+  // useMemo callback runs synchronously the moment this line executes
+  // during render, so if formatFileSize were declared later in the
+  // component it would still be in its temporal dead zone here and this
+  // would throw "Cannot access 'formatFileSize' before initialization".
   const videoAsset = useMemo(() => {
     if (!selectedTask || !selectedFile) return null;
     const file = selectedFile;
@@ -814,13 +828,6 @@ export function ClientDashboard() {
 
   /* ---------------------------- HELPER FUNCTIONS ---------------------------- */
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
 
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith('video/')) return <Video className="h-5 w-5 text-blue-600" />;
