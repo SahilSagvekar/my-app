@@ -735,8 +735,19 @@ export function ClientDashboard() {
     return task.files?.find((f) => f.mimeType?.startsWith('image/') && f.folderType === 'thumbnails') || null;
   };
 
-  const getVideoAssetFromFile = (file: TaskFile) => {
-    if (!selectedTask) return null;
+  // NOTE: this used to be a plain function called inline as
+  // `asset={getVideoAssetFromFile(selectedFile)}` in JSX. That rebuilt a
+  // brand-new object (and a brand-new `versions` array) on every render of
+  // this dashboard — so FullScreenReviewModalFrameIO's "asset changed" reset
+  // effect fired on every unrelated re-render (polling, other UI state,
+  // etc.), not just on real file/task changes. That reset effect zeroes out
+  // currentTime/duration, which is why the review scrubber would
+  // intermittently snap back to 0:00 while a video was actively playing.
+  // Memoizing keeps the object reference stable unless selectedTask or
+  // selectedFile actually change.
+  const videoAsset = useMemo(() => {
+    if (!selectedTask || !selectedFile) return null;
+    const file = selectedFile;
 
     // Get all video files from the same folder type to show as versions
     const allVideosInFolder = selectedTask.files
@@ -798,7 +809,8 @@ export function ClientDashboard() {
       downloadEnabled: true,
       approvalLocked: selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED'
     };
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTask, selectedFile]);
 
   /* ---------------------------- HELPER FUNCTIONS ---------------------------- */
 
@@ -1501,7 +1513,7 @@ export function ClientDashboard() {
                   // Don't clear selectedTask so user can continue reviewing
                 }
               }}
-              asset={getVideoAssetFromFile(selectedFile)}
+              asset={videoAsset}
               onApprove={handleVideoApprove}
               onRequestRevisions={handleVideoRequestRevisions}
               userRole="client"
