@@ -12,7 +12,6 @@ import {
   AlertCircle,
   Search,
   User,
-  Building2,
   Mail,
   Phone,
   Calendar,
@@ -138,6 +137,55 @@ const platformAbbrev: Record<string, string> = {
   LinkedIn: "LI",
   Snapchat: "SC",
 };
+
+// ── Deliverable visual mapping (redesign) ──────────────────────────────────────
+// Each deliverable type is drawn as a true-to-ratio frame (1:1, 9:16, 16:9, 4:5)
+// instead of a generic icon box, so the shape itself communicates the format.
+function getDeliverableVisual(type: string): { w: number; h: number; Icon: any; tone: "ink" | "brass" } {
+  const t = type.toLowerCase();
+  if (t.includes("short") || t.includes("reel")) {
+    return { w: 22, h: 38, Icon: Film, tone: "brass" };
+  }
+  if (t.includes("image") || t.includes("photo") || t.includes("graphic")) {
+    return { w: 28, h: 34, Icon: Image, tone: "brass" };
+  }
+  if (t.includes("long")) {
+    return { w: 42, h: 24, Icon: Video, tone: "ink" };
+  }
+  return { w: 34, h: 34, Icon: Video, tone: "ink" }; // square, default
+}
+
+function AspectFrame({
+  w,
+  h,
+  tone,
+  children,
+}: {
+  w: number;
+  h: number;
+  tone: "ink" | "brass";
+  children: React.ReactNode;
+}) {
+  const toneClasses =
+    tone === "brass"
+      ? "border-[#B9832F]/40 bg-[#B9832F]/[0.06]"
+      : "border-[#29394D]/25 bg-[#29394D]/[0.04]";
+  return (
+    <div className="relative shrink-0" style={{ width: w, height: h }}>
+      <div className={`absolute inset-0 rounded-[3px] border ${toneClasses} flex items-center justify-center`}>
+        {children}
+      </div>
+      {[
+        "top-[-1px] left-[-1px] border-t border-l",
+        "top-[-1px] right-[-1px] border-t border-r",
+        "bottom-[-1px] left-[-1px] border-b border-l",
+        "bottom-[-1px] right-[-1px] border-b border-r",
+      ].map((pos, i) => (
+        <span key={i} className={`absolute ${pos} w-2 h-2 border-[#17181C]/70 pointer-events-none`} />
+      ))}
+    </div>
+  );
+}
 
 // ── Portal access status ──────────────────────────────────────────────────────
 interface PortalAccess {
@@ -455,184 +503,191 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
 
   return (
     <div className="space-y-12 pb-12">
-      {/* ===== SECTION 1: CLIENT INFO ===== */}
+      {/* ===== SECTION 1: CLIENT INFO (redesigned) ===== */}
       <section>
+        {/* NOTE: Fraunces + Roboto Mono are loaded here for now. If this pattern
+            spreads to other pages, move this @import into layout.tsx / globals.css
+            (or wire up next/font) instead of repeating it per page. */}
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Roboto+Mono:wght@400;500;600&display=swap');
+          .e8-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
+          .e8-mono { font-family: 'Roboto Mono', monospace; }
+        `}</style>
+
         <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-            Welcome Back
+          <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63] mb-2">
+            Client Portal
+          </p>
+          <h1 className="e8-display text-[34px] leading-none text-[#17181C] mb-2">
+            Welcome back
           </h1>
-          <p className="text-muted-foreground mt-1 text-lg">
+          <p className="text-[#6B6A63] text-sm">
             View your account details, contracts, and invoices
           </p>
         </div>
 
         {clientInfo ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Company Info Card */}
-            <Card className="lg:col-span-1">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-blue-600" />
-                  Account Info
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {clientInfo.companyName || clientInfo.name}
-                  </p>
-                  {clientInfo.companyName && (
-                    <p className="text-sm text-gray-500">{clientInfo.name}</p>
-                  )}
+          <div className="space-y-5">
+            <div className="grid lg:grid-cols-[340px_1fr] gap-5">
+              {/* Account Info */}
+              <div className="rounded-xl border border-[#E2E0D8] bg-white p-6">
+                <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63] mb-4">
+                  Account
+                </p>
+
+                <div className="flex items-start gap-3 mb-5">
+                  <div className="w-11 h-11 shrink-0 rounded-md bg-[#29394D] flex items-center justify-center">
+                    <span className="e8-display text-white text-lg">
+                      {(clientInfo.companyName || clientInfo.name || "?").charAt(0)}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="e8-display text-[19px] leading-tight text-[#17181C] truncate">
+                      {clientInfo.companyName || clientInfo.name}
+                    </p>
+                    {clientInfo.companyName && (
+                      <p className="text-sm text-[#6B6A63] truncate">{clientInfo.name}</p>
+                    )}
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <span>{clientInfo.email}</span>
+                <div className="h-px bg-[#E2E0D8] mb-4" />
+
+                <div className="space-y-3 mb-5">
+                  <div className="flex items-center gap-2.5 text-sm text-[#17181C]">
+                    <Mail size={15} className="text-[#6B6A63] shrink-0" strokeWidth={1.75} />
+                    <span className="truncate">{clientInfo.email}</span>
                   </div>
                   {clientInfo.phone && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-4 w-4 text-gray-400" />
+                    <div className="flex items-center gap-2.5 text-sm text-[#17181C]">
+                      <Phone size={15} className="text-[#6B6A63] shrink-0" strokeWidth={1.75} />
                       <span>{clientInfo.phone}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                    <span>Client since {formatDate(clientInfo.createdAt)}</span>
+                  <div className="flex items-center gap-2.5 text-sm text-[#17181C]">
+                    <Calendar size={15} className="text-[#6B6A63] shrink-0" strokeWidth={1.75} />
+                    <span>
+                      Client since <span className="e8-mono">{formatDate(clientInfo.createdAt)}</span>
+                    </span>
                   </div>
                 </div>
 
                 {/* Posting Services Status */}
-                <div className="pt-3 border-t">
-                  <div
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-                      clientInfo.hasPostingServices
-                        ? "bg-green-50 text-green-700"
-                        : "bg-gray-50 text-gray-600"
-                    }`}
-                  >
-                    {clientInfo.hasPostingServices ? (
-                      <>
-                        <CheckCircle className="h-4 w-4" />
-                        <span className="text-sm font-medium">
-                          Posting Services Included
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="h-4 w-4" />
-                        <span className="text-sm font-medium">
-                          Content Delivery Only
-                        </span>
-                      </>
-                    )}
+                {clientInfo.hasPostingServices ? (
+                  <div className="flex items-center gap-2 rounded-md bg-[#29394D]/[0.06] border border-[#29394D]/15 px-3 py-2.5">
+                    <CheckCircle size={15} className="text-[#29394D] shrink-0" strokeWidth={1.75} />
+                    <span className="text-[13px] font-medium text-[#29394D]">
+                      Posting services included
+                    </span>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-md bg-[#F6F5F1] border border-[#E2E0D8] px-3 py-2.5">
+                    <XCircle size={15} className="text-[#6B6A63] shrink-0" strokeWidth={1.75} />
+                    <span className="text-[13px] font-medium text-[#6B6A63]">
+                      Content delivery only
+                    </span>
+                  </div>
+                )}
+              </div>
 
-            {/* Monthly Deliverables Card */}
-            <Card className="lg:col-span-2">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Package className="h-5 w-5 text-indigo-600" />
+              {/* Monthly Deliverables */}
+              <div className="rounded-xl border border-[#E2E0D8] bg-white p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63]">
                     Monthly Deliverables
-                  </CardTitle>
-                  <Badge variant="secondary" className="text-base px-3 py-1">
-                    {totalDeliverables} total/month
-                  </Badge>
+                  </p>
+                  <span className="e8-mono text-[11px] text-[#6B6A63] bg-[#F6F5F1] border border-[#E2E0D8] rounded-full px-2.5 py-1">
+                    {totalDeliverables} total / mo
+                  </span>
                 </div>
-              </CardHeader>
-              <CardContent>
+
                 {clientInfo.monthlyDeliverables?.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid sm:grid-cols-2 gap-3">
                     {clientInfo.monthlyDeliverables.map((deliverable) => {
                       const platforms =
-                        deliverable.platforms
-                          ?.map((p) => platformAbbrev[p] || p)
-                          .join(", ") || "";
-
-                      // Choose icon based on type
-                      let Icon = Video;
-                      if (
-                        deliverable.type.toLowerCase().includes("short") ||
-                        deliverable.type.toLowerCase().includes("reel")
-                      ) {
-                        Icon = Film;
-                      } else if (
-                        deliverable.type.toLowerCase().includes("image") ||
-                        deliverable.type.toLowerCase().includes("photo")
-                      ) {
-                        Icon = Image;
-                      }
+                        deliverable.platforms?.map((p) => platformAbbrev[p] || p) || [];
+                      const { w, h, Icon, tone } = getDeliverableVisual(deliverable.type);
 
                       return (
                         <div
                           key={deliverable.id}
-                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100"
+                          className="group flex items-center gap-4 rounded-lg border border-[#E2E0D8] bg-white px-4 py-4 transition-colors hover:border-[#B9832F]/50"
                         >
-                          <div className="p-2 bg-white rounded-lg border">
-                            <Icon className="h-5 w-5 text-indigo-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 truncate">
+                          <AspectFrame w={w} h={h} tone={tone}>
+                            <Icon
+                              size={13}
+                              className={tone === "brass" ? "text-[#B9832F]" : "text-[#29394D]"}
+                              strokeWidth={1.75}
+                            />
+                          </AspectFrame>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-[#17181C] text-[15px] leading-tight truncate">
                               {deliverable.type}
                             </p>
-                            {platforms && (
-                              <p className="text-xs text-gray-500">{platforms}</p>
+                            {platforms.length > 0 && (
+                              <div className="mt-1 flex gap-1 flex-wrap">
+                                {platforms.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="e8-mono text-[10px] tracking-wide uppercase text-[#6B6A63] bg-[#F6F5F1] border border-[#E2E0D8] rounded px-1.5 py-0.5"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
                             )}
                           </div>
-                          <div className="text-right">
-                            <span className="text-lg font-bold text-indigo-600">
+                          <div className="text-right shrink-0">
+                            <span className="e8-mono text-2xl font-semibold text-[#B9832F] tabular-nums">
                               {deliverable.quantity}
                             </span>
-                            <span className="text-xs text-gray-500">/mo</span>
+                            <span className="e8-mono text-xs text-[#6B6A63]">/mo</span>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Package className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p>No deliverables configured yet</p>
+                  <div className="text-center py-8 text-[#6B6A63]">
+                    <Package className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No deliverables configured yet</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            {/* Billing Summary Card */}
+            {/* Billing Summary */}
             {clientInfo.billing?.monthlyFee && (
-              <Card className="lg:col-span-3">
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-green-100 rounded-xl">
-                        <DollarSign className="h-6 w-6 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Monthly Fee</p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          ${parseFloat(clientInfo.billing.monthlyFee.replace(/[^0-9.]/g, "")).toLocaleString()}
-                        </p>
-                      </div>
+              <div className="rounded-xl border border-[#E2E0D8] bg-white p-6">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-11 h-11 shrink-0 rounded-md bg-[#B9832F]/[0.1] border border-[#B9832F]/25 flex items-center justify-center">
+                      <DollarSign size={18} className="text-[#B9832F]" strokeWidth={1.75} />
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-500">Billing Cycle</p>
-                      <p className="font-medium text-gray-900 capitalize">
-                        {clientInfo.billing.billingFrequency || "Monthly"}
+                    <div>
+                      <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63]">
+                        Monthly Fee
                       </p>
-                      {clientInfo.billing.billingDay && (
-                        <p className="text-xs text-gray-500">
-                          Day {clientInfo.billing.billingDay} of each month
-                        </p>
-                      )}
+                      <p className="e8-display text-[22px] text-[#17181C]">
+                        ${parseFloat(clientInfo.billing.monthlyFee.replace(/[^0-9.]/g, "")).toLocaleString()}
+                      </p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="text-right">
+                    <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63]">
+                      Billing Cycle
+                    </p>
+                    <p className="font-medium text-[#17181C] capitalize">
+                      {clientInfo.billing.billingFrequency || "Monthly"}
+                    </p>
+                    {clientInfo.billing.billingDay && (
+                      <p className="text-xs text-[#6B6A63]">
+                        Day {clientInfo.billing.billingDay} of each month
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         ) : (

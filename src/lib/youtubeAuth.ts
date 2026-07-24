@@ -27,7 +27,7 @@ function getYoutubeOAuthClient() {
   );
 
   client.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+    refresh_token: process.env.YOUTUBE_REFRESH_TOKEN,
   });
 
   return client;
