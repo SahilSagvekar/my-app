@@ -55,5 +55,22 @@ module.exports = {
             out_file: './logs/cron-out.log',
             merge_logs: true,
         },
+        {
+            name: 'e8-file-server',
+            cwd: '/home/ubuntu/e8-file-server',   // <-- use the actual full path from where you cloned it
+            script: 'src/index.js',
+            instances: 1,
+            exec_mode: 'fork',
+            max_memory_restart: '600M',
+            restart_delay: 5000,
+            env: {
+                NODE_ENV: 'production',
+                PORT: 4001,
+            },
+            log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+            error_file: './logs/error.log',
+            out_file: './logs/out.log',
+            merge_logs: true,
+        },
     ],
 };
