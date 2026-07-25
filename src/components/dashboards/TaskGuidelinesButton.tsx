@@ -32,7 +32,7 @@ interface TaskGuidelinesButtonProps {
 }
 
 const DEFAULT_BUTTON_CLASSNAME =
-  "h-5 w-5 rounded-full border border-dashed border-primary/60 text-[9px] font-semibold flex items-center justify-center text-primary hover:bg-primary/5";
+  "h-5 w-5 rounded-full border border-orange-500 bg-orange-500 text-[9px] font-semibold flex items-center justify-center text-white hover:bg-orange-500";
 
 export function TaskGuidelinesButton({
   clientId,

@@ -1487,7 +1487,7 @@ useEffect(() => {
 
         {selectedTask && (
           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-            <DialogContent className="w-[80vw] max-w-[80vw] sm:max-w-[80vw] max-h-[85vh]">
+            <DialogContent className="w-[80vw] max-w-[80vw] sm:!max-w-[80vw] max-h-[85vh]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Eye className="h-5 w-5" />
