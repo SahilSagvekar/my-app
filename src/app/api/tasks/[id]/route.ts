@@ -57,6 +57,7 @@ export async function GET(
           select: {
             id: true,
             name: true,
+            requiresCoverImage: true,
           },
         },
         tags: true,

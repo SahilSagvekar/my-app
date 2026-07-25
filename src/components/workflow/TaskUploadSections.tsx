@@ -126,6 +126,37 @@ export function TaskUploadSections({
     switch (deliverableType) {
       case "Short Form Videos":
       case "Beta Short Form":
+        return [
+          {
+            folderType: "music-license",
+            label: "Music Licenses",
+            required: true,
+            icon: "img:/icons/music-license.svg",
+            uploaded: false,
+          },
+          {
+            folderType: "thumbnails",
+            label: "Thumbnails",
+            required: false,
+            icon: "img:/icons/thumbnails.svg",
+            uploaded: false,
+          },
+          // 🔥 Cover Images — optional 4th upload slot, only shown for
+          // clients with "Requires Cover Image" enabled by admin
+          // (Client Management → Cover Image Settings).
+          ...(task.client?.requiresCoverImage
+            ? [
+                {
+                  folderType: "covers",
+                  label: "Cover Images",
+                  required: false,
+                  icon: "📔",
+                  uploaded: false,
+                } as UploadSection,
+              ]
+            : []),
+        ];
+
       case "Stories":
         return [
           {
