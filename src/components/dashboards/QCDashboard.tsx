@@ -190,6 +190,7 @@ const persistQCResult = async ({
   if (approved) {
     metaBody.qcResult = "APPROVED";
     metaBody.route = requiresClientReview ? "client_then_scheduler" : "scheduler";
+    if (requiresClientReview) metaBody.forceClientReview = true;
   } else {
     metaBody.qcResult = "REJECTED";
     metaBody.route = "editor";

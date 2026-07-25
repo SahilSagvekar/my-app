@@ -59,7 +59,7 @@ export async function PATCH(
     const effectiveRole = (role === 'scheduler' && viewingAs === 'qc') ? 'admin' : role;
 
     const body = await req.json();
-    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags } = body;
+    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags, forceClientReview } = body;
 
     let finalStatus = status;
 
@@ -161,10 +161,15 @@ export async function PATCH(
 
     console.log("ROLE" + role);
     // Handle client review requirement
+    // 🔥 QC manual override: force a specific video into client review,
+    // regardless of the client's global requiresClientReview setting or
+    // deliverable-type whitelist. Works both at approval time
+    // (status === "COMPLETED") and as an after-the-fact push on an
+    // already-approved task (status === "CLIENT_REVIEW" sent directly).
     if (
       (effectiveRole === "qc" || effectiveRole === "admin") &&
-      status === "COMPLETED" &&
-      task.client?.requiresClientReview === true
+      (status === "COMPLETED" || status === "CLIENT_REVIEW") &&
+      (task.client?.requiresClientReview === true || forceClientReview === true)
     ) {
       const allowedTypes: string[] = task.client?.clientReviewDeliverableTypes ?? [];
 
@@ -193,7 +198,7 @@ export async function PATCH(
 
       // If no types configured → all tasks go to review (backwards compatible).
       // If types configured → only matching deliverable types go to review.
-      const shouldReview = allowedTypes.length === 0 || allowedTypes.includes(taskType);
+      const shouldReview = forceClientReview === true || allowedTypes.length === 0 || allowedTypes.includes(taskType);
       if (shouldReview) {
         finalStatus = "CLIENT_REVIEW";
       }

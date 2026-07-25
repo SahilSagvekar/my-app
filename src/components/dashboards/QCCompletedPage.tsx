@@ -20,6 +20,7 @@ import {
   Loader,
   RotateCcw,
   Search,
+  Send,
   UserCheck,
   XCircle,
   Clock,
@@ -257,6 +258,56 @@ export function QCCompletedPage() {
     setSelectedTaskIds(new Set(completedTasks.map((task) => task.id)));
   };
 
+  const handleBulkPushToClientReview = async () => {
+    if (selectedTaskIds.size === 0) {
+      toast.error('No tasks selected');
+      return;
+    }
+
+    try {
+      const taskIds = Array.from(selectedTaskIds);
+
+      const response = await fetch('/api/tasks/bulk-push-to-client-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ taskIds }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Failed to push tasks to client review');
+
+      toast.success(
+        `✅ ${data.count} task(s) pushed to client review${data.skipped ? ` (${data.skipped} skipped — not Approved)` : ''}`
+      );
+
+      const refreshedData = await fetchCompletedTasks({
+        page: currentPage,
+        status: completedFilter,
+        search: debouncedSearchTerm,
+      });
+
+      const responseTotalPages = refreshedData.pagination?.totalPages || 1;
+      setSelectedTaskIds(new Set());
+
+      if (currentPage > responseTotalPages) {
+        setCurrentPage(responseTotalPages);
+        return;
+      }
+
+      const normalizedTasks = Array.isArray(refreshedData.tasks)
+        ? refreshedData.tasks.map(normalizeCompletedTask)
+        : [];
+
+      setCompletedTasks(normalizedTasks);
+      setTotalPages(responseTotalPages);
+      setTotalMatchingTasks(refreshedData.pagination?.total || 0);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to push tasks to client review');
+    }
+  };
+
   const handleBulkRevert = async () => {
     if (selectedTaskIds.size === 0) {
       toast.error('No tasks selected');
@@ -437,6 +488,15 @@ export function QCCompletedPage() {
                   onClick={toggleSelectAll}
                 >
                   {allVisibleTasksSelected ? 'Deselect Page' : 'Select Page'}
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkPushToClientReview}
+                  disabled={selectedTaskIds.size === 0}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Push to Client Review ({selectedTaskIds.size})
                 </Button>
                 <Button
                   variant="default"
