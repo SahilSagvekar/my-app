@@ -67,6 +67,10 @@ interface FullScreenReviewModalProps {
     currentFileSection?: { folderType: string; fileId: string; version: number };
     taskId?: string;
     requiresClientReview?: boolean;
+    // 🔥 QC manual override — lets QC force this specific video into client
+    // review even when the client's account doesn't require it generally.
+    forceClientReviewOverride?: boolean;
+    onForceClientReviewOverrideChange?: (value: boolean) => void;
     shareToken?: string;
     // 🔥 Multi-item posting content — set in the review sidebar, batched on approve.
     // Only meaningful in the review screen itself (not QC's separate approval dialog).
@@ -185,6 +189,8 @@ export function FullScreenReviewModalFrameIO({
     currentFileSection,
     taskId,
     requiresClientReview = false,
+    forceClientReviewOverride = false,
+    onForceClientReviewOverrideChange,
     shareToken,
     postingTitles = [],
     postingDescriptions = [],
@@ -1004,6 +1010,8 @@ export function FullScreenReviewModalFrameIO({
         currentFileSection,
         userRole,
         requiresClientReview,
+        forceClientReviewOverride,
+        onForceClientReviewOverrideChange,
         postingTitles,
         postingDescriptions,
         postingTags,

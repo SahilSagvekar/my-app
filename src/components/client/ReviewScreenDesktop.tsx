@@ -43,6 +43,10 @@ export interface ReviewScreenProps {
     currentFileSection?: { folderType: string; fileId: string; version: number };
     userRole: 'client' | 'qc';
     requiresClientReview: boolean;
+    // 🔥 QC manual override — lets QC force this specific video into client
+    // review even when the client's account doesn't require it generally.
+    forceClientReviewOverride?: boolean;
+    onForceClientReviewOverrideChange?: (value: boolean) => void;
     // 🔥 Multi-item posting content — composed in the review sidebar, batched on approve
     postingTitles: { id: string; text: string }[];
     postingDescriptions: { id: string; text: string }[];
@@ -886,8 +890,17 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         <div className="p-4 pb-6 border-t border-[var(--review-border)] flex flex-col gap-2.5 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
                             {p.userRole === 'qc' ? (
                                 <>
+                                    {!p.requiresClientReview && (
+                                        <label className="flex items-center gap-2 px-1 pb-1 text-xs text-[var(--review-text-secondary)] cursor-pointer select-none">
+                                            <Checkbox
+                                                checked={!!p.forceClientReviewOverride}
+                                                onCheckedChange={(checked) => p.onForceClientReviewOverrideChange?.(checked === true)}
+                                            />
+                                            Send this video to client review anyway
+                                        </label>
+                                    )}
                                     <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}>
-                                        {p.requiresClientReview
+                                        {p.requiresClientReview || p.forceClientReviewOverride
                                             ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve</>
                                             : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve</>
                                         }

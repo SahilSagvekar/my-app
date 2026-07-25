@@ -245,6 +245,10 @@ export function QCDashboard() {
   const [showFilePreview, setShowFilePreview] = useState(false);
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showTextPostReview, setShowTextPostReview] = useState(false);
+  // 🔥 QC manual override — when checked in the review screen, forces THIS
+  // specific video into client review even if the client doesn't normally
+  // require it. Resets to false every time a new file is opened.
+  const [forceClientReviewOverride, setForceClientReviewOverride] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonFiles, setComparisonFiles] = useState<TaskFile[]>([]);
   const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>("all");
@@ -409,7 +413,7 @@ useEffect(() => {
       await persistQCResult({
         taskId: selectedTask.id,
         approved: true,
-        requiresClientReview: true,
+        requiresClientReview: forceClientReviewOverride,
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
@@ -463,6 +467,7 @@ useEffect(() => {
   const handleFileSelect = (file: TaskFile) => {
     setSelectedFile(file);
     setShowFileSelector(false);
+    setForceClientReviewOverride(false);
 
     const mimeType = getMimeType(file);
     if (mimeType.startsWith('video/')) {
@@ -1694,6 +1699,8 @@ useEffect(() => {
             }
             onSendToClient={handleSendToClient}
             onSendBackToEditor={handleSendBackToEditor}
+            forceClientReviewOverride={forceClientReviewOverride}
+            onForceClientReviewOverrideChange={setForceClientReviewOverride}
             taskId={selectedTask.id}
             requiresClientReview={selectedTask.requiresClientReview}
             currentFileSection={{
