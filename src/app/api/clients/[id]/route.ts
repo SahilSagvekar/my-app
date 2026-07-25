@@ -108,6 +108,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 
     let clientReview = false;
     let videographer = false;
+    let coverImage = false;
 
     const {
       name,
@@ -126,6 +127,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       clientReviewRequired,
       clientReviewDeliverableTypes,
       videographerRequired,
+      coverImageRequired,
       hasPostingServices,
       slackWebhookUrl,
       slackChannelName,
@@ -141,6 +143,10 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 
     if (videographerRequired === "yes") {
       videographer = true;
+    }
+
+    if (coverImageRequired === "yes") {
+      coverImage = true;
     }
 
     const additionalEmails = (emails || []).filter((e: string) => e.trim() !== "");
@@ -166,6 +172,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         requiresClientReview: clientReview,
         clientReviewDeliverableTypes: clientReviewDeliverableTypes ?? [],
         requiresVideographer: videographer,
+        requiresCoverImage: coverImage,
         hasPostingServices,
         ...(slackWebhookUrl !== undefined && { slackWebhookUrl }),
         ...(slackChannelName !== undefined && { slackChannelName }),

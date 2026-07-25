@@ -165,6 +165,7 @@ export async function POST(req: Request) {
 
     let clientReview = false;
     let videographer = false;
+    let coverImage = false;
 
     const body = await req.json();
 
@@ -186,6 +187,7 @@ export async function POST(req: Request) {
       clientReviewRequired,
       clientReviewDeliverableTypes,
       videographerRequired,
+      coverImageRequired,
       hasPostingServices,
       templateHashtags,
     } = body;
@@ -202,6 +204,10 @@ export async function POST(req: Request) {
 
     if (videographerRequired == "yes") {
       videographer = true;
+    }
+
+    if (coverImageRequired == "yes") {
+      coverImage = true;
     }
 
     const additionalEmails = (emails || []).filter((e: string) => e.trim() !== "");
@@ -248,6 +254,7 @@ export async function POST(req: Request) {
           requiresClientReview: clientReview,
           clientReviewDeliverableTypes: clientReviewDeliverableTypes ?? [],
           requiresVideographer: videographer,
+          requiresCoverImage: coverImage,
           hasPostingServices: hasPostingServices ?? true,
           templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
           currentProgress: { completed: 0, total: 0 },

@@ -168,6 +168,8 @@ interface Client {
   videographerRequired: string;
   requiresClientReview: string;
   requiresVideographer: string;
+  coverImageRequired: string;
+  requiresCoverImage: boolean;
   hasPostingServices: boolean;
   isTrial: boolean;
   templateHashtags: string[];
@@ -311,6 +313,7 @@ export function ClientManagement() {
     clientReviewRequired: "no",
     clientReviewDeliverableTypes: [],
     videographerRequired: "no",
+    coverImageRequired: "no",
     hasPostingServices: true,
     templateHashtags: [],
     monthlyDeliverables: [],
@@ -1352,6 +1355,7 @@ export function ClientManagement() {
         clientReviewRequired: "no",
         clientReviewDeliverableTypes: [],
         videographerRequired: "no",
+        coverImageRequired: "no",
         templateHashtags: [],
         monthlyDeliverables: [],
         brandAssets: [],
@@ -1397,6 +1401,7 @@ export function ClientManagement() {
       clientReviewRequired: client.requiresClientReview ? "yes" : "no",
       clientReviewDeliverableTypes: (client as any).clientReviewDeliverableTypes ?? [],
       videographerRequired: client.requiresVideographer ? "yes" : "no",
+      coverImageRequired: (client as any).requiresCoverImage ? "yes" : "no",
       hasPostingServices: client.hasPostingServices ?? true,
       templateHashtags: (client as any).templateHashtags ?? [],
       accountManagerId: client.accountManagerId,
@@ -2955,6 +2960,32 @@ export function ClientManagement() {
                       setNewClient({
                         ...newClient,
                         videographerRequired: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="coverImageRequired"
+                    className="text-gray-700"
+                  >
+                    Cover Image Required
+                  </Label>
+                  <Select
+                    value={newClient.coverImageRequired ?? "no"}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        coverImageRequired: value,
                       })
                     }
                   >
