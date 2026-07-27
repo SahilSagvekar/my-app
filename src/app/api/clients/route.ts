@@ -60,6 +60,14 @@ export async function GET(req: NextRequest) {
           oneOffDeliverables: true,
           brandAssets: true,
           recurringTasks: true,
+          portalAccess: {
+            select: {
+              status: true,
+              nextBillingDate: true,
+              lockedAt: true,
+              adminUnlockedAt: true,
+            },
+          },
         },
       }),
       prisma.task.groupBy({
