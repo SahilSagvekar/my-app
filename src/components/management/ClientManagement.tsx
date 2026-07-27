@@ -305,6 +305,10 @@ export function ClientManagement() {
   const [autoInvoiceRows, setAutoInvoiceRows] = useState<AutoInvoiceRow[]>([]);
   const [autoInvoiceLoading, setAutoInvoiceLoading] = useState(false);
   const [autoInvoiceSaving, setAutoInvoiceSaving] = useState(false);
+  const [runningInvoiceNow, setRunningInvoiceNow] = useState(false);
+  const [runningLockNow, setRunningLockNow] = useState(false);
+  const [runInvoiceResult, setRunInvoiceResult] = useState<string | null>(null);
+  const [runLockResult, setRunLockResult] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [managerFilter, setManagerFilter] = useState<string>("all");
@@ -557,6 +561,51 @@ export function ClientManagement() {
       toast.error("Failed to save auto-invoice settings");
     } finally {
       setAutoInvoiceSaving(false);
+    }
+  };
+
+  const runInvoiceNow = async () => {
+    setRunningInvoiceNow(true);
+    setRunInvoiceResult(null);
+    try {
+      const res = await fetch("/api/cron/auto-invoice", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setRunInvoiceResult(data.message);
+        toast.success(data.message);
+        loadAutoInvoiceSettings(); // refresh nextBillingDate values in the table
+      } else {
+        setRunInvoiceResult(data.message || "Failed to run");
+        toast.error(data.message || "Failed to run auto-invoice");
+      }
+    } catch (err) {
+      console.error("Failed to run auto-invoice now", err);
+      setRunInvoiceResult("Failed to run — see console");
+      toast.error("Failed to run auto-invoice");
+    } finally {
+      setRunningInvoiceNow(false);
+    }
+  };
+
+  const runLockNow = async () => {
+    setRunningLockNow(true);
+    setRunLockResult(null);
+    try {
+      const res = await fetch("/api/cron/enforce-portal-locks", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setRunLockResult(data.message);
+        toast.success(data.message);
+      } else {
+        setRunLockResult(data.message || "Failed to run");
+        toast.error(data.message || "Failed to run lock enforcement");
+      }
+    } catch (err) {
+      console.error("Failed to run lock enforcement now", err);
+      setRunLockResult("Failed to run — see console");
+      toast.error("Failed to run lock enforcement");
+    } finally {
+      setRunningLockNow(false);
     }
   };
 
@@ -4273,6 +4322,39 @@ export function ClientManagement() {
               ))}
             </div>
           )}
+
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
+            <div className="flex-1 min-w-[280px] space-y-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={runInvoiceNow}
+                disabled={runningInvoiceNow}
+                className="gap-2"
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                {runningInvoiceNow ? "Invoicing..." : "Invoice Due Clients Now"}
+              </Button>
+              {runInvoiceResult && (
+                <p className="text-xs text-gray-500">{runInvoiceResult}</p>
+              )}
+            </div>
+            <div className="flex-1 min-w-[280px] space-y-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={runLockNow}
+                disabled={runningLockNow}
+                className="gap-2"
+              >
+                <AlertCircle className="h-3.5 w-3.5" />
+                {runningLockNow ? "Checking..." : "Check Overdue & Lock Now"}
+              </Button>
+              {runLockResult && (
+                <p className="text-xs text-gray-500">{runLockResult}</p>
+              )}
+            </div>
+          </div>
 
           <DialogFooter>
             <Button
