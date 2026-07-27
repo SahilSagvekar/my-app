@@ -1745,6 +1745,17 @@ model EmployeeDocument {
   @@index([employeeId])
 }
 
+// Idempotency table for Stripe webhook delivery. The event id is the primary
+// key — a second delivery of the same event hits a unique-constraint error
+// (P2002) instead of being processed twice. See src/app/api/stripe/webhook/route.ts.
+model StripeWebhookEvent {
+  id        String   @id // Stripe event id, e.g. evt_xxx
+  type      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model StripeCustomer {
   id                   String          @id @default(cuid())
   clientId             String          @unique
