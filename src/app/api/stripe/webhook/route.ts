@@ -354,6 +354,35 @@ async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
       },
     });
 
+    // Instant lock: any invoice being sent locks that client's portal right
+    // away, rather than waiting for a grace period / due date to pass. This
+    // also naturally clears any prior ADMIN_UNLOCKED bypass — the moment a
+    // new invoice goes out, normal locking rules apply again. Unlocking
+    // happens automatically via the invoice.paid handler below.
+    // const clientId = invoice.stripeCustomer?.clientId;
+    // const alreadyPaid = (stripeInvoice.amount_remaining ?? stripeInvoice.amount_due) <= 0;
+    // if (clientId && !alreadyPaid) {
+    //   try {
+    //     await prisma.clientPortalAccess.upsert({
+    //       where: { clientId },
+    //       update: {
+    //         status: 'LOCKED',
+    //         lockedAt: new Date(),
+    //         adminUnlockedById: null,
+    //         adminUnlockedAt: null,
+    //       },
+    //       create: {
+    //         clientId,
+    //         status: 'LOCKED',
+    //         lockedAt: new Date(),
+    //       },
+    //     });
+    //     console.log(`🔒 [Invoice Finalized] Locked portal for client: ${invoice.stripeCustomer?.client?.name || clientId}`);
+    //   } catch (lockErr: any) {
+    //     console.error(`Failed to lock portal for client ${clientId}:`, lockErr.message);
+    //   }
+    // }
+
     // Send CC notification to payments@e8productions.com
     const clientName = invoice.stripeCustomer?.client?.companyName || 
                        invoice.stripeCustomer?.client?.name || 
