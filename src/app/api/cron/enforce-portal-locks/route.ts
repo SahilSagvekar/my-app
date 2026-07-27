@@ -2,8 +2,11 @@
 // Daily job: the time-driven half of the existing lock system. billing/sync
 // already knows how to lock/unlock a portal based on overdue invoices — it
 // just only ever ran when an admin manually hit that endpoint. This job:
-//   1. Flags any SENT/PENDING invoice past its dueDate as OVERDUE.
-//   2. Locks the portal for any client with an OVERDUE invoice.
+//   1. Flags any SENT/PENDING invoice past its dueDate as OVERDUE (keeps the
+//      status label accurate for anyone viewing the invoice list).
+//   2. Locks the portal for any client with an incomplete invoice past due —
+//      checked directly (status not PAID/CANCELED/REFUNDED/DRAFT), not just
+//      the OVERDUE label, so a partial payment that's still short still locks.
 // Unlocking on payment already happens via the Stripe webhook (invoice.paid),
 // so that path is untouched — this job only ever locks or leaves things alone.
 
@@ -47,10 +50,18 @@ export async function POST(req: NextRequest) {
       data: { status: 'OVERDUE' },
     });
 
-    // 2. Find every client with at least one OVERDUE invoice
+    // 2. Find every client with at least one incomplete (unpaid/partially-paid)
+    // invoice past its due date — checked directly, not via the OVERDUE label,
+    // so this also catches anything the flagging step above missed or that
+    // was created with a status this job doesn't manage.
     const overdueCustomers = await prisma.stripeCustomer.findMany({
       where: {
-        invoices: { some: { status: 'OVERDUE' } },
+        invoices: {
+          some: {
+            dueDate: { lt: now },
+            status: { notIn: ['PAID', 'CANCELED', 'REFUNDED', 'DRAFT'] },
+          },
+        },
       },
       select: { id: true, clientId: true, client: { select: { name: true, companyName: true } } },
     });
