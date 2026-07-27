@@ -1983,22 +1983,28 @@ model NasSyncLog {
 }
 
 model ClientPortalAccess {
-  id                String             @id @default(cuid())
-  clientId          String             @unique
-  status            PortalAccessStatus @default(ONBOARDING)
-  billingAnchorDate DateTime?
-  nextBillingDate   DateTime?
-  arrearsPolicy     String             @default("current_only")
-  adminUnlockedById Int?
-  adminUnlockedAt   DateTime?
-  lockedAt          DateTime?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  User              User?              @relation(fields: [adminUnlockedById], references: [id])
-  Client            Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id                  String             @id @default(cuid())
+  clientId            String             @unique
+  status              PortalAccessStatus @default(ONBOARDING)
+  billingAnchorDate   DateTime?
+  nextBillingDate     DateTime?
+  arrearsPolicy       String             @default("current_only")
+  adminUnlockedById   Int?
+  adminUnlockedAt     DateTime?
+  lockedAt            DateTime?
+  // ── Recurring auto-invoice settings (admin-configured once per client) ──
+  autoInvoiceActive   Boolean            @default(false)
+  recurringAmount     Int? // cents
+  recurringDescription String?
+  dueDays             Int                @default(15) // grace period before an unpaid invoice is OVERDUE
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  User                User?              @relation(fields: [adminUnlockedById], references: [id])
+  Client              Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([nextBillingDate])
   @@index([status])
+  @@index([autoInvoiceActive])
 }
 
 model OnboardingToken {

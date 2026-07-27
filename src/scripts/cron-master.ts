@@ -331,11 +331,22 @@ cron.schedule('30 3 * * *', () => {
 
 // ==========================================
 // 6. Auto-Invoice Generation (Daily at 9 AM)
-// Creates DRAFT invoices for clients whose billingDay = today,
-// then emails admin to review before anything is sent to clients.
+// Creates and immediately sends a Stripe invoice for every client with
+// autoInvoiceActive=true whose nextBillingDate has arrived (set once per
+// client via the Auto-Invoice Settings dialog in Client Management).
 // ==========================================
 cron.schedule('0 9 * * *', () => {
     triggerJob('Auto Invoice', '/api/cron/auto-invoice', 'POST');
+}, { timezone: 'America/New_York' });
+
+// ==========================================
+// 6b. Enforce Portal Locks (Daily at 9:15 AM)
+// Runs after Auto-Invoice Generation. Flags any SENT/PENDING invoice past
+// its dueDate as OVERDUE, then locks the portal for any client with an
+// overdue invoice. Unlocking on payment still happens via the Stripe webhook.
+// ==========================================
+cron.schedule('15 9 * * *', () => {
+    triggerJob('Enforce Portal Locks', '/api/cron/enforce-portal-locks', 'POST');
 }, { timezone: 'America/New_York' });
 
 // ==========================================
@@ -384,7 +395,8 @@ console.log('📦 Jobs Scheduled:');
 console.log(' - Monthly Tasks: Daily at 1 AM');
 console.log(' - Meta Sync: Daily at 2 AM');
 console.log(' - YouTube Sync: Daily at 3 AM');
-console.log(' - Auto Invoice: Daily at 9 AM (drafts → admin review)');
+console.log(' - Auto Invoice: Daily at 9 AM (creates + sends recurring invoices)');
+console.log(' - Enforce Portal Locks: Daily at 9:15 AM (overdue invoices -> lock portal)');
 console.log(' - Billing Warnings: Daily at 10 AM');
 console.log(' - Activity Report: Daily at 7 PM');
 console.log(' - Team Summary Report: Daily at 7:05 PM');

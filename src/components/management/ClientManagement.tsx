@@ -142,6 +142,19 @@ interface BrandAsset {
   description?: string;
 }
 
+interface AutoInvoiceRow {
+  clientId: string;
+  name: string;
+  companyName: string;
+  email: string;
+  portalStatus: string | null;
+  autoInvoiceActive: boolean;
+  recurringAmount: number | null; // cents, from server
+  recurringDescription: string;
+  dueDays: number;
+  nextBillingDate: string | null;
+}
+
 interface Client {
   id: string;
   name: string;
@@ -288,6 +301,10 @@ const mockAccountManagers = [
 
 export function ClientManagement() {
   const [clients, setClients] = useState<Client[]>([]);
+  const [showAutoInvoiceDialog, setShowAutoInvoiceDialog] = useState(false);
+  const [autoInvoiceRows, setAutoInvoiceRows] = useState<AutoInvoiceRow[]>([]);
+  const [autoInvoiceLoading, setAutoInvoiceLoading] = useState(false);
+  const [autoInvoiceSaving, setAutoInvoiceSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [managerFilter, setManagerFilter] = useState<string>("all");
@@ -472,6 +489,76 @@ export function ClientManagement() {
 
     loadClients();
   }, []);
+
+  const loadAutoInvoiceSettings = async () => {
+    setAutoInvoiceLoading(true);
+    try {
+      const res = await fetch("/api/portal/auto-invoice-settings");
+      const data = await res.json();
+      if (data.ok) {
+        setAutoInvoiceRows(
+          data.rows.map((row: AutoInvoiceRow) => ({
+            ...row,
+            recurringAmount:
+              row.recurringAmount === null ? null : row.recurringAmount / 100, // dollars, for editing
+          }))
+        );
+      } else {
+        toast.error(data.message || "Failed to load auto-invoice settings");
+      }
+    } catch (err) {
+      console.error("Failed to load auto-invoice settings", err);
+      toast.error("Failed to load auto-invoice settings");
+    } finally {
+      setAutoInvoiceLoading(false);
+    }
+  };
+
+  const openAutoInvoiceDialog = () => {
+    setShowAutoInvoiceDialog(true);
+    loadAutoInvoiceSettings();
+  };
+
+  const updateAutoInvoiceRow = (clientId: string, patch: Partial<AutoInvoiceRow>) => {
+    setAutoInvoiceRows((prev) =>
+      prev.map((row) => (row.clientId === clientId ? { ...row, ...patch } : row))
+    );
+  };
+
+  const saveAutoInvoiceSettings = async () => {
+    setAutoInvoiceSaving(true);
+    try {
+      const payload = {
+        rows: autoInvoiceRows.map((row) => ({
+          clientId: row.clientId,
+          autoInvoiceActive: row.autoInvoiceActive,
+          recurringAmount: row.recurringAmount, // already dollars
+          recurringDescription: row.recurringDescription,
+          dueDays: row.dueDays,
+          nextBillingDate: row.nextBillingDate,
+        })),
+      };
+
+      const res = await fetch("/api/portal/auto-invoice-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        toast.success(`Saved auto-invoice settings for ${data.updated} client(s)`);
+        setShowAutoInvoiceDialog(false);
+      } else {
+        toast.error(data.message || "Failed to save auto-invoice settings");
+      }
+    } catch (err) {
+      console.error("Failed to save auto-invoice settings", err);
+      toast.error("Failed to save auto-invoice settings");
+    } finally {
+      setAutoInvoiceSaving(false);
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -2457,6 +2544,14 @@ export function ClientManagement() {
         </Select>
         <div className="flex-1" />
         <Button
+          variant="outline"
+          onClick={openAutoInvoiceDialog}
+          className="gap-2 shrink-0"
+        >
+          <DollarSign className="h-4 w-4" />
+          Auto-Invoice Settings
+        </Button>
+        <Button
           onClick={() => {
             setEditingClient(null);
             setShowAddDialog(true);
@@ -4069,6 +4164,133 @@ export function ClientManagement() {
 
       {/* Client Details Dialog */}
       <ClientDetailsDialog />
+
+      {/* Auto-Invoice Settings Dialog — bulk edit recurring billing per client */}
+      <Dialog open={showAutoInvoiceDialog} onOpenChange={setShowAutoInvoiceDialog}>
+        <DialogContent className="!max-w-none w-[70vw] max-h-[85vh] overflow-y-auto bg-white border-gray-200">
+          <DialogHeader>
+            <DialogTitle>Auto-Invoice Settings</DialogTitle>
+            <DialogDescription>
+              Set the recurring amount, billing date, and grace period once per client.
+              Invoices will be generated and sent automatically on each client's billing date,
+              and unpaid clients will be locked out after the grace period.
+            </DialogDescription>
+          </DialogHeader>
+
+          {autoInvoiceLoading ? (
+            <div className="py-12 text-center text-gray-500">Loading clients...</div>
+          ) : autoInvoiceRows.length === 0 ? (
+            <div className="py-12 text-center text-gray-500">No active clients found.</div>
+          ) : (
+            <div className="space-y-3">
+              {/* Column headers */}
+              <div className="grid grid-cols-[2fr_1.2fr_2fr_1fr_1.3fr_auto] gap-3 px-3 text-xs font-medium text-gray-500 uppercase">
+                <div>Client</div>
+                <div>Monthly Amount</div>
+                <div>Invoice Description</div>
+                <div>Due (days)</div>
+                <div>Next Billing Date</div>
+                <div>Active</div>
+              </div>
+
+              {autoInvoiceRows.map((row) => (
+                <div
+                  key={row.clientId}
+                  className="grid grid-cols-[2fr_1.2fr_2fr_1fr_1.3fr_auto] gap-3 items-center px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-900 truncate">
+                      {row.companyName || row.name}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">{row.email}</div>
+                  </div>
+
+                  <div className="relative">
+                    <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      placeholder="0.00"
+                      value={row.recurringAmount ?? ""}
+                      onChange={(e) =>
+                        updateAutoInvoiceRow(row.clientId, {
+                          recurringAmount:
+                            e.target.value === "" ? null : parseFloat(e.target.value),
+                        })
+                      }
+                      className="pl-7 bg-white border-gray-200 text-gray-900"
+                    />
+                  </div>
+
+                  <Input
+                    placeholder="e.g. Monthly retainer"
+                    value={row.recurringDescription}
+                    onChange={(e) =>
+                      updateAutoInvoiceRow(row.clientId, {
+                        recurringDescription: e.target.value,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+
+                  <Input
+                    type="number"
+                    min={0}
+                    value={row.dueDays}
+                    onChange={(e) =>
+                      updateAutoInvoiceRow(row.clientId, {
+                        dueDays: parseInt(e.target.value || "0", 10),
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+
+                  <Input
+                    type="date"
+                    value={
+                      row.nextBillingDate
+                        ? new Date(row.nextBillingDate).toISOString().slice(0, 10)
+                        : ""
+                    }
+                    onChange={(e) =>
+                      updateAutoInvoiceRow(row.clientId, {
+                        nextBillingDate: e.target.value || null,
+                      })
+                    }
+                    className="bg-white border-gray-200 text-gray-900"
+                  />
+
+                  <div className="flex justify-center">
+                    <Switch
+                      checked={row.autoInvoiceActive}
+                      onCheckedChange={(checked) =>
+                        updateAutoInvoiceRow(row.clientId, { autoInvoiceActive: checked })
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAutoInvoiceDialog(false)}
+              disabled={autoInvoiceSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={saveAutoInvoiceSettings}
+              disabled={autoInvoiceLoading || autoInvoiceSaving || autoInvoiceRows.length === 0}
+            >
+              {autoInvoiceSaving ? "Saving..." : "Save All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </TabsContent>
 
       <TabsContent value="pre-clients" className="mt-0">
