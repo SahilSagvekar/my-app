@@ -656,7 +656,7 @@ export function LeadProfileDrawer({ lead, onClose, onUpdate, onDelete }: {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-gray-500">Phone</label>
-                  <Input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })} className="h-9 text-sm bg-white" placeholder="+1 ..." />
+                  <Input value={lead.phone} onChange={e => onUpdate(lead.id, { phone: e.target.value })} className="h-9 text-sm bg-white" placeholder="+1 (808) - 895 - 8905" />
                 </div>
               </div>
               <div className="space-y-1">
