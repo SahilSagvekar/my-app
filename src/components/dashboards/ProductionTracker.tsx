@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UploadsAndPeopleTab } from './UploadsAndPeopleTab';
+import { PersonOverviewSection } from './PersonOverviewSection';
 
 // ─── Types ───
 
@@ -503,7 +504,7 @@ export function ProductionTracker() {
 
   if (!data) return null;
 
-  const { summary, statusSummary } = data;
+  const { summary } = data;
 
   return (
     <TooltipProvider>
@@ -557,11 +558,7 @@ export function ProductionTracker() {
           {(
             [
               { id: 'overview', label: 'Overview', icon: Eye },
-              { id: 'clients', label: 'Clients', icon: Users },
-              { id: 'editors', label: 'Editors', icon: Film },
               { id: 'editor-breakdown', label: 'Editor Tracker', icon: UserCheck },
-              { id: 'qc', label: 'QC', icon: Shield },
-              { id: 'schedulers', label: 'Schedulers', icon: Calendar },
               { id: 'uploads-people', label: 'Uploads & People', icon: CalendarDays },
             ] as const
           ).map((tab) => (
@@ -581,67 +578,9 @@ export function ProductionTracker() {
           ))}
         </div>
 
-        {/* ─── Status Filters ─── */}
-        <Card className="border shadow-sm">
-          <CardContent className="p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">Task Status</span>
-              {STATUS_FILTER_OPTIONS.map((option) => {
-                const isActive = statusFilter === option.key;
-                return (
-                  <button
-                    key={option.key}
-                    type="button"
-                    aria-pressed={isActive}
-                    onClick={() => setStatusFilter(option.key)}
-                    className={cn(
-                      'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold transition-all',
-                      isActive ? option.color : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                    )}
-                  >
-                    <span>{option.label}</span>
-                    <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', isActive ? 'bg-white/20' : 'bg-gray-100 text-gray-700')}>
-                      {statusSummary[option.key]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* ─── Overview Tab ─── */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
-            {data.atRiskClients.length > 0 && (
-              <Card className="border-red-200 bg-red-50/50">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold text-red-800 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    At-Risk Clients ({data.atRiskClients.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {data.atRiskClients.map((client) => (
-                      <div key={client.clientId} className="bg-white rounded-lg border border-red-100 p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm truncate">{client.clientName}</span>
-                          <HealthBadge health={client.health} />
-                        </div>
-                        <ColorProgress value={client.overallProgress} health={client.health} />
-                        <div className="flex justify-between text-[11px] text-muted-foreground">
-                          <span>{client.totalDone}/{client.totalPromised} done</span>
-                          <span className="font-medium">{client.overallProgress}%</span>
-                        </div>
-                        <ClientStatusCounts client={client} />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -705,67 +644,14 @@ export function ProductionTracker() {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Film className="h-4 w-4 text-violet-600" /> Editor Summary
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    {data.editorPerformance.sort((a, b) => b.statusBreakdown.total - a.statusBreakdown.total).map((editor) => (
-                      <div key={editor.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
-                        <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 text-xs font-bold">
-                          {(editor.name || '?').charAt(0)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium truncate">{editor.name}</span>
-                            <span className="text-xs font-bold text-gray-700">{editor.statusBreakdown.completed}/{editor.statusBreakdown.total}</span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Progress value={editor.completionRate} className="h-1.5 flex-1" />
-                            <span className="text-[10px] text-muted-foreground w-8">{editor.completionRate}%</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {data.editorPerformance.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No editor data</p>}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-blue-600" /> QC Summary
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    {data.qcPerformance.sort((a, b) => b.totalReviewed - a.totalReviewed).map((qc) => (
-                      <div key={qc.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
-                          {(qc.name || '?').charAt(0)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium truncate">{qc.name}</span>
-                            <span className="text-xs text-muted-foreground">{qc.totalReviewed} reviewed</span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Progress value={qc.passRate} className="h-1.5 flex-1" />
-                            <span className="text-[10px] text-muted-foreground w-12">{qc.passRate}% pass</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {data.qcPerformance.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No QC data</p>}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <PersonOverviewSection
+              employees={[
+                ...data.editorPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
+                ...data.qcPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
+                ...data.schedulerPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
+              ]}
+              availableMonths={data.availableMonths}
+            />
           </div>
         )}
 
