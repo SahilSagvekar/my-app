@@ -95,6 +95,11 @@ export async function GET(req: NextRequest) {
         uploadedAt: true,
         uploadedBy: true,
         s3Key: true,
+        mimeType: true,
+        size: true,
+        folderType: true,
+        version: true,
+        isActive: true,
         task: {
           select: {
             id: true,
@@ -119,6 +124,11 @@ export async function GET(req: NextRequest) {
       fileId: f.id,
       fileName: f.name,
       uploadedAt: f.uploadedAt,
+      mimeType: f.mimeType,
+      size: f.size != null ? Number(f.size) : 0,
+      folderType: f.folderType,
+      version: f.version,
+      isActive: f.isActive,
       employeeId: f.uploadedBy,
       employeeName: f.uploadedBy ? uploaderMap.get(f.uploadedBy) || "Unknown" : "Unknown",
       taskId: f.task?.id,
