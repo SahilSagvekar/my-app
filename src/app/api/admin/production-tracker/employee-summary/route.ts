@@ -26,9 +26,9 @@ export async function GET(req: NextRequest) {
 
     const employee = await prisma.user.findUnique({
       where: { id: employeeId },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, employeeStatus: true },
     });
-    if (!employee) {
+    if (!employee || employee.employeeStatus !== "ACTIVE") {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
 

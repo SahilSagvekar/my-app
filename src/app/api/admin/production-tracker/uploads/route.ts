@@ -26,6 +26,33 @@ export async function GET(req: NextRequest) {
     const clientId = searchParams.get("clientId") || undefined;
     const employeeId = employeeIdParam ? parseInt(employeeIdParam) : undefined;
 
+    // If a specific employee is requested (rather than "all"), make sure
+    // they're actually active — don't let a stale bookmarked URL or direct
+    // API call surface a terminated/inactive employee's data.
+    if (employeeId !== undefined) {
+      const employee = await prisma.user.findUnique({
+        where: { id: employeeId },
+        select: { employeeStatus: true },
+      });
+      if (!employee || employee.employeeStatus !== "ACTIVE") {
+        return NextResponse.json(
+          mode === "counts" ? { month: "", counts: {} } : { from: "", to: "", total: 0, uploads: [], byEmployee: {} }
+        );
+      }
+    }
+
+    // When "all employees" is selected (no specific employeeId filter),
+    // scope results to currently-active employees only — a production
+    // tracker should reflect the current team, not former staff.
+    let activeUploaderIds: number[] | undefined;
+    if (employeeId === undefined) {
+      const activeUsers = await prisma.user.findMany({
+        where: { employeeStatus: "ACTIVE" },
+        select: { id: true },
+      });
+      activeUploaderIds = activeUsers.map((u: { id: number }) => u.id);
+    }
+
     // ─── Mode: per-day counts for a whole month (drives the calendar dots) ───
     if (mode === "counts") {
       const monthParam = searchParams.get("month");
@@ -44,7 +71,9 @@ export async function GET(req: NextRequest) {
         where: {
           uploadedAt: { gte: monthStart, lte: monthEnd },
           isActive: true,
-          ...(employeeId ? { uploadedBy: employeeId } : {}),
+          ...(employeeId
+            ? { uploadedBy: employeeId }
+            : { uploadedBy: { in: activeUploaderIds } }),
           ...(clientId
             ? { task: { clientId } }
             : {}),
@@ -86,7 +115,9 @@ export async function GET(req: NextRequest) {
       where: {
         uploadedAt: { gte: rangeStart, lte: rangeEnd },
         isActive: true,
-        ...(employeeId ? { uploadedBy: employeeId } : {}),
+        ...(employeeId
+          ? { uploadedBy: employeeId }
+          : { uploadedBy: { in: activeUploaderIds } }),
         ...(clientId ? { task: { clientId } } : {}),
       },
       select: {
