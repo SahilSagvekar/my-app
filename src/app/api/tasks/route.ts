@@ -391,6 +391,8 @@ const { searchParams } = new URL(req.url);
             select: {
               name: true,
               companyName: true,
+              requiresClientReview: true,
+              clientReviewDeliverableTypes: true,
             }
           },
           user: {
@@ -519,6 +521,53 @@ const { searchParams } = new URL(req.url);
       })
     );
 
+    // 🔥 Recompute requiresClientReview per-task instead of trusting the
+    // creation-time snapshot stored on the Task row.
+    //
+    // `task.requiresClientReview` is a blanket copy of `client.requiresClientReview`
+    // taken when the task was created — it doesn't account for
+    // `client.clientReviewDeliverableTypes` (the per-deliverable-type allow-list).
+    // For clients using that selective/type-restricted setup, every task was
+    // getting `requiresClientReview: true` regardless of its actual type, which
+    // hid the QC "send to client review anyway" checkbox for deliverable types
+    // that were never actually going to be auto-routed to review.
+    //
+    // This mirrors the eligibility check in /api/tasks/[id]/status so the QC
+    // screen's checkbox visibility matches the real approval-time routing.
+    const DELIVERABLE_SHORT_CODES: Record<string, string> = {
+      "short form videos": "SF",
+      "long form videos": "LF",
+      "square form videos": "SQF",
+      "thumbnails": "THUMB",
+      "tiles": "T",
+      "hard posts / graphic images": "HP",
+      "snapchat episodes": "SEP",
+      "beta short form": "BSF",
+      "stories": "ST",
+      "text post": "TP",
+    };
+
+    const tasksWithEffectiveReview = tasksWithSignedUrls.map((task: any) => {
+      const client = task.client;
+      if (!client?.requiresClientReview) {
+        return { ...task, requiresClientReview: false };
+      }
+
+      const allowedTypes: string[] = client.clientReviewDeliverableTypes ?? [];
+      // No types configured → applies to every deliverable (backwards compatible).
+      if (allowedTypes.length === 0) {
+        return { ...task, requiresClientReview: true };
+      }
+
+      const rawDeliverableType: string =
+        task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "";
+      const fallbackShortCode =
+        DELIVERABLE_SHORT_CODES[rawDeliverableType.toLowerCase().trim()] || rawDeliverableType;
+      const taskType: string = task.deliverableType || fallbackShortCode || "";
+
+      return { ...task, requiresClientReview: allowedTypes.includes(taskType) };
+    });
+
     // 🔥 Get distinct monthFolder values for the filter dropdown
     const distinctMonths = await prisma.task.findMany({
       where: { monthFolder: { not: null } },
@@ -544,11 +593,11 @@ const { searchParams } = new URL(req.url);
 // list (meant for QC only) are stripped.
 const isClientRole = role?.toLowerCase() === 'client';
 const finalTasks = isClientRole
-  ? sanitizeBigInt(tasksWithSignedUrls).map((t: any) => {
+  ? sanitizeBigInt(tasksWithEffectiveReview).map((t: any) => {
       const { title, suggestedTitles, ...rest } = t;
       return rest;
     })
-  : sanitizeBigInt(tasksWithSignedUrls);
+  : sanitizeBigInt(tasksWithEffectiveReview);
 
 return NextResponse.json({
   tasks: finalTasks,
