@@ -1,73 +1,80 @@
-// src/lib/drive-mirror.ts
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser2 } from "@/lib/auth";
+import { triggerDriveMirror } from "@/lib/drive-mirror";
+
+// POST /api/admin/tasks/[id]/drive-mirror
 //
-// Dispatches a Drive-mirror job to the file server for a single review
-// video — the fallback path used by review-mirror.ts when YouTube upload
-// fails or hits its daily quota.
+// Manually re-dispatches every active video file on a task to the file
+// server for Drive mirroring. See src/lib/drive-mirror.ts for what the
+// dispatch actually does and how the result lands (30s cron poll).
 //
-// IMPORTANT: this targets the file server's CURRENT contract. POST
-// /drive-mirror just accepts the job and streams R2 -> Drive async on the
-// file server; it does NOT call back into the main app anymore (see the
-// comment in e8-file-server/src/index.js — "callbackUrl is no longer
-// used"). Instead the file server pushes completed jobs onto an in-memory
-// queue that the main app polls via check-drive-mirrors (registered in
-// cron-master.ts as "Drive Mirror Sync", every 30s), which writes
-// reviewDriveUrl onto the File record and acks the job. See
-// src/app/api/cron/check-drive-mirrors/route.ts.
-//
-// Fire-and-forget by design: callers don't await the Drive upload itself
-// completing — only this dispatch call, which just confirms the file
-// server accepted the job.
-
-import { generateFileServerToken } from '@/lib/file-server';
-
-const FILE_SERVER_URL = process.env.FILE_SERVER_URL || 'http://localhost:4000';
-
-function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
-  if (!value) return false;
-  return /^[a-zA-Z0-9_-]{25,}$/.test(value);
-}
-
-export async function triggerDriveMirror(params: {
-  key: string;
-  fileName: string;
-  mimeType: string;
-  fileRecordId: string;
-  clientName?: string | null;
-  driveFolderId?: string | null;
-  userId: number;
-  userRole?: string | null;
-}): Promise<void> {
-  const { key, fileName, mimeType, fileRecordId, clientName, driveFolderId, userId, userRole } = params;
-
-  const role = userRole || 'admin';
-  const fileServerToken = generateFileServerToken(userId, role);
-  const folderId = isLikelyGoogleDriveFolderId(driveFolderId) ? driveFolderId : null;
-
+// Response shape matches what TaskManagementTab.tsx's handleDriveMirror
+// expects: { dispatched, total, results }.
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
-    const res = await fetch(`${FILE_SERVER_URL}/drive-mirror`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${fileServerToken}`,
-      },
-      body: JSON.stringify({
-        key,
-        fileName,
-        mimeType,
-        folderId: folderId || undefined,
-        clientName: folderId ? undefined : (clientName || 'Unknown Client'),
-        fileRecordId,
-      }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => res.statusText);
-      console.error(`[drive-mirror] ❌ File server rejected mirror job for ${fileRecordId} ("${fileName}"): ${errText}`);
-      return;
+    const user = await getCurrentUser2(req);
+    if (!user || !["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log(`[drive-mirror] 📤 Dispatched "${fileName}" (${fileRecordId}) to file server for Drive mirroring — will land via check-drive-mirrors poll`);
+    const { id: taskId } = await params;
+
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        id: true,
+        title: true,
+        driveFolderId: true,
+        client: { select: { name: true, companyName: true } },
+        files: {
+          where: { isActive: true, mimeType: { startsWith: "video/" } },
+          select: { id: true, name: true, mimeType: true, s3Key: true },
+        },
+      },
+    });
+
+    if (!task) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    const results: { fileId: string; fileName: string; dispatched: boolean; reason?: string }[] = [];
+
+    for (const file of task.files) {
+      if (!file.s3Key) {
+        results.push({ fileId: file.id, fileName: file.name, dispatched: false, reason: "No S3 key on file" });
+        continue;
+      }
+
+      await triggerDriveMirror({
+        key: file.s3Key,
+        fileName: file.name || "review-video",
+        mimeType: file.mimeType || "video/mp4",
+        fileRecordId: file.id,
+        clientName: task.client?.companyName || task.client?.name || null,
+        driveFolderId: task.driveFolderId || null,
+        userId: user.id,
+        userRole: user.role,
+      });
+      results.push({ fileId: file.id, fileName: file.name, dispatched: true });
+    }
+
+    const dispatched = results.filter((r) => r.dispatched).length;
+
+    if (task.files.length === 0) {
+      return NextResponse.json({
+        dispatched: 0,
+        total: 0,
+        results: [{ reason: "No active video files with S3 keys found" }],
+      });
+    }
+
+    return NextResponse.json({ dispatched, total: task.files.length, results });
   } catch (err: any) {
-    console.error(`[drive-mirror] ❌ Failed to reach file server for ${fileRecordId} ("${fileName}"):`, err.message);
+    console.error("Drive mirror trigger error:", err);
+    return NextResponse.json({ error: "Server error", details: err.message }, { status: 500 });
   }
 }

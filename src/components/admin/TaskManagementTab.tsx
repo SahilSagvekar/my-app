@@ -16,7 +16,7 @@ import { LinkLfTask } from '../tasks/LinkLfTask';
 import {
   ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight,
   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
-  Calendar, User, Users, Pencil, Trash2, Edit, CloudUpload,
+  Calendar, User, Users, Pencil, Trash2, Edit, CloudUpload, Youtube,
 } from 'lucide-react';
 import { EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -168,6 +168,7 @@ export function TaskManagementTab() {
   const [showBulkDelete, setShowBulkDelete] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mirroringTaskId, setMirroringTaskId] = useState<string | null>(null);
+  const [youtubeMirroringTaskId, setYoutubeMirroringTaskId] = useState<string | null>(null);
 
   const SUPER_ADMIN_EMAIL = "sahilsagvekar230@gmail.com";
   const canDeleteTasks = user?.email === SUPER_ADMIN_EMAIL;
@@ -403,6 +404,30 @@ export function TaskManagementTab() {
       toast({ title: 'Drive mirror failed', description: err.message, variant: 'destructive' });
     } finally {
       setMirroringTaskId(null);
+    }
+  }
+
+  async function handleYoutubeMirror(taskId: string) {
+    setYoutubeMirroringTaskId(taskId);
+    try {
+      const res = await fetch(`/api/admin/tasks/${taskId}/youtube-mirror`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: 'YouTube upload failed', description: data.error || 'Unknown error', variant: 'destructive' });
+        return;
+      }
+      if (data.dispatched === 0) {
+        toast({ title: 'Nothing to upload', description: data.results?.[0]?.reason || 'No active video files found', variant: 'destructive' });
+      } else {
+        toast({
+          title: 'YouTube upload complete',
+          description: `${data.dispatched} of ${data.total} file${data.total !== 1 ? 's' : ''} uploaded — client will see it in the review screen.`,
+        });
+      }
+    } catch (err: any) {
+      toast({ title: 'YouTube upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setYoutubeMirroringTaskId(null);
     }
   }
 
@@ -647,6 +672,14 @@ export function TaskManagementTab() {
       >
         <CloudUpload className="h-4 w-4 mr-2" />
         {mirroringTaskId === task.id ? 'Mirroring...' : 'Trigger Drive Mirror'}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => handleYoutubeMirror(task.id)}
+        disabled={youtubeMirroringTaskId === task.id}
+        className="text-red-600 focus:text-red-600"
+      >
+        <Youtube className="h-4 w-4 mr-2" />
+        {youtubeMirroringTaskId === task.id ? 'Uploading...' : 'Trigger YouTube Upload'}
       </DropdownMenuItem>
       {(() => {
         const dtype = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || '';
