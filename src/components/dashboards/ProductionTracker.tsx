@@ -42,10 +42,12 @@ import {
   Minus,
   Shield,
   Calendar,
+  CalendarDays,
   Eye,
   UserCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { UploadsAndPeopleTab } from './UploadsAndPeopleTab';
 
 // ─── Types ───
 
@@ -392,7 +394,7 @@ export function ProductionTracker() {
     () => new Set()
   );
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'clients' | 'editors' | 'qc' | 'schedulers' | 'editor-breakdown'
+    'overview' | 'clients' | 'editors' | 'qc' | 'schedulers' | 'editor-breakdown' | 'uploads-people'
   >('overview');
   const [healthFilter, setHealthFilter] = useState<
     'all' | 'critical' | 'warning' | 'healthy'
@@ -560,6 +562,7 @@ export function ProductionTracker() {
               { id: 'editor-breakdown', label: 'Editor Tracker', icon: UserCheck },
               { id: 'qc', label: 'QC', icon: Shield },
               { id: 'schedulers', label: 'Schedulers', icon: Calendar },
+              { id: 'uploads-people', label: 'Uploads & People', icon: CalendarDays },
             ] as const
           ).map((tab) => (
             <button
@@ -1131,6 +1134,18 @@ export function ProductionTracker() {
               )}
             </div>
           </div>
+        )}
+
+        {/* ─── Uploads & People Tab ─── */}
+        {activeTab === 'uploads-people' && (
+          <UploadsAndPeopleTab
+            employees={[
+              ...data.editorPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
+              ...data.qcPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
+              ...data.schedulerPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
+            ]}
+            currentMonth={selectedMonth || data.month}
+          />
         )}
       </div>
     </TooltipProvider>
