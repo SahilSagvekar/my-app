@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 // app/api/clients/[clientId]/deliverables/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { syncPostingTargetsForClient } from "@/lib/posting-target-sync";
 
 // POST - Create a new deliverable for a client
 export async function POST(
@@ -40,6 +41,8 @@ export async function POST(
     });
 
     console.log("✅ Deliverable created:", deliverable.id);
+
+    await syncPostingTargetsForClient(clientId);
 
     return NextResponse.json({
       success: true,

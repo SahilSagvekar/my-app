@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 // app/api/clients/[clientId]/deliverables/[deliverableId]/route.ts
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { syncPostingTargetsForClient } from "@/lib/posting-target-sync";
 
 // GET - Get a single deliverable
 export async function GET(
@@ -71,6 +72,8 @@ export async function PUT(
 
     console.log("✅ Deliverable updated:", deliverable.id);
 
+    await syncPostingTargetsForClient(clientId);
+
     return NextResponse.json({
       success: true,
       deliverable
@@ -124,6 +127,8 @@ export async function DELETE(
     });
 
     console.log("✅ Deliverable deleted:", deliverableId);
+
+    await syncPostingTargetsForClient(clientId);
 
     return NextResponse.json({
       success: true,
