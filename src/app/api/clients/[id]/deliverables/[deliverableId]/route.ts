@@ -7,10 +7,10 @@ import { syncPostingTargetsForClient } from "@/lib/posting-target-sync";
 // GET - Get a single deliverable
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ clientId: string; deliverableId: string }> }
+  { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
   try {
-    const { clientId, deliverableId } = await params;
+    const { id: clientId, deliverableId } = await params;
 
     const deliverable = await prisma.monthlyDeliverable.findFirst({
       where: {
@@ -34,10 +34,10 @@ export async function GET(
 // PUT - Update a deliverable
 export async function PUT(
   req: Request,
-  { params }: { params: Promise<{ clientId: string; deliverableId: string }> }
+  { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
   try {
-    const { clientId, deliverableId } = await params;
+    const { id: clientId, deliverableId } = await params;
     const data = await req.json();
 
     console.log("✏️ Updating deliverable:", deliverableId);
@@ -88,10 +88,10 @@ export async function PUT(
 // DELETE - Delete a deliverable
 export async function DELETE(
   req: Request,
-  { params }: { params: Promise<{ clientId: string; deliverableId: string }> }
+  { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
   try {
-    const { clientId, deliverableId } = await params;
+    const { id: clientId, deliverableId } = await params;
 
     console.log("🗑️ Deleting deliverable:", deliverableId);
 

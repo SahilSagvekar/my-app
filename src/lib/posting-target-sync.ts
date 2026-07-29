@@ -55,6 +55,13 @@ function defaultTargetNameForCreate(genericPlatform: string): string {
  * Snapchat is skipped entirely in both directions.
  */
 export async function syncPostingTargetsForClient(clientId: string): Promise<void> {
+  if (!clientId) {
+    // Prisma silently drops `undefined` from `where` filters, which would
+    // otherwise make every query below run unscoped across ALL clients.
+    // Fail loudly instead.
+    throw new Error("syncPostingTargetsForClient: clientId is required");
+  }
+
   const [deliverables, existingTargets] = await Promise.all([
     prisma.monthlyDeliverable.findMany({
       where: { clientId },
