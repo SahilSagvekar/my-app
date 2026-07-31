@@ -635,6 +635,20 @@ export function ClientDashboard() {
       toast.info(`Starting download for ${filesToDownload.length} file(s)...`);
 
       for (const file of filesToDownload) {
+        // 🔥 Desktop app: window.e8 only exists inside the Electron shell
+        // (see apps/desktop/src/preload.js). When present, route the
+        // download through it so the file lands on the client's real
+        // disk and becomes available for local playback in the review
+        // screen — same button, same click, different destination.
+        const desktop = (window as any).e8;
+        if (desktop?.isDesktopApp) {
+          const result = await desktop.downloadFile(file.id, file.name);
+          if (!result.success) {
+            toast.error(`Failed to download ${file.name}: ${result.message || "unknown error"}`);
+          }
+          continue;
+        }
+
         // Priority: downloadUrl > download API for S3 > direct URL
         if (file.downloadUrl) {
           window.open(file.downloadUrl, '_blank');
