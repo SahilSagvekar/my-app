@@ -34,13 +34,23 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
+function getAuthToken(req: Request) {
+  // Cookie first (browser sessions), then Authorization: Bearer header
+  // (desktop app / any non-browser client that can't hold cookies).
+  const cookieToken = getTokenFromCookies(req);
+  if (cookieToken) return cookieToken;
+
+  const authHeader = req.headers.get("authorization");
+  return authHeader?.split(" ")[1] || null;
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const { id } = await params;
-    const token = getTokenFromCookies(req);
+    const token = getAuthToken(req);
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
@@ -362,16 +372,6 @@ export async function PATCH(
         }
       }
 
-      // else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
-      //   // Notify Editor
-      //   await notifyUser({
-      //     userId: task.assignedTo,
-      //     type: "task_rejected",
-      //     title: "Task Needs Revision",
-      //     body: `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
-      //     payload: { taskId: task.id, clientId: task.clientId }
-      //   });
-      // }
       else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
         // Notify Editor
         await notifyUser({
@@ -422,16 +422,6 @@ export async function PATCH(
         }).catch((err: any) =>
           console.error(`⚠️ Review mirror failed to start for task ${id}:`, err.message)
         );
-      // } else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
-      //   // Notify Editor that it's approved
-      //   await notifyUser({
-      //     userId: task.assignedTo,
-      //     type: "qc_approval",
-      //     title: "Task Approved",
-      //     body: `Your task "${task.title}" has been approved.`,
-      //     payload: { taskId: task.id, clientId: task.clientId },
-      //   });
-
       } else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
   // Notify Editor that it's approved
   await notifyUser({

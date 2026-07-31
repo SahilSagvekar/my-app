@@ -12,8 +12,12 @@ export interface JWTUser {
 
 export function getUserFromToken(req: NextRequest): JWTUser | null {
   try {
-    const token = req.cookies.get('authToken')?.value;
-    
+    // Cookie first (browser sessions), then Authorization: Bearer header
+    // (desktop app / any non-browser client that can't hold cookies).
+    const cookieToken = req.cookies.get('authToken')?.value;
+    const headerToken = req.headers.get('authorization')?.split(' ')[1];
+    const token = cookieToken || headerToken;
+
     if (!token) {
       return null;
     }
