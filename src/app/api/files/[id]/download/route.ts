@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { extractS3KeyFromUrl, generateDownloadUrl, checkFileExists } from '@/lib/s3';
+import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 
 export async function GET(
     req: Request,
@@ -15,6 +16,15 @@ export async function GET(
 ) {
     try {
         const { id: fileId } = await context.params;
+
+        // 🔒 Auth check — this route previously had none at all, meaning
+        // anyone with a file ID (even logged out) could generate a
+        // presigned download link. Now requires a valid session/token,
+        // same as the rest of the file routes.
+        const user = await getCurrentUser2(req as any);
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
         // Find the file record
         const file = await prisma.file.findUnique({
@@ -25,11 +35,26 @@ export async function GET(
                 s3Key: true,
                 name: true,
                 deletedFromCloud: true,
+                task: {
+                    select: { clientId: true },
+                },
             },
         });
 
         if (!file) {
             return NextResponse.json({ error: 'File not found' }, { status: 404 });
+        }
+
+        // 🔒 Ownership check — a client can only download files belonging
+        // to their own tasks. Staff roles (admin/qc/editor/scheduler/etc.)
+        // keep full access, consistent with the rest of the app's
+        // role-based permission model.
+        const role = (user.role || '').toLowerCase();
+        if (role === 'client') {
+            const resolvedClientId = await resolveClientIdForUser(Number(user.id));
+            if (!resolvedClientId || file.task?.clientId !== resolvedClientId) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
         }
 
         if (file.deletedFromCloud) {
