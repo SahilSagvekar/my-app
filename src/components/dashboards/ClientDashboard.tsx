@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -239,6 +239,27 @@ export function ClientDashboard() {
   // 🔥 Download Selector states
   const [showDownloadSelector, setShowDownloadSelector] = useState(false);
   const [downloadSelectedFiles, setDownloadSelectedFiles] = useState<Set<string>>(new Set());
+
+  // 🔥 Desktop app download progress — window.e8 only exists inside the
+  // Electron shell (see apps/desktop/src/preload.js). We keep a ref of
+  // fileId -> fileName so the progress toast can show a readable name
+  // (the progress events themselves only carry the fileId + percent).
+  const downloadFileNamesRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const desktop = (window as any).e8;
+    if (!desktop?.isDesktopApp) return;
+
+    desktop.onDownloadProgress(({ fileId, percent }: { fileId: string; percent: number }) => {
+      const fileName = downloadFileNamesRef.current[fileId] || "video";
+
+      if (percent >= 100) {
+        toast.success(`${fileName} downloaded`, { id: `download-${fileId}` });
+      } else {
+        toast.loading(`Downloading ${fileName}... ${percent}%`, { id: `download-${fileId}` });
+      }
+    });
+  }, []);
 
   const { user } = useAuth();
 
@@ -642,10 +663,21 @@ export function ClientDashboard() {
         // screen — same button, same click, different destination.
         const desktop = (window as any).e8;
         if (desktop?.isDesktopApp) {
+          downloadFileNamesRef.current[file.id] = file.name;
+          toast.loading(`Downloading ${file.name}... 0%`, { id: `download-${file.id}` });
+
           const result = await desktop.downloadFile(file.id, file.name);
+
           if (!result.success) {
-            toast.error(`Failed to download ${file.name}: ${result.message || "unknown error"}`);
+            toast.error(`Failed to download ${file.name}: ${result.message || "unknown error"}`, {
+              id: `download-${file.id}`,
+            });
+          } else if (result.alreadyDownloaded) {
+            toast.success(`${file.name} already downloaded`, { id: `download-${file.id}` });
           }
+          // On success (not already-downloaded), the progress listener's
+          // 100% event already flips this toast to the success state —
+          // nothing more to do here.
           continue;
         }
 

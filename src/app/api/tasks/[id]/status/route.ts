@@ -372,6 +372,16 @@ export async function PATCH(
         }
       }
 
+      // else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
+      //   // Notify Editor
+      //   await notifyUser({
+      //     userId: task.assignedTo,
+      //     type: "task_rejected",
+      //     title: "Task Needs Revision",
+      //     body: `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
+      //     payload: { taskId: task.id, clientId: task.clientId }
+      //   });
+      // }
       else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
         // Notify Editor
         await notifyUser({
@@ -386,6 +396,14 @@ export async function PATCH(
             clientId: task.clientId,
             editorId: task.assignedTo,
             taskTitle: task.title,
+            // 🔥 Who actually rejected it — lets the Slack dispatcher tell
+            // a client rejection apart from a QC one and react differently
+            // (see slack.ts task_rejected handler).
+            rejectedByRole: role,
+            schedulerId: task.scheduler ?? null,
+            // Only carry the comment text through for client rejections —
+            // QC-rejection Slack messages stay exactly as they are today.
+            revisionComment: role === "client" ? (feedback || null) : null,
           },
         });
       } else if (
@@ -422,6 +440,16 @@ export async function PATCH(
         }).catch((err: any) =>
           console.error(`⚠️ Review mirror failed to start for task ${id}:`, err.message)
         );
+      // } else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
+      //   // Notify Editor that it's approved
+      //   await notifyUser({
+      //     userId: task.assignedTo,
+      //     type: "qc_approval",
+      //     title: "Task Approved",
+      //     body: `Your task "${task.title}" has been approved.`,
+      //     payload: { taskId: task.id, clientId: task.clientId },
+      //   });
+
       } else if (finalStatus === "COMPLETED" && task.status !== "COMPLETED") {
   // Notify Editor that it's approved
   await notifyUser({

@@ -408,20 +408,49 @@ export async function deliverSlackNotification(
       }
     }
 
-    // Revision comment text stays out of Slack — link back to the app instead
-    // of pulling feedback content into a public/shared channel.
+    // Revision comment text stays out of Slack for QC rejections — link
+    // back to the app instead of pulling feedback content into the
+    // channel. Client rejections are the one exception: we show the
+    // comment directly and tag the scheduler (see below).
     const taskId = notification.payload?.taskId;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const revisionNote = taskId
-      ? `\n\nCheck <${appUrl}/dashboard?task=${taskId}|E8 App> for the comments.`
-      : "\n\nCheck E8 App for the comments.";
+    const isClientRejection = notification.payload?.rejectedByRole === "client";
 
-    // Create modified notification with editor mention, no comment text
-    const mentionedNotification = {
-      ...notification,
-      title: `${editorMention}Content Needs Revisions`,
-      body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${revisionNote}`,
-    };
+    let schedulerMention = "";
+    if (isClientRejection && notification.payload?.schedulerId) {
+      const scheduler = await prisma.user.findUnique({
+        where: { id: notification.payload.schedulerId },
+        select: { slackUserId: true, name: true },
+      });
+      if (scheduler?.slackUserId) {
+        schedulerMention = ` <@${scheduler.slackUserId}>`;
+        console.log(
+          `[Slack Dispatch] Tagging scheduler: ${scheduler.name} (${scheduler.slackUserId})`,
+        );
+      }
+    }
+
+    let mentionedNotification;
+    if (isClientRejection) {
+      const comment = notification.payload?.revisionComment;
+      mentionedNotification = {
+        ...notification,
+        title: `❗ ${editorMention}Client Rejected — Content Needs Revisions`,
+        body: `Your content "${notification.payload?.taskTitle || "Task"}" was rejected by the client.${
+          comment ? `\n\n*Revision comments:*\n${comment}` : ""
+        }${schedulerMention ? `\n\ncc${schedulerMention}` : ""}`,
+      };
+    } else {
+      const revisionNote = taskId
+        ? `\n\nCheck <${appUrl}/dashboard?task=${taskId}|E8 App> for the comments.`
+        : "\n\nCheck E8 App for the comments.";
+
+      mentionedNotification = {
+        ...notification,
+        title: `${editorMention}Content Needs Revisions`,
+        body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${revisionNote}`,
+      };
+    }
 
     // Send to client channel ONLY
     await sendClientSlackWebhook(
