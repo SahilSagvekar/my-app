@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 // app/api/admin/tasks/bulk/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { notifyEditorTaskAssignment } from '@/lib/notify';
 // import { getServerSession } from 'next-auth';
 // import { authOptions } from '@/lib/auth';
 
@@ -38,6 +39,20 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: 'No valid updates provided' }, { status: 400 });
         }
 
+        // If assignedTo is part of this bulk update, work out which of the
+        // selected tasks actually change editor — only those should trigger
+        // a Slack notification, not tasks already assigned to that editor.
+        let reassignedTaskIds: string[] = [];
+        if (updateData.assignedTo !== undefined && updateData.assignedTo) {
+            const existingTasks = await prisma.task.findMany({
+                where: { id: { in: taskIds } },
+                select: { id: true, assignedTo: true },
+            });
+            reassignedTaskIds = existingTasks
+                .filter((t) => t.assignedTo !== updateData.assignedTo)
+                .map((t) => t.id);
+        }
+
         // Perform bulk update
         const result = await prisma.task.updateMany({
             where: {
@@ -45,6 +60,15 @@ export async function PATCH(req: NextRequest) {
             },
             data: updateData
         });
+
+        // 🔔 Notify the editor once with a grouped list of all reassigned tasks
+        if (reassignedTaskIds.length > 0) {
+            try {
+                await notifyEditorTaskAssignment(updateData.assignedTo, reassignedTaskIds);
+            } catch (err) {
+                console.error('Failed to send bulk assignment notification:', err);
+            }
+        }
 
         // 🔥 Audit bulk update
         const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');

@@ -11,7 +11,7 @@ import { ClientRequest } from "http";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
-import { notifyUser } from "@/lib/notify";
+import { notifyUser, notifyEditorTaskAssignment } from "@/lib/notify";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 import { getS3, BUCKET, getFileUrl } from "@/lib/s3";
@@ -833,17 +833,13 @@ export async function POST(req: any) {
       },
     });
 
-    // 🔔 Notify the assigned editor
-    try {
-      await notifyUser({
-        userId: assignedTo,
-        type: "task_assigned",
-        title: "New Task Assigned",
-        body: `You have been assigned a new task: ${task.title || "Untitled"}`,
-        payload: { taskId: task.id, clientId: task.clientId }
-      });
-    } catch (err) {
-      console.error("Failed to send assignment notification:", err);
+    // 🔔 Notify the assigned editor (in-app + grouped Slack message)
+    if (assignedTo) {
+      try {
+        await notifyEditorTaskAssignment(assignedTo, [task.id]);
+      } catch (err) {
+        console.error("Failed to send assignment notification:", err);
+      }
     }
 
     // 📤 UPLOAD FILES TO S3

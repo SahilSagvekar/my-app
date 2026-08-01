@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../lib/prisma";
+import { notifyEditorTaskAssignment } from "../../../../../lib/notify";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -60,6 +61,11 @@ export async function PATCH(
         );
     }
 
+    // Look up current assignee so we only notify on a real reassignment
+    const existingTask = assignedTo
+      ? await prisma.task.findUnique({ where: { id }, select: { assignedTo: true } })
+      : null;
+
     // Update task
     const updatedTask = await prisma.task.update({
       where: { id },
@@ -73,6 +79,15 @@ export async function PATCH(
         client: true,
       },
     });
+
+    // 🔔 Notify the editor only if they were actually newly assigned
+    if (assignedTo && existingTask?.assignedTo !== assignedTo) {
+      try {
+        await notifyEditorTaskAssignment(assignedTo, [id]);
+      } catch (err) {
+        console.error("Failed to send assignment notification:", err);
+      }
+    }
 
     return NextResponse.json(updatedTask, { status: 200 });
   } catch (err: any) {

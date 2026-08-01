@@ -7,6 +7,7 @@ import "@/lib/bigint-fix";
 import { prisma } from "@/lib/prisma";
 import { TaskStatus } from "@prisma/client";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
+import { notifyEditorTaskAssignment } from '@/lib/notify';
 
 // ─────────────────────────────────────────
 // Helpers
@@ -134,7 +135,7 @@ export async function PATCH(
         // Validate task exists
         const existingTask = await prisma.task.findUnique({
             where: { id },
-            select: { id: true, title: true, status: true },
+            select: { id: true, title: true, status: true, assignedTo: true },
         });
 
         if (!existingTask) {
@@ -263,6 +264,20 @@ export async function PATCH(
                 newStatus: updateData.status,
             },
         });
+
+        // 🔔 Notify the editor only if they were actually newly assigned
+        // (not on unrelated edits to a task already assigned to them)
+        if (
+            assignedTo !== undefined &&
+            assignedTo &&
+            assignedTo !== existingTask.assignedTo
+        ) {
+            try {
+                await notifyEditorTaskAssignment(assignedTo, [id]);
+            } catch (err) {
+                console.error("Failed to send assignment notification:", err);
+            }
+        }
 
         return NextResponse.json(updatedTask);
     } catch (err: any) {

@@ -547,6 +547,44 @@ export async function deliverSlackNotification(
     return;
   }
 
+  // 5. TASK_ASSIGNED → Editors Channel ONLY (with @mention of editor,
+  //    grouped into a single message listing how many + which tasks)
+  if (notificationType === "task_assigned") {
+    console.log(`[Slack Dispatch] Task Assigned → Editors channel only`);
+
+    const editorId = notification.userId;
+    if (!editorId) {
+      console.log(`[Slack Dispatch] No editorId provided, skipping task_assigned notification`);
+      return;
+    }
+
+    let editorMention = "";
+    const editor = await prisma.user.findUnique({
+      where: { id: editorId },
+      select: { slackUserId: true, name: true },
+    });
+    if (editor?.slackUserId) {
+      editorMention = `<@${editor.slackUserId}> `;
+    } else if (editor?.name) {
+      editorMention = `${editor.name} `;
+    }
+
+    const taskTitles: string[] = notification.payload?.taskTitles || [];
+    const count = taskTitles.length || 1;
+    const taskListText = taskTitles.length > 0
+      ? taskTitles.map((t, i) => `${i + 1}. ${t || "Untitled"}`).join("\n")
+      : "";
+
+    const assignedNotification = {
+      ...notification,
+      title: undefined,
+      message: `📋 ${editorMention}You've been assigned ${count} ${count === 1 ? "task" : "tasks"}:\n${taskListText}`,
+    };
+
+    await sendToChannel("editors", assignedNotification);
+    return;
+  }
+
   // =========================================================================
   // ALL OTHER NOTIFICATION TYPES ARE IGNORED
   // =========================================================================
