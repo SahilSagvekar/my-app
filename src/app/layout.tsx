@@ -6,6 +6,7 @@ import { SchedulerActivityTracker } from "@/components/tracking/SchedulerActivit
 import { Toaster } from 'sonner';
 import { buildMetadata } from "@/lib/seo";
 import CookieConsent from "@/components/CookieConsent";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 const GA_MEASUREMENT_ID = "G-E7HJLKVEPQ";
 
@@ -33,17 +34,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} antialiased`}
       >
-        <AuthProvider>
-          {children}
-          <SchedulerActivityTracker />
-          <Toaster position="bottom-left" />
-          {/* GA is NOT loaded unconditionally — CookieConsent handles opt-in */}
-          <CookieConsent measurementId={GA_MEASUREMENT_ID} />
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <AuthProvider>
+            {children}
+            <SchedulerActivityTracker />
+            <Toaster position="bottom-left" />
+            {/* GA is NOT loaded unconditionally — CookieConsent handles opt-in */}
+            <CookieConsent measurementId={GA_MEASUREMENT_ID} />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

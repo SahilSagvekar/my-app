@@ -1,52 +1,48 @@
 export const dynamic = 'force-dynamic';
-import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isOTPExpired } from '@/lib/otp';
+import { issueLoginSession } from '@/lib/auth-session';
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const { email, otp } = await req.json();
 
     if (!email || !otp) {
-      return NextResponse.json(
-        { ok: false, message: 'Email and OTP are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Email and code are required" }, { status: 400 });
     }
 
-    // Find user with matching OTP - CHANGED to findFirst
     const user = await prisma.user.findFirst({
-      where: {
-        email,
-        resetOTP: otp,
-      },
+      where: { email, loginOTP: otp },
     });
 
-    if (!user || !user.resetOTPExpiry) {
+    if (!user || !user.loginOTPExpiry) {
+      return NextResponse.json({ message: "Invalid verification code" }, { status: 400 });
+    }
+
+    if (isOTPExpired(user.loginOTPExpiry)) {
       return NextResponse.json(
-        { ok: false, message: 'Invalid OTP' },
+        { message: "Verification code has expired. Please request a new one." },
         { status: 400 }
       );
     }
 
-    // Check if OTP is expired
-    if (isOTPExpired(user.resetOTPExpiry)) {
-      return NextResponse.json(
-        { ok: false, message: 'OTP has expired. Please request a new one.' },
-        { status: 400 }
-      );
+    if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+      return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
     }
 
-    // OTP is valid
-    return NextResponse.json({
-      ok: true,
-      message: 'OTP verified successfully',
+    // Consume the OTP so it can't be reused.
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { loginOTP: null, loginOTPExpiry: null },
     });
-  } catch (error: any) {
-    console.error('Verify OTP error:', error);
-    return NextResponse.json(
-      { ok: false, message: 'An error occurred' },
-      { status: 500 }
+
+    return issueLoginSession(
+      { id: user.id, email: user.email, role: user.role, name: user.name },
+      req
     );
+  } catch (err) {
+    console.error("[LOGIN/VERIFY-OTP] Error:", err);
+    return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }

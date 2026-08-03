@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSessionExpired, setShowSessionExpired] = useState(false);
+  const [pendingLoginEmail, setPendingLoginEmail] = useState<string | null>(null);
   const router = useRouter();
 
   // Track auth state in a ref for the fetch interceptor
@@ -157,15 +158,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ email, password, rememberMe }),
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-      const data = await res.json();
       setLoading(false);
       throw new Error(data.message || "Login failed");
     }
 
-    const data = await res.json();
+    if (data.otpRequired) {
+      // Password was correct — an email OTP is required before we grant
+      // access. Stash the email and let the UI switch to the code-entry
+      // screen; App.tsx catches this specific error message.
+      setPendingLoginEmail(data.email || email);
+      setLoading(false);
+      throw new Error("2FA_REQUIRED");
+    }
+
     setUser(data.user);
     setIsAuthenticated(true);
+    setPendingLoginEmail(null);
     setLoading(false);
   };
 
@@ -192,8 +203,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const forgotPassword = async (email: string) => { console.log('Forgot password stub:', email); };
   const resetPassword = async (newPassword: string, confirmPassword: string, token: string) => { console.log('Reset password stub:', token); };
-  const verifyTwoFactor = async (code: string) => { console.log('Verify 2FA stub:', code); };
-  const resendTwoFactorCode = async () => { console.log('Resend 2FA stub'); };
+
+  const verifyTwoFactor = async (code: string) => {
+    if (!pendingLoginEmail) {
+      throw new Error("No login in progress. Please sign in again.");
+    }
+
+    setLoading(true);
+    const res = await fetch("/api/login/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: pendingLoginEmail, otp: code }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setLoading(false);
+      throw new Error(data.message || "Invalid verification code");
+    }
+
+    setUser(data.user);
+    setIsAuthenticated(true);
+    setPendingLoginEmail(null);
+    setLoading(false);
+  };
+
+  const resendTwoFactorCode = async () => {
+    if (!pendingLoginEmail) {
+      throw new Error("No login in progress. Please sign in again.");
+    }
+
+    const res = await fetch("/api/login/resend-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: pendingLoginEmail }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.message || "Failed to resend code");
+    }
+  };
 
   return (
     <AuthContext.Provider

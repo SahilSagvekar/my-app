@@ -40,6 +40,7 @@ import Image from 'next/image';
 import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
 import { useAuth } from './auth/AuthContext';
 import { useViewAsRole } from './auth/ViewAsRoleContext';
+import { ThemeToggle } from './theme/ThemeToggle';
 
 function MenuToggleIcon({ isCollapsed, className }: { isCollapsed?: boolean; className?: string }) {
   return (
@@ -165,10 +166,10 @@ export function LayoutShell({
 
   if (!currentRole) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">No Role Assigned</h1>
-          <p className="text-gray-600 mb-4">Please contact an administrator to assign you a role.</p>
+          <p className="text-muted-foreground mb-4">Please contact an administrator to assign you a role.</p>
           <Button onClick={onLogout}>Sign Out</Button>
         </div>
       </div>
@@ -178,7 +179,7 @@ export function LayoutShell({
   return (
     <div className="min-h-screen bg-slate-50/50">
       {/* Top Bar */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 fixed top-0 left-0 right-0 z-30">
+      <header className="bg-background/80 backdrop-blur-md shadow-sm border-b border-border/50 fixed top-0 left-0 right-0 z-30">
         <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
           {/* Left Section */}
           <div className="flex items-center gap-4">
@@ -208,7 +209,7 @@ export function LayoutShell({
                 className="w-8 h-8 object-contain"
                 priority
               />
-              <span className="hidden sm:block font-semibold text-lg text-gray-900">
+              <span className="hidden sm:block font-semibold text-lg text-foreground">
                 {roleDisplay} Portal
               </span>
             </div>
@@ -225,12 +226,14 @@ export function LayoutShell({
               <Search className="h-5 w-5" />
             </Button>
 
+            <ThemeToggle />
+
             {/* 🔥 Role Switch Dropdown */}
             {canSwitchRole && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-gray-100">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                  <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-muted">
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'}`}>
                       <ArrowLeftRight className="h-4 w-4" />
                     </div>
                     <div className="hidden sm:block text-left">
@@ -244,14 +247,14 @@ export function LayoutShell({
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-3">
                     <div className="flex items-center gap-3">
-                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'}`}>
                         <ArrowLeftRight className="h-5 w-5" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate">
                           {authUser?.name || getUserDisplayName(currentRole as UserRole)}
                         </p>
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className="text-xs text-muted-foreground truncate">
                           Current: {roleDisplay}
                         </p>
                       </div>
@@ -269,7 +272,7 @@ export function LayoutShell({
                         onClick={() => switchToRole(role)}
                         className={`cursor-pointer ${isCurrent ? 'bg-amber-50 font-semibold' : ''}`}
                       >
-                        <div className={`mr-2 h-2 w-2 rounded-full ${isCurrent ? 'bg-amber-500' : 'bg-gray-300'}`} />
+                        <div className={`mr-2 h-2 w-2 rounded-full ${isCurrent ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
                         {roleLabel}
                         {isCurrent && (
                           <span className="ml-auto text-xs text-amber-600">Active</span>
@@ -301,16 +304,16 @@ export function LayoutShell({
                 size="icon"
                 title="E8-help"
                 onClick={() => onPageChange('help-videos')}
-                className={currentPage === 'help-videos' ? 'bg-gray-100' : ''}
+                className={currentPage === 'help-videos' ? 'bg-muted' : ''}
               >
-                <PlayCircle className="h-5 w-5 text-gray-500" />
+                <PlayCircle className="h-5 w-5 text-muted-foreground" />
               </Button>
             )}
 
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-gray-100">
+                <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-muted">
                   <Avatar className="h-8 w-8">
                     <AvatarImage
                       src={authUser?.image}
@@ -350,7 +353,7 @@ export function LayoutShell({
                       <p className="text-sm font-semibold truncate">
                         {authUser?.name || getUserDisplayName(currentRole as UserRole)}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-muted-foreground truncate">
                         {authUser?.email || ''}
                       </p>
                     </div>
@@ -379,7 +382,7 @@ export function LayoutShell({
       {/* Sidebar */}
       <aside
         className={`
-        fixed top-16 left-0 z-20 w-72 h-[calc(100vh-4rem)] bg-white/80 backdrop-blur-md border-r border-gray-200 transform transition-all duration-300 ease-in-out
+        fixed top-16 left-0 z-20 w-72 h-[calc(100vh-4rem)] bg-background/80 backdrop-blur-md border-r border-border transform transition-all duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         ${isSidebarCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0'}
       `}
@@ -395,7 +398,7 @@ export function LayoutShell({
             {navLoading ? (
               <div className="space-y-3 px-3">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-9 bg-gray-100 rounded-lg animate-pulse" />
+                  <div key={i} className="h-9 bg-muted rounded-lg animate-pulse" />
                 ))}
               </div>
             ) : items.map((item) => {
@@ -422,8 +425,8 @@ export function LayoutShell({
                     ${isActive
                       ? 'bg-primary text-primary-foreground shadow-sm'
                       : isDisabled
-                      ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'text-muted-foreground/50 cursor-not-allowed'
+                      : 'text-foreground/80 hover:bg-muted'
                     }
                   `}
                 >
@@ -440,11 +443,11 @@ export function LayoutShell({
             })}
           </nav>
 
-          <div className="p-4 border-t border-gray-200 space-y-4">
+          <div className="p-4 border-t border-border space-y-4">
             {currentRole.toLowerCase() === 'client' && authUser?.linkedClientId && (
               <SidebarStorage clientId={authUser.linkedClientId} />
             )}
-            <div className="text-xs text-gray-500 text-center">
+            <div className="text-xs text-muted-foreground text-center">
               {roleDisplay} Portal v2.1
             </div>
           </div>

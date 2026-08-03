@@ -23,6 +23,8 @@ model User {
   updatedAt               DateTime                 @updatedAt
   resetOTP                String?
   resetOTPExpiry          DateTime?
+  loginOTP                String?
+  loginOTPExpiry          DateTime?
   hoursPerWeek            Decimal?                 @default(0) @db.Decimal(5, 2)
   phone                   String?                  @unique
   monthlyRate             Int?

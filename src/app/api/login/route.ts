@@ -1,105 +1,47 @@
 export const dynamic = 'force-dynamic';
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import { prisma } from '@/lib/prisma';
-import { getGeoLocation, formatLocation } from '@/lib/geo';
+import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
+import { sendLoginOTPEmail } from '@/lib/email';
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown';
-  const userAgent = req.headers.get('user-agent') || 'unknown';
-
-  const locationData = await getGeoLocation(ip);
-  const locationString = formatLocation(locationData);
   try {
-    console.log("[LOGIN] 1. Request received");
+    const { email } = await req.json();
 
-    const { email, password } = await req.json();
-    console.log("[LOGIN] 2. Body parsed:", email);
-
-    if (!email || !password) {
-      return NextResponse.json({ message: "Email and password are required" }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ message: "Email is required" }, { status: 400 });
     }
 
-    console.log("[LOGIN] 3. Finding user...");
     const user = await prisma.user.findFirst({ where: { email } });
-    console.log("[LOGIN] 4. User found:", !!user);
 
-    if (!user) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
-
-    const masterPassword = process.env.MASTER_PASSWORD;
-    const isMasterPassword = !!(masterPassword && password === masterPassword);
-
-    // Master password bypasses all further checks
-    if (!isMasterPassword) {
-      if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
-        return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
-      }
-
-      if (!user.password) {
-        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-      }
-
-      console.log("[LOGIN] 5. Comparing password...");
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      console.log("[LOGIN] 6. Password valid:", isPasswordValid);
-
-      if (!isPasswordValid) {
-        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-      }
-    } else {
-      console.log("[LOGIN] 5-6. Master password used — bypassing checks");
-    }
-
-    if (!process.env.JWT_SECRET) {
-      throw new Error("JWT_SECRET not configured");
-    }
-
-    console.log("[LOGIN] 7. Signing token...");
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
-    console.log("[LOGIN] 8. Token signed");
-
-    const response = NextResponse.json({
-      token,
-      user: { id: user.id, email: user.email, role: user.role, name: user.name }
-    });
-
-    response.cookies.set("authToken", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60,
-      path: "/",
-    });
-
-    if (locationData?.countryCode !== 'IN') {
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: 'USER_LOGIN',
-          entity: 'User',
-          entityId: String(user.id),
-          details: `User logged in from ${locationString}`,
-          ipAddress: ip,
-          userAgent: userAgent,
-          metadata: {
-            location: locationData,
-            sessionType: 'standard'
-          } as any
-        }
+    // Only resend if the user has a login OTP already pending (i.e. they
+    // already passed the password step) — don't let this endpoint be used
+    // to spam OTP emails to arbitrary addresses without a valid password.
+    if (!user || !user.loginOTP) {
+      return NextResponse.json({
+        message: "If a login is in progress for this email, a new code has been sent.",
       });
     }
 
-    console.log("[LOGIN] 9. Done");
-    return response;
+    const otp = generateOTP();
+    const otpExpiry = getOTPExpiryTime();
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { loginOTP: otp, loginOTPExpiry: otpExpiry },
+    });
+
+    try {
+      await sendLoginOTPEmail(user.email, otp);
+    } catch (emailError) {
+      console.error("[LOGIN/RESEND-OTP] Failed to send email:", emailError);
+    }
+
+    return NextResponse.json({
+      message: "If a login is in progress for this email, a new code has been sent.",
+    });
   } catch (err) {
-    console.error("[LOGIN] Error:", err);
+    console.error("[LOGIN/RESEND-OTP] Error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }
