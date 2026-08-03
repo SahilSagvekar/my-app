@@ -39,6 +39,10 @@ export function StorageOverviewCard() {
     setLoading(true);
     try {
       const res = await fetch('/api/admin/storage-overview');
+      if (!res.ok) {
+        setData(null);
+        return;
+      }
       const json = await res.json();
       setData(json);
     } catch {
