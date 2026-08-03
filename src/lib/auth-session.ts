@@ -47,23 +47,21 @@ export async function issueLoginSession(user: SessionUser, req: NextRequest) {
     const locationData = await getGeoLocation(ip);
     const locationString = formatLocation(locationData);
 
-    if (locationData?.countryCode !== "IN") {
-      await prisma.auditLog.create({
-        data: {
-          userId: user.id,
-          action: "USER_LOGIN",
-          entity: "User",
-          entityId: String(user.id),
-          details: `User logged in from ${locationString}`,
-          ipAddress: ip,
-          userAgent: userAgent,
-          metadata: {
-            location: locationData,
-            sessionType: "standard",
-          } as any,
-        },
-      });
-    }
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "USER_LOGIN",
+        entity: "User",
+        entityId: String(user.id),
+        details: `User logged in from ${locationString}`,
+        ipAddress: ip,
+        userAgent: userAgent,
+        metadata: {
+          location: locationData,
+          sessionType: "standard",
+        } as any,
+      },
+    });
   } catch (auditError) {
     // Never block a successful login on audit logging / geo lookup failures
     console.error("[LOGIN] Audit log / geo lookup failed:", auditError);
