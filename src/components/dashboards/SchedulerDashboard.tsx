@@ -6,8 +6,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle, FileText, Eye, ArrowLeft, AlertTriangle } from 'lucide-react';
-import { useTaskWorkflow, WorkflowTask } from '../workflow/TaskWorkflowEngine';
+import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle, FileText, Eye, ArrowLeft, AlertTriangle, MessageSquare, User as UserIcon } from 'lucide-react';
+import { useTaskWorkflow, WorkflowTask, TaskFeedbackItem } from '../workflow/TaskWorkflowEngine';
 import { FilePreviewModal } from '../FileViewerModal';
 import { toast } from 'sonner';
 
@@ -181,6 +181,7 @@ export function SchedulerDashboard() {
   const [schedulingTasks, setSchedulingTasks] = useState<WorkflowTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<WorkflowTask | null>(null);
+  const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | 'all'>('all');
   const { tasks: workflowTasks, completeSchedulingTask } = useTaskWorkflow();
   const [previewFile, setPreviewFile] = useState<any | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -211,6 +212,10 @@ export function SchedulerDashboard() {
   // }, [workflowTasks, selectedTask]);
 
   useEffect(() => {
+    setFeedbackVersionFilter('all');
+  }, [selectedTask?.id]);
+
+  useEffect(() => {
     async function loadTasks() {
       try {
         const res = await fetch("/api/tasks", { cache: "no-store" });
@@ -229,6 +234,25 @@ export function SchedulerDashboard() {
           projectId: t.clientId,
           priority: t.priority,
           feedback: t.feedback,
+          // Version-tracked revision comments, with who wrote each one
+          taskFeedback: (t.taskFeedback || []).map((fb: any): TaskFeedbackItem => ({
+            id: fb.id,
+            fileId: fb.fileId,
+            folderType: fb.folderType,
+            feedback: fb.feedback,
+            status: fb.status,
+            timestamp: fb.timestamp,
+            category: fb.category,
+            createdAt: fb.createdAt,
+            resolvedAt: fb.resolvedAt,
+            acknowledgedAt: fb.acknowledgedAt,
+            acknowledgedBy: fb.acknowledgedBy,
+            fileVersion: fb.file?.version || 1,
+            fileName: fb.file?.name || null,
+            authorId: fb.user?.id,
+            authorName: fb.user?.name || 'Unknown',
+            authorRole: fb.user?.role || null,
+          })),
           files: (t.files || [])
             .filter((f: any) => f.isActive !== false)
             .map((f: any) => ({
@@ -571,6 +595,85 @@ export function SchedulerDashboard() {
                   </div>
                 </div>
               )}
+
+              {/* Revision Comments — version-tracked, shows who left each comment */}
+              {selectedTask.taskFeedback && selectedTask.taskFeedback.length > 0 && (() => {
+                const allVersions = [...new Set(selectedTask.taskFeedback!.map(fb => fb.fileVersion || 1))].sort((a, b) => b - a);
+                const visibleComments = feedbackVersionFilter === 'all'
+                  ? selectedTask.taskFeedback!
+                  : selectedTask.taskFeedback!.filter(fb => (fb.fileVersion || 1) === feedbackVersionFilter);
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium flex items-center gap-1.5">
+                        <MessageSquare className="h-4 w-4" />
+                        Revision Comments ({visibleComments.length})
+                      </h4>
+                      {allVersions.length > 1 && (
+                        <select
+                          className="text-xs border rounded px-2 py-1 bg-background text-foreground"
+                          value={feedbackVersionFilter}
+                          onChange={e => setFeedbackVersionFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                        >
+                          <option value="all">All versions</option>
+                          {allVersions.map(v => (
+                            <option key={v} value={v}>V{v}{v === allVersions[0] ? ' (current)' : ''}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {visibleComments.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No comments on this version.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-80 overflow-y-auto">
+                        {visibleComments.map((fb) => (
+                          <div key={fb.id} className="p-3 border rounded-lg bg-muted/30">
+                            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                                  V{fb.fileVersion || 1}
+                                </Badge>
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 capitalize">
+                                  {fb.folderType}
+                                </Badge>
+                                {fb.category && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 capitalize">
+                                    {fb.category}
+                                  </Badge>
+                                )}
+                                {fb.timestamp && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-blue-50">
+                                    <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                    {fb.timestamp}
+                                  </Badge>
+                                )}
+                                {fb.status === 'resolved' && (
+                                  <Badge className="text-[10px] px-1.5 py-0 h-5 bg-green-100 text-green-700">
+                                    Resolved
+                                  </Badge>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-muted-foreground shrink-0">
+                                {fb.createdAt ? new Date(fb.createdAt).toLocaleDateString() : ''}
+                              </span>
+                            </div>
+                            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words mb-1.5">
+                              {fb.feedback}
+                            </p>
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <UserIcon className="h-3 w-3" />
+                              <span className="font-medium">{fb.authorName}</span>
+                              {fb.authorRole && <span className="capitalize">· {fb.authorRole}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Files */}
               {selectedTask.files && selectedTask.files.length > 0 && (

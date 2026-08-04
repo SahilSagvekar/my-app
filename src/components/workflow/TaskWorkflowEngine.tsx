@@ -1,5 +1,24 @@
 import { useState, useEffect } from 'react';
 
+export interface TaskFeedbackItem {
+  id: string;
+  fileId?: string;
+  folderType: string; // "main", "thumbnails", "music-license", "tiles", "covers"
+  feedback: string;
+  status: string; // "needs_revision", "acknowledged", "approved", "resolved"
+  timestamp?: string; // Video timestamp like "1:30"
+  category?: string; // "design", "content", "timing", "technical", "spelling", "other"
+  createdAt: string;
+  resolvedAt?: string;
+  acknowledgedAt?: string;
+  acknowledgedBy?: number;
+  fileVersion?: number; // The version of the file this comment relates to
+  fileName?: string;
+  authorId?: number;
+  authorName?: string;
+  authorRole?: string;
+}
+
 export interface WorkflowTask {
   id: string;
   title: string;
@@ -17,6 +36,7 @@ export interface WorkflowTask {
   files?: WorkflowFile[];
   feedback?: string;
   rejectionReason?: string;
+  taskFeedback?: TaskFeedbackItem[]; // Version-tracked revision comments, newest first
   workflowStep: 'editing' | 'qc_review' | 'scheduling' | 'completed';
   originalTaskId?: string;
   queuePosition?: number;
