@@ -529,27 +529,32 @@ html {
 
 .review-category-pill[data-category="design"] {
   background: rgba(139, 92, 246, 0.15);
-  color: #a78bfa;
+  color: #ffffff;
 }
 
 .review-category-pill[data-category="content"] {
   background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
+  color: #ffffff;
 }
 
 .review-category-pill[data-category="timing"] {
   background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
+  color: #ffffff;
 }
 
 .review-category-pill[data-category="technical"] {
   background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  color: #ffffff;
 }
 
 .review-category-pill[data-category="other"] {
   background: rgba(107, 114, 128, 0.15);
-  color: #9ca3af;
+  color: #ffffff;
+}
+
+.review-category-pill[data-category="subtitles"] {
+  background: rgba(59, 130, 242, 0.15);
+  color: #ffffff;
 }
 
 /* Resolve Checkbox */
