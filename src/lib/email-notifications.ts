@@ -145,8 +145,7 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
         const dashboardUrl = BASE_URL;
 
         // TODO: point at your actually-hosted E8 logo (small, square works best in the header)
-        // const LOGO_URL = `${BASE_URL}/assets/about/E8FIRELOGO.jpg`;
-        // const LOGO_URL = `${BASE_URL}/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png`;
+        const LOGO_URL = `${BASE_URL}/assets/logo/e8-logo-black.png`;
 
         const taskName = task.title || 'Untitled Task';
         const deliverableLabel = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || 'deliverable';
@@ -184,7 +183,7 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
                       <table cellpadding="0" cellspacing="0">
                         <tr>
                           <td style="padding-right: 10px;">
-                            <img src="/public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png" width="28" height="28" alt="" style="display:block; border-radius: 4px;" />
+                            <img src="${LOGO_URL}" width="21" height="28" alt="" style="display:block;" />
                           </td>
                           <td>
                             <span style="font-size: 20px; font-weight: 700; color: #111827;">E8 App</span>
