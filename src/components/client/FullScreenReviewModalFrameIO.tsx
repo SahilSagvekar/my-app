@@ -506,7 +506,7 @@ export function FullScreenReviewModalFrameIO({
                         content: fb.feedback,
                         timestamp: ts,
                         timestampSeconds: tsSeconds,
-                        category: fb.category || 'other',
+                        category: fb.category ? fb.category.split(',') : ['other'],
                         createdAt: new Date(fb.createdAt),
                         resolved: fb.status === 'resolved',
                         version: fb.file?.version || 1,
@@ -820,7 +820,7 @@ export function FullScreenReviewModalFrameIO({
                     fileId: ver?.id || currentFileSection?.fileId || null,
                     feedback: c.content,
                     timestamp: c.timestamp,
-                    category: c.category,
+                    category: Array.isArray(c.category) ? c.category.join(',') : c.category,
                 };
             });
             
@@ -864,7 +864,7 @@ export function FullScreenReviewModalFrameIO({
                 entries: comments.filter(c => !c.resolved).map(c => ({
                     id: c.id,
                     timestamp: new Date().toLocaleTimeString(),
-                    reason: c.category as any,
+                    reason: (Array.isArray(c.category) ? c.category.join(', ') : c.category) as any,
                     notes: c.content,
                     videoTime: c.timestamp,
                 })),

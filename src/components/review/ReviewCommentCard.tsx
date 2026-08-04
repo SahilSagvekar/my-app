@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, memo } from 'react';
-import { ReviewComment as ReviewCommentType, COMMENT_CATEGORIES } from './types';
+import { ReviewComment as ReviewCommentType, COMMENT_CATEGORIES, CommentCategory } from './types';
 import { MessageSquare, Check, Reply, MoreHorizontal, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -35,7 +35,9 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
     const [isEditing, setIsEditing] = useState(false);
     const [tempContent, setTempContent] = useState(comment.content);
 
-    const category = COMMENT_CATEGORIES.find(c => c.value === comment.category);
+    const categories = (Array.isArray(comment.category) ? comment.category : [comment.category])
+        .map((v) => COMMENT_CATEGORIES.find((c) => c.value === v))
+        .filter((c): c is CommentCategory => !!c);
 
     const handleEditSave = () => {
         if (tempContent.trim() && onEdit) {
@@ -144,14 +146,15 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                     </Badge>
                 )}
 
-                {category && (
+                {categories.map((cat) => (
                     <span
+                        key={cat.value}
                         className="review-category-pill"
-                        data-category={comment.category}
+                        data-category={cat.value}
                     >
-                        {category.label}
+                        {cat.label}
                     </span>
-                )}
+                ))}
             </div>
 
             {/* Content */}

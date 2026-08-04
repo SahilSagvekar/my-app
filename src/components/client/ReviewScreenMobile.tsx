@@ -145,7 +145,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                     content: rejectComment.trim(),
                     timestamp: '0:00',
                     timestampSeconds: 0,
-                    category: 'other',
+                    category: ['other'],
                     resolved: false,
                     version: 1,
                 });

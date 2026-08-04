@@ -62,7 +62,9 @@ export function CommentInput({
     onToggleExpand,
 }: CommentInputProps) {
     const [content, setContent] = useState('');
-    const [category, setCategory] = useState<CommentCategory['value']>('design');
+    const [category, setCategory] = useState<CommentCategory['value'][]>(
+        COMMENT_CATEGORIES.map((c) => c.value)
+    );
     const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSelectingArea, setIsSelectingArea] = useState(false);
@@ -451,13 +453,19 @@ export function CommentInput({
                 className="min-h-[80px] bg-transparent border-none resize-none text-white placeholder:text-[var(--review-text-muted)] focus-visible:ring-0 p-0"
             />
 
-            {/* Category Selector */}
+            {/* Category Selector — multi-select, all checked by default */}
             <div className="flex items-center gap-1 mt-3 mb-3 flex-wrap">
                 {COMMENT_CATEGORIES.map((cat) => (
                     <button
                         key={cat.value}
-                        onClick={() => setCategory(cat.value)}
-                        className={`review-category-pill cursor-pointer transition-all ${category === cat.value
+                        onClick={() =>
+                            setCategory((prev) =>
+                                prev.includes(cat.value)
+                                    ? prev.filter((v) => v !== cat.value)
+                                    : [...prev, cat.value]
+                            )
+                        }
+                        className={`review-category-pill cursor-pointer transition-all ${category.includes(cat.value)
                             ? 'ring-1 ring-offset-1 ring-offset-[var(--review-bg-tertiary)]'
                             : 'opacity-60 hover:opacity-100'
                             }`}

@@ -13,7 +13,7 @@ export interface ReviewComment {
     endTimestamp?: string; // Optional end timestamp for ranges "1:28"
     endTimestampSeconds?: number; // Optional end timestamp in seconds for ranges
     content: string;
-    category: 'design' | 'content' | 'timing' | 'technical' | 'other' | 'subtitles';
+    category: ('design' | 'content' | 'timing' | 'technical' | 'other' | 'subtitles')[];
 
     screenshotUrl?: string; // Base64 or URL of captured video frame
     annotations?: Annotation[];

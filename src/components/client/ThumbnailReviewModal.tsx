@@ -148,7 +148,7 @@ export function ThumbnailReviewModal({
                         content: fb.feedback,
                         timestamp: fb.timestamp || '0:00',
                         timestampSeconds: 0,
-                        category: fb.category || 'other',
+                        category: fb.category ? fb.category.split(',') : ['other'],
                         createdAt: new Date(fb.createdAt),
                         resolved: fb.status === 'resolved',
                         version: fb.file?.version || 1,
@@ -194,7 +194,7 @@ export function ThumbnailReviewModal({
                     folderType: currentFile.folderType || 'thumbnails',
                     fileId: currentFile.id,
                     feedback: c.content,
-                    category: c.category,
+                    category: Array.isArray(c.category) ? c.category.join(',') : c.category,
                     timestamp: '0:00',
                 }));
             const res = await fetch(`/api/tasks/${taskId}/feedback`, {
@@ -360,9 +360,10 @@ export function ThumbnailReviewModal({
                                                 <Button
                                                     variant="ghost" size="sm"
                                                     onClick={onSwitchToVideo}
-                                                    className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
+                                                    className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
                                                 >
                                                     <Film className="h-4 w-4" />
+                                                    <span className="text-xs hidden sm:inline">Video</span>
                                                 </Button>
                                             </TooltipTrigger>
                                             <TooltipContent side="bottom">Switch to Video Review</TooltipContent>
