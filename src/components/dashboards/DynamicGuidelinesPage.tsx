@@ -41,7 +41,7 @@ interface Guideline {
 }
 
 interface DynamicGuidelinesPageProps {
-    role: "qc" | "editor";
+    role: "qc" | "editor" | "scheduler";
     title: string;
     description: string;
 }
@@ -282,7 +282,7 @@ export function DynamicGuidelinesPage({ role, title, description }: DynamicGuide
                         <BookOpen className="h-12 w-12 text-muted-foreground opacity-20 mb-4" />
                         <h3 className="text-lg font-medium">No guidelines found</h3>
                         <p className="text-muted-foreground max-w-sm mt-1">
-                            There are currently no specific guidelines assigned to the {role === 'qc' ? 'QC' : 'Editor'} role.
+                            There are currently no specific guidelines assigned to the {role === 'qc' ? 'QC' : role === 'scheduler' ? 'Scheduler' : 'Editor'} role.
                         </p>
                         {canEdit && (
                             <Button onClick={openAddDialog} className="gap-2 mt-4">

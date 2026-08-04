@@ -74,6 +74,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Target },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },
+    { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
   ],

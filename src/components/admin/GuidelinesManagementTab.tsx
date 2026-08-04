@@ -62,6 +62,7 @@ const ROLES = [
     { id: "all", name: "All Roles" },
     { id: "qc", name: "QC Specialist" },
     { id: "editor", name: "Editor" },
+    { id: "scheduler", name: "Scheduler" },
 ];
 
 export function GuidelinesManagementTab() {
@@ -385,7 +386,7 @@ export function GuidelinesManagementTab() {
                                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                     {g.role ? (
                                                         <Badge variant="outline" className="text-[10px] px-1 h-3.5 border-blue-200 text-blue-700 bg-blue-50/50">
-                                                            {g.role === 'qc' ? 'QC' : 'Editor'}
+                                                            {ROLES.find(r => r.id === g.role)?.name || g.role}
                                                         </Badge>
                                                     ) : (
                                                         <Badge variant="outline" className="text-[10px] px-1 h-3.5 border-green-200 text-green-700 bg-green-50/50">

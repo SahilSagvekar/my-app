@@ -14,6 +14,8 @@ import { QCResourcesPage } from "../dashboards/QCResourcesPage";
 import { TrainingManagementTab } from "../admin/TrainingManagementTab";
 import { TrainingPortalPage } from "../training/TrainingPortalPage";
 import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
+// import { SchedulerGuidelinesPage } from "../dashboards/SchedulerGuidelinesPage";
+import { SchedulerGuidelinesPage } from "../dashboards/SchedulerGuidelinesPage";
 import { SchedulerDashboard } from "../dashboards/SchedulerDashboard";
 import { SchedulerSpreadsheetView } from "../dashboards/scheduler";
 import { SchedulerContentTitlingPage } from "../dashboards/SchedulerContentTitlingPage";
@@ -312,6 +314,8 @@ export function renderPage(
         return <SchedulerContentTitlingPage />;
       case "resources":
         return <SchedulerResourcesPage />;
+      case "guidelines":
+        return <SchedulerGuidelinesPage />;
       case "reports":
         return <SchedulerReportsPage />;
       case "drive":
