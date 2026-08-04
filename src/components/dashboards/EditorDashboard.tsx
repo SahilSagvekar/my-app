@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, DragEvent } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, DragEvent } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -340,9 +340,11 @@ interface WorkflowTask {
 function FilePreviewCard({
   file,
   onView,
+  onDownload,
 }: {
   file: TaskFile;
   onView: () => void;
+  onDownload?: () => void;
 }) {
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith("video/"))
@@ -392,6 +394,16 @@ function FilePreviewCard({
           {formatFileSize(file.size)}
         </p>
       </div>
+      {onDownload && (
+        <button
+          type="button"
+          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => { e.stopPropagation(); onDownload(); }}
+          title="Download"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </button>
+      )}
       <Eye className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
     </div>
   );
@@ -406,11 +418,13 @@ function FileViewerDialog({
   open,
   onOpenChange,
   onPreview,
+  onDownload,
 }: {
   files: TaskFile[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPreview: (file: TaskFile) => void;
+  onDownload?: (file: TaskFile) => void;
 }) {
   const getFileIcon = (mimeType: string) => {
     if (mimeType?.startsWith("video/"))
@@ -468,6 +482,16 @@ function FileViewerDialog({
                     <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                     <span className="hidden sm:inline">Open</span>
                   </Button>
+                  {onDownload && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={(e) => { e.stopPropagation(); onDownload(file); }}
+                    >
+                      <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -489,6 +513,7 @@ function TaskCard({
   onDragStart,
   isDragging,
   onPreview,
+  onDownload,
   isQuotaComplete,
   onToggleSponsored,
   onAcknowledgeFeedback,
@@ -500,6 +525,7 @@ function TaskCard({
   onDragStart: (e: DragEvent<HTMLDivElement>, task: WorkflowTask) => void;
   isDragging: boolean;
   onPreview: (file: TaskFile) => void;
+  onDownload?: (file: TaskFile) => void;
   isQuotaComplete?: boolean;
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
@@ -909,6 +935,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                       key={file.id}
                       file={file}
                       onView={() => onPreview(file)}
+                      onDownload={onDownload ? () => onDownload(file) : undefined}
                     />
                   ))}
                 </div>
@@ -1108,6 +1135,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
           open={showFiles}
           onOpenChange={setShowFiles}
           onPreview={onPreview}
+          onDownload={onDownload}
         />
       )}
     </>
@@ -1134,6 +1162,7 @@ interface ColumnProps {
   onUploadComplete: (taskId: string, files: any[]) => void;
   onStartTask: (taskId: string) => void;
   onPreview: (file: TaskFile) => void;
+  onDownload?: (file: TaskFile) => void;
   quotaCompleteTaskIds: Set<string>;
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
@@ -1156,6 +1185,7 @@ function DroppableColumn({
   onUploadComplete,
   onStartTask,
   onPreview,
+  onDownload,
   quotaCompleteTaskIds,
   onToggleSponsored,
   onAcknowledgeFeedback,
@@ -1202,6 +1232,7 @@ function DroppableColumn({
             onDragStart={onDragStart}
             isDragging={draggingTaskId === task.id}
             onPreview={onPreview}
+            onDownload={onDownload}
             isQuotaComplete={quotaCompleteTaskIds.has(task.id)}
             onToggleSponsored={onToggleSponsored}
             onAcknowledgeFeedback={onAcknowledgeFeedback}
@@ -1256,6 +1287,56 @@ export function EditorDashboard() {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // Desktop app download progress — window.e8 only exists inside the
+  // Electron shell (see apps/desktop/src/preload.js). Same pattern as
+  // ClientDashboard: keep a ref of fileId -> fileName for the toast text.
+  const downloadFileNamesRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const desktop = (window as any).e8;
+    if (!desktop?.isDesktopApp) return;
+
+    desktop.onDownloadProgress(({ fileId, percent }: { fileId: string; percent: number }) => {
+      const fileName = downloadFileNamesRef.current[fileId] || "file";
+
+      if (percent >= 100) {
+        toast.success(`${fileName} downloaded`, { id: `download-${fileId}` });
+      } else {
+        toast.loading(`Downloading ${fileName}... ${percent}%`, { id: `download-${fileId}` });
+      }
+    });
+  }, []);
+
+  const handleDownloadFile = useCallback(async (file: TaskFile) => {
+    const desktop = (window as any).e8;
+
+    if (desktop?.isDesktopApp) {
+      downloadFileNamesRef.current[file.id] = file.name;
+      toast.loading(`Downloading ${file.name}... 0%`, { id: `download-${file.id}` });
+
+      const result = await desktop.downloadFile(file.id, file.name);
+
+      if (!result.success) {
+        toast.error(`Failed to download ${file.name}: ${result.message || "unknown error"}`, {
+          id: `download-${file.id}`,
+        });
+      } else if (result.alreadyDownloaded) {
+        toast.success(`${file.name} already downloaded`, { id: `download-${file.id}` });
+      }
+      // On success (not already-downloaded), the progress listener's 100%
+      // event flips this toast to the success state — nothing more to do.
+      return;
+    }
+
+    // Normal browser: fall back to a direct download.
+    const isS3 = file.url?.includes('amazonaws.com') || file.url?.includes('r2.cloudflarestorage.com') || file.url?.includes('r2.dev');
+    if (isS3) {
+      window.open(`/api/files/${file.id}/download`, '_blank');
+    } else {
+      window.open(file.url, '_blank');
+    }
+  }, []);
 
   const { user } = useAuth();
 
@@ -2134,6 +2215,7 @@ export function EditorDashboard() {
             onUploadComplete={handleUploadComplete}
             onStartTask={startTask}
             onPreview={handlePreview}
+            onDownload={handleDownloadFile}
             quotaCompleteTaskIds={quotaCompleteTaskIds}
             onToggleSponsored={handleToggleSponsored}
             onAcknowledgeFeedback={handleAcknowledgeFeedback}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle, FileText, Eye, ArrowLeft, AlertTriangle, MessageSquare, User as UserIcon } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle, FileText, Eye, ArrowLeft, AlertTriangle, MessageSquare, User as UserIcon, Download } from 'lucide-react';
 import { useTaskWorkflow, WorkflowTask, TaskFeedbackItem } from '../workflow/TaskWorkflowEngine';
 import { FilePreviewModal } from '../FileViewerModal';
 import { toast } from 'sonner';
@@ -182,6 +182,53 @@ export function SchedulerDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<WorkflowTask | null>(null);
   const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | 'all'>('all');
+
+  // Desktop app download progress — window.e8 only exists inside the
+  // Electron shell (see apps/desktop/src/preload.js). Same pattern used
+  // in ClientDashboard/EditorDashboard.
+  const downloadFileNamesRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const desktop = (window as any).e8;
+    if (!desktop?.isDesktopApp) return;
+
+    desktop.onDownloadProgress(({ fileId, percent }: { fileId: string; percent: number }) => {
+      const fileName = downloadFileNamesRef.current[fileId] || "file";
+
+      if (percent >= 100) {
+        toast.success(`${fileName} downloaded`, { id: `download-${fileId}` });
+      } else {
+        toast.loading(`Downloading ${fileName}... ${percent}%`, { id: `download-${fileId}` });
+      }
+    });
+  }, []);
+
+  const handleDownloadFile = async (file: { id: string; name: string; url: string }) => {
+    const desktop = (window as any).e8;
+
+    if (desktop?.isDesktopApp) {
+      downloadFileNamesRef.current[file.id] = file.name;
+      toast.loading(`Downloading ${file.name}... 0%`, { id: `download-${file.id}` });
+
+      const result = await desktop.downloadFile(file.id, file.name);
+
+      if (!result.success) {
+        toast.error(`Failed to download ${file.name}: ${result.message || "unknown error"}`, {
+          id: `download-${file.id}`,
+        });
+      } else if (result.alreadyDownloaded) {
+        toast.success(`${file.name} already downloaded`, { id: `download-${file.id}` });
+      }
+      return;
+    }
+
+    const isS3 = file.url?.includes('amazonaws.com') || file.url?.includes('r2.cloudflarestorage.com') || file.url?.includes('r2.dev');
+    if (isS3) {
+      window.open(`/api/files/${file.id}/download`, '_blank');
+    } else {
+      window.open(file.url, '_blank');
+    }
+  };
   const { tasks: workflowTasks, completeSchedulingTask } = useTaskWorkflow();
   const [previewFile, setPreviewFile] = useState<any | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -689,18 +736,28 @@ export function SchedulerDashboard() {
                         <p className="text-xs text-muted-foreground mb-3">
                           {formatFileSize(file.size)}
                         </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => {
-                            setPreviewFile(file);
-                            setIsPreviewOpen(true);
-                          }}
-                        >
-                          <Eye className="h-3 w-3 mr-1" />
-                          View
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setPreviewFile(file);
+                              setIsPreviewOpen(true);
+                            }}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadFile(file)}
+                            title="Download"
+                          >
+                            <Download className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

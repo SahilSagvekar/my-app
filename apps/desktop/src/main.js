@@ -3,7 +3,8 @@
 // Option A: this Electron app is just a window pointed at the real
 // website. No custom UI, no separate login screen — the real site's
 // login page, dashboard, and review screens render exactly as they do
-// in a browser. The only two things this file adds:
+// in a browser, for any role (client, editor, scheduler, QC, etc). The
+// only two things this file adds:
 //
 //  1. When the website's existing "Download" button is clicked inside
 //     this app, save the video to the client's real disk instead of
@@ -87,7 +88,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
-    title: "E8 Client",
+    title: "E8 App",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

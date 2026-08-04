@@ -2,7 +2,7 @@
   "name": "e8-client-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "E8 Productions client portal desktop app",
+  "description": "E8 Productions desktop app",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.e8productions.clientdesktop",
-    "productName": "E8 Client",
+    "productName": "E8 App",
     "directories": {
       "output": "dist"
     },
