@@ -13,7 +13,8 @@ model User {
   email                   String
   password                String?
   image                   String?
-  role                    Role?
+  role                    Role?                    // primary role — default landing dashboard, unchanged behavior for single-role users
+  roles                   Role[]                   @default([]) // full set of roles this account can act as; empty = single-role via `role` only
   hourlyRate              Decimal?                 @db.Decimal(10, 2)
   monthlyBaseHours        Int?
   employeeStatus          EmployeeStatus?          @default(ACTIVE)

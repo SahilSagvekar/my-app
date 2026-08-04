@@ -18,7 +18,7 @@ interface FootageLink {
 async function getClientEditors(clientId: string) {
   return prisma.user.findMany({
     where: {
-      role: 'editor',
+      OR: [{ role: 'editor' }, { roles: { has: 'editor' } }],
       assignedTasks: {
         some: { clientId, status: { notIn: ['COMPLETED', 'POSTED'] } },
       },

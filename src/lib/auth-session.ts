@@ -10,6 +10,7 @@ type SessionUser = {
   id: string;
   email: string;
   role: string | null;
+  roles?: string[];
   name: string | null;
 };
 
@@ -25,14 +26,14 @@ export async function issueLoginSession(user: SessionUser, req: NextRequest) {
   const userAgent = req.headers.get("user-agent") || "unknown";
 
   const token = jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
+    { userId: user.id, email: user.email, role: user.role, roles: user.roles || [] },
     process.env.JWT_SECRET!,
     { expiresIn: "7d" }
   );
 
   const response = NextResponse.json({
     token,
-    user: { id: user.id, email: user.email, role: user.role, name: user.name },
+    user: { id: user.id, email: user.email, role: user.role, roles: user.roles || [], name: user.name },
   });
 
   response.cookies.set("authToken", token, {

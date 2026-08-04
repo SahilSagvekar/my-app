@@ -62,6 +62,7 @@ export const authOptions: NextAuthConfig = {
                     email: user.email,
                     image: user.image,
                     role: user.role,
+                    roles: user.roles,
                 };
             },
         }),
@@ -113,10 +114,12 @@ export const authOptions: NextAuthConfig = {
 
                     token.id = dbUser.id.toString();
                     token.role = dbUser.role;
+                    token.roles = dbUser.roles;
                 } else {
                     // Credentials login already has correct data from authorize()
                     token.id = user.id;
                     token.role = (user as any).role;
+                    token.roles = (user as any).roles;
                 }
             } else if (token.id) {
                 // Periodically verify user status for existing JWTs
@@ -137,6 +140,7 @@ export const authOptions: NextAuthConfig = {
             if (token && session.user) {
                 session.user.id = token.id as string;
                 session.user.role = token.role;
+                session.user.roles = token.roles || [];
             }
             return session;
         },

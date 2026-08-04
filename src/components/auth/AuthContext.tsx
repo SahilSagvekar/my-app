@@ -11,6 +11,7 @@ interface User {
   name?: string;
   image?: string;
   role: string | null;
+  roles?: string[];
   linkedClientId?: string; // Client ID for users with client role
   hasPostingServices?: boolean;
 }

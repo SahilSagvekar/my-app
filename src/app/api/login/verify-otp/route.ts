@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     });
 
     return issueLoginSession(
-      { id: user.id, email: user.email, role: user.role, name: user.name },
+      { id: user.id, email: user.email, role: user.role, roles: user.roles, name: user.name },
       req
     );
   } catch (err) {

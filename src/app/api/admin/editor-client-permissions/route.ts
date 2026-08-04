@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     try {
         // Fetch all editors
         const editors = await (prisma as any).user.findMany({
-            where: { role: 'editor' },
+            where: { OR: [{ role: 'editor' }, { roles: { has: 'editor' } }] },
             select: {
                 id: true,
                 name: true,
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
         // Verify editor exists with role=editor
         const editor = await prisma.user.findFirst({
-            where: { id: Number(editorId), role: 'editor' },
+            where: { id: Number(editorId), OR: [{ role: 'editor' }, { roles: { has: 'editor' } }] },
         });
         if (!editor) {
             return NextResponse.json({ error: 'Editor not found' }, { status: 404 });

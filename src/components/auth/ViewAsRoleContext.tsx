@@ -2,13 +2,13 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-// 🔥 Define which roles/emails have the ability to switch views
-// This allows developers or admins to preview the portal as other roles
+// 🔥 Preview-only switching: lets specific people look at another role's
+// dashboard UI without it being a real, backend-authorized capability.
+// Kept as-is for backward compatibility — don't add new people here.
 const ROLE_SWITCH_MAP: Record<string, string[]> = {
     // Specific Users - ALWAYS allowed to switch to these
     "eric@e8productions.com": ["qc", "sales", "sales_manager", "scheduler"],
     "sahilsagvekar230@gmail.com": ["qc", "sales", "sales_manager", "scheduler"],
-    "digitalworkplacedaena@gmail.com": ["qc"],
 };
 
 const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler"];
@@ -28,28 +28,35 @@ interface ViewAsRoleProviderProps {
     children: React.ReactNode;
     userEmail: string | null | undefined;
     userRole: string | null;
+    // Real, backend-authorized roles this account can act as (e.g. an
+    // editor who's also scheduler + qc). Switching into one of these is
+    // a genuine capability change, not just a UI preview.
+    userRoles?: string[];
 }
 
-export function ViewAsRoleProvider({ children, userEmail, userRole }: ViewAsRoleProviderProps) {
+export function ViewAsRoleProvider({ children, userEmail, userRole, userRoles }: ViewAsRoleProviderProps) {
     const [viewingAsRole, setViewingAsRole] = useState<string | null>(userRole);
     const [isViewingAsOther, setIsViewingAsOther] = useState(false);
 
-    // Check if this user can switch roles (strictly check email OR if they are an admin)
+    // Check if this user can switch roles (real roles[] OR the legacy preview map OR admin default)
     const switchableRoles = React.useMemo(() => {
         const emailKey = userEmail?.toLowerCase() || "";
         const roleKey = userRole?.toLowerCase() || "";
 
-        // 1. Check if email matches specific high-privilege list
-        let permittedRoles = ROLE_SWITCH_MAP[emailKey] || [];
+        // 1. Real, authorized additional roles (e.g. Daena: editor + scheduler + qc)
+        let permittedRoles = Array.isArray(userRoles) ? userRoles.map(r => r.toLowerCase()) : [];
 
-        // 2. If user is an admin, they can always switch to the default set
+        // 2. Legacy preview-only map, for accounts grandfathered in
+        permittedRoles = Array.from(new Set([...permittedRoles, ...(ROLE_SWITCH_MAP[emailKey] || [])]));
+
+        // 3. If user is an admin, they can always switch to the default preview set
         if (roleKey === "admin") {
             permittedRoles = Array.from(new Set([...permittedRoles, ...DEFAULT_ADMIN_SWITCH_ROLES]));
         }
 
         // Remove the user's current original role from the list if present
         return permittedRoles.filter(role => role !== roleKey);
-    }, [userEmail, userRole]);
+    }, [userEmail, userRole, userRoles]);
 
     const canSwitchRole = switchableRoles.length > 0;
 

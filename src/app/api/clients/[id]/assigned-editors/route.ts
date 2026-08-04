@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const editors = await prisma.user.findMany({
       where: {
-        role: 'editor',
+        OR: [{ role: 'editor' }, { roles: { has: 'editor' } }],
         assignedTasks: {
           some: {
             clientId,

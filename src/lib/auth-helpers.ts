@@ -7,7 +7,17 @@ export interface JWTUser {
   id: number;
   email: string;
   role: string;
+  roles?: string[];
   name?: string;
+}
+
+// True if the user's primary role OR their additional roles[] match.
+// Use this instead of `user.role === 'x'` anywhere a multi-role account
+// (e.g. someone who's editor + scheduler + qc) needs to pass a role gate.
+export function hasRole(user: JWTUser | null, role: string): boolean {
+  if (!user) return false;
+  if (user.role === role) return true;
+  return Array.isArray(user.roles) && user.roles.includes(role);
 }
 
 export function getUserFromToken(req: NextRequest): JWTUser | null {

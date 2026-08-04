@@ -90,7 +90,7 @@ function AuthenticatedApp() {
   }
 
   return (
-    <ViewAsRoleProvider userEmail={user.email} userRole={user.role}>
+    <ViewAsRoleProvider userEmail={user.email} userRole={user.role} userRoles={user.roles}>
       <AuthenticatedAppInner />
     </ViewAsRoleProvider>
   );

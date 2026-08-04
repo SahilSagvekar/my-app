@@ -17,6 +17,7 @@ type AuthMeUser = {
   email: string;
   name: string | null;
   role: string;
+  roles: string[];
   image: string | null;
   linkedClientId: string | null;
   employeeStatus: string | null;
@@ -75,6 +76,7 @@ export async function GET(req: Request) {
             email: true,
             name: true,
             role: true,
+            roles: true,
             image: true,
             linkedClientId: true,
             employeeStatus: true,
@@ -91,6 +93,7 @@ export async function GET(req: Request) {
             email: user.email,
             name: user.name,
             role: user.role,
+            roles: user.roles,
             image: user.image,
             employeeStatus: user.employeeStatus,
             linkedClientId: clientLink.linkedClientId,
@@ -113,6 +116,7 @@ export async function GET(req: Request) {
           email: true,
           name: true,
           role: true,
+          roles: true,
           image: true,
           linkedClientId: true,
           employeeStatus: true,
@@ -129,6 +133,7 @@ export async function GET(req: Request) {
           email: user.email,
           name: user.name,
           role: user.role,
+          roles: user.roles,
           image: user.image,
           employeeStatus: user.employeeStatus,
           linkedClientId: clientLink.linkedClientId,

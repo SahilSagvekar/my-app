@@ -10,8 +10,10 @@ export async function GET(req: NextRequest) {
     try {
         const user = await getCurrentUser2(req);
 
-        // Ensure user exists and has the editor role (checks DB state)
-        if (!user || user.role !== 'editor') {
+        // Ensure user exists and has the editor role (checks DB state) — either as
+        // their primary role or as one of their additional roles[] for multi-role accounts
+        const isEditor = user && (user.role === 'editor' || (user as any).roles?.includes('editor'));
+        if (!isEditor) {
             return NextResponse.json({ clients: [] });
         }
 
@@ -33,4 +35,3 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ clients: [] });
     }
 }
-
