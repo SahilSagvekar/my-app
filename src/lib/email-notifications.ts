@@ -1,4 +1,3 @@
-
 import nodemailer from 'nodemailer';
 import { prisma } from './prisma';
 
@@ -120,7 +119,11 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
     try {
         const task = await prisma.task.findUnique({
             where: { id: taskId },
-            include: { client: true }
+            include: {
+                client: true,
+                monthlyDeliverable: { select: { type: true } },
+                oneOffDeliverable: { select: { type: true } },
+            }
         });
 
         console.log(`Task ID: ${taskId}`);
@@ -138,23 +141,118 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
 
         console.log(`[clientEmails]`, clientEmails);
 
-        const dashboardUrl = "https://e8productions.com";
+        const BASE_URL = process.env.BASE_URL || process.env.NEXTAUTH_URL || 'https://e8productions.com';
+        const dashboardUrl = BASE_URL;
+
+        // TODO: point at your actually-hosted E8 logo (small, square works best in the header)
+        const LOGO_URL = `${BASE_URL}/assets/about/E8FIRELOGO.jpg`;
+
+        const taskName = task.title || 'Untitled Task';
+        const deliverableLabel = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || 'deliverable';
+
+        // Client only has a single `name` field — split it for the greeting.
+        // One email goes to the whole client contact list, so this greeting
+        // is shared rather than personalized per-recipient.
+        const nameParts = (task.client.name || '').trim().split(/\s+/);
+        const recipientFirstName = nameParts[0] || 'there';
+        const recipientLastName = nameParts.slice(1).join(' ');
+
+        const footnote = ''; // optional extra note — leave blank to omit the paragraph
 
         const mailOptions = {
             from: `"E8 Productions" <i@needediting.com>`,
             to: clientEmails.join(', '),
-            subject: `Ready for Review: ${task.title || 'Untitled Task'}`,
+            subject: `Your ${deliverableLabel} is ready for review`,
             html: `
-        <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
-          <h2 style="color: #0070f3;">Task Ready for Review</h2>
-          <p>Hi ${task.client.name},</p>
-          <p>Your task <strong>${task.title || 'Untitled Task'}</strong> is now ready for your review!</p>
-          <p>Please log in to your dashboard to review the files and provide feedback.</p>
-          <p><a href="${dashboardUrl}" style="color: #0070f3; text-decoration: none;">Go to Dashboard</a></p>
-          <br />
-          <p>Best regards,</p>
-          <p><strong>E8 Productions Team</strong></p>
-        </div>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>Ready for review</title>
+        </head>
+        <body style="margin: 0; padding: 0; background: #f3f4f6; font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6; padding: 40px 0;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+
+                  <!-- Header -->
+                  <tr>
+                    <td style="padding: 32px 40px 24px;">
+                      <table cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="padding-right: 10px;">
+                            <img src="${LOGO_URL}" width="28" height="28" alt="" style="display:block; border-radius: 4px;" />
+                          </td>
+                          <td>
+                            <span style="font-size: 20px; font-weight: 700; color: #111827;">E8 App</span>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr><td style="border-top: 1px solid #e5e7eb;"></td></tr>
+
+                  <!-- Body -->
+                  <tr>
+                    <td style="padding: 32px 40px 8px;">
+                      <h1 style="margin: 0; font-size: 26px; line-height: 1.3; font-weight: 700; color: #111827;">
+                        Your ${deliverableLabel} is ready for review
+                      </h1>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 20px 40px 0; font-size: 15px; line-height: 1.6; color: #1a1a1a;">
+                      Hi ${recipientFirstName}${recipientLastName ? ' ' + recipientLastName : ''},
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px 40px 0; font-size: 15px; line-height: 1.6; color: #1a1a1a;">
+                      <strong>${taskName}</strong> passed QC. The following are up for your review:
+                    </td>
+                  </tr>
+
+                  ${footnote ? `
+                  <tr>
+                    <td style="padding: 20px 40px 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
+                      ${footnote}
+                    </td>
+                  </tr>` : ''}
+
+                  <!-- Button -->
+                  <tr>
+                    <td style="padding: 28px 40px 8px;">
+                      <a href="${dashboardUrl}"
+                         style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none;
+                                font-size: 14px; font-weight: 600; padding: 12px 24px; border-radius: 6px;">
+                        Review Deliverable
+                      </a>
+                    </td>
+                  </tr>
+
+                  <!-- Automated notice -->
+                  <tr>
+                    <td style="padding: 28px 40px 32px; font-size: 13px; line-height: 1.6; color: #6b7280;">
+                      This is an automated notification from the E8 App. Replies to this address aren't always monitored.
+                    </td>
+                  </tr>
+
+                  <tr><td style="border-top: 1px solid #e5e7eb;"></td></tr>
+
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 20px 40px 28px; font-size: 12px; color: #9ca3af;">
+                      E8 Productions, LLC &middot; e8productions.com
+                    </td>
+                  </tr>
+
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
       `,
         };
 
