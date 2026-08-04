@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDebounce } from '@/hooks/useDebounce';
 import { toast } from 'sonner';
 import { SchedulerTask, ClientDeliverable, PlatformKey } from './types';
@@ -36,6 +36,25 @@ export function useScheduler() {
     const [linkUrl, setLinkUrl] = useState('');
     const [linkPostedAt, setLinkPostedAt] = useState('');
     const [submittingLink, setSubmittingLink] = useState(false);
+
+    // Desktop app download progress — window.e8 only exists inside the
+    // Electron shell (see apps/desktop/src/preload.js).
+    const downloadFileNamesRef = useRef<Record<string, string>>({});
+
+    useEffect(() => {
+        const desktop = (window as any).e8;
+        if (!desktop?.isDesktopApp) return;
+
+        desktop.onDownloadProgress(({ fileId, percent }: { fileId: string; percent: number }) => {
+            const fileName = downloadFileNamesRef.current[fileId] || 'file';
+
+            if (percent >= 100) {
+                toast.success(`${fileName} downloaded`, { id: `download-${fileId}` });
+            } else {
+                toast.loading(`Downloading ${fileName}... ${percent}%`, { id: `download-${fileId}` });
+            }
+        });
+    }, []);
 
     const debouncedSearch = useDebounce(searchTerm, 500);
 
@@ -285,7 +304,25 @@ export function useScheduler() {
         }
     };
 
-    const downloadFile = (file: any) => {
+    const downloadFile = async (file: any) => {
+        const desktop = (window as any).e8;
+
+        if (desktop?.isDesktopApp && file.id) {
+            downloadFileNamesRef.current[file.id] = file.name || 'file';
+            toast.loading(`Downloading ${file.name || 'file'}... 0%`, { id: `download-${file.id}` });
+
+            const result = await desktop.downloadFile(file.id, file.name);
+
+            if (!result.success) {
+                toast.error(`Failed to download ${file.name}: ${result.message || 'unknown error'}`, {
+                    id: `download-${file.id}`,
+                });
+            } else if (result.alreadyDownloaded) {
+                toast.success(`${file.name} already downloaded`, { id: `download-${file.id}` });
+            }
+            return;
+        }
+
         if (file.id) window.open(`/api/files/${file.id}/download`, '_blank');
         else if (file.url) window.open(file.url, '_blank');
     };

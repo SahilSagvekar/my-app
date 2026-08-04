@@ -1,5 +1,24 @@
 export type PlatformKey = 'instagram' | 'youtube' | 'tiktok' | 'facebook' | 'linkedin' | 'twitter' | 'snapchat' | 'other';
 
+export interface TaskFeedbackItem {
+    id: string;
+    fileId?: string;
+    folderType: string;
+    feedback: string;
+    status: string;
+    timestamp?: string;
+    category?: string;
+    createdAt: string;
+    resolvedAt?: string;
+    acknowledgedAt?: string;
+    acknowledgedBy?: number;
+    fileVersion?: number;
+    fileName?: string;
+    authorId?: number;
+    authorName?: string;
+    authorRole?: string;
+}
+
 export interface SchedulerTask {
     id: string;
     title: string;
@@ -56,6 +75,7 @@ export interface SchedulerTask {
     isTrial?: boolean;
     deliverableType?: string | null;
     tags?: { id: string; name: string }[];
+    taskFeedback?: TaskFeedbackItem[];
 }
 
 export interface ClientDeliverable {

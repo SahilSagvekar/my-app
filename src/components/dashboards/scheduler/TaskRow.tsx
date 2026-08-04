@@ -24,6 +24,8 @@ import {
     ChevronDown as CD,
     Info,
     AlertTriangle,
+    MessageSquare,
+    User as UserIcon,
 } from 'lucide-react';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
@@ -99,6 +101,7 @@ export function TaskRow({
 
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [dateInput, setDateInput] = useState('');
+    const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | 'all'>('all');
 
     const currentPostingDate = task.postingDate
         ? new Date(task.postingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -157,6 +160,13 @@ export function TaskRow({
                             onChange={onTagsChange}
                         />
                     </div>
+                </td>
+
+                {/* Editor */}
+                <td className="px-3 py-3">
+                    <span className="text-sm truncate block max-w-[140px]" title={task.editor?.name || ''}>
+                        {task.editor?.name || <span className="text-muted-foreground">—</span>}
+                    </span>
                 </td>
 
                 {/* Posted Date */}
@@ -381,7 +391,7 @@ export function TaskRow({
             {/* Expanded Row */}
             {isExpanded && (
                 <tr className="bg-gray-50">
-                    <td colSpan={15} className="px-6 py-4">
+                    <td colSpan={16} className="px-6 py-4">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                             {/* Files Section */}
@@ -584,6 +594,86 @@ export function TaskRow({
                                 )}
                             </div>{/* end space-y-4 posting content */}
                         </div>
+
+                        {/* Revision Comments — version-tracked, shows who left each comment */}
+                        {task.taskFeedback && task.taskFeedback.length > 0 && (() => {
+                            const allVersions = [...new Set(task.taskFeedback!.map(fb => fb.fileVersion || 1))].sort((a, b) => b - a);
+                            const visibleComments = feedbackVersionFilter === 'all'
+                                ? task.taskFeedback!
+                                : task.taskFeedback!.filter(fb => (fb.fileVersion || 1) === feedbackVersionFilter);
+
+                            return (
+                                <div className="mt-4 pt-4 border-t">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h4 className="font-semibold flex items-center gap-2 text-sm text-gray-700">
+                                            <MessageSquare className="h-4 w-4" />
+                                            Revision Comments ({visibleComments.length})
+                                        </h4>
+                                        {allVersions.length > 1 && (
+                                            <select
+                                                className="text-xs border rounded px-2 py-1 bg-white text-gray-700"
+                                                value={feedbackVersionFilter}
+                                                onChange={e => setFeedbackVersionFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <option value="all">All versions</option>
+                                                {allVersions.map(v => (
+                                                    <option key={v} value={v}>V{v}{v === allVersions[0] ? ' (current)' : ''}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
+
+                                    {visibleComments.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground">No comments on this version.</p>
+                                    ) : (
+                                        <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                                            {visibleComments.map((fb) => (
+                                                <div key={fb.id} className="p-3 bg-white border rounded-lg">
+                                                    <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                                                                V{fb.fileVersion || 1}
+                                                            </Badge>
+                                                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 capitalize">
+                                                                {fb.folderType}
+                                                            </Badge>
+                                                            {fb.category && (
+                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 capitalize">
+                                                                    {fb.category}
+                                                                </Badge>
+                                                            )}
+                                                            {fb.timestamp && (
+                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-blue-50">
+                                                                    <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                                                    {fb.timestamp}
+                                                                </Badge>
+                                                            )}
+                                                            {fb.status === 'resolved' && (
+                                                                <Badge className="text-[10px] px-1.5 py-0 h-5 bg-green-100 text-green-700">
+                                                                    Resolved
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[11px] text-muted-foreground shrink-0">
+                                                            {fb.createdAt ? new Date(fb.createdAt).toLocaleDateString() : ''}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap break-words mb-1.5">
+                                                        {fb.feedback}
+                                                    </p>
+                                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <UserIcon className="h-3 w-3" />
+                                                        <span className="font-medium">{fb.authorName}</span>
+                                                        {fb.authorRole && <span className="capitalize">· {fb.authorRole}</span>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Deliverable Info */}
                         {task.clientId && task.deliverable && (

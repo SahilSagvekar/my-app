@@ -138,6 +138,35 @@ export async function GET(req: Request) {
           monthlyDeliverable: true,
           oneOffDeliverable: true,
           tags: true,
+          taskFeedback: {
+            select: {
+              id: true,
+              fileId: true,
+              folderType: true,
+              feedback: true,
+              status: true,
+              timestamp: true,
+              category: true,
+              createdAt: true,
+              resolvedAt: true,
+              acknowledgedAt: true,
+              acknowledgedBy: true,
+              file: {
+                select: {
+                  version: true,
+                  name: true,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  role: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' as const },
+          },
           ...(includeTitling && {
             titlingJob: {
               select: {
@@ -198,7 +227,7 @@ export async function GET(req: Request) {
           postingTags: (t as any).postingTags || [],
           description: t.description,
           status: t.status,
-          editor: t.user ? { name: t.user.name } : null,
+          editor: t.user ? { id: t.user.id, name: t.user.name } : null,
           dueDate: t.dueDate,
           clientId: t.clientId,
           driveLinks: t.driveLinks || [],
@@ -224,6 +253,24 @@ export async function GET(req: Request) {
           priority: t.priority,
           client: t.client,
           files: filesWithUrls,
+          taskFeedback: ((t as any).taskFeedback || []).map((fb: any) => ({
+            id: fb.id,
+            fileId: fb.fileId,
+            folderType: fb.folderType,
+            feedback: fb.feedback,
+            status: fb.status,
+            timestamp: fb.timestamp,
+            category: fb.category,
+            createdAt: fb.createdAt,
+            resolvedAt: fb.resolvedAt,
+            acknowledgedAt: fb.acknowledgedAt,
+            acknowledgedBy: fb.acknowledgedBy,
+            fileVersion: fb.file?.version || 1,
+            fileName: fb.file?.name || null,
+            authorId: fb.user?.id,
+            authorName: fb.user?.name || 'Unknown',
+            authorRole: fb.user?.role || null,
+          })),
           titlingJob: (t as any).titlingJob || null,
           deliverable: rawDeliverable ? {
             id: rawDeliverable.id,
