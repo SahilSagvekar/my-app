@@ -419,7 +419,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-yellow-400 hover:text-yellow-400 hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-yellow-500 hover:text-yellow-500 bg-white hover:bg-white h-8 w-8 p-0">
                                         <Info className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>
@@ -433,7 +433,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         variant="ghost"
                                         size="sm"
                                         onClick={p.onSwitchToMobile}
-                                        className="text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
+                                        className="text-black hover:text-black bg-white hover:bg-white h-8 w-8 p-0"
                                     >
                                         <Smartphone className="h-4 w-4" />
                                     </Button>
