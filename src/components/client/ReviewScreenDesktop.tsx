@@ -419,7 +419,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-yellow-500 hover:text-yellow-500 bg-white hover:bg-white h-8 w-8 p-0">
+                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-white hover:text-white bg-yellow-500 hover:bg-yellow-600 h-8 w-8 p-0">
                                         <Info className="h-4 w-4" />
                                     </Button>
                                 </TooltipTrigger>

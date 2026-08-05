@@ -341,19 +341,6 @@ export function ThumbnailReviewModal({
 
                                 {/* Right: icon-only actions */}
                                 <div className="flex items-center gap-1">
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost" size="sm"
-                                                onClick={() => setViewMode(v => v === 'gallery' ? 'single' : 'gallery')}
-                                                className={`text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0 ${viewMode === 'single' ? 'bg-[var(--review-bg-tertiary)]' : ''}`}
-                                            >
-                                                <LayoutGrid className="h-4 w-4" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">{viewMode === 'gallery' ? 'Single view' : 'Gallery view'}</TooltipContent>
-                                    </Tooltip>
-
                                     {onSwitchToVideo && (
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -369,6 +356,19 @@ export function ThumbnailReviewModal({
                                             <TooltipContent side="bottom">Switch to Video Review</TooltipContent>
                                         </Tooltip>
                                     )}
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost" size="sm"
+                                                onClick={() => setViewMode(v => v === 'gallery' ? 'single' : 'gallery')}
+                                                className={`text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0 ${viewMode === 'single' ? 'bg-[var(--review-bg-tertiary)]' : ''}`}
+                                            >
+                                                <LayoutGrid className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">{viewMode === 'gallery' ? 'Single view' : 'Gallery view'}</TooltipContent>
+                                    </Tooltip>
 
                                     <Tooltip>
                                         <TooltipTrigger asChild>

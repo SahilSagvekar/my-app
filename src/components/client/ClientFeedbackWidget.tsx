@@ -218,7 +218,7 @@ export function ClientFeedbackWidget() {
       >
         <Camera className="h-5 w-5 shrink-0" />
         <span className="hidden sm:inline text-sm font-semibold whitespace-nowrap">
-          Report a Problem
+          Report Problem
         </span>
       </button>
 

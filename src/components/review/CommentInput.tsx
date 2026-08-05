@@ -313,7 +313,7 @@ export function CommentInput({
                 <div className="flex items-center gap-2">
                     {/* Timestamp display with optional range */}
                     <div className="flex items-center gap-1">
-                        <span className="review-comment-timestamp flex items-center gap-1">
+                        <span className="review-comment-timestamp flex items-center gap-1" style={{ color: '#ffffff' }}>
                             {useEndTimestamp && rangeStartSeconds !== null ? formatSecondsToTimestamp(rangeStartSeconds) : currentTimestamp}
                         </span>
                         {useEndTimestamp && (
@@ -382,7 +382,7 @@ export function CommentInput({
                                 title="Add end time for a range (e.g., 1:00 - 1:28)"
                             >
                                 <Clock className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Range</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-white">Range</span>
                             </Button>
                         )}
                     </div>
@@ -396,7 +396,7 @@ export function CommentInput({
                                 title="Capture full frame"
                             >
                                 <Camera className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Full</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-white">Full</span>
                             </Button>
                             <Button
                                 variant="ghost"
@@ -406,7 +406,7 @@ export function CommentInput({
                                 title="Select area to snip"
                             >
                                 <Crop className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Snip</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-white">Snip</span>
                             </Button>
                         </div>
                     )}
@@ -450,7 +450,7 @@ export function CommentInput({
                 onChange={(e) => setContent(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Add your feedback..."
-                className="min-h-[80px] bg-transparent border-none resize-none text-white placeholder:text-[var(--review-text-muted)] focus-visible:ring-0 p-0"
+                className="min-h-[80px] bg-transparent border-none resize-none text-white placeholder:text-white focus-visible:ring-0 p-0"
             />
 
             {/* Category Selector — multi-select, all checked by default */}
@@ -481,7 +481,7 @@ export function CommentInput({
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-2 border-t border-[var(--review-border)]">
-                <span className="text-xs text-[var(--review-text-muted)]">
+                <span className="text-xs text-white">
                     ⌘/Ctrl + Enter to submit
                 </span>
                 <div className="flex items-center gap-2">
@@ -489,7 +489,7 @@ export function CommentInput({
                         variant="ghost"
                         size="sm"
                         onClick={onCancel}
-                        className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-elevated)]"
+                        className="text-white hover:text-white hover:bg-[var(--review-bg-elevated)]"
                     >
                         Cancel
                     </Button>
