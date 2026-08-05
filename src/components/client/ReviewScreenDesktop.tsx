@@ -1,6 +1,6 @@
 'use client';
 
-import { RefObject, useMemo, useState } from 'react';
+import { RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { YoutubePlayer } from '../review/YoutubePlayer';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
 import { Button } from '../ui/button';
@@ -212,6 +212,19 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setTagsText(nextItems.map(t => t.text).join(', '));
     };
 
+    // auto-select every client tag by default the first time they load,
+    // so the panel doesn't open with all chips unselected
+    const hasSeededTags = useRef(false);
+    useEffect(() => {
+        if (hasSeededTags.current) return;
+        if (!p.templateHashtags || p.templateHashtags.length === 0) return;
+        if (p.postingTags.length > 0) { hasSeededTags.current = true; return; }
+        const seeded = p.templateHashtags.map(tag => ({ id: `${Date.now()}-${Math.random()}`, text: tag }));
+        p.onPostingTagsChange(seeded);
+        setTagsText(seeded.map(t => t.text).join(', '));
+        hasSeededTags.current = true;
+    }, [p.templateHashtags, p.postingTags, p.onPostingTagsChange]);
+
     // clear new-item inputs and editing state when tab changes
     const handleTabChange = (tab: SidebarTab) => {
         setSidebarTab(tab);
@@ -350,8 +363,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     </SelectContent>
                                 </Select>
                             ) : (
-                                <Badge className="bg-[var(--review-bg-tertiary)] text-white text-xs px-2 py-1">
-                                    v{p.asset.versions[0]?.number || '1'}
+                                <Badge className="bg-[var(--review-bg-tertiary)] text-white text-xs h-8 w-8 p-0 flex items-center justify-center">
+                                    V{p.asset.versions[0]?.number || '1'}
                                 </Badge>
                             )}
 

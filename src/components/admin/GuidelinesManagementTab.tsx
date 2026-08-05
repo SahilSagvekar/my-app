@@ -228,7 +228,7 @@ export function GuidelinesManagementTab() {
                                     Add Guideline
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+                            <DialogContent className="sm:max-w-[750px] max-h-[85vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle>{editingGuideline ? "Edit Guideline" : "Add New Guideline"}</DialogTitle>
                                     <DialogDescription>
@@ -303,7 +303,7 @@ export function GuidelinesManagementTab() {
                                         <Textarea
                                             placeholder="Enter the detailed guideline content..."
                                             rows={6}
-                                            className="max-h-[300px] overflow-y-auto"
+                                            className="max-h-[300px] overflow-y-auto [field-sizing:fixed]"
                                             value={formData.content}
                                             onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                                         />
