@@ -145,7 +145,9 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
         const dashboardUrl = BASE_URL;
 
         // TODO: point at your actually-hosted E8 logo (small, square works best in the header)
-        const LOGO_URL = `${BASE_URL}/assets/logo/e8-logo-black.png`;
+        // const LOGO_URL = `${BASE_URL}/assets/logo/e8-logo-black.png`;
+                const LOGO_URL = `${BASE_URL}/assets/e8-logo-black.png`;
+
 
         const taskName = task.title || 'Untitled Task';
         const deliverableLabel = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || 'deliverable';
@@ -157,7 +159,7 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
         const recipientFirstName = nameParts[0] || 'there';
         const recipientLastName = nameParts.slice(1).join(' ');
 
-        const footnote = ''; // optional extra note — leave blank to omit the paragraph
+        const footnote = 'This deliverable goes to our Scheduler for posting once approved.'; // optional extra note — leave blank to omit the paragraph
 
         const mailOptions = {
             from: `"E8 Productions" <i@needediting.com>`,
@@ -209,7 +211,7 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
                   </tr>
                   <tr>
                     <td style="padding: 12px 40px 0; font-size: 15px; line-height: 1.6; color: #1a1a1a;">
-                      <strong>${taskName}</strong> passed QC. The following are up for your review:
+                      <strong>${taskName}</strong> passed our Quality Control. The following deliverable(s) are up for review.
                     </td>
                   </tr>
 
