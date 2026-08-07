@@ -60,23 +60,17 @@ export async function DELETE(
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    // Check permission: admin and manager only (editors cannot delete)
-    const canDelete =
-      user.role === "admin" ||
-      user.role === "manager";
+    // Check permission: admin only (managers and editors cannot delete)
+    const canDelete = user.role === "admin";
 
     if (!canDelete) {
       return NextResponse.json({ error: "Not authorized to delete this file" }, { status: 403 });
     }
 
-    // Don't allow delete if task already in QC or beyond
-    const lockedStatuses = ["QC_IN_PROGRESS", "COMPLETED", "POSTED", "SCHEDULED"];
-    if (lockedStatuses.includes(file.task.status || "")) {
-      return NextResponse.json(
-        { error: "Cannot delete files from tasks in QC or completed" },
-        { status: 400 }
-      );
-    }
+    // Admins can delete regardless of task status (QC/Completed/Posted/Scheduled
+    // included) — the lockedStatuses check that used to block this for
+    // admin+manager only applied to non-admin deletion; now that this route is
+    // admin-only, there's no separate non-admin path left for it to guard.
 
     // Delete from R2 if s3Key exists
     if (file.s3Key) {

@@ -14,11 +14,13 @@ export function useScheduler() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [clientFilter, setClientFilter] = useState('all');
     const [deliverableFilter, setDeliverableFilter] = useState('all');
+    const [editorFilter, setEditorFilter] = useState('all');
     const [tagFilter, setTagFilter] = useState('all');
     const [availableTags, setAvailableTags] = useState<string[]>([]);
     const [sponsoredOnly, setSponsoredOnly] = useState(false);
     const [allClients, setAllClients] = useState<any[]>([]);
     const [uniqueDeliverables, setUniqueDeliverables] = useState<string[]>([]);
+    const [allEditors, setAllEditors] = useState<any[]>([]);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(false);
@@ -64,6 +66,7 @@ export function useScheduler() {
             const data = await res.json();
             if (data.clients) setAllClients(data.clients);
             if (data.deliverableTypes) setUniqueDeliverables(data.deliverableTypes);
+            if (data.editors) setAllEditors(data.editors);
         } catch (error) {
             console.error("Error loading metadata:", error);
         }
@@ -88,6 +91,7 @@ export function useScheduler() {
                 clientId: clientFilter,
                 deliverableType: deliverableFilter,
                 tag: tagFilter,
+                editorId: editorFilter,
             });
 
             const res = await fetch(`/api/schedular/tasks?${params}`, { cache: 'no-store' });
@@ -111,7 +115,7 @@ export function useScheduler() {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearch, dateRange, statusFilter, clientFilter, deliverableFilter, tagFilter]);
+    }, [debouncedSearch, dateRange, statusFilter, clientFilter, deliverableFilter, tagFilter, editorFilter]);
 
     useEffect(() => { fetchMetadata(); }, [fetchMetadata]);
     useEffect(() => { fetchTags(); }, [fetchTags]);
@@ -216,6 +220,15 @@ export function useScheduler() {
         const url = linkUrl;
         const postedAt = linkPostedAt;
 
+        // Snapshot the task's current links/deliverable BEFORE the update.
+        // (Previously this data was read from a variable assigned *inside*
+        // the setTasks() updater below and checked immediately after — but
+        // React doesn't run that updater synchronously, so the variable was
+        // always still undefined at that point and the auto-schedule check
+        // silently never passed. Reading from this snapshot + the link we're
+        // about to save avoids depending on that timing entirely.)
+        const currentTask = tasks.find(t => t.id === taskId);
+
         setSubmittingLink(true);
         try {
             const method = mode === 'edit' ? 'PATCH' : 'POST';
@@ -228,13 +241,11 @@ export function useScheduler() {
 
             if (res.ok) {
                 const newLink = { platform, url, postedAt: postedAt || new Date().toISOString() };
-                let updatedTask: typeof tasks[0] | undefined;
                 setTasks(prev => prev.map(t => {
                     if (t.id !== taskId) return t;
                     const existing = t.socialMediaLinks || [];
-                    let updated: typeof t;
                     if (mode === 'edit') {
-                        updated = {
+                        return {
                             ...t,
                             socialMediaLinks: existing.map(l =>
                                 l.platform.toLowerCase() === platform.toLowerCase()
@@ -242,24 +253,24 @@ export function useScheduler() {
                                     : l
                             ),
                         };
-                    } else {
-                        const withoutDupe = existing.filter(l => l.platform.toLowerCase() !== platform.toLowerCase());
-                        updated = { ...t, socialMediaLinks: [...withoutDupe, newLink] };
                     }
-                    updatedTask = updated;
-                    return updated;
+                    const withoutDupe = existing.filter(l => l.platform.toLowerCase() !== platform.toLowerCase());
+                    return { ...t, socialMediaLinks: [...withoutDupe, newLink] };
                 }));
                 toast.success('Link saved');
                 setLinkDialog(null);
                 setLinkUrl('');
                 setLinkPostedAt('');
 
-                // Auto-mark as scheduled when all required platform links are present
-                // Use updatedTask captured inside setTasks — tasks[] is stale here
-                if (mode !== 'edit' && updatedTask && updatedTask.status !== 'SCHEDULED') {
-                    const requiredPlatforms = updatedTask.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
+                // Auto-mark as scheduled when all required platform links are present.
+                // Computed from currentTask (snapshotted above) + the link we just
+                // saved — data we already had, rather than a value that depended on
+                // the setTasks() updater having already run.
+                if (mode !== 'edit' && currentTask && currentTask.status !== 'SCHEDULED') {
+                    const requiredPlatforms = currentTask.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
                     if (requiredPlatforms.length > 0) {
-                        const allLinks = (updatedTask.socialMediaLinks || []).map(l => l.platform.toLowerCase());
+                        const existingLinks = (currentTask.socialMediaLinks || []).map(l => l.platform.toLowerCase());
+                        const allLinks = [...new Set([...existingLinks, platform.toLowerCase()])];
                         const allCovered = requiredPlatforms.every(p => allLinks.includes(p));
                         if (allCovered) {
                             // Pass allLinks to markAsScheduled to bypass stale state check
@@ -388,6 +399,7 @@ export function useScheduler() {
     });
 
     const uniqueClientsFormatted = allClients.map(c => [c.id, c.companyName || c.name] as [string, string]);
+    const uniqueEditorsFormatted = allEditors.map(e => [String(e.id), e.name] as [string, string]);
 
     return {
         tasks, loading, isInitialLoad, searchTerm, setSearchTerm,
@@ -397,9 +409,11 @@ export function useScheduler() {
         handleClientFilterChange: (v: string) => { setClientFilter(v); setCurrentPage(1); },
         deliverableFilter, setDeliverableFilter,
         handleDeliverableFilterChange: (v: string) => { setDeliverableFilter(v); setCurrentPage(1); },
+        editorFilter, setEditorFilter,
+        handleEditorFilterChange: (v: string) => { setEditorFilter(v); setCurrentPage(1); },
         tagFilter, setTagFilter: (v: string) => { setTagFilter(v); setCurrentPage(1); }, availableTags,
         sponsoredOnly, setSponsoredOnly,
-        uniqueClients: uniqueClientsFormatted, uniqueDeliverables,
+        uniqueClients: uniqueClientsFormatted, uniqueDeliverables, uniqueEditors: uniqueEditorsFormatted,
         hasMore, totalTasks, currentPage, expandedRows, selectedRows, setSelectedRows,
         isPreviewOpen, setIsPreviewOpen, previewFile, setPreviewFile, linkDialog, setLinkDialog,
         linkUrl, setLinkUrl, linkPostedAt, setLinkPostedAt, submittingLink,

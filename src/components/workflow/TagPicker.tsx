@@ -18,9 +18,12 @@ interface TagPickerProps {
   taskId: string;
   tags: string[];
   onChange: (tags: string[]) => void;
+  // Only admins can remove a tag from a task (adding stays open to everyone).
+  // Defaults to false so any caller that forgets to pass it fails safe.
+  canRemove?: boolean;
 }
 
-export function TagPicker({ taskId, tags, onChange }: TagPickerProps) {
+export function TagPicker({ taskId, tags, onChange, canRemove = false }: TagPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -36,14 +39,23 @@ export function TagPicker({ taskId, tags, onChange }: TagPickerProps) {
   }, []);
 
   const saveTags = async (next: string[]) => {
+    const previous = tags;
     onChange(next);
     setSaving(true);
     try {
-      await fetch(`/api/tasks/${taskId}/tags`, {
+      const res = await fetch(`/api/tasks/${taskId}/tags`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tagNames: next }),
       });
+      if (!res.ok) {
+        // Revert the optimistic update — e.g. a non-admin tag removal
+        // the backend rejected with 403 shouldn't leave the tag looking
+        // removed in the UI while it's still attached server-side.
+        onChange(previous);
+      }
+    } catch {
+      onChange(previous);
     } finally {
       setSaving(false);
     }
@@ -60,6 +72,7 @@ export function TagPicker({ taskId, tags, onChange }: TagPickerProps) {
   };
 
   const removeTag = (name: string) => {
+    if (!canRemove) return;
     saveTags(tags.filter((t) => t !== name));
   };
 
@@ -72,9 +85,11 @@ export function TagPicker({ taskId, tags, onChange }: TagPickerProps) {
       {tags.map((tag) => (
         <Badge key={tag} variant="secondary" className="gap-1 pr-1">
           {tag}
-          <button onClick={() => removeTag(tag)} className="hover:text-red-600" disabled={saving}>
-            <X className="h-3 w-3" />
-          </button>
+          {canRemove && (
+            <button onClick={() => removeTag(tag)} className="hover:text-red-600" disabled={saving}>
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </Badge>
       ))}
       <Popover open={open} onOpenChange={setOpen}>

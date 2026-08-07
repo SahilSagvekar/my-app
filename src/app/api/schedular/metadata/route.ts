@@ -34,9 +34,25 @@ export async function GET() {
       ...oneOffTypes.map(d => d.type),
     ])).filter(Boolean).sort();
 
+    // 3. Editors — anyone whose primary role or additional roles[] includes
+    // "editor", so multi-role accounts (e.g. Daena: editor + scheduler + qc)
+    // show up here too, not just single-role editors.
+    const editors = await prisma.user.findMany({
+      where: {
+        employeeStatus: 'ACTIVE',
+        OR: [
+          { role: 'editor' },
+          { roles: { has: 'editor' } },
+        ],
+      },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+
     return NextResponse.json({
       clients,
       deliverableTypes: uniqueTypes,
+      editors,
     });
   } catch (err: any) {
     console.error("GET /api/schedular/metadata error:", err);

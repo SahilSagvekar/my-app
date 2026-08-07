@@ -26,6 +26,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useViewAsRole } from '../auth/ViewAsRoleContext';
 
 const PAGE_SIZE = 15;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -128,6 +129,7 @@ const fetchCompletedTasks = async (params: {
   page: number;
   status: 'all' | TaskStatus;
   search: string;
+  viewingAsRole?: string | null;
 }) => {
   const searchParams = new URLSearchParams({
     page: String(params.page),
@@ -145,6 +147,11 @@ const fetchCompletedTasks = async (params: {
   const res = await fetch(`/api/tasks/qc-completed?${searchParams.toString()}`, {
     method: 'GET',
     credentials: 'include',
+    // 🔥 Same role-switch header QCDashboard sends — without this, a
+    // multi-role user (e.g. Daena: editor + scheduler + qc) previewing the
+    // QC Completed tab was always queried as their primary role, which the
+    // backend rejects with 403 since it isn't qc/admin/manager.
+    headers: params.viewingAsRole ? { 'x-viewing-as': params.viewingAsRole } : {},
   });
 
   if (!res.ok) {
@@ -155,6 +162,7 @@ const fetchCompletedTasks = async (params: {
 };
 
 export function QCCompletedPage() {
+  const { viewingAsRole } = useViewAsRole();
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [completedFilter, setCompletedFilter] = useState<'all' | TaskStatus>('all');
@@ -197,6 +205,7 @@ export function QCCompletedPage() {
           page: currentPage,
           status: completedFilter,
           search: debouncedSearchTerm,
+          viewingAsRole,
         });
 
         if (isCancelled) return;
@@ -285,6 +294,7 @@ export function QCCompletedPage() {
         page: currentPage,
         status: completedFilter,
         search: debouncedSearchTerm,
+        viewingAsRole,
       });
 
       const responseTotalPages = refreshedData.pagination?.totalPages || 1;
@@ -332,6 +342,7 @@ export function QCCompletedPage() {
         page: currentPage,
         status: completedFilter,
         search: debouncedSearchTerm,
+        viewingAsRole,
       });
 
       const responseTotalPages = refreshedData.pagination?.totalPages || 1;

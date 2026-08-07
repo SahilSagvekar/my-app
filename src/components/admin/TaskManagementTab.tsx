@@ -169,6 +169,13 @@ export function TaskManagementTab() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mirroringTaskId, setMirroringTaskId] = useState<string | null>(null);
   const [youtubeMirroringTaskId, setYoutubeMirroringTaskId] = useState<string | null>(null);
+  const [manageVideosTask, setManageVideosTask] = useState<Task | null>(null);
+  const [taskFiles, setTaskFiles] = useState<any[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+
+  const canManageVideos = user?.role?.toLowerCase() === 'admin';
+  const isAdmin = canManageVideos;
 
   const SUPER_ADMIN_EMAIL = "sahilsagvekar230@gmail.com";
   const canDeleteTasks = user?.email === SUPER_ADMIN_EMAIL;
@@ -381,6 +388,41 @@ export function TaskManagementTab() {
   async function handleRefresh() {
     await mutateTasks();
     toast({ title: 'Refreshed', description: 'Task list updated' });
+  }
+
+  // ── Manage Videos ──────────────────────
+  async function openManageVideos(task: Task) {
+    setManageVideosTask(task);
+    setLoadingFiles(true);
+    setTaskFiles([]);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/files`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load files');
+      setTaskFiles(data.files || []);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to load videos', variant: 'destructive' });
+    } finally {
+      setLoadingFiles(false);
+    }
+  }
+
+  async function handleDeleteVideo(fileId: string, fileName: string) {
+    if (!canManageVideos) return;
+    if (!confirm(`Delete "${fileName}"? This removes it from storage and cannot be undone.`)) return;
+    setDeletingFileId(fileId);
+    try {
+      const res = await fetch(`/api/files/${fileId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete file');
+      setTaskFiles(prev => prev.filter(f => f.id !== fileId));
+      toast({ title: 'Video deleted', description: `"${fileName}" removed.` });
+      mutateTasks();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to delete video', variant: 'destructive' });
+    } finally {
+      setDeletingFileId(null);
+    }
   }
 
   async function handleDriveMirror(taskId: string) {
@@ -665,6 +707,11 @@ export function TaskManagementTab() {
     <DropdownMenuContent align="end">
       <DropdownMenuItem onClick={() => openEditDialog(task)}><Edit className="h-4 w-4 mr-2" />Edit Task</DropdownMenuItem>
       <DropdownMenuSeparator />
+      {canManageVideos && (
+        <DropdownMenuItem onClick={() => openManageVideos(task)}>
+          <Trash2 className="h-4 w-4 mr-2" />Manage Videos
+        </DropdownMenuItem>
+      )}
       <DropdownMenuItem
         onClick={() => handleDriveMirror(task.id)}
         disabled={mirroringTaskId === task.id}
@@ -759,7 +806,7 @@ export function TaskManagementTab() {
             {editingTask && (
               <div className="grid gap-2">
                 <Label>Tags</Label>
-                <TagPicker taskId={editingTask.id} tags={editTags} onChange={setEditTags} />
+                <TagPicker taskId={editingTask.id} tags={editTags} onChange={setEditTags} canRemove={isAdmin} />
               </div>
             )}
           </div>
@@ -862,6 +909,51 @@ export function TaskManagementTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBulkDelete(false)} disabled={bulkDeleting}>Cancel</Button>
             <Button variant="destructive" onClick={handleBulkDelete} disabled={bulkDeleting}>{bulkDeleting ? `Deleting...` : `Delete ${selectedTasks.size} Tasks`}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Manage Videos Dialog — admin only, per instructions delete bypasses
+          the QC/Completed/Posted/Scheduled lock (see /api/files/[id]/route.ts) */}
+      <Dialog open={!!manageVideosTask} onOpenChange={o => !o && setManageVideosTask(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Trash2 className="h-5 w-5" />Manage Videos</DialogTitle>
+            <DialogDescription>
+              {manageVideosTask?.title || 'Untitled Task'} — {manageVideosTask?.client?.name || 'Unknown Client'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto space-y-2">
+            {loadingFiles && (
+              <p className="text-sm text-muted-foreground py-6 text-center">Loading videos...</p>
+            )}
+            {!loadingFiles && taskFiles.length === 0 && (
+              <p className="text-sm text-muted-foreground py-6 text-center">No files on this task.</p>
+            )}
+            {!loadingFiles && taskFiles.filter(f => f.isActive).map((file) => (
+              <div key={file.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {file.folderType || 'file'} · v{file.version}
+                    {typeof file.size === 'number' && file.size > 0
+                      ? ` · ${(file.size / (1024 * 1024)).toFixed(1)} MB`
+                      : ''}
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDeleteVideo(file.id, file.name)}
+                  disabled={deletingFileId === file.id}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {deletingFileId === file.id ? 'Deleting...' : 'Delete'}
+                </Button>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManageVideosTask(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

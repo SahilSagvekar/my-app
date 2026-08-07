@@ -61,6 +61,7 @@ interface TaskRowProps {
     onUpdatePostingDate: (date: string) => void;
     onTagsChange: (tags: string[]) => void;
     getFileUrl: (file: any) => string;
+    canRemoveTags?: boolean;
 }
 
 export function TaskRow({
@@ -82,6 +83,7 @@ export function TaskRow({
     onUpdatePostingDate,
     onTagsChange,
     getFileUrl,
+    canRemoveTags = false,
 }: TaskRowProps) {
     const videoFiles = task.files.filter(f => f.mimeType?.startsWith('video/'));
     const imageFiles = task.files.filter(f => f.mimeType?.startsWith('image/'));
@@ -158,6 +160,7 @@ export function TaskRow({
                             taskId={task.id}
                             tags={(task.tags || []).map(t => t.name)}
                             onChange={onTagsChange}
+                            canRemove={canRemoveTags}
                         />
                     </div>
                 </td>

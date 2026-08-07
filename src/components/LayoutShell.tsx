@@ -40,7 +40,6 @@ import Image from 'next/image';
 import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
 import { useAuth } from './auth/AuthContext';
 import { useViewAsRole } from './auth/ViewAsRoleContext';
-import { ThemeToggle } from './theme/ThemeToggle';
 
 function MenuToggleIcon({ isCollapsed, className }: { isCollapsed?: boolean; className?: string }) {
   return (
@@ -225,8 +224,6 @@ export function LayoutShell({
             <Button variant="ghost" size="sm" className="md:hidden min-h-[44px] min-w-[44px]">
               <Search className="h-5 w-5" />
             </Button>
-
-            <ThemeToggle />
 
             {/* 🔥 Role Switch Dropdown */}
             {canSwitchRole && (

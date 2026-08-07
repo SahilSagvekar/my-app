@@ -303,6 +303,7 @@ useEffect(() => {
   const [bulkRejectFeedback, setBulkRejectFeedback] = useState("");
 
   const { user } = useAuth();
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
 
   const getMimeType = (file: TaskFile | null) => {
     if (!file) return "";
@@ -1499,6 +1500,7 @@ useEffect(() => {
                 taskId={selectedTask.id}
                 tags={selectedTaskTags}
                 onChange={setSelectedTaskTags}
+                canRemove={isAdmin}
               />
 
               <div className="overflow-y-auto max-h-[65vh] pr-2">

@@ -29,6 +29,7 @@ export async function GET(req: Request) {
     const status = url.searchParams.get("status");
     const clientId = url.searchParams.get("clientId");
     const deliverableType = url.searchParams.get("deliverableType");
+    const editorId = url.searchParams.get("editorId");
     const tag = url.searchParams.get("tag");
     const dateRange = url.searchParams.get("dateRange");
     const includeTitling = url.searchParams.get("includeTitling") === "true";
@@ -81,6 +82,10 @@ export async function GET(req: Request) {
           ]
         }
       ];
+    }
+
+    if (editorId && editorId !== "all") {
+      where.assignedTo = Number(editorId);
     }
 
     if (tag && tag !== "all") {

@@ -40,6 +40,41 @@ function buildBaseWhere(
   return null;
 }
 
+// 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts. A multi-role
+// account (e.g. Daena: editor + scheduler + qc) previewing the QC tab needs
+// this endpoint to honor x-viewing-as instead of only checking their primary
+// role, which otherwise 403s here for anyone whose primary role isn't
+// already qc/admin/manager.
+const LEGACY_ROLE_SWITCH_EMAILS = new Set([
+  'eric@e8productions.com',
+  'sahilsagvekar230@gmail.com',
+]);
+const DEFAULT_ADMIN_SWITCH_ROLES = ['qc', 'sales', 'sales_manager', 'scheduler'];
+
+function resolveEffectiveRole(
+  role: string | null | undefined,
+  roles: string[] | null | undefined,
+  email: string | null | undefined,
+  viewingAs: string | null
+): string | null | undefined {
+  const baseRole = role?.toLowerCase() || null;
+  if (!viewingAs || viewingAs === baseRole) return role;
+
+  const authorizedSwitchRoles = new Set<string>([
+    ...(Array.isArray(roles) ? roles.map((r) => r.toLowerCase()) : []),
+    ...(email && LEGACY_ROLE_SWITCH_EMAILS.has(email.toLowerCase())
+      ? DEFAULT_ADMIN_SWITCH_ROLES
+      : []),
+    ...(baseRole === 'admin' ? DEFAULT_ADMIN_SWITCH_ROLES : []),
+  ]);
+
+  if (!authorizedSwitchRoles.has(viewingAs)) return role;
+
+  // Viewing as QC is treated as admin-level access, same as tasks/route.ts,
+  // so the viewer sees ALL completed QC tasks rather than just their own.
+  return viewingAs === 'qc' ? 'admin' : viewingAs;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser2(request);
@@ -47,7 +82,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const baseWhere = buildBaseWhere(user.role, Number(user.id));
+    const viewingAs = request.headers.get('x-viewing-as')?.toLowerCase() || null;
+    const effectiveRole = resolveEffectiveRole(
+      user.role,
+      (user as any).roles,
+      user.email,
+      viewingAs
+    );
+
+    const baseWhere = buildBaseWhere(effectiveRole, Number(user.id));
     if (!baseWhere) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }

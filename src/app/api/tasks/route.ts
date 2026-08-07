@@ -244,14 +244,38 @@ export async function GET(req: any) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const { role, id: userId } = user;
+    const { role, id: userId, roles: userRoles, email: userEmail } = user;
 
-// 🔥 Role-switch support: if a scheduler is viewing as QC, treat them like admin
-// so they see ALL QC tasks, not just their own assigned ones
-const viewingAs = req.headers.get("x-viewing-as");
-const effectiveRole = (role?.toLowerCase() === "scheduler" && viewingAs === "qc")
-  ? "admin"
-  : role;
+// 🔥 Role-switch support: if this account is legitimately viewing as another
+// role it's authorized for, use that role to build the query instead of the
+// header alone. Mirrors the frontend's authorization in ViewAsRoleContext.tsx
+// (real roles[], the legacy grandfather emails, and admins) instead of
+// trusting whatever x-viewing-as the client sends — previously any role
+// could set that header and get treated as "admin"-level QC access.
+const LEGACY_ROLE_SWITCH_EMAILS = new Set([
+  "eric@e8productions.com",
+  "sahilsagvekar230@gmail.com",
+]);
+const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler"];
+
+const baseRole = role?.toLowerCase() || null;
+const viewingAs = req.headers.get("x-viewing-as")?.toLowerCase() || null;
+
+const authorizedSwitchRoles = new Set<string>([
+  ...(Array.isArray(userRoles) ? userRoles.map((r: string) => r.toLowerCase()) : []),
+  ...(userEmail && LEGACY_ROLE_SWITCH_EMAILS.has(userEmail.toLowerCase())
+    ? DEFAULT_ADMIN_SWITCH_ROLES
+    : []),
+  ...(baseRole === "admin" ? DEFAULT_ADMIN_SWITCH_ROLES : []),
+]);
+
+// Viewing as QC (from any authorized base role — editor, scheduler, etc.)
+// is treated as admin-level access so the viewer sees ALL QC tasks, not
+// just tasks assigned to them personally in their normal role.
+const effectiveRole =
+  viewingAs && viewingAs !== baseRole && authorizedSwitchRoles.has(viewingAs)
+    ? (viewingAs === "qc" ? "admin" : viewingAs)
+    : role;
 
 const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status") as string | null;

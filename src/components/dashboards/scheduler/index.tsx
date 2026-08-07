@@ -31,8 +31,11 @@ import { PLATFORMS } from './icons';
 import { formatPostingTime, formatPostingTimes } from './utils';
 import { LinkDialog } from './LinkDialog';
 import { toast } from 'sonner';
+import { useAuth } from '../../auth/AuthContext';
 
 export function SchedulerSpreadsheetView() {
+    const { user } = useAuth();
+    const isAdmin = user?.role?.toLowerCase() === 'admin';
     const {
         tasks,
         loading,
@@ -48,6 +51,9 @@ export function SchedulerSpreadsheetView() {
         deliverableFilter,
         handleDeliverableFilterChange,
         setDeliverableFilter,
+        editorFilter,
+        handleEditorFilterChange,
+        uniqueEditors,
         tagFilter,
         setTagFilter,
         availableTags,
@@ -172,6 +178,9 @@ export function SchedulerSpreadsheetView() {
                 handleDeliverableFilterChange={handleDeliverableFilterChange}
                 uniqueClients={uniqueClients}
                 uniqueDeliverables={uniqueDeliverables}
+                editorFilter={editorFilter}
+                handleEditorFilterChange={handleEditorFilterChange}
+                uniqueEditors={uniqueEditors}
                 sponsoredOnly={sponsoredOnly}
                 setSponsoredOnly={setSponsoredOnly}
                 tagFilter={tagFilter}
@@ -285,6 +294,7 @@ export function SchedulerSpreadsheetView() {
                                         onMarkScheduled={() => markAsScheduled(task.id)}
                                         onMarkPending={() => markAsPending(task.id)}
                                         onTagsChange={(tags) => updateTaskTags(task.id, tags)}
+                                        canRemoveTags={isAdmin}
                                         onSendBack={() => {
                                             setSendBackTask(task);
                                             setSendBackFeedback('');
