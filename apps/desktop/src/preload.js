@@ -26,4 +26,18 @@ contextBridge.exposeInMainWorld("e8", {
 
   setAutoDownloadSetting: (enabled) =>
     ipcRenderer.invoke("settings:setAutoDownload", { enabled }),
+
+  // Drive/Files downloads — separate from the video-review system above.
+  // Saves straight to the person's normal OS Downloads folder using
+  // Electron's native download manager.
+  downloadToDownloadsFolder: (url) =>
+    ipcRenderer.invoke("drive:download", { url }),
+
+  onDriveDownloadProgress: (callback) => {
+    ipcRenderer.on("drive-download:progress", (_event, data) => callback(data));
+  },
+
+  onDriveDownloadDone: (callback) => {
+    ipcRenderer.on("drive-download:done", (_event, data) => callback(data));
+  },
 });

@@ -174,6 +174,28 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
+  // 🔥 Desktop app only — Drive downloads go through Electron's native
+  // download manager (see apps/desktop/src/main.js) since these are raw
+  // R2 objects, not File records with an id the way task review videos
+  // are. This just reflects that progress as a toast, same visual
+  // pattern as the video-download toasts elsewhere in the app.
+  useEffect(() => {
+    const desktop = (window as any).e8;
+    if (!desktop?.isDesktopApp) return;
+
+    desktop.onDriveDownloadProgress(({ fileName, percent }: { fileName: string; percent: number }) => {
+      toast.loading(`Downloading ${fileName}... ${percent}%`, { id: `drive-download-${fileName}` });
+    });
+
+    desktop.onDriveDownloadDone(({ fileName, success }: { fileName: string; success: boolean }) => {
+      if (success) {
+        toast.success(`${fileName} downloaded`, { id: `drive-download-${fileName}` });
+      } else {
+        toast.error(`${fileName} download failed or was cancelled`, { id: `drive-download-${fileName}` });
+      }
+    });
+  }, []);
+
   // ─── View mode (grid / list) — persisted per-browser ───
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   useEffect(() => {
@@ -1058,6 +1080,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       }
 
       const data = await response.json();
+
+      const desktop = (window as any).e8;
+      if (desktop?.isDesktopApp) {
+        const result = await desktop.downloadToDownloadsFolder(data.downloadUrl);
+        if (!result.success) {
+          toast.error(result.message || "Failed to start download");
+        }
+        return;
+      }
+
       window.open(data.downloadUrl, '_blank');
       toast.success('Download started');
     } catch (error: any) {

@@ -103,8 +103,10 @@ function localPathForFile(fileId, fileName) {
 
 // --- Window setup --------------------------------------------------------
 
+let mainWindow;
+
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     title: "E8 Client",
@@ -115,7 +117,40 @@ function createWindow() {
     },
   });
 
-  win.loadURL(LOGIN_URL);
+  mainWindow.loadURL(LOGIN_URL);
+}
+
+// --- Drive/Files downloads ------------------------------------------------
+// Separate from the video-review download system above — Drive items
+// aren't File records with a database id (they're addressed by raw R2
+// key), and could be any file type, not just videos meant for offline
+// review playback. So these use Electron's own native download manager
+// instead: a normal save to the person's real Downloads folder, same as
+// downloading anything in a regular browser, with a live progress toast
+// in the app while it's in flight.
+
+function setupDriveDownloads() {
+  session.defaultSession.on("will-download", (_event, item, webContents) => {
+    const fileName = item.getFilename();
+
+    // Save straight to the OS Downloads folder, no "Save As" dialog —
+    // matches normal browser auto-download behavior.
+    item.setSavePath(path.join(app.getPath("downloads"), fileName));
+
+    item.on("updated", (_e, state) => {
+      if (state !== "progressing" || item.isPaused()) return;
+      const total = item.getTotalBytes();
+      const percent = total > 0 ? Math.round((item.getReceivedBytes() / total) * 100) : 0;
+      webContents.send("drive-download:progress", { fileName, percent });
+    });
+
+    item.once("done", (_e, state) => {
+      webContents.send("drive-download:done", {
+        fileName,
+        success: state === "completed",
+      });
+    });
+  });
 }
 
 // --- Local playback interception ----------------------------------------
@@ -306,11 +341,25 @@ ipcMain.handle("settings:setAutoDownload", async (_event, { enabled }) => {
   return settings.autoDownloadEnabled;
 });
 
+// --- Drive/Files download IPC handler -----------------------------------
+
+ipcMain.handle("drive:download", async (_event, { url }) => {
+  if (!mainWindow) return { success: false, message: "Window not ready" };
+
+  // downloadURL triggers Electron's native download flow (the
+  // will-download handler above does the actual work) — this is the
+  // officially recommended way to kick off a download programmatically
+  // rather than trying to navigate/window.open to the URL.
+  mainWindow.webContents.downloadURL(url);
+  return { success: true };
+});
+
 // --- App lifecycle -----------------------------------------------------
 
 app.whenReady().then(() => {
   loadIndex();
   setupPlaybackInterception();
+  setupDriveDownloads();
   createWindow();
 
   // Auto-update check — only meaningful for a real installed app (reads
