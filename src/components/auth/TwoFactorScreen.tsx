@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -122,7 +123,7 @@ export function TwoFactorScreen({
           {/* Logo */}
           <div className="flex justify-center">
             <div className="w-12 h-12 flex items-center justify-center">
-              <img 
+              <Image 
                 src={logoImage} 
                 alt="E8 Logo" 
                 className="w-12 h-12 object-contain"
