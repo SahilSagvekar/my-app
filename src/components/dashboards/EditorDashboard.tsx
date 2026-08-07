@@ -38,6 +38,7 @@ import { FilePreviewModal } from "../FileViewerModal";
 import { toast } from "sonner";
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 import { RequestRawsButton } from "../editor/RequestRawsButton";
+import { InstructionsBanner } from "../editor/InstructionsBanner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { EditorEodReport } from "./EditorEodReport";
@@ -2085,6 +2086,7 @@ export function EditorDashboard() {
       )}
 
       <div className="mb-8 pb-6 border-b border-gray-200">
+        <InstructionsBanner />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
