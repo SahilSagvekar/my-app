@@ -3,8 +3,7 @@
 // Option A: this Electron app is just a window pointed at the real
 // website. No custom UI, no separate login screen — the real site's
 // login page, dashboard, and review screens render exactly as they do
-// in a browser, for any role (client, editor, scheduler, QC, etc). The
-// only two things this file adds:
+// in a browser. The only two things this file adds:
 //
 //  1. When the website's existing "Download" button is clicked inside
 //     this app, save the video to the client's real disk instead of
@@ -46,6 +45,7 @@ const LOGIN_URL = `${SITE_ORIGIN}/login`;
 
 const DOWNLOADS_DIR = path.join(app.getPath("userData"), "downloads");
 const INDEX_FILE = path.join(app.getPath("userData"), "downloads-index.json");
+const SETTINGS_FILE = path.join(app.getPath("userData"), "desktop-settings.json");
 
 function ensureDownloadsDir() {
   if (!fs.existsSync(DOWNLOADS_DIR)) {
@@ -77,6 +77,25 @@ function saveIndex() {
   fs.writeFileSync(INDEX_FILE, JSON.stringify(downloadsIndex, null, 2));
 }
 
+// --- Desktop-only settings (currently just the auto-download toggle) ---
+// Defaults to enabled when no settings file exists yet — i.e. new users
+// get auto-download on by default, and can switch it off from there.
+
+function loadSettings() {
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      return JSON.parse(fs.readFileSync(SETTINGS_FILE, "utf-8"));
+    }
+  } catch (err) {
+    console.error("Failed to load settings, using defaults:", err);
+  }
+  return { autoDownloadEnabled: true };
+}
+
+function saveSettings(settings) {
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+}
+
 function localPathForFile(fileId, fileName) {
   const ext = path.extname(fileName) || ".mp4";
   return path.join(DOWNLOADS_DIR, `${fileId}${ext}`);
@@ -88,7 +107,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
-    title: "E8 App",
+    title: "E8 Client",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -272,6 +291,19 @@ ipcMain.handle("download:start", async (event, { fileId, fileName }) => {
 ipcMain.handle("download:isDownloaded", async (_event, { fileId }) => {
   const entry = downloadsIndex[fileId];
   return !!(entry && fs.existsSync(entry.path));
+});
+
+// --- Auto-download setting IPC handlers ---------------------------------
+
+ipcMain.handle("settings:getAutoDownload", async () => {
+  return loadSettings().autoDownloadEnabled;
+});
+
+ipcMain.handle("settings:setAutoDownload", async (_event, { enabled }) => {
+  const settings = loadSettings();
+  settings.autoDownloadEnabled = !!enabled;
+  saveSettings(settings);
+  return settings.autoDownloadEnabled;
 });
 
 // --- App lifecycle -----------------------------------------------------

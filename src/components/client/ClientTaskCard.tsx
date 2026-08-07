@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -69,6 +69,33 @@ export const ClientTaskCard = memo(function ClientTaskCard({
   isSharing,
 }: ClientTaskCardProps) {
   const displayThumbnail = thumbnail || getTaskThumbnailFromFiles(task.files);
+
+  // 🔥 Desktop app only — checks whether this task's video file(s) are
+  // already saved to the client's disk, so the Download button can show
+  // "Downloaded" instead once auto-download (or a manual click) has
+  // finished. window.e8 doesn't exist in a normal browser tab, so this
+  // is a no-op there.
+  const [isFullyDownloaded, setIsFullyDownloaded] = useState(false);
+
+  useEffect(() => {
+    const desktop = (window as any).e8;
+    if (!desktop?.isDesktopApp) return;
+
+    const videoFiles = (task.files || []).filter((f) => f.mimeType?.startsWith('video/'));
+    if (videoFiles.length === 0) {
+      setIsFullyDownloaded(false);
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all(videoFiles.map((f) => desktop.isDownloaded(f.id))).then((results) => {
+      if (!cancelled) setIsFullyDownloaded(results.every(Boolean));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [task.files]);
 
   return (
     <Card
@@ -160,17 +187,25 @@ export const ClientTaskCard = memo(function ClientTaskCard({
                 <Button
                   variant="secondary"
                   size="icon"
-                  className="h-7 w-7 min-h-[44px] min-w-[44px] rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300 active:bg-zinc-100"
+                  className={`h-7 w-7 min-h-[44px] min-w-[44px] rounded-full shadow-sm flex items-center justify-center p-0 border transition-all ${
+                    isFullyDownloaded
+                      ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-white border-zinc-200/50 hover:bg-zinc-50 hover:border-zinc-300 active:bg-zinc-100'
+                  }`}
                   onClick={(e) => {
                     e.stopPropagation();
                     onDownload(task);
                   }}
                 >
-                  <Download className="h-3.5 w-3.5 text-zinc-700" />
+                  {isFullyDownloaded ? (
+                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5 text-zinc-700" />
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
-                <p>Download</p>
+                <p>{isFullyDownloaded ? 'Downloaded' : 'Download'}</p>
               </TooltipContent>
             </Tooltip>
           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Switch } from '../ui/switch';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
@@ -260,6 +261,69 @@ export function ClientDashboard() {
       }
     });
   }, []);
+
+  // 🔥 Auto-download — desktop app only. When a client logs in (or the
+  // task list refreshes) and auto-download is on, any video attached to
+  // a task awaiting their review that isn't already on disk starts
+  // downloading automatically, using the exact same download function
+  // and progress toast as the manual "Download" button.
+  const [autoDownloadEnabled, setAutoDownloadEnabled] = useState(true);
+  const [autoDownloadReady, setAutoDownloadReady] = useState(false);
+  // Tracks fileIds we've already kicked off this session, so a download
+  // in progress (not yet reflected as "downloaded" on disk) doesn't get
+  // triggered again on the next task-list refresh before it finishes.
+  const autoDownloadTriggeredRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const desktop = (window as any).e8;
+    if (!desktop?.isDesktopApp) return;
+
+    desktop.getAutoDownloadSetting().then((enabled: boolean) => {
+      setAutoDownloadEnabled(enabled);
+      setAutoDownloadReady(true);
+    });
+  }, []);
+
+  const toggleAutoDownload = async (checked: boolean) => {
+    const desktop = (window as any).e8;
+    if (!desktop?.isDesktopApp) return;
+
+    setAutoDownloadEnabled(checked);
+    await desktop.setAutoDownloadSetting(checked);
+  };
+
+  useEffect(() => {
+    const desktop = (window as any).e8;
+    if (!desktop?.isDesktopApp) return;
+    if (!autoDownloadReady || !autoDownloadEnabled) return;
+    if (!tasks || tasks.length === 0) return;
+
+    const reviewTasks = tasks.filter((t: ClientTask) => t.status === "CLIENT_REVIEW");
+
+    reviewTasks.forEach((task: ClientTask) => {
+      (task.files || [])
+        .filter((f: TaskFile) => f.mimeType?.startsWith("video/"))
+        .forEach(async (file: TaskFile) => {
+          if (autoDownloadTriggeredRef.current.has(file.id)) return;
+
+          const alreadyDownloaded = await desktop.isDownloaded(file.id);
+          if (alreadyDownloaded) return;
+
+          autoDownloadTriggeredRef.current.add(file.id);
+          downloadFileNamesRef.current[file.id] = file.name;
+          toast.loading(`Downloading ${file.name}... 0%`, { id: `download-${file.id}` });
+
+          const result = await desktop.downloadFile(file.id, file.name);
+          if (!result.success) {
+            toast.error(`Failed to download ${file.name}: ${result.message || "unknown error"}`, {
+              id: `download-${file.id}`,
+            });
+            // Allow retrying on the next refresh if it failed.
+            autoDownloadTriggeredRef.current.delete(file.id);
+          }
+        });
+    });
+  }, [tasks, autoDownloadEnabled, autoDownloadReady]);
 
   const { user } = useAuth();
 
@@ -1120,6 +1184,21 @@ export function ClientDashboard() {
               Review content from your team and approve or request revisions
             </p>
           </div>
+
+          {/* 🔥 Desktop app only — lets the client switch off automatic
+              downloading and go back to picking files manually. */}
+          {typeof window !== 'undefined' && (window as any).e8?.isDesktopApp && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Switch
+                id="auto-download-toggle"
+                checked={autoDownloadEnabled}
+                onCheckedChange={toggleAutoDownload}
+              />
+              <label htmlFor="auto-download-toggle" className="text-sm text-gray-600 whitespace-nowrap cursor-pointer">
+                Auto-download videos
+              </label>
+            </div>
+          )}
 
           <div className="flex items-center gap-4 w-full lg:w-auto overflow-x-auto">
             <Tabs
