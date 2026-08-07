@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Alert, AlertDescription } from '../ui/alert';
-import logoImage from 'figma:asset/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
+import logoImage from '../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
 
 interface TwoFactorScreenProps {
   onVerifyCode: (code: string) => Promise<void>;
@@ -123,7 +123,7 @@ export function TwoFactorScreen({
           <div className="flex justify-center">
             <div className="w-12 h-12 flex items-center justify-center">
               <img 
-                // src={logoImage} 
+                src={logoImage} 
                 alt="E8 Logo" 
                 className="w-12 h-12 object-contain"
               />

@@ -141,12 +141,15 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
 
         console.log(`[clientEmails]`, clientEmails);
 
-        const BASE_URL = process.env.BASE_URL || process.env.NEXTAUTH_URL || 'https://e8productions.com';
+        // Matches the app-URL convention used everywhere else in the codebase
+        // (see assemblyai.ts, slack.ts, etc.) — this previously used a
+        // `BASE_URL` env var nothing else sets, falling back to the marketing
+        // site's domain (e8productions.com) instead of the app's
+        // (app.e8productions.com), which is why the logo 404'd in this email.
+        const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://app.e8productions.com';
         const dashboardUrl = BASE_URL;
 
-        // TODO: point at your actually-hosted E8 logo (small, square works best in the header)
-        // const LOGO_URL = `${BASE_URL}/assets/logo/e8-logo-black.png`;
-                const LOGO_URL = `${BASE_URL}/assets/e8-logo-black.png`;
+        const LOGO_URL = `${BASE_URL}/assets/e8-logo-black.png`;
 
 
         const taskName = task.title || 'Untitled Task';
