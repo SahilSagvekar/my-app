@@ -276,6 +276,27 @@ export async function PUT(req: any) {
       }
     }
 
+    // Prisma unique constraint violation — `phone` has @unique in the schema,
+    // so saving a number already used on another account was previously
+    // falling through to the generic 500 below with no explanation of why.
+    if ((error as any)?.code === "P2002") {
+      const target = (error as any)?.meta?.target;
+      const fields = Array.isArray(target) ? target.join(", ") : String(target || "");
+      if (fields.includes("phone")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "That phone number is already in use on another account.",
+          },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(
+        { success: false, error: `That ${fields || "value"} is already in use.` },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       {
         success: false,

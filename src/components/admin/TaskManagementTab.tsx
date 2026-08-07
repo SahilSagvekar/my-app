@@ -69,7 +69,7 @@ interface FilterState {
   tag: string;
 }
 
-interface TeamMember { id: number; name: string; role: string; }
+interface TeamMember { id: number; name: string; role: string; roles?: string[]; }
 interface Client { id: string; name: string; companyName: string | null; }
 
 // ─────────────────────────────────────────
@@ -237,10 +237,15 @@ export function TaskManagementTab() {
   const availableDeliverableTypes: string[] = taskData?.deliverableTypes || [];
 
   const teamMembers: TeamMember[] = teamData?.employees || [];
-  const editors = teamMembers.filter(m => m.role === 'editor');
-  const qcMembers = teamMembers.filter(m => m.role === 'qc');
-  const schedulers = teamMembers.filter(m => m.role === 'scheduler');
-  const videographers = teamMembers.filter(m => m.role === 'videographer');
+  // Match on primary role OR the roles[] array — a multi-role account (e.g.
+  // Daena: editor + scheduler + qc) has one primary `role` but should still
+  // show up in every dropdown for a role it actually holds.
+  const hasRole = (m: TeamMember, role: string) =>
+    m.role === role || (Array.isArray(m.roles) && m.roles.includes(role));
+  const editors = teamMembers.filter(m => hasRole(m, 'editor'));
+  const qcMembers = teamMembers.filter(m => hasRole(m, 'qc'));
+  const schedulers = teamMembers.filter(m => hasRole(m, 'scheduler'));
+  const videographers = teamMembers.filter(m => hasRole(m, 'videographer'));
 
   // ── Debounce search ────────────────────
   const handleSearchChange = (val: string) => {
