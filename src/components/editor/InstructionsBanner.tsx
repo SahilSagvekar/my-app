@@ -5,7 +5,7 @@ import { Megaphone } from "lucide-react";
 // Simple scrolling instructions banner for the Editor Portal.
 // To change the message, just edit the text below — no config/API involved.
 const INSTRUCTIONS_TEXT =
-  "Reminder: submit files to QC before 6 PM daily • Tag every task before marking it ready • Check the Guidelines tab for the latest formatting rules";
+  "Please add tags on your tasks, it helps scheduler to prioritize and group tasks";
 
 export function InstructionsBanner() {
   return (

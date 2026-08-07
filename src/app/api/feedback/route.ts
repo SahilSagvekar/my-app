@@ -2,13 +2,29 @@ export const dynamic = 'force-dynamic';
 // app/api/feedback/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
+import jwt from "jsonwebtoken";
+
+function getTokenFromCookies(req: Request) {
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/authToken=([^;]+)/);
+  return match ? match[1] : null;
+}
 
 // GET - Fetch all feedback
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const userRole = searchParams.get("userRole");
+    const token = getTokenFromCookies(request);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+    if (!decoded?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const userId = Number(decoded.userId);
+    // Real role from the token, not the ?userRole= query param — that was
+    // previously trusted as-is, so anyone could pass userRole=admin and see
+    // every submission (including other people's screenshots).
+    const userRole = (decoded.role || "").toLowerCase();
 
     let feedback;
 
@@ -42,7 +58,7 @@ export async function GET(request: NextRequest) {
       // Other users only see their own feedback
       feedback = await prisma.feedback.findMany({
         where: {
-          senderId: parseInt(userId || "0"),
+          senderId: userId,
         },
         include: {
           sender: {
@@ -113,4 +129,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

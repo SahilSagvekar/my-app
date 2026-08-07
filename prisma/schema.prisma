@@ -659,6 +659,10 @@ model Feedback {
   priority  String
   status    String             @default("pending")
   senderId  Int
+  // Populated when this came from the "Report a Problem" widget (every
+  // portal) — lets the admin queue show the screen it was reported from.
+  screenshotBase64 String?      @db.Text
+  pageUrl          String?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
   sender    User               @relation("FeedbackSender", fields: [senderId], references: [id])

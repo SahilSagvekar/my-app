@@ -31,7 +31,7 @@ import { AffiliateSection } from "../dashboards/AffiliateSection";
 import { SalesManagementTab } from "../admin/SalesManagementTab";
 import { EditorProjects } from "../EditorProjects";
 import { EditorResources } from "../EditorResources";
-import { FeedbackSystem } from "../FeedbackSystem";
+import { FeedbackSystem } from "../../components/Feedbacksystem";
 import LeavesComponent from "../admin/LeavesComponent";
 import { ResetPasswordWithOTP } from "../auth/ResetPasswordWithOTP";
 import { DriveExplorer } from "../drive/DriveExplorer";
@@ -177,8 +177,8 @@ export function renderPage(
         return <ProductionTracker />;
       case "posting-tracker":
         return <AdminDailyTargetsPage />;
-      // case "feedback":
-      //   return <FeedbackSystem currentRole={role} />;
+      case "feedback":
+        return <FeedbackSystem currentRole={role} />;
       case "training":
         return (
           <div className="space-y-6">
