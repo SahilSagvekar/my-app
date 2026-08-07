@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "./auth/AuthContext";
+import { formatPhone } from "@/lib/formatPhone";
 
 interface EmploymentInfoProps {
   currentRole?: string;
@@ -168,7 +169,7 @@ export function EmploymentInfo({ currentRole }: EmploymentInfoProps) {
                   <Phone className="h-4 w-4" />
                   Phone
                 </div>
-                <p className="font-medium">{employee.phone}</p>
+                <p className="font-medium">{formatPhone(employee.phone)}</p>
               </div>
             )}
 

@@ -46,6 +46,30 @@ function AuthenticatedAppInner() {
     }
   }, []);
 
+  // Clients whose portal isn't fully open (payment pending, contract unsigned,
+  // locked for non-payment) must land on Contracts & Billing instead of the
+  // normal Content Review default, so the thing blocking them is what they see.
+  useEffect(() => {
+    const role = (viewingAsRole || user?.role || "").toLowerCase();
+    if (role !== "client") return;
+
+    let cancelled = false;
+    fetch("/api/portal/access", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((access) => {
+        if (!cancelled && access && !access.fullAccess) {
+          setCurrentPage(access.forcePage || "contracts");
+        }
+      })
+      .catch(() => {
+        // Fail open — a failed access check shouldn't strand the client.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewingAsRole, user?.role]);
+
   const handlePageChange = (newPage: string) => {
     setCurrentPage(newPage);
   };

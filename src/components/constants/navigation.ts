@@ -98,7 +98,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'social', label: 'Social Media', icon: Instagram },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'contracts', label: 'Contracts & Billing', icon: FileText },
-    { id: 'help-videos', label: 'E8-help', icon: PlayCircle },
+    { id: 'help-videos', label: 'E8 Help', icon: PlayCircle },
   ],
   videographer: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -131,7 +131,7 @@ export const getDefaultPage = (role: string): string => {
     case 'qc': return 'review-queue';
     case 'scheduler': return 'approved-queue';
     case 'manager': return 'dashboard';
-    case 'client': return 'contracts';
+    case 'client': return 'approvals';
     case 'videographer': return 'dashboard';
     case 'sales': return 'dashboard';
     case 'sales_manager': return 'dashboard';

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { toast } from 'sonner';
+import { formatPhone } from "@/lib/formatPhone";
 
 /* ── Types ─────────────────────────────────────────────────────── */
 type CandidateStatus = 'NEW' | 'CONTACTED' | 'TEST_SENT' | 'TEST_SUBMITTED' | 'IN_REVIEW' | 'HIRED' | 'REJECTED';
@@ -157,7 +158,7 @@ export function HiringTab() {
                     <p className="text-sm font-semibold text-gray-900 truncate">{c.name}</p>
                     <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-400">
                       <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email}</span>
-                      {c.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</span>}
+                      {c.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{formatPhone(c.phone)}</span>}
                     </div>
                   </div>
                   {latestTask && (
@@ -281,7 +282,7 @@ function CandidateDetailSheet({ candidateId, onClose, onChanged }: { candidateId
 
             <div className="space-y-1.5 text-sm bg-gray-50 border border-gray-100 rounded-lg p-3.5">
               <p className="flex items-center gap-2 text-gray-600"><Mail className="h-3.5 w-3.5 shrink-0" />{candidate.email}</p>
-              {candidate.phone && <p className="flex items-center gap-2 text-gray-600"><Phone className="h-3.5 w-3.5 shrink-0" />{candidate.phone}</p>}
+              {candidate.phone && <p className="flex items-center gap-2 text-gray-600"><Phone className="h-3.5 w-3.5 shrink-0" />{formatPhone(candidate.phone)}</p>}
               {candidate.portfolioUrl && (
                 <p className="flex items-center gap-2 text-gray-600">
                   <LinkIcon className="h-3.5 w-3.5 shrink-0" />

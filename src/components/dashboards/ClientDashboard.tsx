@@ -1177,7 +1177,10 @@ export function ClientDashboard() {
         {pageView === 'content' && (
           <>
         {/* Page Header & Filter Row */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-gray-200">
+        {/* lg:items-end so the filter tabs sit on the same baseline as the bottom
+            of the description line, rather than floating centered against the
+            two-line title block. */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b border-gray-200">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
             <p className="text-muted-foreground mt-1 text-sm sm:text-lg hidden sm:block">
@@ -1206,16 +1209,16 @@ export function ClientDashboard() {
               onValueChange={(val: any) => setCurrentFilter(val)}
               className="w-full lg:w-auto"
             >
-              <TabsList className="bg-zinc-100 p-1 flex-nowrap">
+              <TabsList className="bg-zinc-100 p-0.5 grid grid-cols-3 w-full lg:w-auto">
                 <TabsTrigger
                   value="pending"
-                  className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
+                  className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-yellow-500"
                 >
                   Pending
                   {pendingReviews > 0 && (
                     <Badge
                       variant="secondary"
-                      className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
+                      className="h-6 px-2 text-xs bg-yellow-100 text-yellow-800"
                     >
                       {pendingReviews}
                     </Badge>
@@ -1223,13 +1226,13 @@ export function ClientDashboard() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="approved"
-                  className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
+                  className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-green-700"
                 >
                   Approved
                   {approvedCount > 0 && (
                     <Badge
                       variant="secondary"
-                      className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
+                      className="h-6 px-2 text-xs bg-green-100 text-green-800"
                     >
                       {approvedCount}
                     </Badge>
@@ -1237,13 +1240,13 @@ export function ClientDashboard() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="posted"
-                  className="px-3 sm:px-4 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-xs font-medium flex items-center gap-2 whitespace-nowrap"
+                  className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-blue-700"
                 >
                   Posted
                   {postedCount > 0 && (
                     <Badge
                       variant="secondary"
-                      className="h-5 px-1.5 text-[10px] bg-zinc-200/50"
+                      className="h-6 px-2 text-xs bg-blue-100 text-blue-800"
                     >
                       {postedCount}
                     </Badge>
@@ -1296,15 +1299,17 @@ export function ClientDashboard() {
         {selectedTask && (
           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
             {/* 🔧 FIX: Added overflow-hidden + flex flex-col for proper Mac layout */}
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogContent className="max-w-6xl w-[92vw] max-h-[85vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Eye className="h-5 w-5" />
                   Review Content
                 </DialogTitle>
                 <DialogDescription>
-                  {selectedTask.title} - Review files and approve or request
-                  revisions
+                  {/* Only show the title and its separator when there is one —
+                      an empty title used to leave a stray leading "- ". */}
+                  {selectedTask.title ? `${selectedTask.title} - ` : ''}
+                  Review files and approve or request revisions
                 </DialogDescription>
               </DialogHeader>
 
@@ -1479,7 +1484,7 @@ export function ClientDashboard() {
                   <Button
                     onClick={() => handleMarkAsPosted()}
                     disabled={isSubmitting}
-                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                    className="bg-green-600 hover:bg-green-700 text-white"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Mark as Posted
@@ -1496,16 +1501,28 @@ export function ClientDashboard() {
 
               {/* Bottom Action Bar */}
               <div className="flex flex-col gap-3 pt-4 border-t mt-auto flex-shrink-0">
-                {/* Download row - full width */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-center"
-                  onClick={() => handleDownloadAllFiles()}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Files
-                </Button>
+                {/* Share + Download, matching the card buttons: orange Share,
+                    blue Download, split evenly. */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    className="flex-1 justify-center bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={(e) => handleShare(e, selectedTask)}
+                    disabled={isSharing}
+                  >
+                    <Share className="h-4 w-4 mr-2" />
+                    Share
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    className="flex-1 justify-center bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => handleDownloadAllFiles()}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Files
+                  </Button>
+                </div>
 
                 {/* Review action buttons row */}
                 {!(
@@ -1545,7 +1562,7 @@ export function ClientDashboard() {
                     selectedTask.status === "SCHEDULED") && (
                     <Button
                       size="sm"
-                      className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
                       onClick={() => handleMarkAsPosted()}
                       disabled={isSubmitting}
                     >

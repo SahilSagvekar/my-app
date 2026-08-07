@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 import { VisuallyHidden } from '../ui/visually-hidden';
 import { Users, UserPlus, Search, MoreHorizontal, Mail, Phone, Calendar, Edit, Trash2, UserCheck, UserX, Filter, Clock } from 'lucide-react';
+import { formatPhone } from "@/lib/formatPhone";
 
 const roles = [
   { id: 'admin', name: 'Admin', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
@@ -486,7 +487,7 @@ export function ComprehensiveUserManagement() {
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Phone className="h-3 w-3" />
-                          {user.phone}
+                          {formatPhone(user.phone)}
                         </div>
                       </div>
                     </td>

@@ -70,6 +70,7 @@ import { SlSocialSteam } from "react-icons/sl";
 import { toast } from "sonner";
 import { useAuth } from "./auth/AuthContext";
 import { useViewAsRole } from "./auth/ViewAsRoleContext";
+import { formatPhone } from "@/lib/formatPhone";
 
 /* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */
@@ -1308,7 +1309,7 @@ export function SocialLogins() {
                       {(login.email || login.phone) && (
                         <div className="flex flex-wrap gap-3 text-xs text-gray-500">
                           {login.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3 flex-shrink-0" />{login.email}</span>}
-                          {login.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3 flex-shrink-0" />{login.phone}</span>}
+                          {login.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3 flex-shrink-0" />{formatPhone(login.phone)}</span>}
                         </div>
                       )}
 

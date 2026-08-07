@@ -2,17 +2,19 @@
 
 import { memo, useState, useEffect } from 'react';
 import { Card } from '../ui/card';
-import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { getDeliverableTypeColor } from '../constants/deliverableColors';
 import {
   FileText,
-  Clock,
   Check,
-  ExternalLink,
   Share,
   Download,
 } from 'lucide-react';
+
+// Shared shape for both action buttons so they stay identical.
+const PILL =
+  'h-7 min-h-[36px] sm:min-h-0 rounded-full px-3 border text-[10px] font-bold ' +
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors';
 
 interface TaskFile {
   id: string;
@@ -97,9 +99,17 @@ export const ClientTaskCard = memo(function ClientTaskCard({
     };
   }, [task.files]);
 
+  // Same per-type colors QC and editors see, so a Short Form card reads the same
+  // to a client as it does internally.
+  const typeColors = getDeliverableTypeColor(
+    (task as any).deliverableType || (task as any).taskType || ''
+  );
+
   return (
     <Card
-      className={`group cursor-pointer border-none shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full bg-white hover:shadow-md hover:ring-1 hover:ring-zinc-200 ${
+      // gap-0 overrides the Card component's default gap-6, which was adding 24px
+      // of dead space between the thumbnail and the title on top of the body padding.
+      className={`group cursor-pointer border shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col gap-0 h-full hover:shadow-md hover:ring-1 ${typeColors.bg} ${typeColors.border} ${typeColors.ring} ${
         isSelected ? 'ring-2 ring-primary' : ''
       }`}
       onClick={() => onTaskClick(task)}
@@ -124,91 +134,54 @@ export const ClientTaskCard = memo(function ClientTaskCard({
         </div>
 
         {displayThumbnail && <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />}
-
-        {/* File Count - Top Right */}
-        <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm">
-            <FileText className="h-3 w-3" />
-            {task.files?.length || 0}
-          </div>
-        </div>
       </div>
 
       {/* Card Body */}
       <div className="p-4 flex flex-col gap-3">
-        {/* Title */}
-        <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">{task.monthlyDeliverable?.type ? task.monthlyDeliverable.type.replace(/_/g, " ") : "Content"}</h4>
+        {/* Title takes all remaining width; the file count only takes what it
+            needs and sits flush right — which is the same edge as the Download
+            pill below, since both rows share this container's padding. */}
+        <div className="flex items-center gap-2">
+          <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-base leading-snug line-clamp-1">{task.monthlyDeliverable?.type ? task.monthlyDeliverable.type.replace(/_/g, " ") : "Content"}</h4>
+          <span className="shrink-0 flex items-center gap-1.5 text-zinc-500 text-xs font-semibold">
+            <FileText className="h-3.5 w-3.5" />
+            {task.files?.length || 0}
+          </span>
+        </div>
 
-        {/* Status & Actions Row */}
-        <div className="flex items-center justify-between text-zinc-500 text-[11px]">
-          <div className="flex flex-wrap gap-2 pt-1">
-            {task.status === 'POSTED' ? (
-              <Badge className="bg-orange-50 text-orange-600 hover:bg-orange-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
-                <ExternalLink className="h-2.5 w-2.5" />
-                Posted
-              </Badge>
-            ) : task.status === 'SCHEDULED' ? (
-              <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
-                <Clock className="h-2.5 w-2.5" />
-                Scheduled
-              </Badge>
-            ) : task.status === 'COMPLETED' ? (
-              <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold flex items-center gap-1">
-                <Check className="h-2.5 w-2.5" />
-                Approved
-              </Badge>
+        {/* Actions Row — no status pill: every card in a given tab already shares
+            that status, so repeating it on each card said nothing. The two actions
+            split the row evenly instead. */}
+        <div className="flex items-stretch gap-2 text-[11px]">
+          <Button
+            variant="secondary"
+            className={`${PILL} flex-1 bg-orange-500 text-white border-orange-500 shadow-sm hover:bg-orange-600 hover:border-orange-600 active:bg-orange-700`}
+            onClick={(e) => onShare(e, task)}
+            disabled={isSharing}
+          >
+            <Share className="h-3 w-3" />
+            Share
+          </Button>
+
+          <Button
+            variant="secondary"
+            className={`${PILL} flex-1 text-white shadow-sm ${
+              isFullyDownloaded
+                ? 'bg-emerald-500 border-emerald-500 hover:bg-emerald-600 hover:border-emerald-600'
+                : 'bg-blue-600 border-blue-600 hover:bg-blue-700 hover:border-blue-700 active:bg-blue-800'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDownload(task);
+            }}
+          >
+            {isFullyDownloaded ? (
+              <Check className="h-3 w-3" />
             ) : (
-              <Badge className="bg-zinc-50 text-zinc-600 hover:bg-zinc-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                Pending Review
-              </Badge>
+              <Download className="h-3 w-3" />
             )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className="h-7 w-7 min-h-[44px] min-w-[44px] rounded-full bg-white shadow-sm flex items-center justify-center p-0 border border-zinc-200/50 transition-all hover:bg-zinc-50 hover:border-zinc-300 active:bg-zinc-100"
-                  onClick={(e) => onShare(e, task)}
-                  disabled={isSharing}
-                >
-                  <Share className="h-3.5 w-3.5 text-zinc-700" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
-                <p>Share review screen</p>
-              </TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  className={`h-7 w-7 min-h-[44px] min-w-[44px] rounded-full shadow-sm flex items-center justify-center p-0 border transition-all ${
-                    isFullyDownloaded
-                      ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-                      : 'bg-white border-zinc-200/50 hover:bg-zinc-50 hover:border-zinc-300 active:bg-zinc-100'
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDownload(task);
-                  }}
-                >
-                  {isFullyDownloaded ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                  ) : (
-                    <Download className="h-3.5 w-3.5 text-zinc-700" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="bg-zinc-900 text-white text-[10px] px-2 py-1 rounded shadow-xl border-none">
-                <p>{isFullyDownloaded ? 'Downloaded' : 'Download'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
+            {isFullyDownloaded ? 'Saved' : 'Download'}
+          </Button>
         </div>
       </div>
     </Card>

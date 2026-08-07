@@ -76,6 +76,7 @@ import { SimpleCalendar } from "../ui/simple-calendar";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { TaskReassignmentDialog } from "./TaskReassignmentDialog";
+import { formatPhone } from "@/lib/formatPhone";
 
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -1447,7 +1448,7 @@ export default function LeavesComponent() {
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Phone className="h-3 w-3" />
-                          {employee.phone}
+                          {formatPhone(employee.phone)}
                         </div>
                       </div>
                     </td>

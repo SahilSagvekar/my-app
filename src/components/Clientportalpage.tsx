@@ -15,9 +15,6 @@ import {
   Mail,
   Phone,
   Calendar,
-  Video,
-  Image,
-  Film,
   CheckCircle,
   XCircle,
   CreditCard,
@@ -32,6 +29,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { formatPhone } from "@/lib/formatPhone";
+import { getPlatformMeta } from "./constants/platformIcons";
 import { ContractStatusBadge, SignerStatusBadge } from "./contracts/ContractStatusBadge";
 import { ContractDetailView } from "./contracts/ContractDetailView";
 
@@ -124,68 +123,6 @@ const invoiceStatusColors: Record<string, string> = {
   CANCELED: "bg-gray-100 text-gray-600",
 };
 
-// Platform abbreviations for display
-const platformAbbrev: Record<string, string> = {
-  Instagram: "IG",
-  Tiktok: "TT",
-  TikTok: "TT",
-  Facebook: "FB",
-  Youtube: "YT",
-  YouTube: "YT",
-  Twitter: "X",
-  Linkedin: "LI",
-  LinkedIn: "LI",
-  Snapchat: "SC",
-};
-
-// ── Deliverable visual mapping (redesign) ──────────────────────────────────────
-// Each deliverable type is drawn as a true-to-ratio frame (1:1, 9:16, 16:9, 4:5)
-// instead of a generic icon box, so the shape itself communicates the format.
-function getDeliverableVisual(type: string): { w: number; h: number; Icon: any; tone: "ink" | "brass" } {
-  const t = type.toLowerCase();
-  if (t.includes("short") || t.includes("reel")) {
-    return { w: 22, h: 38, Icon: Film, tone: "brass" };
-  }
-  if (t.includes("image") || t.includes("photo") || t.includes("graphic")) {
-    return { w: 28, h: 34, Icon: Image, tone: "brass" };
-  }
-  if (t.includes("long")) {
-    return { w: 42, h: 24, Icon: Video, tone: "ink" };
-  }
-  return { w: 34, h: 34, Icon: Video, tone: "ink" }; // square, default
-}
-
-function AspectFrame({
-  w,
-  h,
-  tone,
-  children,
-}: {
-  w: number;
-  h: number;
-  tone: "ink" | "brass";
-  children: React.ReactNode;
-}) {
-  const toneClasses =
-    tone === "brass"
-      ? "border-[#B9832F]/40 bg-[#B9832F]/[0.06]"
-      : "border-[#29394D]/25 bg-[#29394D]/[0.04]";
-  return (
-    <div className="relative shrink-0" style={{ width: w, height: h }}>
-      <div className={`absolute inset-0 rounded-[3px] border ${toneClasses} flex items-center justify-center`}>
-        {children}
-      </div>
-      {[
-        "top-[-1px] left-[-1px] border-t border-l",
-        "top-[-1px] right-[-1px] border-t border-r",
-        "bottom-[-1px] left-[-1px] border-b border-l",
-        "bottom-[-1px] right-[-1px] border-b border-r",
-      ].map((pos, i) => (
-        <span key={i} className={`absolute ${pos} w-2 h-2 border-[#17181C]/70 pointer-events-none`} />
-      ))}
-    </div>
-  );
-}
 
 // ── Portal access status ──────────────────────────────────────────────────────
 interface PortalAccess {
@@ -505,143 +442,162 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
     <div className="space-y-12 pb-12">
       {/* ===== SECTION 1: CLIENT INFO (redesigned) ===== */}
       <section>
-        {/* NOTE: Fraunces + Roboto Mono are loaded here for now. If this pattern
-            spreads to other pages, move this @import into layout.tsx / globals.css
-            (or wire up next/font) instead of repeating it per page. */}
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Roboto+Mono:wght@400;500;600&display=swap');
-          .e8-display { font-family: 'Fraunces', serif; font-optical-sizing: auto; }
-          .e8-mono { font-family: 'Roboto Mono', monospace; }
-        `}</style>
-
+        {/* Same header treatment as "My Contracts" / "Billing" below. Kept as an
+            h1 (rather than the h2 those use) because this is the page's top-level
+            heading — the styling is identical either way. */}
         <div className="mb-6">
-          <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63] mb-2">
-            Client Portal
-          </p>
-          <h1 className="e8-display text-[34px] leading-none text-[#17181C] mb-2">
-            Welcome back
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+            <User className="h-6 w-6 text-blue-600" />
+            Welcome Back
           </h1>
-          <p className="text-[#6B6A63] text-sm">
+          <p className="text-muted-foreground mt-1">
             View your account details, contracts, and invoices
           </p>
         </div>
 
         {clientInfo ? (
           <div className="space-y-5">
+            {/* Default stretch alignment keeps both cards the same height. The dead
+                space this used to cause is gone now that the account column is a
+                compact list rather than a stack of nested cards. */}
             <div className="grid lg:grid-cols-[340px_1fr] gap-5">
-              {/* Account Info */}
-              <div className="rounded-xl border border-[#E2E0D8] bg-white p-6">
-                <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63] mb-4">
-                  Account
-                </p>
-
-                <div className="flex items-start gap-3 mb-5">
-                  <div className="w-11 h-11 shrink-0 rounded-md bg-[#29394D] flex items-center justify-center">
-                    <span className="e8-display text-white text-lg">
-                      {(clientInfo.companyName || clientInfo.name || "?").charAt(0)}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="e8-display text-[19px] leading-tight text-[#17181C] truncate">
-                      {clientInfo.companyName || clientInfo.name}
-                    </p>
-                    {clientInfo.companyName && (
-                      <p className="text-sm text-[#6B6A63] truncate">{clientInfo.name}</p>
+              {/* Account Info — headings follow the app's CardTitle convention
+                  (text-lg, sentence case) rather than the letterspaced uppercase
+                  micro-labels this page used to carry. Those were drawn for a
+                  monospace face and read as stretched now that everything is Inter. */}
+              <div className="rounded-xl border border-gray-200 bg-white p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h4 className="text-lg font-semibold text-gray-900">Account</h4>
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground bg-gray-100 border border-gray-200 rounded-full px-2.5 py-1">
+                    {clientInfo.hasPostingServices ? (
+                      <CheckCircle size={12} className="text-green-600 shrink-0" strokeWidth={2} />
+                    ) : (
+                      <XCircle size={12} className="text-gray-400 shrink-0" strokeWidth={2} />
                     )}
-                  </div>
+                    {clientInfo.hasPostingServices ? "Posting Included" : "Delivery Only"}
+                  </span>
                 </div>
 
-                <div className="h-px bg-[#E2E0D8] mb-4" />
+                {/* A plain divided list rather than a stack of nested cards — cards
+                    inside a card read as heavier than the information warrants.
+                    No name/avatar row here: the header already shows who you're
+                    signed in as, so repeating it is noise. */}
+                <div className="divide-y divide-gray-100">
 
-                <div className="space-y-3 mb-5">
-                  <div className="flex items-center gap-2.5 text-sm text-[#17181C]">
-                    <Mail size={15} className="text-[#6B6A63] shrink-0" strokeWidth={1.75} />
-                    <span className="truncate">{clientInfo.email}</span>
-                  </div>
-                  {clientInfo.phone && (
-                    <div className="flex items-center gap-2.5 text-sm text-[#17181C]">
-                      <Phone size={15} className="text-[#6B6A63] shrink-0" strokeWidth={1.75} />
-                      <span>{clientInfo.phone}</span>
+                  {/* Tinted icon tiles, the app's standard treatment for detail rows
+                      (see SalesDashboard).
+                      `label` is only set where the value can't speak for itself — an
+                      address and a phone number are obvious from the icon, a bare
+                      date isn't. */}
+                  {[
+                    {
+                      key: "email",
+                      label: null,
+                      Icon: Mail,
+                      tint: "bg-blue-50 text-blue-600",
+                      value: clientInfo.email,
+                    },
+                    ...(clientInfo.phone
+                      ? [
+                          {
+                            key: "phone",
+                            label: null,
+                            Icon: Phone,
+                            tint: "bg-green-50 text-green-600",
+                            value: formatPhone(clientInfo.phone),
+                          },
+                        ]
+                      : []),
+                    {
+                      key: "since",
+                      label: "Client since",
+                      Icon: Calendar,
+                      tint: "bg-purple-50 text-purple-600",
+                      value: formatDate(clientInfo.createdAt),
+                    },
+                  ].map(({ key, label, Icon, tint, value }) => (
+                    <div key={key} className="flex items-center gap-3 py-3 first:pt-0">
+                      <div className={`p-2 rounded-lg shrink-0 ${tint}`}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 text-[15px] leading-tight truncate">
+                          {value}
+                        </p>
+                        {label && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
+                        )}
+                      </div>
                     </div>
-                  )}
-                  <div className="flex items-center gap-2.5 text-sm text-[#17181C]">
-                    <Calendar size={15} className="text-[#6B6A63] shrink-0" strokeWidth={1.75} />
-                    <span>
-                      Client since <span className="e8-mono">{formatDate(clientInfo.createdAt)}</span>
-                    </span>
-                  </div>
+                  ))}
                 </div>
-
-                {/* Posting Services Status */}
-                {clientInfo.hasPostingServices ? (
-                  <div className="flex items-center gap-2 rounded-md bg-[#29394D]/[0.06] border border-[#29394D]/15 px-3 py-2.5">
-                    <CheckCircle size={15} className="text-[#29394D] shrink-0" strokeWidth={1.75} />
-                    <span className="text-[13px] font-medium text-[#29394D]">
-                      Posting services included
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 rounded-md bg-[#F6F5F1] border border-[#E2E0D8] px-3 py-2.5">
-                    <XCircle size={15} className="text-[#6B6A63] shrink-0" strokeWidth={1.75} />
-                    <span className="text-[13px] font-medium text-[#6B6A63]">
-                      Content delivery only
-                    </span>
-                  </div>
-                )}
               </div>
 
               {/* Monthly Deliverables */}
-              <div className="rounded-xl border border-[#E2E0D8] bg-white p-6">
+              <div className="rounded-xl border border-gray-200 bg-white p-6">
                 <div className="flex items-center justify-between mb-5">
-                  <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63]">
-                    Monthly Deliverables
-                  </p>
-                  <span className="e8-mono text-[11px] text-[#6B6A63] bg-[#F6F5F1] border border-[#E2E0D8] rounded-full px-2.5 py-1">
-                    {totalDeliverables} total / mo
+                  <h4 className="text-lg font-semibold text-gray-900">Monthly Deliverables</h4>
+                  {/* Mirrors the per-card values: purple semibold figure, muted
+                      unit, and the same "/mo" spacing rather than " / mo". */}
+                  <span className="text-xs text-muted-foreground bg-gray-100 border border-gray-200 rounded-full px-2.5 py-1">
+                    <span className="font-semibold text-purple-600 tabular-nums">
+                      {totalDeliverables}
+                    </span>
+                    <span> Total/Mo</span>
                   </span>
                 </div>
 
                 {clientInfo.monthlyDeliverables?.length > 0 ? (
                   <div className="grid sm:grid-cols-2 gap-3">
                     {clientInfo.monthlyDeliverables.map((deliverable) => {
-                      const platforms =
-                        deliverable.platforms?.map((p) => platformAbbrev[p] || p) || [];
-                      const { w, h, Icon, tone } = getDeliverableVisual(deliverable.type);
+                      const platforms = deliverable.platforms ?? [];
 
                       return (
                         <div
                           key={deliverable.id}
-                          className="group flex items-center gap-4 rounded-lg border border-[#E2E0D8] bg-white px-4 py-4 transition-colors hover:border-[#B9832F]/50"
+                          className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-4"
                         >
-                          <AspectFrame w={w} h={h} tone={tone}>
-                            <Icon
-                              size={13}
-                              className={tone === "brass" ? "text-[#B9832F]" : "text-[#29394D]"}
-                              strokeWidth={1.75}
-                            />
-                          </AspectFrame>
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-[#17181C] text-[15px] leading-tight truncate">
+                            <p className="font-medium text-gray-900 text-[15px] leading-tight truncate">
                               {deliverable.type}
                             </p>
                             {platforms.length > 0 && (
-                              <div className="mt-1 flex gap-1 flex-wrap">
-                                {platforms.map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="e8-mono text-[10px] tracking-wide uppercase text-[#6B6A63] bg-[#F6F5F1] border border-[#E2E0D8] rounded px-1.5 py-0.5"
-                                  >
-                                    {tag}
-                                  </span>
-                                ))}
+                              <div className="mt-1.5 flex gap-1 flex-wrap">
+                                {platforms.map((platform) => {
+                                  const meta = getPlatformMeta(platform);
+
+                                  return (
+                                    <span
+                                      key={platform}
+                                      title={meta?.label ?? platform}
+                                      className="inline-flex h-6 w-6 items-center justify-center rounded border border-gray-200 bg-gray-50"
+                                    >
+                                      {meta ? (
+                                        <meta.Icon
+                                          className={`h-3.5 w-3.5 ${meta.color}`}
+                                          aria-label={meta.label}
+                                        />
+                                      ) : (
+                                        // Unknown platform — fall back to text rather than
+                                        // showing nothing at all.
+                                        <span className="text-[9px] uppercase text-[#6B6A63]">
+                                          {platform.slice(0, 2)}
+                                        </span>
+                                      )}
+                                    </span>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
+                          {/* Quantity and unit are set at the same size so "30/mo"
+                              reads as one value instead of a big number with a
+                              footnote. Weight and color carry the emphasis instead. */}
                           <div className="text-right shrink-0">
-                            <span className="e8-mono text-2xl font-semibold text-[#B9832F] tabular-nums">
+                            <span className="text-xl font-semibold text-purple-600 tabular-nums">
                               {deliverable.quantity}
                             </span>
-                            <span className="e8-mono text-xs text-[#6B6A63]">/mo</span>
+                            <span className="text-xl text-[#6B6A63]">/mo</span>
                           </div>
                         </div>
                       );
@@ -658,30 +614,26 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
 
             {/* Billing Summary */}
             {clientInfo.billing?.monthlyFee && (
-              <div className="rounded-xl border border-[#E2E0D8] bg-white p-6">
+              <div className="rounded-xl border border-gray-200 bg-white p-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 shrink-0 rounded-md bg-[#B9832F]/[0.1] border border-[#B9832F]/25 flex items-center justify-center">
-                      <DollarSign size={18} className="text-[#B9832F]" strokeWidth={1.75} />
+                    <div className="p-3 rounded-xl shrink-0 bg-green-50 text-green-600">
+                      <DollarSign className="h-6 w-6" />
                     </div>
                     <div>
-                      <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63]">
-                        Monthly Fee
-                      </p>
-                      <p className="e8-display text-[22px] text-[#17181C]">
+                      <h4 className="text-lg font-semibold text-gray-900">Monthly Fee</h4>
+                      <p className="mt-0.5 text-2xl font-bold tracking-tight text-gray-900">
                         ${parseFloat(clientInfo.billing.monthlyFee.replace(/[^0-9.]/g, "")).toLocaleString()}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="e8-mono text-[11px] tracking-[0.18em] uppercase text-[#6B6A63]">
-                      Billing Cycle
-                    </p>
-                    <p className="font-medium text-[#17181C] capitalize">
+                    <h4 className="text-lg font-semibold text-gray-900">Billing Cycle</h4>
+                    <p className="mt-0.5 font-medium text-gray-900 capitalize">
                       {clientInfo.billing.billingFrequency || "Monthly"}
                     </p>
                     {clientInfo.billing.billingDay && (
-                      <p className="text-xs text-[#6B6A63]">
+                      <p className="text-xs text-muted-foreground">
                         Day {clientInfo.billing.billingDay} of each month
                       </p>
                     )}

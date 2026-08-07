@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { formatPhone } from "@/lib/formatPhone";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -737,7 +738,7 @@ export function PreClientsTab() {
                     </div>
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
                       <span className="flex items-center gap-1"><Mail size={11} />{pc.email}</span>
-                      {pc.phone && <span className="flex items-center gap-1"><Phone size={11} />{pc.phone}</span>}
+                      {pc.phone && <span className="flex items-center gap-1"><Phone size={11} />{formatPhone(pc.phone)}</span>}
                     </div>
                   </div>
 

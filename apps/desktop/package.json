@@ -1,6 +1,6 @@
 {
   "name": "e8-client-desktop",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "description": "E8 Productions desktop app",
   "main": "src/main.js",
@@ -27,11 +27,16 @@
     "files": [
       "src/**/*"
     ],
+    "afterPack": "scripts/adhoc-sign.js",
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
       "category": "public.app-category.productivity",
       "identity": null,
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "win": {
       "target": "nsis",

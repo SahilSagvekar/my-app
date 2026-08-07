@@ -76,6 +76,7 @@ import {
   FaSnapchat,
 } from "react-icons/fa";
 import { ClientContractsInvoices } from "../client/ClientContractsInvoices";
+import { formatPhone } from "@/lib/formatPhone";
 
 type SocialPlatform =
   | "Instagram"
@@ -1775,7 +1776,7 @@ export function ClientManagement() {
                     <Label className="text-gray-500">Phone</Label>
                     <div className="flex items-center gap-2 text-gray-900">
                       <Phone className="h-4 w-4" />
-                      {selectedClient.phone}
+                      {formatPhone(selectedClient.phone)}
                     </div>
                   </div>
 

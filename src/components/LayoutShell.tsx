@@ -298,12 +298,14 @@ export function LayoutShell({
             {currentRole?.toLowerCase() === 'client' && (
               <Button
                 variant="ghost"
-                size="icon"
-                title="E8-help"
+                title="E8 Help"
                 onClick={() => onPageChange('help-videos')}
-                className={currentPage === 'help-videos' ? 'bg-muted' : ''}
+                className={`flex items-center gap-2 px-3 ${
+                  currentPage === 'help-videos' ? 'bg-muted' : ''
+                }`}
               >
                 <PlayCircle className="h-5 w-5 text-muted-foreground" />
+                <span className="hidden sm:inline text-sm font-medium">E8 Help</span>
               </Button>
             )}
 

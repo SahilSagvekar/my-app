@@ -64,6 +64,7 @@ import {
     Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatPhone } from "@/lib/formatPhone";
 
 /* ───────────────────────── types ───────────────────────────── */
 interface PortfolioLead {
@@ -156,7 +157,8 @@ function LeadManagement() {
             serviceFilter === "all" || lead.serviceNeeded === serviceFilter;
         const matchesSearch =
             !searchQuery ||
-            `${lead.firstName} ${lead.lastName} ${lead.email} ${lead.phone}`
+            // Both raw and formatted, so "8088958905" and "(808)" both match.
+            `${lead.firstName} ${lead.lastName} ${lead.email} ${lead.phone} ${formatPhone(lead.phone)}`
                 .toLowerCase()
                 .includes(searchQuery.toLowerCase());
         return matchesService && matchesSearch;
@@ -432,7 +434,7 @@ function LeadManagement() {
                                                 <TableCell>
                                                     <div className="flex items-center gap-1.5">
                                                         <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                                                        {lead.phone}
+                                                        {formatPhone(lead.phone)}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
