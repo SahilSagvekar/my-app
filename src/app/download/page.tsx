@@ -5,8 +5,22 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Terminal, MonitorDown } from 'lucide-react';
 
-// 🔥 Replace with your actual R2 public URL once confirmed.
-const RELEASES_BASE_URL = 'https://dbc98815b0fb7124d9fc27fb40abd290.r2.cloudflarestorage.com/e8-test/desktop-releases';
+// 🔥 IMPORTANT: this must be a PUBLIC url, not the R2 S3-API endpoint.
+// The S3-API endpoint (*.r2.cloudflarestorage.com) requires signed
+// requests and will 403 on a plain browser download — it's what your
+// server uses internally with credentials, not a public file host.
+//
+// Use ONE of:
+//   1. R2's public dev URL:   https://pub-<hash>.r2.dev
+//      (enable in bucket Settings -> Allow Access -> Public Development URL)
+//   2. A custom domain connected to the bucket (recommended for prod):
+//      https://releases.e8productions.com
+//
+// Also confirm "e8-test" is actually the bucket you want serving these —
+// reads like a test bucket name.
+const RELEASES_BASE_URL = 'https://dbc98815b0fb7124d9fc27fb40abd290.r2.cloudflarestorage.com/desktop-releases';
+
+const DESKTOP_VERSION = '0.1.2'; // keep in sync with apps/desktop/package.json "version"
 
 const WINDOWS_INSTALLER_URL = `${RELEASES_BASE_URL}/E8Client-Setup.exe`;
 const MAC_DMG_URL = `${RELEASES_BASE_URL}/E8Client.dmg`;
@@ -43,10 +57,11 @@ export default function DownloadDesktopAppPage() {
           <MonitorDown className="h-6 w-6 text-primary" />
           <h1 className="text-xl font-bold text-zinc-900">E8 Client Desktop App</h1>
         </div>
-        <p className="text-sm text-zinc-600 mb-8">
+        <p className="text-sm text-zinc-600 mb-1">
           Download your videos to your own computer and review them faster —
           same login, same dashboard, same review screen you already use.
         </p>
+        <p className="text-xs text-zinc-400 mb-8">Version {DESKTOP_VERSION}</p>
 
         {/* Windows */}
         <div className={`border rounded-lg p-5 mb-4 ${platform === 'windows' ? 'border-primary bg-primary/5' : 'border-zinc-200'}`}>
