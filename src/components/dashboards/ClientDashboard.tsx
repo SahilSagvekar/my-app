@@ -278,6 +278,14 @@ export function ClientDashboard() {
     const desktop = (window as any).e8;
     if (!desktop?.isDesktopApp) return;
 
+    // Older installed desktop builds may not have this method yet (it
+    // ships in the preload bridge, which only updates when the user
+    // updates the app). Fall back to the default rather than throwing.
+    if (typeof desktop.getAutoDownloadSetting !== "function") {
+      setAutoDownloadReady(true);
+      return;
+    }
+
     desktop.getAutoDownloadSetting().then((enabled: boolean) => {
       setAutoDownloadEnabled(enabled);
       setAutoDownloadReady(true);
@@ -287,6 +295,7 @@ export function ClientDashboard() {
   const toggleAutoDownload = async (checked: boolean) => {
     const desktop = (window as any).e8;
     if (!desktop?.isDesktopApp) return;
+    if (typeof desktop.setAutoDownloadSetting !== "function") return;
 
     setAutoDownloadEnabled(checked);
     await desktop.setAutoDownloadSetting(checked);
@@ -295,6 +304,7 @@ export function ClientDashboard() {
   useEffect(() => {
     const desktop = (window as any).e8;
     if (!desktop?.isDesktopApp) return;
+    if (typeof desktop.isDownloaded !== "function" || typeof desktop.downloadFile !== "function") return;
     if (!autoDownloadReady || !autoDownloadEnabled) return;
     if (!tasks || tasks.length === 0) return;
 

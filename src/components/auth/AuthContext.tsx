@@ -81,6 +81,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Execute the actual fetch using apply to handle arguments correctly
         response = await (originalFetch as any).apply(window, args);
       } catch (error) {
+        // Intentional cancellations (component unmount cleanup, request
+        // superseded by a newer one, etc.) are not network failures —
+        // let them propagate as a real AbortError so the caller's own
+        // `if (err.name === 'AbortError') return;` logic can handle it.
+        // Swallowing this into a fake 503 turns harmless cancellations
+        // into visible error states downstream.
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          throw error;
+        }
+
         // Normalize low-level network errors (TypeError: Failed to fetch, CORS, offline, etc.)
         console.error('Global fetch error:', error);
         return new Response(
