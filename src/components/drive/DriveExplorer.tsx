@@ -179,14 +179,34 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // R2 objects, not File records with an id the way task review videos
   // are. This just reflects that progress as a toast, same visual
   // pattern as the video-download toasts elsewhere in the app.
-  useEffect(() => {
-    const desktop = (window as any).e8;
-    if (!desktop?.isDesktopApp) return;
+  // useEffect(() => {
+  //   const desktop = (window as any).e8;
+  //   if (!desktop?.isDesktopApp) return;
 
+  //   desktop.onDriveDownloadProgress(({ fileName, percent }: { fileName: string; percent: number }) => {
+  //     toast.loading(`Downloading ${fileName}... ${percent}%`, { id: `drive-download-${fileName}` });
+  //   });
+
+  //   desktop.onDriveDownloadDone(({ fileName, success }: { fileName: string; success: boolean }) => {
+  //     if (success) {
+  //       toast.success(`${fileName} downloaded`, { id: `drive-download-${fileName}` });
+  //     } else {
+  //       toast.error(`${fileName} download failed or was cancelled`, { id: `drive-download-${fileName}` });
+  //     }
+  //   });
+  // }, []);
+
+  useEffect(() => {
+  const desktop = (window as any).e8;
+  if (!desktop?.isDesktopApp) return;
+
+  if (typeof desktop.onDriveDownloadProgress === "function") {
     desktop.onDriveDownloadProgress(({ fileName, percent }: { fileName: string; percent: number }) => {
       toast.loading(`Downloading ${fileName}... ${percent}%`, { id: `drive-download-${fileName}` });
     });
+  }
 
+  if (typeof desktop.onDriveDownloadDone === "function") {
     desktop.onDriveDownloadDone(({ fileName, success }: { fileName: string; success: boolean }) => {
       if (success) {
         toast.success(`${fileName} downloaded`, { id: `drive-download-${fileName}` });
@@ -194,7 +214,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         toast.error(`${fileName} download failed or was cancelled`, { id: `drive-download-${fileName}` });
       }
     });
-  }, []);
+  }
+}, []);
 
   // ─── View mode (grid / list) — persisted per-browser ───
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
