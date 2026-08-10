@@ -16,7 +16,7 @@ export const metadata = buildMetadata({
 export default function E8AppPage() {
   return (
     <div className="min-h-screen bg-white">
-      <Navigation />
+      <Navigation ctaMode="download" />
       <div>
         <E8AppHero />
         <E8AppRoles />

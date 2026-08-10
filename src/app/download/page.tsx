@@ -5,20 +5,9 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Terminal, MonitorDown } from 'lucide-react';
 
-// 🔥 IMPORTANT: this must be a PUBLIC url, not the R2 S3-API endpoint.
-// The S3-API endpoint (*.r2.cloudflarestorage.com) requires signed
-// requests and will 403 on a plain browser download — it's what your
-// server uses internally with credentials, not a public file host.
-//
-// Use ONE of:
-//   1. R2's public dev URL:   https://pub-<hash>.r2.dev
-//      (enable in bucket Settings -> Allow Access -> Public Development URL)
-//   2. A custom domain connected to the bucket (recommended for prod):
-//      https://releases.e8productions.com
-//
-// Also confirm "e8-test" is actually the bucket you want serving these —
-// reads like a test bucket name.
-const RELEASES_BASE_URL = 'https://dbc98815b0fb7124d9fc27fb40abd290.r2.cloudflarestorage.com/desktop-releases';
+// Public R2.dev URL for the "e8-test" bucket's desktop-releases folder.
+// (Enabled via bucket Settings -> Allow Access -> Public Development URL)
+const RELEASES_BASE_URL = 'https://pub-00a769ee1f0344f499d1a73f2d0eed3a.r2.dev/desktop-releases';
 
 const DESKTOP_VERSION = '0.1.2'; // keep in sync with apps/desktop/package.json "version"
 

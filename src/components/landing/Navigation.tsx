@@ -6,6 +6,13 @@ import Image from 'next/image';
 import { ChevronDown, Video, Lightbulb, Share2, Cpu, Send, Scissors, DollarSign, Tv, Camera } from 'lucide-react';
 import logoImage from '../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png';
 
+// On most pages the top-right button signs the visitor into the
+// dashboard. On /e8-app, it instead should send them to the desktop
+// app download page — pass ctaMode="download" from that page only.
+interface NavigationProps {
+  ctaMode?: 'signin' | 'download';
+}
+
 const services = [
   {
     icon: Scissors,
@@ -57,7 +64,7 @@ const services = [
   },
 ];
 
-export function Navigation() {
+export function Navigation({ ctaMode = 'signin' }: NavigationProps = {}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [servicesDropdownOpen, setServicesDropdownOpen] = useState(false);
   const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
@@ -161,13 +168,13 @@ export function Navigation() {
               </Link>
             </div>
 
-            {/* Sign In Button - Redirects to Dashboard */}
+            {/* Sign In / Download button — /e8-app passes ctaMode="download" */}
             <div className="flex items-center gap-2 sm:gap-0">
               <Link
-                href="/dashboard"
+                href={ctaMode === 'download' ? '/download' : '/dashboard'}
                 className="hidden md:inline-flex px-4 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base bg-black text-white rounded-full transition-all hover:bg-black/90 hover:scale-105"
               >
-                Sign In
+                {ctaMode === 'download' ? 'Download' : 'Sign In'}
               </Link>
 
               {/* Mobile menu button */}
@@ -262,11 +269,11 @@ export function Navigation() {
                 Contact
               </Link>
               <Link
-                href="/dashboard"
+                href={ctaMode === 'download' ? '/download' : '/dashboard'}
                 className="block w-full mt-6 px-5 py-3.5 text-base bg-black text-white text-center rounded-full hover:bg-black/90 active:scale-95 transition-all font-medium"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Sign In
+                {ctaMode === 'download' ? 'Download' : 'Sign In'}
               </Link>
             </div>
           )}
