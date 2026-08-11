@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
-import { sendContractViaSignWell } from '@/lib/contracts';
+import { sendContractViaSignWell, createReferenceDocument } from '@/lib/contracts';
 
 // GET /api/contracts — list contracts
 export async function GET(req: NextRequest) {
@@ -85,9 +85,42 @@ export async function POST(req: NextRequest) {
     const clientId = formData.get('clientId') as string | null;
     const expiresInDays = Number(formData.get('expiresInDays') || 30);
     const signersJson = formData.get('signers') as string;
+    // 🔥 Reference documents (e.g. an already-signed contract, a schedule
+    // incorporated by reference) — uploaded straight to the client portal
+    // with no SignWell send, no signers, nothing for the client to sign.
+    const requiresSignature = formData.get('requiresSignature') !== 'false';
 
     if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     if (!file) return NextResponse.json({ error: 'PDF file is required' }, { status: 400 });
+
+    if (!requiresSignature) {
+      if (!clientId) {
+        return NextResponse.json({ error: 'A client is required for reference documents' }, { status: 400 });
+      }
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const contract = await createReferenceDocument({
+        buffer,
+        fileName: file.name,
+        title,
+        clientId,
+        createdById: user.id,
+      });
+
+      const full = await prisma.contract.findUnique({
+        where: { id: contract.id },
+        include: {
+          signers: true,
+          createdBy: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      return NextResponse.json({
+        ...full,
+        fileSize: full!.fileSize.toString(),
+      }, { status: 201 });
+    }
+
     if (!signersJson) return NextResponse.json({ error: 'At least one signer is required' }, { status: 400 });
 
     let signers: Array<{ name: string; email: string }> = [];

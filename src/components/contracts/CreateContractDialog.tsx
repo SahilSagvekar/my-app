@@ -61,6 +61,10 @@ export function CreateContractDialog({
     const [file, setFile] = useState<File | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // 🔥 Reference document — uploaded straight to the client portal, no
+    // SignWell send, no signers. Only usable when a client is known
+    // (clientId/defaultClientId), since it always shows under one client.
+    const [requiresSignature, setRequiresSignature] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const addSigner = () =>
@@ -94,9 +98,14 @@ export function CreateContractDialog({
 
         if (!title.trim()) return setError("Title is required.");
         if (!file) return setError("Please upload a PDF file.");
-        const validSigners = signers.filter((s) => s.name.trim() && s.email.trim());
-        if (validSigners.length === 0)
-            return setError("At least one signer with name and email is required.");
+
+        if (!requiresSignature) {
+            if (!resolvedClientId) return setError("A client is required for reference documents.");
+        } else {
+            const validSigners = signers.filter((s) => s.name.trim() && s.email.trim());
+            if (validSigners.length === 0)
+                return setError("At least one signer with name and email is required.");
+        }
 
         setSubmitting(true);
         try {
@@ -104,10 +113,15 @@ export function CreateContractDialog({
             formData.append("file", file);
             formData.append("title", title.trim());
             if (description.trim()) formData.append("description", description.trim());
-            if (message.trim()) formData.append("message", message.trim());
             if (resolvedClientId) formData.append("clientId", resolvedClientId);
-            formData.append("expiresInDays", String(expiresInDays));
-            formData.append("signers", JSON.stringify(validSigners));
+            formData.append("requiresSignature", String(requiresSignature));
+
+            if (requiresSignature) {
+                if (message.trim()) formData.append("message", message.trim());
+                formData.append("expiresInDays", String(expiresInDays));
+                const validSigners = signers.filter((s) => s.name.trim() && s.email.trim());
+                formData.append("signers", JSON.stringify(validSigners));
+            }
 
             const res = await fetch("/api/contracts", {
                 method: "POST",
@@ -180,7 +194,28 @@ export function CreateContractDialog({
                         />
                     </div>
 
-                    {/* Message to signers */}
+                    {/* Reference document toggle */}
+                    <div className="flex items-start gap-2.5 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                        <input
+                            id="requires-signature-toggle"
+                            type="checkbox"
+                            checked={!requiresSignature}
+                            onChange={(e) => setRequiresSignature(!e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                        />
+                        <label htmlFor="requires-signature-toggle" className="text-sm text-gray-700 cursor-pointer">
+                            <span className="font-medium">This is a reference document</span> — just upload
+                            it to the client's portal for them to view/download. No signature needed, and
+                            nothing gets sent to them.
+                            {!resolvedClientId && (
+                                <span className="block text-xs text-amber-600 mt-1">
+                                    Requires a client to be selected.
+                                </span>
+                            )}
+                        </label>
+                    </div>
+
+                    {requiresSignature && (
                     <div className="space-y-1.5">
                         <Label htmlFor="contract-message">
                             Message to Signers <span className="text-gray-400 font-normal text-xs">(optional)</span>
@@ -194,6 +229,7 @@ export function CreateContractDialog({
                             className="resize-none"
                         />
                     </div>
+                    )}
 
                     {/* PDF Upload */}
                     <div className="space-y-1.5">
@@ -241,7 +277,7 @@ export function CreateContractDialog({
                         )}
                     </div>
 
-                    {/* Expiry */}
+                    {requiresSignature && (
                     <div className="space-y-1.5">
                         <Label htmlFor="contract-expiry" className="flex items-center gap-1.5">
                             <Calendar className="h-3.5 w-3.5 text-gray-400" />
@@ -257,8 +293,9 @@ export function CreateContractDialog({
                             className="w-32"
                         />
                     </div>
+                    )}
 
-                    {/* Signers */}
+                    {requiresSignature && (
                     <div className="space-y-2">
                         <div className="flex items-center justify-between">
                             <Label>
@@ -302,11 +339,12 @@ export function CreateContractDialog({
                             ))}
                         </div>
                     </div>
+                    )}
                 </div>
 
                 <DialogFooter className="pt-4 border-t mt-2">
                     <p className="text-xs text-gray-400 mr-auto">
-                        Sent via SignWell for e-signatures
+                        {requiresSignature ? "Sent via SignWell for e-signatures" : "Uploaded straight to the client portal"}
                     </p>
                     <Button
                         type="button"
@@ -325,12 +363,17 @@ export function CreateContractDialog({
                         {submitting ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                Sending…
+                                {requiresSignature ? "Sending…" : "Uploading…"}
                             </>
-                        ) : (
+                        ) : requiresSignature ? (
                             <>
                                 <Send className="h-4 w-4" />
                                 Create &amp; Send
+                            </>
+                        ) : (
+                            <>
+                                <Upload className="h-4 w-4" />
+                                Upload Document
                             </>
                         )}
                     </Button>
