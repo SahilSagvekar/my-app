@@ -1,6 +1,6 @@
 // Shared helper for issuing a session after credentials are fully verified
 // (used by the direct-login path and by the OTP-verification path).
-import bcrypt from "bcrypt";
+import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
 import { prisma } from "@/lib/prisma";
 import { getGeoLocation, formatLocation } from "@/lib/geo";
