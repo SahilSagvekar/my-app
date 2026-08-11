@@ -4,7 +4,10 @@
 // below threshold are left APPROVED and roll into next week's run.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { affiliateCommission, payoutBatchRun } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { getPayoutConfig } from '@/lib/payout-config';
 import { sendCommissionTransfer, PayoutError } from '@/lib/stripe-payouts';
 
@@ -20,28 +23,32 @@ export async function POST(req: NextRequest) {
     const minimumDollars = minimumThresholdCents / 100;
     const now = new Date();
 
-    const eligible = await prisma.affiliateCommission.findMany({
-      where: {
-        status: 'APPROVED',
-        holdUntil: { lte: now },
-        commissionAmt: { gte: minimumDollars },
-      },
-      include: { user: { include: { payoutProfile: true } } },
+    const eligible = await db.query.affiliateCommission.findMany({
+      where: and(
+        eq(affiliateCommission.status, 'APPROVED'),
+        lte(affiliateCommission.holdUntil, now.toISOString()),
+        gte(affiliateCommission.commissionAmt, String(minimumDollars)),
+      ),
+      with: { user: { with: { salesRepPayoutProfiles: true } } },
     });
 
     if (eligible.length === 0) {
       return NextResponse.json({ message: 'No eligible commissions this run', total: 0 });
     }
 
-    const batch = await prisma.payoutBatchRun.create({
-      data: { status: 'RUNNING', totalPayouts: eligible.length },
-    });
+    const [batch] = await db.insert(payoutBatchRun).values({
+      id: createId(),
+      status: 'RUNNING',
+      totalPayouts: eligible.length,
+    }).returning();
 
     const results: { commissionId: string; status: 'sent' | 'skipped' | 'failed'; reason?: string }[] = [];
     let totalAmount = 0;
 
     for (const commission of eligible) {
-      if (!commission.user.payoutProfile?.payoutsEnabled) {
+      // salesRepPayoutProfile has a unique userId FK (1:1), but drizzle-kit
+      // introspection mislabels it many() — take the first (only) entry.
+      if (!commission.user.salesRepPayoutProfiles[0]?.payoutsEnabled) {
         results.push({ commissionId: commission.id, status: 'skipped', reason: 'rep not onboarded' });
         continue;
       }
@@ -55,10 +62,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await prisma.payoutBatchRun.update({
-      where: { id: batch.id },
-      data: { status: 'COMPLETED', totalAmount, completedAt: new Date() },
-    });
+    await db.update(payoutBatchRun).set({
+      status: 'COMPLETED',
+      totalAmount: String(totalAmount),
+      completedAt: new Date().toISOString(),
+    }).where(eq(payoutBatchRun.id, batch.id));
 
     const sent = results.filter((r) => r.status === 'sent').length;
     const failed = results.filter((r) => r.status === 'failed').length;

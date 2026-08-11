@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { nasSyncLog, file as fileTable, task as taskTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,38 +33,36 @@ export async function POST(req: NextRequest) {
     console.log(`[NAS Webhook] Received backup report: status=${status} completedAt=${completedAt}`);
 
     // ── Save sync log ─────────────────────────────────────
-    const log = await prisma.nasSyncLog.create({
-      data: {
-        status,
-        completedAt: new Date(completedAt),
-        bucketName: bucketName || null,
-        paths: paths || [],
-        filesCount: filesCount ? Number(filesCount) : null,
-        bytesCount: bytesCount ? BigInt(bytesCount) : null,
-        errorMessage: errorMessage || null,
-      },
-    });
+    const [log] = await db.insert(nasSyncLog).values({
+      id: createId(),
+      status,
+      completedAt: new Date(completedAt).toISOString(),
+      bucketName: bucketName || null,
+      paths: paths || [],
+      filesCount: filesCount ? Number(filesCount) : null,
+      bytesCount: bytesCount ? Number(bytesCount) : null,
+      errorMessage: errorMessage || null,
+    }).returning();
 
     // ── If success: mark files as archivedToNas ───────────
     if (status === 'success') {
       // Mark all files that belong to completed/approved tasks as archived
-      const updated = await prisma.file.updateMany({
-        where: {
-          archivedToNas: false,
-          task: {
-            status: {
-              in: ['COMPLETED', 'SCHEDULED', 'POSTED', 'READY_FOR_QC'],
-            },
-          },
-        },
-        data: {
-          archivedToNas: true,
-          nasArchivedAt: new Date(completedAt),
-          nasPath: `/volume2/Backup/outputs`,
-        },
-      });
+      const eligibleTaskIds = db.select({ id: taskTable.id }).from(taskTable)
+        .where(inArray(taskTable.status, ['COMPLETED', 'SCHEDULED', 'POSTED', 'READY_FOR_QC'] as any));
 
-      console.log(`[NAS Webhook] Marked ${updated.count} files as archivedToNas`);
+      const updated = await db.update(fileTable)
+        .set({
+          archivedToNas: true,
+          nasArchivedAt: new Date(completedAt).toISOString(),
+          nasPath: `/volume2/Backup/outputs`,
+        })
+        .where(and(
+          eq(fileTable.archivedToNas, false),
+          inArray(fileTable.taskId, eligibleTaskIds),
+        ))
+        .returning({ id: fileTable.id });
+
+      console.log(`[NAS Webhook] Marked ${updated.length} files as archivedToNas`);
     }
 
     return NextResponse.json({
@@ -84,14 +85,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const [logs, totalFiles, archivedFiles] = await Promise.all([
-      prisma.nasSyncLog.findMany({
-        orderBy: { completedAt: 'desc' },
-        take: 20,
-      }),
-      prisma.file.count(),
-      prisma.file.count({ where: { archivedToNas: true } }),
+    const [logs, totalFilesResult, archivedFilesResult] = await Promise.all([
+      db.select().from(nasSyncLog).orderBy(desc(nasSyncLog.completedAt)).limit(20),
+      db.select({ value: count() }).from(fileTable),
+      db.select({ value: count() }).from(fileTable).where(eq(fileTable.archivedToNas, true)),
     ]);
+    const totalFiles = totalFilesResult[0].value;
+    const archivedFiles = archivedFilesResult[0].value;
 
     return NextResponse.json({
       logs: logs.map(l => ({

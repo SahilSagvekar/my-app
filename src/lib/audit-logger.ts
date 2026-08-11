@@ -1,5 +1,6 @@
 // lib/audit-logger.ts
-import { prisma } from './prisma';
+import { db } from './db';
+import { auditLog } from './db/schema';
 import type { NextRequest } from 'next/server';
 import { getGeoLocation } from './geo';
 
@@ -43,18 +44,21 @@ export async function createAuditLog(data: AuditLogData) {
     metadata: data.metadata ? JSON.parse(JSON.stringify(data.metadata)) : null,
     ipAddress: data.ipAddress,
     userAgent: data.userAgent,
-    timestamp: new Date(),
+    timestamp: new Date().toISOString(),
     userId: data.userId ?? null,
   };
 
   try {
-    return await prisma.auditLog.create({ data: payload });
+    const [row] = await db.insert(auditLog).values(payload).returning();
+    return row;
   } catch (error: any) {
     // If the userId FK fails (user was deleted/recreated), retry without the
     // user reference so the audit entry is still preserved in the log.
-    if (error?.code === 'P2003') {
+    // Postgres foreign_key_violation SQLSTATE (equivalent to Prisma's P2003).
+    if (error?.code === '23503') {
       try {
-        return await prisma.auditLog.create({ data: { ...payload, userId: null } });
+        const [retryRow] = await db.insert(auditLog).values({ ...payload, userId: null }).returning();
+        return retryRow;
       } catch (retryErr) {
         console.error('Failed to create audit log (retry):', retryErr);
         return null;

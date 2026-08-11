@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable, contractSigner as contractSignerTable, client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
+import { and, or, eq, isNotNull, isNull, inArray, sql } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getSignWellDocument, downloadSignWellPdf, mapSignWellStatus, mapSignWellSignerStatus } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
@@ -17,60 +19,64 @@ export async function GET(req: NextRequest) {
     // 1. Active contracts (SENT / PARTIALLY_SIGNED)
     // 2. COMPLETED contracts that still have PENDING signers — the most common
     //    cause of signers showing as "pending" even after everyone has signed.
-    let where: any = {
-      signwellDocumentId: { not: null },
-    };
+
+    // Pre-compute the sets of contract IDs needed for the "some signer..." relation
+    // filters below (Drizzle has no direct equivalent of Prisma's `some`).
+    const pendingSignerRows = await db
+      .selectDistinct({ contractId: contractSignerTable.contractId })
+      .from(contractSignerTable)
+      .where(eq(contractSignerTable.status, 'PENDING'));
+    const pendingSignerContractIds = pendingSignerRows.map((r) => r.contractId);
+    const hasPendingSigner = pendingSignerContractIds.length > 0
+      ? inArray(contractTable.id, pendingSignerContractIds)
+      : sql`false`;
+
+    let orParts: any[];
 
     if (user.role === 'client') {
-      where.OR = [
-        {
-          clientId: user.linkedClientId,
-          status: { in: ['SENT', 'PARTIALLY_SIGNED'] }
-        },
-        {
-          clientId: user.linkedClientId,
-          status: 'COMPLETED',
-          signers: { some: { status: 'PENDING' } }
-        },
-        {
-          signers: { some: { email: user.email } },
-          status: { in: ['SENT', 'PARTIALLY_SIGNED'] }
-        },
-        {
-          status: 'COMPLETED',
-          AND: [
-            { signers: { some: { email: user.email } } },
-            { signers: { some: { status: 'PENDING' } } }
-          ]
-        }
+      const clientIdCond = user.linkedClientId == null
+        ? isNull(contractTable.clientId)
+        : eq(contractTable.clientId, user.linkedClientId);
+
+      const myEmailSignerRows = await db
+        .selectDistinct({ contractId: contractSignerTable.contractId })
+        .from(contractSignerTable)
+        .where(eq(contractSignerTable.email, user.email));
+      const myEmailContractIds = myEmailSignerRows.map((r) => r.contractId);
+      const isMySigner = myEmailContractIds.length > 0
+        ? inArray(contractTable.id, myEmailContractIds)
+        : sql`false`;
+
+      orParts = [
+        and(clientIdCond, inArray(contractTable.status, ['SENT', 'PARTIALLY_SIGNED'])),
+        and(clientIdCond, eq(contractTable.status, 'COMPLETED'), hasPendingSigner),
+        and(isMySigner, inArray(contractTable.status, ['SENT', 'PARTIALLY_SIGNED'])),
+        and(eq(contractTable.status, 'COMPLETED'), isMySigner, hasPendingSigner),
       ];
     } else {
-      where.OR = [
-        { status: { in: ['SENT', 'PARTIALLY_SIGNED'] } },
-        {
-          status: 'COMPLETED',
-          signers: { some: { status: 'PENDING' } },
-        },
+      orParts = [
+        inArray(contractTable.status, ['SENT', 'PARTIALLY_SIGNED']),
+        and(eq(contractTable.status, 'COMPLETED'), hasPendingSigner),
       ];
     }
 
-    const pendingContracts = await prisma.contract.findMany({
-      where,
-      include: {
-        signers: true,
+    const rows = await db.query.contract.findMany({
+      where: and(isNotNull(contractTable.signwellDocumentId), or(...orParts)),
+      with: {
+        contractSigners: true,
       },
     });
 
-    for (let contract of pendingContracts) {
+    const pendingContracts: any[] = rows.map((c) => ({ ...c, signers: c.contractSigners }));
+
+    for (const contract of pendingContracts) {
       if (contract.clientId) {
-        const client = await prisma.client.findUnique({
-          where: { id: contract.clientId },
-          include: { portalAccess: true }
+        const clientRow = await db.query.client.findFirst({
+          where: eq(clientTable.id, contract.clientId),
+          with: { clientPortalAccesses: true },
         });
-        if (client) {
-          (client as any).portalAccess = client.portalAccess;
-        }
-        (contract as any).client = client;
+        const client = clientRow ? { ...clientRow, portalAccess: clientRow.clientPortalAccesses?.[0] ?? null } : null;
+        contract.client = client;
       }
     }
 
@@ -97,14 +103,12 @@ export async function GET(req: NextRequest) {
           if (dbSigner) {
             const newSignerStatus = mapSignWellSignerStatus(swSigner.status);
             if (dbSigner.status !== newSignerStatus) {
-              await prisma.contractSigner.update({
-                where: { id: dbSigner.id },
-                data: { 
-                  status: newSignerStatus, 
-                  signedAt: newSignerStatus === 'SIGNED' ? new Date() : dbSigner.signedAt,
-                  viewedAt: newSignerStatus === 'VIEWED' ? new Date() : dbSigner.viewedAt,
-                },
-              });
+              await db.update(contractSignerTable).set({
+                status: newSignerStatus,
+                signedAt: newSignerStatus === 'SIGNED' ? new Date().toISOString() : dbSigner.signedAt,
+                viewedAt: newSignerStatus === 'VIEWED' ? new Date().toISOString() : dbSigner.viewedAt,
+                updatedAt: new Date().toISOString(),
+              }).where(eq(contractSignerTable.id, dbSigner.id));
               anySignerUpdated = true;
             }
           }
@@ -126,34 +130,32 @@ export async function GET(req: NextRequest) {
             mimeType: 'application/pdf',
           });
 
-          await prisma.contract.update({
-            where: { id: contract.id },
-            data: {
-              status: 'COMPLETED',
-              completedAt: new Date(),
-              signedS3Key: key,
-            },
-          });
-          
+          await db.update(contractTable).set({
+            status: 'COMPLETED',
+            completedAt: new Date().toISOString(),
+            signedS3Key: key,
+            updatedAt: new Date().toISOString(),
+          }).where(eq(contractTable.id, contract.id));
+
           // Advance portal if pipeline client
           const client = (contract as any).client;
           if (client?.portalAccess) {
             const currentStatus = client.portalAccess.status;
             if (currentStatus === 'CONTRACT_PENDING' || currentStatus === 'ONBOARDING') {
-              await prisma.clientPortalAccess.update({
-                where: { clientId: client.id },
-                data: { status: 'PAYMENT_PENDING' },
-              });
+              await db.update(clientPortalAccessTable).set({
+                status: 'PAYMENT_PENDING',
+                updatedAt: new Date().toISOString(),
+              }).where(eq(clientPortalAccessTable.clientId, client.id));
             }
           }
-          
+
           syncedCount++;
         } else if (newStatus !== contract.status || anySignerUpdated) {
           // Just update the main status if it changed
-          await prisma.contract.update({
-            where: { id: contract.id },
-            data: { status: newStatus as any },
-          });
+          await db.update(contractTable).set({
+            status: newStatus as any,
+            updatedAt: new Date().toISOString(),
+          }).where(eq(contractTable.id, contract.id));
           syncedCount++;
         }
       } catch (err) {

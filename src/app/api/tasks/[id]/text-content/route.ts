@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -28,14 +30,11 @@ export async function PATCH(
             return NextResponse.json({ message: "textContent must be a string" }, { status: 400 });
         }
 
-        const task = await prisma.task.findUnique({ where: { id } });
-        if (!task)
+        const [foundTask] = await db.select({ id: task.id }).from(task).where(eq(task.id, id)).limit(1);
+        if (!foundTask)
             return NextResponse.json({ message: "Task not found" }, { status: 404 });
 
-        await prisma.task.update({
-            where: { id },
-            data: { textContent },
-        });
+        await db.update(task).set({ textContent, updatedAt: new Date().toISOString() }).where(eq(task.id, id));
 
         return NextResponse.json({ success: true });
     } catch (err: any) {

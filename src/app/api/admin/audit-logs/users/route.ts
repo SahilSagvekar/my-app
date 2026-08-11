@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/audit-logs/users/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { auditLog as auditLogTable, user as userTable } from '@/lib/db/schema';
+import { isNotNull, inArray, asc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
@@ -17,28 +19,18 @@ export async function GET(req: NextRequest) {
     }
 
     // Get all users who have audit log entries
-    const usersWithLogs = await prisma.auditLog.groupBy({
-      by: ['userId'],
-      where: {
-        userId: { not: null }
-      }
-    });
+    const usersWithLogs = await db.selectDistinct({ userId: auditLogTable.userId })
+      .from(auditLogTable)
+      .where(isNotNull(auditLogTable.userId));
 
     const userIds = usersWithLogs.map(u => u.userId).filter(id => id !== null) as number[];
 
-    const users = await prisma.user.findMany({
-      where: {
-        id: { in: userIds }
-      },
-      select: {
-        id: true,
-        name: true,
-        role: true
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
+    const users = userIds.length > 0
+      ? await db.select({ id: userTable.id, name: userTable.name, role: userTable.role })
+          .from(userTable)
+          .where(inArray(userTable.id, userIds))
+          .orderBy(asc(userTable.name))
+      : [];
 
     const formattedUsers = users.map(user => ({
       id: user.id.toString(),

@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { billingPlan } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, asc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import { stripe, toCents } from '@/lib/stripe';
 
@@ -11,10 +14,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const activeOnly = searchParams.get('active') !== 'false';
 
-    const plans = await prisma.billingPlan.findMany({
-      where: activeOnly ? { isActive: true } : {},
-      orderBy: { amount: 'asc' },
-    });
+    const plans = await db.select().from(billingPlan)
+      .where(activeOnly ? eq(billingPlan.isActive, true) : undefined)
+      .orderBy(asc(billingPlan.amount));
 
     return NextResponse.json({ ok: true, plans });
   } catch (error: any) {
@@ -64,19 +66,19 @@ export async function POST(req: NextRequest) {
     });
 
     // Save to our database
-    const plan = await prisma.billingPlan.create({
-      data: {
-        name,
-        description,
-        stripePriceId: price.id,
-        stripeProductId: product.id,
-        amount: toCents(amount),
-        currency: 'usd',
-        interval,
-        features,
-        isActive: true,
-      },
-    });
+    const [plan] = await db.insert(billingPlan).values({
+      id: createId(),
+      name,
+      description,
+      stripePriceId: price.id,
+      stripeProductId: product.id,
+      amount: toCents(amount),
+      currency: 'usd',
+      interval,
+      features,
+      isActive: true,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     return NextResponse.json({ ok: true, plan });
   } catch (error: any) {
@@ -101,7 +103,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ ok: false, message: 'id is required' }, { status: 400 });
     }
 
-    const plan = await prisma.billingPlan.findUnique({ where: { id } });
+    const [plan] = await db.select().from(billingPlan).where(eq(billingPlan.id, id)).limit(1);
     if (!plan) {
       return NextResponse.json({ ok: false, message: 'Plan not found' }, { status: 404 });
     }
@@ -122,15 +124,13 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Update our record
-    const updatedPlan = await prisma.billingPlan.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(description !== undefined && { description }),
-        ...(features && { features }),
-        ...(isActive !== undefined && { isActive }),
-      },
-    });
+    const [updatedPlan] = await db.update(billingPlan).set({
+      ...(name && { name }),
+      ...(description !== undefined && { description }),
+      ...(features && { features }),
+      ...(isActive !== undefined && { isActive }),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(billingPlan.id, id)).returning();
 
     return NextResponse.json({ ok: true, plan: updatedPlan });
   } catch (error: any) {

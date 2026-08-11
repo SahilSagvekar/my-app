@@ -9,7 +9,9 @@ import { google } from "googleapis";
 import formidable from "formidable";
 import fs from "fs";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -36,15 +38,14 @@ export async function GET(req: Request) {
   const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
   const { data } = await oauth2.userinfo.get();
 
-  let user = await prisma.user.findFirst({ where: { email: data.email! } });
+  let [user] = await db.select().from(userTable).where(eq(userTable.email, data.email!)).limit(1);
   if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email: data.email!,
-        name: data.name ?? "",
-        role: "client", // default role for OAuth users
-      },
-    });
+    [user] = await db.insert(userTable).values({
+      email: data.email!,
+      name: data.name ?? "",
+      role: "client", // default role for OAuth users
+      updatedAt: new Date().toISOString(),
+    }).returning();
   }
 
   if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {

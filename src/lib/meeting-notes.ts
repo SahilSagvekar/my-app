@@ -5,7 +5,10 @@
 // account) so copies land in the same Drive the rest of the app writes to.
 
 import { google } from "googleapis";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, meetingNote as meetingNoteTable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq } from "drizzle-orm";
 
 function getOAuthClient() {
   const client = new google.auth.OAuth2(
@@ -48,7 +51,7 @@ export async function createMeetingNotesDoc(clientId: string, meetingDate: Date 
   const templateId = process.env.MEETING_NOTES_TEMPLATE_ID;
   if (!templateId) throw new Error("Missing MEETING_NOTES_TEMPLATE_ID env var");
 
-  const client = await prisma.client.findUnique({ where: { id: clientId } });
+  const [client] = await db.select().from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
   if (!client) throw new Error("Client not found");
 
   const drive = getOAuthDrive();
@@ -69,16 +72,16 @@ export async function createMeetingNotesDoc(clientId: string, meetingDate: Date 
     throw new Error("Drive copy did not return a file ID/link");
   }
 
-  const meetingNote = await prisma.meetingNote.create({
-    data: {
-      clientId,
-      driveDocId,
-      driveDocUrl,
-      title,
-      meetingDate,
-      status: "draft",
-    },
-  });
+  const [meetingNote] = await db.insert(meetingNoteTable).values({
+    id: createId(),
+    clientId,
+    driveDocId,
+    driveDocUrl,
+    title,
+    meetingDate: meetingDate.toISOString(),
+    status: "draft",
+    updatedAt: new Date().toISOString(),
+  }).returning();
 
   return meetingNote;
 }

@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { syncYouTubeChannel } from '@/lib/youtube-sync-service';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { youTubeChannel } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(req: NextRequest) {
     try {
@@ -46,13 +48,11 @@ export async function POST(req: NextRequest) {
         }
 
         // Check rate limiting (prevent too frequent syncs)
-        const youtubeChannel = await prisma.youTubeChannel.findUnique({
-            where: { clientId },
-            select: { lastSyncedAt: true },
-        });
+        const [youtubeChannelRow] = await db.select({ lastSyncedAt: youTubeChannel.lastSyncedAt })
+            .from(youTubeChannel).where(eq(youTubeChannel.clientId, clientId)).limit(1);
 
-        if (youtubeChannel?.lastSyncedAt) {
-            const timeSinceLastSync = Date.now() - youtubeChannel.lastSyncedAt.getTime();
+        if (youtubeChannelRow?.lastSyncedAt) {
+            const timeSinceLastSync = Date.now() - new Date(youtubeChannelRow.lastSyncedAt).getTime();
             const minSyncInterval = 5 * 60 * 1000; // 5 minutes
 
             if (timeSinceLastSync < minSyncInterval) {

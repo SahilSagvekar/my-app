@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { job, bid, user as userTable, notification } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, ne } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendBidAcceptedEmail } from '@/lib/email';
 
@@ -25,70 +28,56 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         }
 
         // 1. Validate Job and Bid
-        const job = await (prisma as any).job.findUnique({
-            where: { id: jobId },
-            include: { bids: true }
+        const foundJob = await db.query.job.findFirst({
+            where: eq(job.id, jobId),
+            with: { bids: true }
         });
 
-        if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-        if (job.status !== 'OPEN') return NextResponse.json({ error: 'Job is not open' }, { status: 400 });
+        if (!foundJob) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+        if (foundJob.status !== 'OPEN') return NextResponse.json({ error: 'Job is not open' }, { status: 400 });
 
-        const selectedBid = job.bids.find((b: any) => b.id === bidId);
+        const selectedBid = foundJob.bids.find((b: any) => b.id === bidId);
         if (!selectedBid) return NextResponse.json({ error: 'Bid not found related to this job' }, { status: 404 });
 
-        // 2. Assign Job and Update Bid Statuses
-        const updateJob = (prisma as any).job.update({
-            where: { id: jobId },
-            data: {
+        // 2. Assign Job and Update Bid Statuses — independent statements, no
+        // reads between them, so array-form $transaction maps to db.batch.
+        await db.batch([
+            db.update(job).set({
                 status: 'ASSIGNED',
-                assignedToId: selectedBid.userId
-            }
-        });
-
-        const updateSelectedBid = (prisma as any).bid.update({
-            where: { id: bidId },
-            data: { status: 'ACCEPTED' }
-        });
-
-        const rejectOthers = (prisma as any).bid.updateMany({
-            where: {
-                jobId,
-                NOT: { id: bidId }
-            },
-            data: { status: 'REJECTED' }
-        });
-
-        await prisma.$transaction([updateJob, updateSelectedBid, rejectOthers]);
+                assignedToId: selectedBid.userId,
+                updatedAt: new Date().toISOString(),
+            }).where(eq(job.id, jobId)),
+            db.update(bid).set({ status: 'ACCEPTED' }).where(eq(bid.id, bidId)),
+            db.update(bid).set({ status: 'REJECTED' }).where(and(eq(bid.jobId, jobId), ne(bid.id, bidId))),
+        ]);
 
         // 3. Send Notification to Winner
-        const winner = await prisma.user.findUnique({
-            where: { id: selectedBid.userId },
-            select: { id: true, email: true, name: true }
-        });
+        const [winner] = await db.select({ id: userTable.id, email: userTable.email, name: userTable.name })
+            .from(userTable).where(eq(userTable.id, selectedBid.userId)).limit(1);
 
         if (winner) {
-            const jobLink = `${process.env.BASE_URL || 'http://localhost:3000'}/portal/jobs/${job.id}`;
+            const jobLink = `${process.env.BASE_URL || 'http://localhost:3000'}/portal/jobs/${foundJob.id}`;
 
             // Email
             await sendBidAcceptedEmail(
                 { email: winner.email, name: winner.name || 'Videographer' },
                 {
-                    title: job.title,
-                    date: new Date(job.startDate).toLocaleDateString(),
+                    title: foundJob.title,
+                    date: new Date(foundJob.startDate).toLocaleDateString(),
                     amount: parseFloat(selectedBid.amount.toString()),
                     link: jobLink
                 }
             );
 
             // In-App Notification
-            await prisma.notification.create({
-                data: {
-                    userId: winner.id,
-                    type: 'BID_ACCEPTED',
-                    title: 'Congratulations! You got the job: ' + job.title,
-                    body: `Your bid of $${selectedBid.amount} was accepted for ${job.title}.`,
-                    payload: { jobId: job.id, link: jobLink }
-                }
+            await db.insert(notification).values({
+                id: createId(),
+                userId: winner.id,
+                type: 'BID_ACCEPTED',
+                title: 'Congratulations! You got the job: ' + foundJob.title,
+                body: `Your bid of $${selectedBid.amount} was accepted for ${foundJob.title}.`,
+                payload: { jobId: foundJob.id, link: jobLink },
+                updatedAt: new Date().toISOString(),
             });
         }
 

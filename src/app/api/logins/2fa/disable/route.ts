@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/2fa/disable/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { userTwoFactorAuth } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { decrypt } from "@/lib/encryption";
 import * as crypto from "crypto";
@@ -128,9 +130,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Get user's 2FA settings
-        const twoFactorAuth = await prisma.userTwoFactorAuth.findUnique({
-            where: { userId },
-        });
+        const [twoFactorAuth] = await db.select().from(userTwoFactorAuth).where(eq(userTwoFactorAuth.userId, userId)).limit(1);
 
         if (!twoFactorAuth || !twoFactorAuth.isEnabled) {
             return NextResponse.json(
@@ -154,9 +154,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Delete the 2FA record
-        await prisma.userTwoFactorAuth.delete({
-            where: { userId },
-        });
+        await db.delete(userTwoFactorAuth).where(eq(userTwoFactorAuth.userId, userId));
 
         return NextResponse.json({
             success: true,

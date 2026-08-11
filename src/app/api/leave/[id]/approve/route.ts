@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { leave as leaveTable, deduction as deductionTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 
 function calculateLeaveDays(
@@ -36,30 +38,26 @@ export async function PATCH(
     const leaveId = Number(params.id);
     if (Number.isNaN(leaveId)) throw new Error("Invalid leave id");
 
-    const leave = await prisma.leave.findUnique({
-      where: { id: leaveId },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            hourlyRate: true,
-            worksOnSaturday: true,
-          },
+    const leave = await db.query.leave.findFirst({
+      where: eq(leaveTable.id, leaveId),
+      with: {
+        user: {
+          columns: { id: true, hourlyRate: true, worksOnSaturday: true },
         },
       },
     });
 
     if (!leave) throw new Error("Leave not found");
-    if (!leave.employee) throw new Error("Employee not found for this leave");
+    if (!leave.user) throw new Error("Employee not found for this leave");
 
-    const employee = leave.employee;
+    const employee = leave.user;
 
     if (!employee.hourlyRate) {
       throw new Error("Employee has no hourlyRate; cannot compute deduction.");
     }
 
-    const start = leave.startDate;
-    const end = leave.endDate;
+    const start = new Date(leave.startDate);
+    const end = new Date(leave.endDate);
 
     const leaveDays = calculateLeaveDays(
       start,
@@ -78,24 +76,19 @@ export async function PATCH(
       Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)
     );
 
-    const [updatedLeave, deduction] = await prisma.$transaction([
-      prisma.leave.update({
-        where: { id: leaveId },
-        data: {
-          status: "APPROVED",
-          numberOfDays: leaveDays,
-        },
-      }),
-      prisma.deduction.create({
-        data: {
-          employeeId: employee.id,
-          leaveId: leaveId,
-          amount: deductionAmount,
-          month: firstDayOfMonth, // DateTime ✔
-          // year: firstDayOfMonth,  // DateTime ✔
-          // reason: "LEAVE",
-        },
-      }),
+    const [[updatedLeave], [deduction]] = await db.batch([
+      db.update(leaveTable).set({
+        status: "APPROVED",
+        numberOfDays: leaveDays,
+      }).where(eq(leaveTable.id, leaveId)).returning(),
+      db.insert(deductionTable).values({
+        employeeId: employee.id,
+        leaveId: leaveId,
+        amount: String(deductionAmount),
+        month: firstDayOfMonth.toISOString(), // DateTime ✔
+        // year: firstDayOfMonth,  // DateTime ✔
+        // reason: "LEAVE",
+      }).returning(),
     ]);
 
     return NextResponse.json({

@@ -1,7 +1,9 @@
 // lib/daily-summary-report.ts
 // Generates a daily summary of what each team member did (12 AM – 7 PM EST)
 // Includes: task status changes, login/logout times, client activity
-import { prisma } from './prisma';
+import { db } from './db';
+import { auditLog, task as taskTable, user as userTable } from './db/schema';
+import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { format, subSeconds } from 'date-fns';
 import { sendDailySummaryToSlack } from './slack';
 
@@ -92,61 +94,44 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
         console.log(`⏰ Report Window (EST): 12:00 AM → 7:00 PM`);
         console.log(`⏰ Report Window (UTC): ${utcStartRange.toISOString()} → ${utcEndRange.toISOString()}`);
 
+        const startISO = utcStartRange.toISOString();
+        const endISO = utcEndRange.toISOString();
+
         // === 1. Fetch task-related audit logs (broad query to catch everything) ===
-        const taskAuditLogs = await prisma.auditLog.findMany({
-            where: {
-                timestamp: {
-                    gte: utcStartRange,
-                    lte: utcEndRange,
-                },
-                action: {
-                    in: ['TASK_UPDATED', 'TASK_STATUS_CHANGED', 'TASK_COMPLETED', 'TASK_QC_APPROVED', 'TASK_QC_REJECTED', 'TASK_CREATED', 'TASK_ASSIGNED', 'FILE_UPLOADED']
-                }
-            },
-            include: {
-                User: true
-            },
-            orderBy: {
-                timestamp: 'asc'
-            }
+        const taskAuditLogs = await db.query.auditLog.findMany({
+            where: and(
+                gte(auditLog.timestamp, startISO),
+                lte(auditLog.timestamp, endISO),
+                inArray(auditLog.action, ['TASK_UPDATED', 'TASK_STATUS_CHANGED', 'TASK_COMPLETED', 'TASK_QC_APPROVED', 'TASK_QC_REJECTED', 'TASK_CREATED', 'TASK_ASSIGNED', 'FILE_UPLOADED']),
+            ),
+            with: { user: true },
+            orderBy: asc(auditLog.timestamp),
         });
 
         console.log(`🔍 Found ${taskAuditLogs.length} task-related audit logs`);
 
         // === 2. Fetch login/logout audit logs ===
-        const loginLogoutLogs = await prisma.auditLog.findMany({
-            where: {
-                timestamp: {
-                    gte: utcStartRange,
-                    lte: utcEndRange,
-                },
-                action: {
-                    in: ['USER_LOGIN', 'USER_LOGOUT']
-                }
-            },
-            include: {
-                User: true
-            },
-            orderBy: {
-                timestamp: 'asc'
-            }
+        const loginLogoutLogs = await db.query.auditLog.findMany({
+            where: and(
+                gte(auditLog.timestamp, startISO),
+                lte(auditLog.timestamp, endISO),
+                inArray(auditLog.action, ['USER_LOGIN', 'USER_LOGOUT']),
+            ),
+            with: { user: true },
+            orderBy: asc(auditLog.timestamp),
         });
 
         console.log(`🔐 Found ${loginLogoutLogs.length} login/logout logs`);
 
         // === 3. Also fetch tasks that were marked as SCHEDULED in this window ===
         // (fallback in case audit log wasn't created by older code)
-        const scheduledTasks = await prisma.task.findMany({
-            where: {
-                status: 'SCHEDULED',
-                updatedAt: {
-                    gte: utcStartRange,
-                    lte: utcEndRange,
-                }
-            },
-            include: {
-                user: true, // assignedTo user
-            }
+        const scheduledTasks = await db.query.task.findMany({
+            where: and(
+                eq(taskTable.status, 'SCHEDULED'),
+                gte(taskTable.updatedAt, startISO),
+                lte(taskTable.updatedAt, endISO),
+            ),
+            with: { user_assignedTo: true }, // assignedTo user
         });
 
         console.log(`📅 Found ${scheduledTasks.length} tasks scheduled in this window`);
@@ -179,7 +164,7 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
 
         // === Process login/logout logs ===
         for (const log of loginLogoutLogs) {
-            if (!log.userId || !log.User) continue;
+            if (!log.userId || !log.user) continue;
 
             const metadata = log.metadata as any;
             const locationString = metadata?.location
@@ -190,18 +175,18 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                 continue;
             }
 
-            const userSummary = getOrCreateUser(log.userId, log.User.name || 'Unknown', log.User.role || 'N/A');
+            const userSummary = getOrCreateUser(log.userId, log.user.name || 'Unknown', log.user.role || 'N/A');
 
             userSummary.loginLogoutEvents.push({
                 action: log.action === 'USER_LOGIN' ? 'login' : 'logout',
-                time: log.timestamp,
+                time: new Date(log.timestamp),
                 location: locationString || undefined,
             });
         }
 
         // === Process task audit logs ===
         for (const log of taskAuditLogs) {
-            if (!log.userId || !log.User) continue;
+            if (!log.userId || !log.user) continue;
 
             const metadata = log.metadata as any;
 
@@ -216,8 +201,8 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
 
             const newStatus = metadata?.newStatus;
             const previousStatus = metadata?.previousStatus;
-            const role = log.User.role?.toLowerCase() || '';
-            const userSummary = getOrCreateUser(log.userId, log.User.name || 'Unknown', log.User.role || 'N/A');
+            const role = log.user.role?.toLowerCase() || '';
+            const userSummary = getOrCreateUser(log.userId, log.user.name || 'Unknown', log.user.role || 'N/A');
 
             userSummary.totalActions++;
 
@@ -228,7 +213,7 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                 taskId: log.entityId || '',
                 previousStatus,
                 newStatus,
-                timestamp: log.timestamp,
+                timestamp: new Date(log.timestamp),
             };
 
             // === Editor actions ===
@@ -288,11 +273,13 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
         }
 
         // Process scheduled tasks (catch the ones done via mark-scheduled endpoint before audit log was added)
-        for (const task of scheduledTasks) {
-            if (task.scheduler) {
-                const schedulerUser = await prisma.user.findUnique({
-                    where: { id: task.scheduler }
-                });
+        for (const t of scheduledTasks) {
+            if (t.scheduler) {
+                const [schedulerUser] = await db
+                    .select()
+                    .from(userTable)
+                    .where(eq(userTable.id, t.scheduler))
+                    .limit(1);
 
                 if (schedulerUser) {
                     const userSummary = getOrCreateUser(
@@ -303,7 +290,7 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
 
                     // Only count if not already counted via audit log
                     const alreadyCounted = userSummary.taskDetails.some(
-                        d => d.taskId === task.id && d.action === 'Scheduled/Posted'
+                        d => d.taskId === t.id && d.action === 'Scheduled/Posted'
                     );
 
                     if (!alreadyCounted) {
@@ -311,11 +298,11 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                         userSummary.totalActions++;
                         userSummary.taskDetails.push({
                             action: 'Scheduled/Posted',
-                            taskTitle: task.title || task.description || `Task ${task.id}`,
-                            taskId: task.id,
+                            taskTitle: t.title || t.description || `Task ${t.id}`,
+                            taskId: t.id,
                             previousStatus: undefined,
                             newStatus: 'SCHEDULED',
-                            timestamp: task.updatedAt,
+                            timestamp: new Date(t.updatedAt),
                         });
                     }
                 }

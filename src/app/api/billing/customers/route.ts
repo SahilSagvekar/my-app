@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { stripeCustomer, client as clientTable, paymentMethod } from '@/lib/db/schema';
+import { eq, inArray, desc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import {
   stripe,
@@ -31,22 +33,22 @@ export async function GET(req: NextRequest) {
     }
 
     // Get stripe customer
-    const stripeCustomer = await prisma.stripeCustomer.findUnique({
-      where: { clientId },
-      include: {
+    const foundStripeCustomer = await db.query.stripeCustomer.findFirst({
+      where: eq(stripeCustomer.clientId, clientId),
+      with: {
         client: {
-          select: { id: true, name: true, companyName: true, email: true },
+          columns: { id: true, name: true, companyName: true, email: true },
         },
         paymentMethods: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: (pm, { desc }) => desc(pm.createdAt),
         },
         subscriptions: {
-          where: { status: { in: ['ACTIVE', 'TRIALING', 'PAST_DUE'] } },
+          where: (s, { inArray }) => inArray(s.status, ['ACTIVE', 'TRIALING', 'PAST_DUE'] as any),
         },
       },
     });
 
-    if (!stripeCustomer) {
+    if (!foundStripeCustomer) {
       return NextResponse.json({
         ok: true,
         customer: null,
@@ -57,8 +59,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      customer: stripeCustomer,
-      paymentMethods: stripeCustomer.paymentMethods,
+      customer: foundStripeCustomer,
+      paymentMethods: foundStripeCustomer.paymentMethods,
       hasStripeAccount: true,
     });
   } catch (error: any) {
@@ -89,9 +91,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get client
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-    });
+    const [client] = await db.select().from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
 
     if (!client) {
       return NextResponse.json({ ok: false, message: 'Client not found' }, { status: 404 });
@@ -151,32 +151,30 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: 'paymentMethodId is required' }, { status: 400 });
       }
 
-      const stripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId },
-      });
+      const [foundStripeCustomer] = await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, clientId)).limit(1);
 
-      if (!stripeCustomer) {
+      if (!foundStripeCustomer) {
         return NextResponse.json({ ok: false, message: 'No billing account' }, { status: 404 });
       }
 
       // Update in Stripe
-      await setDefaultPaymentMethod(stripeCustomer.stripeCustomerId, paymentMethodId);
+      await setDefaultPaymentMethod(foundStripeCustomer.stripeCustomerId, paymentMethodId);
 
       // Update in our DB
-      await prisma.paymentMethod.updateMany({
-        where: { stripeCustomerId: stripeCustomer.id },
-        data: { isDefault: false },
-      });
+      await db.update(paymentMethod).set({
+        isDefault: false,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(paymentMethod.stripeCustomerId, foundStripeCustomer.id));
 
-      await prisma.paymentMethod.update({
-        where: { stripePaymentMethodId: paymentMethodId },
-        data: { isDefault: true },
-      });
+      await db.update(paymentMethod).set({
+        isDefault: true,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(paymentMethod.stripePaymentMethodId, paymentMethodId));
 
-      await prisma.stripeCustomer.update({
-        where: { id: stripeCustomer.id },
-        data: { defaultPaymentMethod: paymentMethodId },
-      });
+      await db.update(stripeCustomer).set({
+        defaultPaymentMethod: paymentMethodId,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(stripeCustomer.id, foundStripeCustomer.id));
 
       return NextResponse.json({ ok: true });
     }
@@ -192,9 +190,7 @@ export async function POST(req: NextRequest) {
       await stripe.paymentMethods.detach(paymentMethodId);
 
       // Remove from our DB (webhook will also handle this)
-      await prisma.paymentMethod.delete({
-        where: { stripePaymentMethodId: paymentMethodId },
-      }).catch(() => {});
+      await db.delete(paymentMethod).where(eq(paymentMethod.stripePaymentMethodId, paymentMethodId)).catch(() => {});
 
       return NextResponse.json({ ok: true });
     }

@@ -1,5 +1,8 @@
 // src/lib/meta.ts
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { metaAccount, metaSnapshot } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { createId } from "@/lib/db/id";
 import { MetaProfile, MetaMedia } from "@/types/meta";
 
 const META_GRAPH_URL = "https://graph.facebook.com/v21.0";
@@ -177,9 +180,8 @@ export class MetaService {
      */
     static async syncAccount(clientId: string) {
         try {
-            const account = await prisma.metaAccount.findUnique({
-                where: { clientId },
-            });
+            const [account] = await db.select().from(metaAccount)
+                .where(eq(metaAccount.clientId, clientId)).limit(1);
 
             if (!account || !account.isActive) {
                 return { success: false, error: "Meta account not found or inactive" };
@@ -188,26 +190,25 @@ export class MetaService {
             // 1. Refresh token if expiring within 7 days
             let token = account.accessToken;
             const sevenDays = 7 * 24 * 60 * 60 * 1000;
-            if (account.tokenExpiry.getTime() - Date.now() < sevenDays) {
+            if (new Date(account.tokenExpiry).getTime() - Date.now() < sevenDays) {
                 try {
                     const newToken = await this.refreshToken(token);
                     token = newToken.access_token;
-                    await prisma.metaAccount.update({
-                        where: { id: account.id },
-                        data: {
+                    await db.update(metaAccount)
+                        .set({
                             accessToken: token,
-                            tokenExpiry: new Date(Date.now() + newToken.expires_in * 1000),
-                        }
-                    });
+                            tokenExpiry: new Date(Date.now() + newToken.expires_in * 1000).toISOString(),
+                            updatedAt: new Date().toISOString(),
+                        })
+                        .where(eq(metaAccount.id, account.id));
                 } catch (e) {
                     console.error("Token refresh failed during sync", e);
                 }
             }
 
-            await prisma.metaAccount.update({
-                where: { id: account.id },
-                data: { syncStatus: 'SYNCING', syncError: null },
-            });
+            await db.update(metaAccount)
+                .set({ syncStatus: 'SYNCING', syncError: null, updatedAt: new Date().toISOString() })
+                .where(eq(metaAccount.id, account.id));
 
             // 2. Fetch Profile Info
             const profile = await this.getProfile(account.instagramId!, token);
@@ -237,63 +238,59 @@ export class MetaService {
                 sum + (item.like_count || 0) + (item.comments_count || 0) + (item.insights?.saved || 0), 0);
 
             // 5. Update DB
-            await prisma.metaAccount.update({
-                where: { id: account.id },
-                data: {
+            await db.update(metaAccount)
+                .set({
                     username: profile.username,
                     profilePicture: profile.profile_picture_url,
                     followerCount: profile.followers_count,
                     followingCount: profile.follows_count,
                     mediaCount: profile.media_count,
-                    lastSyncedAt: new Date(),
+                    lastSyncedAt: new Date().toISOString(),
                     syncStatus: 'COMPLETED',
-                },
-            });
+                    updatedAt: new Date().toISOString(),
+                })
+                .where(eq(metaAccount.id, account.id));
 
-            await prisma.metaSnapshot.upsert({
-                where: {
-                    metaAccountId_dateRange: {
-                        metaAccountId: account.id,
-                        dateRange: '28d',
-                    },
-                },
-                create: {
-                    metaAccountId: account.id,
-                    clientId: account.clientId,
-                    impressions: BigInt(aggregated.impressions),
-                    reach: BigInt(aggregated.reach),
+            await db.insert(metaSnapshot).values({
+                id: createId(),
+                metaAccountId: account.id,
+                clientId: account.clientId,
+                impressions: Number(aggregated.impressions),
+                reach: Number(aggregated.reach),
+                followerCount: profile.followers_count,
+                followersGained: aggregated.followersGained,
+                engagement: aggregated.engagement,
+                topPosts: media as any,
+                demographics: demographicsData as any,
+                periodStart: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(),
+                periodEnd: new Date().toISOString(),
+                dateRange: '28d',
+            }).onConflictDoUpdate({
+                target: [metaSnapshot.metaAccountId, metaSnapshot.dateRange],
+                set: {
+                    impressions: Number(aggregated.impressions),
+                    reach: Number(aggregated.reach),
                     followerCount: profile.followers_count,
                     followersGained: aggregated.followersGained,
                     engagement: aggregated.engagement,
                     topPosts: media as any,
                     demographics: demographicsData as any,
-                    periodStart: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000),
-                    periodEnd: new Date(),
-                    dateRange: '28d',
-                },
-                update: {
-                    impressions: BigInt(aggregated.impressions),
-                    reach: BigInt(aggregated.reach),
-                    followerCount: profile.followers_count,
-                    followersGained: aggregated.followersGained,
-                    engagement: aggregated.engagement,
-                    topPosts: media as any,
-                    demographics: demographicsData as any,
-                    periodEnd: new Date(),
-                    snapshotDate: new Date(),
+                    periodEnd: new Date().toISOString(),
+                    snapshotDate: new Date().toISOString(),
                 },
             });
 
             return { success: true };
         } catch (error: any) {
             console.error(`Meta sync failed for client ${clientId}:`, error);
-            await prisma.metaAccount.updateMany({
-                where: { clientId },
-                data: {
+            await db.update(metaAccount)
+                .set({
                     syncStatus: 'FAILED',
                     syncError: error.message?.slice(0, 500),
-                },
-            }).catch(console.error);
+                    updatedAt: new Date().toISOString(),
+                })
+                .where(eq(metaAccount.clientId, clientId))
+                .catch(console.error);
             return { success: false, error: error.message };
         }
     }
@@ -302,9 +299,8 @@ export class MetaService {
      * Sync all active Meta accounts
      */
     static async syncAllAccounts() {
-        const accounts = await prisma.metaAccount.findMany({
-            where: { isActive: true },
-        });
+        const accounts = await db.select().from(metaAccount)
+            .where(eq(metaAccount.isActive, true));
 
         const results = [];
         for (const account of accounts) {

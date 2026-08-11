@@ -1,6 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse, NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import {
+    guideline as guidelineTable,
+    client as clientTable,
+    user as userTable,
+} from "@/lib/db/schema";
+import { and, or, eq, inArray } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import { notifyUser } from "@/lib/notify";
 import { createAuditLog, AuditAction, getRequestMetadata } from "@/lib/audit-logger";
@@ -18,40 +24,41 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         const body = await req.json();
         const { title, content, category, role, clientId } = body;
 
-        const guideline = await prisma.guideline.update({
-            where: { id },
-            data: {
-                title,
-                content,
-                category,
-                role: (role === 'all' || !role) ? null : role,
-                clientId: (clientId === 'all' || !clientId) ? null : clientId,
-            },
-            include: {
-                client: {
-                    select: { name: true, companyName: true }
-                }
-            }
-        });
+        const [updatedGuideline] = await db.update(guidelineTable).set({
+            title,
+            content,
+            category,
+            role: (role === 'all' || !role) ? null : role,
+            clientId: (clientId === 'all' || !clientId) ? null : clientId,
+            updatedAt: new Date().toISOString(),
+        }).where(eq(guidelineTable.id, id)).returning();
+
+        let guidelineClient: { name: string; companyName: string | null } | null = null;
+        if (updatedGuideline?.clientId) {
+            const [c] = await db.select({ name: clientTable.name, companyName: clientTable.companyName })
+                .from(clientTable)
+                .where(eq(clientTable.id, updatedGuideline.clientId))
+                .limit(1);
+            guidelineClient = c ?? null;
+        }
+        const guideline = { ...updatedGuideline, client: guidelineClient };
 
         // --- NOTIFICATIONS ---
         try {
             const targetRole = (role === 'all' || !role) ? null : role;
             const targetClientId = (clientId === 'all' || !clientId) ? null : clientId;
 
-            const where: any = {};
-            if (targetRole) where.role = targetRole;
-            if (targetClientId) where.linkedClientId = targetClientId;
+            const conditions: any[] = [];
+            if (targetRole) conditions.push(eq(userTable.role, targetRole));
+            if (targetClientId) conditions.push(eq(userTable.linkedClientId, targetClientId));
 
             // If it's a general rule (no role, no client), we might want to notify all editors and QC
             if (!targetRole && !targetClientId) {
-                where.role = { in: ['editor', 'qc'] };
+                conditions.push(inArray(userTable.role, ['editor', 'qc'] as any));
             }
 
-            const usersToNotify = await prisma.user.findMany({
-                where,
-                select: { id: true }
-            });
+            const usersToNotify = await db.select({ id: userTable.id }).from(userTable)
+                .where(conditions.length ? and(...conditions) : undefined);
 
             const clientName = guideline.client?.companyName || guideline.client?.name || "General";
             const notificationTitle = `Guideline Updated: ${title}`;
@@ -105,9 +112,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
         const { id } = params;
 
-        await prisma.guideline.delete({
-            where: { id }
-        });
+        await db.delete(guidelineTable).where(eq(guidelineTable.id, id));
 
         return NextResponse.json({ ok: true });
     } catch (error: any) {

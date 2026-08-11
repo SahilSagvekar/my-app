@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/audit-logs/stats/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { auditLog as auditLogTable, user as userTable } from '@/lib/db/schema';
+import { and, eq, gte, lte, ilike, inArray, isNotNull, desc, count } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
@@ -21,18 +23,17 @@ export async function GET(req: NextRequest) {
     const endDate = url.searchParams.get('endDate');
 
     // Build date filter
-    let dateFilter: any = {};
+    const dateConditions = [];
     if (startDate && endDate) {
-      dateFilter = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      };
+      dateConditions.push(gte(auditLogTable.timestamp, new Date(startDate).toISOString()));
+      dateConditions.push(lte(auditLogTable.timestamp, new Date(endDate).toISOString()));
     }
+    const dateWhere = dateConditions.length ? and(...dateConditions) : undefined;
 
     // Get total logs
-    const totalLogs = await prisma.auditLog.count({
-      where: dateFilter.gte ? { timestamp: dateFilter } : {}
-    });
+    const [{ value: totalLogs }] = await db.select({ value: count() })
+      .from(auditLogTable)
+      .where(dateWhere);
 
     // Get today's logs
     const todayStart = new Date();
@@ -40,80 +41,52 @@ export async function GET(req: NextRequest) {
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    const todayLogs = await prisma.auditLog.count({
-      where: {
-        timestamp: {
-          gte: todayStart,
-          lte: todayEnd
-        }
-      }
-    });
+    const [{ value: todayLogs }] = await db.select({ value: count() })
+      .from(auditLogTable)
+      .where(and(
+        gte(auditLogTable.timestamp, todayStart.toISOString()),
+        lte(auditLogTable.timestamp, todayEnd.toISOString())
+      ));
 
     // Get high severity events (deletions, failures, errors)
-    const highSeverityLogs = await prisma.auditLog.count({
-      where: {
-        action: {
-          in: ['USER_DELETED', 'TASK_DELETED', 'CLIENT_DELETED', 'LOGIN_FAILED', 'PERMISSION_DENIED']
-        },
-        ...(dateFilter.gte ? { timestamp: dateFilter } : {})
-      }
-    });
+    const [{ value: highSeverityLogs }] = await db.select({ value: count() })
+      .from(auditLogTable)
+      .where(and(
+        inArray(auditLogTable.action, ['USER_DELETED', 'TASK_DELETED', 'CLIENT_DELETED', 'LOGIN_FAILED', 'PERMISSION_DENIED']),
+        dateWhere
+      ));
 
     // Get security events
-    const securityLogs = await prisma.auditLog.count({
-      where: {
-        action: {
-          contains: 'LOGIN'
-        },
-        ...(dateFilter.gte ? { timestamp: dateFilter } : {})
-      }
-    });
+    const [{ value: securityLogs }] = await db.select({ value: count() })
+      .from(auditLogTable)
+      .where(and(
+        ilike(auditLogTable.action, '%LOGIN%'),
+        dateWhere
+      ));
 
     // Get action type breakdown
-    const actionBreakdown = await prisma.auditLog.groupBy({
-      by: ['action'],
-      _count: {
-        action: true
-      },
-      where: dateFilter.gte ? { timestamp: dateFilter } : {},
-      orderBy: {
-        _count: {
-          action: 'desc'
-        }
-      },
-      take: 10
-    });
+    const actionBreakdown = await db.select({ action: auditLogTable.action, cnt: count() })
+      .from(auditLogTable)
+      .where(dateWhere)
+      .groupBy(auditLogTable.action)
+      .orderBy(desc(count()))
+      .limit(10);
 
     // Get user activity breakdown
-    const userActivity = await prisma.auditLog.groupBy({
-      by: ['userId'],
-      _count: {
-        userId: true
-      },
-      where: {
-        userId: { not: null },
-        ...(dateFilter.gte ? { timestamp: dateFilter } : {})
-      },
-      orderBy: {
-        _count: {
-          userId: 'desc'
-        }
-      },
-      take: 10
-    });
+    const userActivity = await db.select({ userId: auditLogTable.userId, cnt: count() })
+      .from(auditLogTable)
+      .where(and(isNotNull(auditLogTable.userId), dateWhere))
+      .groupBy(auditLogTable.userId)
+      .orderBy(desc(count()))
+      .limit(10);
 
     // Get user details
     const userIds = userActivity.map(u => u.userId).filter(id => id !== null) as number[];
-    const users = await prisma.user.findMany({
-      where: {
-        id: { in: userIds }
-      },
-      select: {
-        id: true,
-        name: true,
-        role: true
-      }
-    });
+    const users = userIds.length > 0
+      ? await db.select({ id: userTable.id, name: userTable.name, role: userTable.role })
+          .from(userTable)
+          .where(inArray(userTable.id, userIds))
+      : [];
 
     const userActivityWithDetails = userActivity.map(activity => {
       const user = users.find(u => u.id === activity.userId);
@@ -121,7 +94,7 @@ export async function GET(req: NextRequest) {
         userId: activity.userId,
         userName: user?.name || 'Unknown',
         userRole: user?.role || 'Unknown',
-        count: activity._count.userId
+        count: activity.cnt
       };
     });
 
@@ -134,7 +107,7 @@ export async function GET(req: NextRequest) {
         securityEvents: securityLogs,
         actionBreakdown: actionBreakdown.map(a => ({
           action: a.action,
-          count: a._count.action
+          count: a.cnt
         })),
         userActivity: userActivityWithDetails
       }

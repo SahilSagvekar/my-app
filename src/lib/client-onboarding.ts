@@ -7,7 +7,9 @@
 //   5. Save the channel name back to the Client record in DB
 
 import { WebClient } from '@slack/web-api';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
 
 // ---------------------------------------------------------------------------
@@ -118,13 +120,11 @@ export async function createClientSlackChannel(params: {
     });
 
     // --- Persist channel name & mark Slack enabled on the client ---
-    await prisma.client.update({
-      where: { id: params.clientId },
-      data: {
-        slackChannelName: channelName,
-        slackEnabled: true,
-      },
-    });
+    await db.update(clientTable).set({
+      slackChannelName: channelName,
+      slackEnabled: true,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(clientTable.id, params.clientId));
 
     return { channelId, channelName, webhookUrl: null };
   } catch (err: any) {
@@ -135,10 +135,11 @@ export async function createClientSlackChannel(params: {
         const listResult = await slack.conversations.list({ limit: 1000 });
         const existing = listResult.channels?.find((c: any) => c.name === channelName);
         if (existing?.id) {
-          await prisma.client.update({
-            where: { id: params.clientId },
-            data: { slackChannelName: channelName, slackEnabled: true },
-          });
+          await db.update(clientTable).set({
+            slackChannelName: channelName,
+            slackEnabled: true,
+            updatedAt: new Date().toISOString(),
+          }).where(eq(clientTable.id, params.clientId));
           return { channelId: existing.id, channelName, webhookUrl: null };
         }
       } catch { /* ignore */ }

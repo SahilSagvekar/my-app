@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from "next/server";
 import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
 import { sendLoginOTPEmail } from '@/lib/email';
@@ -18,23 +20,23 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("[LOGIN] 3. Finding user...");
-    const user = await prisma.user.findFirst({ where: { email } });
-    console.log("[LOGIN] 4. User found:", !!user);
+    const [foundUser] = await db.select().from(user).where(eq(user.email, email)).limit(1);
+    console.log("[LOGIN] 4. User found:", !!foundUser);
 
-    if (!user) {
+    if (!foundUser) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+    if (foundUser.employeeStatus !== 'ACTIVE' && foundUser.email !== 'sahilsagvekar230@gmail.com') {
       return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
     }
 
-    if (!user.password) {
+    if (!foundUser.password) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
     console.log("[LOGIN] 5. Comparing password...");
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, foundUser.password);
     console.log("[LOGIN] 6. Password valid:", isPasswordValid);
 
     if (!isPasswordValid) {
@@ -46,16 +48,14 @@ export async function POST(req: NextRequest) {
     const otp = generateOTP();
     const otpExpiry = getOTPExpiryTime();
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        loginOTP: otp,
-        loginOTPExpiry: otpExpiry,
-      },
-    });
+    await db.update(user).set({
+      loginOtp: otp,
+      loginOtpExpiry: otpExpiry.toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(user.id, foundUser.id));
 
     try {
-      await sendLoginOTPEmail(user.email, otp);
+      await sendLoginOTPEmail(foundUser.email, otp);
     } catch (emailError) {
       console.error("[LOGIN] Failed to send login OTP email:", emailError);
       // Don't fail the login attempt — OTP is still saved and logged to console in dev.
@@ -64,11 +64,14 @@ export async function POST(req: NextRequest) {
     console.log("[LOGIN] 8. OTP sent, awaiting verification");
     return NextResponse.json({
       otpRequired: true,
-      email: user.email,
+      email: foundUser.email,
       message: "Enter the verification code sent to your email.",
     });
   } catch (err) {
     console.error("[LOGIN] Error:", err);
+    if (err instanceof Error && err.cause) {
+      console.error("[LOGIN] Root cause:", err.cause);
+    }
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }

@@ -6,7 +6,14 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import { s3, generateSignedUrl, BUCKET, uploadBufferToS3 } from './s3';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { createSignWellDocumentFromFile } from './signwell';
-import { prisma } from './prisma';
+import { db } from './db';
+import {
+  contract as contractTable,
+  contractSigner as contractSignerTable,
+  contractAuditLog as contractAuditLogTable,
+} from './db/schema';
+import { createId } from './db/id';
+import { eq } from 'drizzle-orm';
 import { notifyContractSent } from './pipeline-notifications';
 
 /**
@@ -503,44 +510,52 @@ export async function sendContractViaSignWell(params: {
     embeddedSigning: true,
   });
 
-  const contract = await prisma.contract.create({
-    data: {
+  const contract = await db.transaction(async (tx) => {
+    const [createdContract] = await tx.insert(contractTable).values({
+      id: createId(),
       title,
       description: description || null,
       message: message || null,
       s3Key,
       fileName,
-      fileSize: BigInt(buffer.length),
+      fileSize: buffer.length,
       status: 'SENT',
       clientId: clientId || null,
-      expiresAt: expiresInDays ? new Date(Date.now() + expiresInDays * 86400000) : null,
+      expiresAt: expiresInDays ? new Date(Date.now() + expiresInDays * 86400000).toISOString() : null,
       signwellDocumentId: signwellDoc.id,
       signwellRequestId: signwellDoc.id,
       createdById,
-      signers: {
-        create: signers.map((s, i) => ({
-          name: s.name,
-          email: s.email,
-          role: 'signer',
-          order: i,
-          status: 'PENDING',
-          signToken: signwellDoc.signers?.[i]?.id || `sw-${Date.now()}-${i}`,
-        })),
-      },
-      auditLogs: {
-        create: {
-          action: 'sent_via_signwell',
-          performedBy,
-          details: JSON.stringify({
-            signwellDocId: signwellDoc.id,
-            signerCount: signers.length,
-          }),
-        },
-      },
-    },
-    include: {
-      signers: true,
-    },
+      updatedAt: new Date().toISOString(),
+    }).returning();
+
+    const createdSigners = signers.length > 0
+      ? await tx.insert(contractSignerTable).values(
+          signers.map((s, i) => ({
+            id: createId(),
+            contractId: createdContract.id,
+            name: s.name,
+            email: s.email,
+            role: 'signer',
+            order: i,
+            status: 'PENDING' as const,
+            signToken: signwellDoc.signers?.[i]?.id || `sw-${Date.now()}-${i}`,
+            updatedAt: new Date().toISOString(),
+          }))
+        ).returning()
+      : [];
+
+    await tx.insert(contractAuditLogTable).values({
+      id: createId(),
+      contractId: createdContract.id,
+      action: 'sent_via_signwell',
+      performedBy,
+      details: JSON.stringify({
+        signwellDocId: signwellDoc.id,
+        signerCount: signers.length,
+      }),
+    });
+
+    return { ...createdContract, signers: createdSigners };
   });
 
   notifyContractSent(title).catch((err) => console.error('[sendContractViaSignWell] notifyContractSent failed:', err));
@@ -570,26 +585,28 @@ export async function createReferenceDocument(params: {
     mimeType: 'application/pdf',
   });
 
-  return prisma.contract.create({
-    data: {
+  return db.transaction(async (tx) => {
+    const [createdContract] = await tx.insert(contractTable).values({
+      id: createId(),
       title,
       s3Key,
       fileName,
-      fileSize: BigInt(buffer.length),
+      fileSize: buffer.length,
       status: 'COMPLETED',
       requiresSignature: false,
       clientId,
       createdById,
-      auditLogs: {
-        create: {
-          action: 'reference_document_created',
-          performedBy: 'system',
-        },
-      },
-    },
-    include: {
-      signers: true,
-    },
+      updatedAt: new Date().toISOString(),
+    }).returning();
+
+    await tx.insert(contractAuditLogTable).values({
+      id: createId(),
+      contractId: createdContract.id,
+      action: 'reference_document_created',
+      performedBy: 'system',
+    });
+
+    return { ...createdContract, signers: [] as (typeof contractSignerTable.$inferSelect)[] };
   });
 }
 
@@ -606,25 +623,28 @@ export function generateSigningUrl(signToken: string): string {
  */
 export async function checkAndFinalizeContract(
     contractId: string,
-    prisma: any
+    dbOrTx: any = db
 ): Promise<boolean> {
-    const contract = await prisma.contract.findUnique({
-        where: { id: contractId },
-        include: {
-            signers: true,
-            auditLogs: { orderBy: { createdAt: 'asc' } }
+    const contract = await dbOrTx.query.contract.findFirst({
+        where: eq(contractTable.id, contractId),
+        with: {
+            contractSigners: true,
+            contractAuditLogs: { orderBy: (t: any, { asc }: any) => asc(t.createdAt) },
         },
     });
 
     if (!contract) return false;
 
-    const allSigned = contract.signers.every(
+    const signers = contract.contractSigners;
+    const auditLogs = contract.contractAuditLogs;
+
+    const allSigned = signers.every(
         (s: any) => s.status === 'SIGNED'
     );
 
-    if (allSigned && contract.signers.length > 0) {
+    if (allSigned && signers.length > 0) {
         // Build signed PDF
-        const signaturesData = contract.signers
+        const signaturesData = signers
             .filter((s: any) => s.signatureS3Key)
             .map((s: any) => ({
                 signatureS3Key: s.signatureS3Key,
@@ -637,7 +657,7 @@ export async function checkAndFinalizeContract(
                 contract.s3Key,
                 signaturesData,
                 contract.annotations,
-                contract.auditLogs,
+                auditLogs,
                 contract.title,
                 contract
             );
@@ -646,39 +666,36 @@ export async function checkAndFinalizeContract(
             console.error('Failed to generate signed PDF:', err);
         }
 
-        await prisma.contract.update({
-            where: { id: contractId },
-            data: {
-                status: 'COMPLETED',
-                completedAt: new Date(),
-                signedS3Key,
-            },
-        });
+        await dbOrTx.update(contractTable).set({
+            status: 'COMPLETED',
+            completedAt: new Date().toISOString(),
+            signedS3Key,
+            updatedAt: new Date().toISOString(),
+        }).where(eq(contractTable.id, contractId));
 
 
         // Audit log
-        await prisma.contractAuditLog.create({
-            data: {
-                contractId,
-                action: 'completed',
-                performedBy: 'system',
-                details: JSON.stringify({
-                    message: 'All signers have signed. Contract completed.',
-                    signedPdfKey: signedS3Key,
-                }),
-            },
+        await dbOrTx.insert(contractAuditLogTable).values({
+            id: createId(),
+            contractId,
+            action: 'completed',
+            performedBy: 'system',
+            details: JSON.stringify({
+                message: 'All signers have signed. Contract completed.',
+                signedPdfKey: signedS3Key,
+            }),
         });
 
         return true;
     }
 
     // Check if at least one signer signed -> PARTIALLY_SIGNED
-    const anySigned = contract.signers.some((s: any) => s.status === 'SIGNED');
+    const anySigned = signers.some((s: any) => s.status === 'SIGNED');
     if (anySigned && contract.status === 'SENT') {
-        await prisma.contract.update({
-            where: { id: contractId },
-            data: { status: 'PARTIALLY_SIGNED' },
-        });
+        await dbOrTx.update(contractTable).set({
+            status: 'PARTIALLY_SIGNED',
+            updatedAt: new Date().toISOString(),
+        }).where(eq(contractTable.id, contractId));
     }
 
     return false;

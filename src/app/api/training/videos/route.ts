@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from '@/lib/db';
+import { trainingVideo } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, asc, eq } from 'drizzle-orm';
 import { getCurrentUser2 } from "@/lib/auth";
 import { uploadBufferToS3, isObjectStorageUrl, extractS3KeyFromUrl, generateSignedUrl } from "@/lib/s3";
 
@@ -34,20 +37,13 @@ export async function GET(req: NextRequest) {
           ? (user.role as TrainingRole)
           : null;
 
-    const where: any = {};
-    if (filterRole) {
-      where.role = filterRole;
-    }
-    if (courseId) {
-      where.courseId = courseId;
-    }
+    const conditions = [];
+    if (filterRole) conditions.push(eq(trainingVideo.role, filterRole));
+    if (courseId) conditions.push(eq(trainingVideo.courseId, courseId));
 
-    const videos = await prisma.trainingVideo.findMany({
-      where,
-      orderBy: courseId
-        ? [{ order: "asc" }]
-        : [{ role: "asc" }, { order: "asc" }],
-    });
+    const videos = await db.select().from(trainingVideo)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(...(courseId ? [asc(trainingVideo.order)] : [asc(trainingVideo.role), asc(trainingVideo.order)]));
 
     // Sign R2/S3 URLs for playback (external URLs are left as-is)
     const signedVideos = await Promise.all(
@@ -131,15 +127,15 @@ export async function POST(req: NextRequest) {
     const order = orderStr != null && orderStr !== "" ? parseInt(orderStr, 10) : 0;
     const safeOrder = isNaN(order) ? 0 : order;
 
-    const video = await prisma.trainingVideo.create({
-      data: {
-        title: title.trim(),
-        description: (description || "").trim(),
-        videoUrl,
-        role: role as TrainingRole,
-        order: safeOrder,
-      },
-    });
+    const [video] = await db.insert(trainingVideo).values({
+      id: createId(),
+      title: title.trim(),
+      description: (description || "").trim(),
+      videoUrl,
+      role: role as TrainingRole,
+      order: safeOrder,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     return NextResponse.json({ video }, { status: 201 });
   } catch (err) {

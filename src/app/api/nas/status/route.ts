@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { nasSyncLog, file as fileTable } from '@/lib/db/schema';
+import { count, desc, eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -12,14 +14,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
-    const [logs, totalFiles, archivedFiles] = await Promise.all([
-      prisma.nasSyncLog.findMany({
-        orderBy: { completedAt: 'desc' },
-        take: 20,
-      }),
-      prisma.file.count(),
-      prisma.file.count({ where: { archivedToNas: true } }),
+    const [logs, totalFilesResult, archivedFilesResult] = await Promise.all([
+      db.select().from(nasSyncLog).orderBy(desc(nasSyncLog.completedAt)).limit(20),
+      db.select({ value: count() }).from(fileTable),
+      db.select({ value: count() }).from(fileTable).where(eq(fileTable.archivedToNas, true)),
     ]);
+    const totalFiles = totalFilesResult[0].value;
+    const archivedFiles = archivedFilesResult[0].value;
 
     return NextResponse.json({
       logs: logs.map(l => ({

@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable, contractAuditLog as contractAuditLogTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getSignWellDocument } from '@/lib/signwell';
 
@@ -18,9 +21,9 @@ export async function POST(
     }
 
     const { id } = await params;
-    const contract = await prisma.contract.findUnique({
-      where: { id },
-      include: { signers: true },
+    const contract = await db.query.contract.findFirst({
+      where: eq(contractTable.id, id),
+      with: { contractSigners: true },
     });
 
     if (!contract) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
@@ -31,13 +34,12 @@ export async function POST(
     // Sync status from SignWell
     const doc = await getSignWellDocument(contract.signwellDocumentId);
 
-    await prisma.contractAuditLog.create({
-      data: {
-        contractId: id,
-        action: 'status_synced',
-        performedBy: user.name || user.email,
-        details: JSON.stringify({ signwellStatus: doc.status }),
-      },
+    await db.insert(contractAuditLogTable).values({
+      id: createId(),
+      contractId: id,
+      action: 'status_synced',
+      performedBy: user.name || user.email,
+      details: JSON.stringify({ signwellStatus: doc.status }),
     });
 
     return NextResponse.json({ success: true, signwellStatus: doc.status, document: doc });

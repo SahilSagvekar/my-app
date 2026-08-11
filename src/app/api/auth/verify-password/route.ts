@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { verifyPassword } from '@/lib/password';
 import { getCurrentUser2 } from '@/lib/auth';
 
@@ -24,9 +26,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const dbUser = await prisma.user.findFirst({
-            where: { id: user.id }
-        });
+        const [dbUser] = await db.select().from(userTable).where(eq(userTable.id, user.id)).limit(1);
 
         if (!dbUser || !dbUser.password) {
             return NextResponse.json(

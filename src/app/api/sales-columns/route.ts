@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesDashboardColumn } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { desc, eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -29,22 +32,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Get max order
-    const lastCol = await prisma.salesDashboardColumn.findFirst({
-        where: { userId: decoded.userId },
-        orderBy: { order: 'desc' }
-    });
+    const [lastCol] = await db.select().from(salesDashboardColumn)
+      .where(eq(salesDashboardColumn.userId, decoded.userId))
+      .orderBy(desc(salesDashboardColumn.order))
+      .limit(1);
     const nextOrder = (lastCol?.order ?? 0) + 1;
 
-    const column = await prisma.salesDashboardColumn.create({
-      data: {
-        userId: decoded.userId,
-        name,
-        label,
-        type,
-        order: nextOrder,
-        isCustom: true,
-      }
-    });
+    const [column] = await db.insert(salesDashboardColumn).values({
+      id: createId(),
+      userId: decoded.userId,
+      name,
+      label,
+      type,
+      order: nextOrder,
+      isCustom: true,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     return NextResponse.json({ ok: true, column });
   } catch (err) {

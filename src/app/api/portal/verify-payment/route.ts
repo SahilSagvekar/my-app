@@ -1,6 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import {
+  client as clientTable,
+  clientPortalAccess as clientPortalAccessTable,
+  stripeCustomer as stripeCustomerTable,
+} from '@/lib/db/schema';
+import { eq, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { stripe } from '@/lib/stripe';
 
@@ -13,30 +19,29 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const client = await prisma.client.findFirst({
-      where: {
-        OR: [
-          { userId: user.id },
-          { email: user.email },
-        ],
-      },
-      include: {
-        portalAccess: true,
-      },
+    const client = await db.query.client.findFirst({
+      where: or(eq(clientTable.userId, user.id), eq(clientTable.email, user.email)),
+      with: { clientPortalAccesses: true },
     });
 
-    if (!client || !client.portalAccess) {
+    // clientPortalAccess has a unique clientId FK (1:1), but drizzle-kit
+    // introspection mislabels it many() — take the first (only) entry.
+    const portalAccess = client?.clientPortalAccesses[0];
+
+    if (!client || !portalAccess) {
       return NextResponse.json({ error: 'Client or portal access not found' }, { status: 404 });
     }
 
-    if (client.portalAccess.status === 'ACTIVE') {
+    if (portalAccess.status === 'ACTIVE') {
       return NextResponse.json({ success: true, status: 'ACTIVE', message: 'Already active' });
     }
 
     // Look up stripe customer
-    const stripeCustomer = await prisma.stripeCustomer.findUnique({
-      where: { clientId: client.id }
-    });
+    const [stripeCustomer] = await db
+      .select()
+      .from(stripeCustomerTable)
+      .where(eq(stripeCustomerTable.clientId, client.id))
+      .limit(1);
 
     if (!stripeCustomer) {
       return NextResponse.json({ success: false, message: 'No Stripe customer found' });
@@ -58,23 +63,21 @@ export async function GET(req: NextRequest) {
       const updateData: any = {
         status: 'ACTIVE',
         lockedAt: null,
-        nextBillingDate: nextBilling,
+        nextBillingDate: nextBilling.toISOString(),
+        updatedAt: now.toISOString(),
       };
 
-      if (!client.portalAccess.billingAnchorDate) {
-        updateData.billingAnchorDate = now;
+      if (!portalAccess.billingAnchorDate) {
+        updateData.billingAnchorDate = now.toISOString();
       }
 
-      await prisma.clientPortalAccess.update({
-        where: { clientId: client.id },
-        data: updateData,
-      });
+      await db.update(clientPortalAccessTable).set(updateData).where(eq(clientPortalAccessTable.clientId, client.id));
 
       console.log(`🔓 [Portal] Manual Verification — unlocked for: ${client.name}`);
       return NextResponse.json({ success: true, status: 'ACTIVE' });
     }
 
-    return NextResponse.json({ success: false, status: client.portalAccess.status, message: 'No active subscription found' });
+    return NextResponse.json({ success: false, status: portalAccess.status, message: 'No active subscription found' });
   } catch (err: any) {
     console.error('GET /api/portal/verify-payment error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

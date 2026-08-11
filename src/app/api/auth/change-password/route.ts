@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { hashPassword, verifyPassword } from '@/lib/password';
 import { auth } from '@/auth';
 
@@ -17,11 +19,9 @@ export async function POST(request: NextRequest) {
 
     const { oldPassword, newPassword } = await request.json();
 
-    const user = await prisma.user.findFirst({
-      where: { email: session.user.email }
-    });
+    const [foundUser] = await db.select().from(user).where(eq(user.email, session.user.email)).limit(1);
 
-    if (!user || !user.password) {
+    if (!foundUser || !foundUser.password) {
       return NextResponse.json(
         { ok: false, message: 'User not found' },
         { status: 404 }
@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify old password
-    const isValid = await verifyPassword(oldPassword, user.password);
-    
+    const isValid = await verifyPassword(oldPassword, foundUser.password);
+
     if (!isValid) {
       return NextResponse.json(
         { ok: false, message: 'Current password is incorrect' },
@@ -40,11 +40,11 @@ export async function POST(request: NextRequest) {
 
     // Hash and update new password
     const hashedPassword = await hashPassword(newPassword);
-    
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { password: hashedPassword }
-    });
+
+    await db.update(user).set({
+      password: hashedPassword,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(user.id, foundUser.id));
 
     return NextResponse.json({
       ok: true,

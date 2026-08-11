@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { onboardingToken, user, client, clientPortalAccess } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { notifyFirstPortalLogin } from '@/lib/pipeline-notifications';
@@ -23,11 +25,11 @@ export async function POST(
       );
     }
 
-    const record = await prisma.onboardingToken.findUnique({
-      where: { token },
-      include: {
+    const record = await db.query.onboardingToken.findFirst({
+      where: eq(onboardingToken.token, token),
+      with: {
         client: {
-          include: { user: true },
+          with: { user: true },
         },
       },
     });
@@ -40,7 +42,7 @@ export async function POST(
       return NextResponse.json({ error: 'This link has already been used' }, { status: 410 });
     }
 
-    if (new Date() > record.expiresAt) {
+    if (new Date() > new Date(record.expiresAt)) {
       return NextResponse.json({ error: 'This link has expired' }, { status: 410 });
     }
 
@@ -51,31 +53,21 @@ export async function POST(
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // All in one transaction: burn token, set password, mark portal flags, advance portal status
-    await prisma.$transaction([
+    // All in one batch: burn token, set password, mark portal flags, advance portal status.
+    // Independent statements, no reads between — array-form $transaction maps to db.batch.
+    await db.batch([
       // Burn the token
-      prisma.onboardingToken.update({
-        where: { token },
-        data: { used: true, usedAt: new Date() },
-      }),
+      db.update(onboardingToken).set({ used: true, usedAt: new Date().toISOString() }).where(eq(onboardingToken.token, token)),
       // Set password on the User record
-      prisma.user.update({
-        where: { id: clientUser.id },
-        data: { password: hashedPassword },
-      }),
+      db.update(user).set({ password: hashedPassword, updatedAt: new Date().toISOString() }).where(eq(user.id, clientUser.id)),
       // Mark portal flags on Client
-      prisma.client.update({
-        where: { id: record.clientId },
-        data: {
-          portalPasswordSet: true,
-          welcomeVideoWatched: watchedVideo ?? true,
-        },
-      }),
+      db.update(client).set({
+        portalPasswordSet: true,
+        welcomeVideoWatched: watchedVideo ?? true,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(client.id, record.clientId)),
       // Advance portal access to CONTRACT_PENDING
-      prisma.clientPortalAccess.update({
-        where: { clientId: record.clientId },
-        data: { status: 'CONTRACT_PENDING' },
-      }),
+      db.update(clientPortalAccess).set({ status: 'CONTRACT_PENDING', updatedAt: new Date().toISOString() }).where(eq(clientPortalAccess.clientId, record.clientId)),
     ]);
 
     notifyFirstPortalLogin(record.client.name).catch((err) =>

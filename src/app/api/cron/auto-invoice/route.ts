@@ -8,7 +8,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import {
+  clientPortalAccess as clientPortalAccessTable,
+  invoice as invoiceTable,
+  stripeCustomer as stripeCustomerTable,
+} from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, gt, isNotNull, lte, sql } from 'drizzle-orm';
 import {
   generateInvoiceNumber,
   getOrCreateStripeCustomer,
@@ -45,18 +52,19 @@ export async function POST(req: NextRequest) {
   const results: Array<{ clientId: string; status: 'invoiced' | 'skipped' | 'failed'; reason?: string }> = [];
 
   try {
-    const dueClients = await prisma.clientPortalAccess.findMany({
-      where: {
-        autoInvoiceActive: true,
-        nextBillingDate: { lte: now },
-        recurringAmount: { not: null, gt: 0 },
-      },
-      include: { Client: true },
+    const dueClients = await db.query.clientPortalAccess.findMany({
+      where: and(
+        eq(clientPortalAccessTable.autoInvoiceActive, true),
+        lte(clientPortalAccessTable.nextBillingDate, now.toISOString()),
+        isNotNull(clientPortalAccessTable.recurringAmount),
+        gt(clientPortalAccessTable.recurringAmount, 0),
+      ),
+      with: { client: true },
     });
 
     for (const portalAccess of dueClients) {
-      const client = portalAccess.Client;
-      const billingCycle = portalAccess.nextBillingDate!.toISOString().slice(0, 10); // YYYY-MM-DD
+      const client = portalAccess.client;
+      const billingCycle = new Date(portalAccess.nextBillingDate!).toISOString().slice(0, 10); // YYYY-MM-DD
 
       try {
         if (!client.email) {
@@ -65,12 +73,15 @@ export async function POST(req: NextRequest) {
         }
 
         // Idempotency guard: has this exact billing cycle already been invoiced?
-        const existing = await prisma.invoice.findFirst({
-          where: {
-            metadata: { path: ['billingCycle'], equals: billingCycle },
-            stripeCustomer: { clientId: client.id },
-          },
-        });
+        const [existing] = await db
+          .select({ id: invoiceTable.id })
+          .from(invoiceTable)
+          .innerJoin(stripeCustomerTable, eq(invoiceTable.stripeCustomerId, stripeCustomerTable.id))
+          .where(and(
+            eq(stripeCustomerTable.clientId, client.id),
+            sql`${invoiceTable.metadata}->>'billingCycle' = ${billingCycle}`,
+          ))
+          .limit(1);
         if (existing) {
           results.push({ clientId: client.id, status: 'skipped', reason: 'already invoiced for this cycle' });
           continue;
@@ -82,9 +93,11 @@ export async function POST(req: NextRequest) {
           client.companyName || client.name
         );
 
-        const dbStripeCustomer = await prisma.stripeCustomer.findUnique({
-          where: { stripeCustomerId: stripeCustomer.id },
-        });
+        const [dbStripeCustomer] = await db
+          .select()
+          .from(stripeCustomerTable)
+          .where(eq(stripeCustomerTable.stripeCustomerId, stripeCustomer.id))
+          .limit(1);
         if (!dbStripeCustomer) {
           results.push({ clientId: client.id, status: 'failed', reason: 'failed to resolve Stripe customer' });
           continue;
@@ -117,23 +130,23 @@ export async function POST(req: NextRequest) {
         const dueDate = new Date(now);
         dueDate.setDate(dueDate.getDate() + dueDays);
 
-        await prisma.invoice.create({
-          data: {
-            stripeCustomerId: dbStripeCustomer.id,
-            stripeInvoiceId: stripeInvoice.id,
-            invoiceNumber,
-            status: 'SENT',
-            amount: finalTotalAmount,
-            currency: 'usd',
-            dueDate,
-            description: lineItemDescription,
-            lineItems: finalLineItems,
-            isRecurring: true,
-            stripeHostedInvoiceUrl: sentInvoice.hosted_invoice_url,
-            stripePdfUrl: sentInvoice.invoice_pdf,
-            sentAt: now,
-            metadata: { invoiceType: 'RECURRING', billingCycle },
-          },
+        await db.insert(invoiceTable).values({
+          id: createId(),
+          stripeCustomerId: dbStripeCustomer.id,
+          stripeInvoiceId: stripeInvoice.id,
+          invoiceNumber,
+          status: 'SENT',
+          amount: finalTotalAmount,
+          currency: 'usd',
+          dueDate: dueDate.toISOString(),
+          description: lineItemDescription,
+          lineItems: finalLineItems,
+          isRecurring: true,
+          stripeHostedInvoiceUrl: sentInvoice.hosted_invoice_url,
+          stripePdfUrl: sentInvoice.invoice_pdf,
+          sentAt: now.toISOString(),
+          metadata: { invoiceType: 'RECURRING', billingCycle },
+          updatedAt: new Date().toISOString(),
         });
 
         // Advance nextBillingDate by exactly one month from the cycle date
@@ -142,10 +155,10 @@ export async function POST(req: NextRequest) {
         const nextBilling = new Date(portalAccess.nextBillingDate!);
         nextBilling.setMonth(nextBilling.getMonth() + 1);
 
-        await prisma.clientPortalAccess.update({
-          where: { clientId: client.id },
-          data: { nextBillingDate: nextBilling },
-        });
+        await db.update(clientPortalAccessTable).set({
+          nextBillingDate: nextBilling.toISOString(),
+          updatedAt: new Date().toISOString(),
+        }).where(eq(clientPortalAccessTable.clientId, client.id));
 
         results.push({ clientId: client.id, status: 'invoiced' });
       } catch (err: any) {

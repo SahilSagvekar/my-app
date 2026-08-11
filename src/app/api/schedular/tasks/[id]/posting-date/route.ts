@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task, postedContent } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -34,30 +36,22 @@ export async function PATCH(
         if (isNaN(newDate.getTime())) return NextResponse.json({ message: 'Invalid date' }, { status: 400 });
 
         // 1. Update all PostedContent rows linked to this task
-        const updatedCount = await prisma.postedContent.updateMany({
-            where: { taskId: id },
-            data: { postedAt: newDate },
-        });
+        const updatedRows = await db.update(postedContent).set({ postedAt: newDate.toISOString() })
+            .where(eq(postedContent.taskId, id)).returning({ id: postedContent.id });
 
         // 2. Update postedAt on every link in Task.socialMediaLinks JSON array
-        const task = await prisma.task.findUnique({
-            where: { id },
-            select: { socialMediaLinks: true },
-        });
+        const [foundTask] = await db.select({ socialMediaLinks: task.socialMediaLinks }).from(task).where(eq(task.id, id)).limit(1);
 
-        if (task) {
-            const links = Array.isArray(task.socialMediaLinks) ? task.socialMediaLinks as any[] : [];
+        if (foundTask) {
+            const links = Array.isArray(foundTask.socialMediaLinks) ? foundTask.socialMediaLinks as any[] : [];
             const updatedLinks = links.map((l: any) => ({ ...l, postedAt: newDate.toISOString() }));
-            await prisma.task.update({
-                where: { id },
-                data: { socialMediaLinks: updatedLinks },
-            });
+            await db.update(task).set({ socialMediaLinks: updatedLinks, updatedAt: new Date().toISOString() }).where(eq(task.id, id));
         }
 
         return NextResponse.json({
             success: true,
             postedAt: newDate.toISOString(),
-            updatedContentRows: updatedCount.count,
+            updatedContentRows: updatedRows.length,
         });
     } catch (err: any) {
         console.error('PATCH /api/tasks/[id]/posting-date error:', err);

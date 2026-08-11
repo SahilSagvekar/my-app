@@ -2,7 +2,8 @@
 // (used by the direct-login path and by the OTP-verification path).
 import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { auditLog } from "@/lib/db/schema";
 import { getGeoLocation, formatLocation } from "@/lib/geo";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -48,20 +49,18 @@ export async function issueLoginSession(user: SessionUser, req: NextRequest) {
     const locationData = await getGeoLocation(ip);
     const locationString = formatLocation(locationData);
 
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "USER_LOGIN",
-        entity: "User",
-        entityId: String(user.id),
-        details: `User logged in from ${locationString}`,
-        ipAddress: ip,
-        userAgent: userAgent,
-        metadata: {
-          location: locationData,
-          sessionType: "standard",
-        } as any,
-      },
+    await db.insert(auditLog).values({
+      userId: Number(user.id),
+      action: "USER_LOGIN",
+      entity: "User",
+      entityId: String(user.id),
+      details: `User logged in from ${locationString}`,
+      ipAddress: ip,
+      userAgent: userAgent,
+      metadata: {
+        location: locationData,
+        sessionType: "standard",
+      } as any,
     });
   } catch (auditError) {
     // Never block a successful login on audit logging / geo lookup failures

@@ -1,11 +1,19 @@
 // app/api/admin/tasks/route.ts
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import "@/lib/bigint-fix";
-import { prisma } from "@/lib/prisma";
-import { TaskStatus } from "@prisma/client";
+import { db } from "@/lib/db";
+import {
+    task as taskTable,
+    user as userTable,
+    client as clientTable,
+    monthlyDeliverable as monthlyDeliverableTable,
+    oneOffDeliverable as oneOffDeliverableTable,
+    tag as tagTable,
+    tagToTask as tagToTaskTable,
+} from "@/lib/db/schema";
+import { and, or, eq, ne, gte, lte, lt, inArray, notInArray, isNotNull, ilike, desc, asc, count, exists, sql as drizzleSql } from "drizzle-orm";
 import { getCurrentUser2 } from '@/lib/auth';
 
 // ─────────────────────────────────────────
@@ -256,59 +264,81 @@ export async function GET(req: NextRequest) {
         const tag = searchParams.get("tag");
 
         // Build where clause with AND logic
-        const where: any = {};
+        const conditions: any[] = [];
 
-        if (editorId) where.assignedTo = parseInt(editorId);
-        if (qcId) where.qc_specialist = parseInt(qcId);
-        if (schedulerId) where.scheduler = parseInt(schedulerId);
-        if (videographerId) where.videographer = parseInt(videographerId);
-        if (clientId) where.clientId = clientId;
-        if (status) where.status = status as TaskStatus;
-        if (priority) where.priority = priority;
+        if (editorId) conditions.push(eq(taskTable.assignedTo, parseInt(editorId)));
+        if (qcId) conditions.push(eq(taskTable.qcSpecialist, parseInt(qcId)));
+        if (schedulerId) conditions.push(eq(taskTable.scheduler, parseInt(schedulerId)));
+        if (videographerId) conditions.push(eq(taskTable.videographer, parseInt(videographerId)));
+        if (clientId) conditions.push(eq(taskTable.clientId, clientId));
+        if (status) conditions.push(eq(taskTable.status, status as any));
+        if (priority) conditions.push(eq(taskTable.priority, priority));
 
         // Deliverable type filter
         if (deliverableType) {
-            where.monthlyDeliverable = {
-                type: deliverableType
-            };
+            conditions.push(exists(
+                db.select({ one: drizzleSql`1` }).from(monthlyDeliverableTable)
+                    .where(and(eq(monthlyDeliverableTable.id, taskTable.monthlyDeliverableId), eq(monthlyDeliverableTable.type, deliverableType)))
+            ));
         }
 
         // Month filter
         if (month && month !== 'all') {
-            where.monthFolder = month;
+            conditions.push(eq(taskTable.monthFolder, month));
         }
 
         // Tag filter
         if (tag && tag !== 'all') {
-            where.tags = { some: { name: tag } };
+            conditions.push(exists(
+                db.select({ one: drizzleSql`1` }).from(tagToTaskTable)
+                    .innerJoin(tagTable, eq(tagToTaskTable.a, tagTable.id))
+                    .where(and(eq(tagToTaskTable.b, taskTable.id), eq(tagTable.name, tag)))
+            ));
         }
 
         // Text search on title and description
         if (search) {
-            where.OR = [
-                { title: { contains: search, mode: "insensitive" } },
-                { description: { contains: search, mode: "insensitive" } },
-            ];
+            conditions.push(or(
+                ilike(taskTable.title, `%${search}%`),
+                ilike(taskTable.description, `%${search}%`),
+            ));
         }
 
         // Date range filters
-        if (dueDateFrom || dueDateTo) {
-            where.dueDate = {};
-            if (dueDateFrom) where.dueDate.gte = new Date(dueDateFrom);
-            if (dueDateTo) where.dueDate.lte = new Date(dueDateTo);
-        }
+        if (dueDateFrom) conditions.push(gte(taskTable.dueDate, new Date(dueDateFrom).toISOString()));
+        if (dueDateTo) conditions.push(lte(taskTable.dueDate, new Date(dueDateTo).toISOString()));
 
-        if (createdFrom || createdTo) {
-            where.createdAt = {};
-            if (createdFrom) where.createdAt.gte = new Date(createdFrom);
-            if (createdTo) where.createdAt.lte = new Date(createdTo);
-        }
+        if (createdFrom) conditions.push(gte(taskTable.createdAt, new Date(createdFrom).toISOString()));
+        if (createdTo) conditions.push(lte(taskTable.createdAt, new Date(createdTo).toISOString()));
+
+        const where = conditions.length ? and(...conditions) : undefined;
 
         // Check if using smart title sorting
         const useSmartTitleSort = sortBy === "title";
 
         // Build orderBy (skip if using smart sort - we'll sort in JS)
-        const orderBy: any = useSmartTitleSort ? { createdAt: "desc" } : { [sortBy]: sortOrder };
+        const sortColumnMap: Record<string, any> = {
+            id: taskTable.id,
+            title: taskTable.title,
+            description: taskTable.description,
+            taskType: taskTable.taskType,
+            status: taskTable.status,
+            dueDate: taskTable.dueDate,
+            priority: taskTable.priority,
+            createdAt: taskTable.createdAt,
+            updatedAt: taskTable.updatedAt,
+            workflowStep: taskTable.workflowStep,
+            assignedTo: taskTable.assignedTo,
+            qc_specialist: taskTable.qcSpecialist,
+            scheduler: taskTable.scheduler,
+            videographer: taskTable.videographer,
+            clientId: taskTable.clientId,
+            deliverableType: taskTable.deliverableType,
+            monthFolder: taskTable.monthFolder,
+        };
+        const orderColumn = sortColumnMap[sortBy] || taskTable.createdAt;
+        const orderDir = sortOrder === "asc" ? asc : desc;
+        const orderBy = useSmartTitleSort ? desc(taskTable.createdAt) : orderDir(orderColumn);
 
         // Helper function for smart title sorting
         const extractSortParts = (title: string | null) => {
@@ -375,13 +405,13 @@ export async function GET(req: NextRequest) {
         const SMART_SORT_CAP = 500;
 
         // Fetch tasks with related data + unique deliverable types + available months
-        const [tasks, total, deliverableTypes, distinctMonths] = await Promise.all([
-            prisma.task.findMany({
+        const [rawTasks, [{ value: total }], deliverableTypesRaw, distinctMonths] = await Promise.all([
+            db.query.task.findMany({
                 where,
-                take: useSmartTitleSort ? SMART_SORT_CAP : limit,
-                skip: useSmartTitleSort ? 0 : (page - 1) * limit,
+                limit: useSmartTitleSort ? SMART_SORT_CAP : limit,
+                offset: useSmartTitleSort ? 0 : (page - 1) * limit,
                 orderBy,
-                select: {
+                columns: {
                     id: true,
                     title: true,
                     description: true,
@@ -393,60 +423,45 @@ export async function GET(req: NextRequest) {
                     updatedAt: true,
                     workflowStep: true,
                     assignedTo: true,
-                    qc_specialist: true,
+                    qcSpecialist: true,
                     scheduler: true,
                     videographer: true,
                     clientId: true,
                     feedback: true,
                     qcNotes: true,
-                    user: {
-                        select: {
-                            id: true,
-                            name: true,
-                            email: true,
-                            role: true,
-                        },
-                    },
-                    client: {
-                        select: {
-                            id: true,
-                            name: true,
-                            companyName: true,
-                        },
-                    },
-                    monthlyDeliverable: {
-                        select: {
-                            id: true,
-                            type: true,
-                        },
-                    },
-                    oneOffDeliverable: {
-                        select: {
-                            id: true,
-                            type: true,
-                        },
-                    },
                     deliverableType: true,
                     monthFolder: true,
                     isExtra: true,
                     extraSequence: true,
-                    tags: { select: { id: true, name: true } },
+                },
+                with: {
+                    user_assignedTo: { columns: { id: true, name: true, email: true, role: true } },
+                    client: { columns: { id: true, name: true, companyName: true } },
+                    monthlyDeliverable: { columns: { id: true, type: true } },
+                    oneOffDeliverable: { columns: { id: true, type: true } },
+                    tagToTasks: { with: { tag: { columns: { id: true, name: true } } } },
                 },
             }),
-            prisma.task.count({ where }),
-            prisma.monthlyDeliverable.findMany({
-                select: { type: true },
-                distinct: ['type'],
-                orderBy: { type: 'asc' },
-            }),
+            db.select({ value: count() }).from(taskTable).where(where),
+            db.selectDistinct({ type: monthlyDeliverableTable.type }).from(monthlyDeliverableTable).orderBy(asc(monthlyDeliverableTable.type)),
             // Fetch distinct monthFolder values for filter dropdown
-            prisma.task.findMany({
-                where: { monthFolder: { not: null } },
-                select: { monthFolder: true },
-                distinct: ['monthFolder'],
-                orderBy: { monthFolder: 'desc' },
-            }),
+            db.selectDistinct({ monthFolder: taskTable.monthFolder }).from(taskTable)
+                .where(isNotNull(taskTable.monthFolder))
+                .orderBy(desc(taskTable.monthFolder)),
         ]);
+        const deliverableTypes = deliverableTypesRaw;
+
+        // Rename Drizzle relation keys back to the Prisma field names this
+        // handler was written against.
+        const tasks = rawTasks.map((t: any) => {
+            const { qcSpecialist, user_assignedTo, tagToTasks, ...rest } = t;
+            return {
+                ...rest,
+                qc_specialist: qcSpecialist,
+                user: user_assignedTo,
+                tags: (tagToTasks ?? []).map((tt: any) => tt.tag),
+            };
+        });
 
         // Apply smart sorting and pagination if needed
         let sortedTasks = tasks;
@@ -464,10 +479,11 @@ export async function GET(req: NextRequest) {
             if (task.videographer) userIds.add(task.videographer);
         });
 
-        const teamMembers = await prisma.user.findMany({
-            where: { id: { in: Array.from(userIds) } },
-            select: { id: true, name: true, role: true },
-        });
+        const teamMembers = userIds.size > 0
+            ? await db.select({ id: userTable.id, name: userTable.name, role: userTable.role })
+                .from(userTable)
+                .where(inArray(userTable.id, Array.from(userIds)))
+            : [];
 
         const memberMap = new Map(teamMembers.map((m) => [m.id, m]));
 
@@ -481,19 +497,18 @@ export async function GET(req: NextRequest) {
         }));
 
         // Calculate stats for quick summary
-        const statusCounts = await prisma.task.groupBy({
-            by: ["status"],
-            where,
-            _count: { status: true },
-        });
+        const statusCounts = await db.select({ status: taskTable.status, cnt: count() })
+            .from(taskTable)
+            .where(where)
+            .groupBy(taskTable.status);
 
-        const overdueCount = await prisma.task.count({
-            where: {
-                ...where,
-                dueDate: { lt: new Date() },
-                status: { notIn: ["COMPLETED", "SCHEDULED"] },
-            },
-        });
+        const [{ value: overdueCount }] = await db.select({ value: count() })
+            .from(taskTable)
+            .where(and(
+                where,
+                lt(taskTable.dueDate, new Date().toISOString()),
+                notInArray(taskTable.status, ["COMPLETED", "SCHEDULED"] as any),
+            ));
 
         return NextResponse.json({
             tasks: enrichedTasks,
@@ -509,7 +524,7 @@ export async function GET(req: NextRequest) {
                 total,
                 byStatus: statusCounts.reduce((acc, item) => {
                     if (item.status) {
-                        acc[item.status] = item._count.status;
+                        acc[item.status] = item.cnt;
                     }
                     return acc;
                 }, {} as Record<string, number>),

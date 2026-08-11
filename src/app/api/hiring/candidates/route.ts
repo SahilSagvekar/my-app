@@ -3,7 +3,10 @@ export const dynamic = 'force-dynamic';
 // Admin-only candidate list + create for the editor hiring pipeline.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { hiringCandidate, hiringTestTask } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 async function requireAdmin(req: NextRequest) {
@@ -20,24 +23,35 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status');
   const search = searchParams.get('search');
 
-  const candidates = await prisma.hiringCandidate.findMany({
-    where: {
-      ...(status ? { status: status as any } : {}),
-      ...(search ? {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-        ],
-      } : {}),
-    },
-    include: {
-      testTasks: {
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const conditions = [
+    ...(status ? [eq(hiringCandidate.status, status as any)] : []),
+    ...(search ? [or(ilike(hiringCandidate.name, `%${search}%`), ilike(hiringCandidate.email, `%${search}%`))!] : []),
+  ];
+
+  const candidateRows = await db.select().from(hiringCandidate)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(hiringCandidate.createdAt));
+
+  const candidateIds = candidateRows.map(c => c.id);
+  const testTaskRows = candidateIds.length
+    ? await db.select().from(hiringTestTask)
+      .where(inArray(hiringTestTask.candidateId, candidateIds))
+      .orderBy(desc(hiringTestTask.createdAt))
+    : [];
+
+  // testTaskRows is already ordered desc by createdAt, so the first row seen
+  // per candidateId is the latest one — matches Prisma's `take: 1` per-relation.
+  const latestTestTaskByCandidate = new Map<string, typeof testTaskRows[number]>();
+  for (const t of testTaskRows) {
+    if (!latestTestTaskByCandidate.has(t.candidateId)) {
+      latestTestTaskByCandidate.set(t.candidateId, t);
+    }
+  }
+
+  const candidates = candidateRows.map(c => ({
+    ...c,
+    testTasks: latestTestTaskByCandidate.has(c.id) ? [latestTestTaskByCandidate.get(c.id)!] : [],
+  }));
 
   return NextResponse.json({ candidates });
 }
@@ -54,18 +68,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'name and email are required' }, { status: 400 });
     }
 
-    const candidate = await prisma.hiringCandidate.create({
-      data: {
-        name,
-        email,
-        phone: phone || null,
-        portfolioUrl: portfolioUrl || null,
-        resumeUrl: resumeUrl || null,
-        source: source || null,
-        notes: notes || null,
-        createdById: user.id,
-      },
-    });
+    const [candidate] = await db.insert(hiringCandidate).values({
+      id: createId(),
+      name,
+      email,
+      phone: phone || null,
+      portfolioUrl: portfolioUrl || null,
+      resumeUrl: resumeUrl || null,
+      source: source || null,
+      notes: notes || null,
+      createdById: user.id,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     return NextResponse.json({ candidate }, { status: 201 });
   } catch (err: any) {

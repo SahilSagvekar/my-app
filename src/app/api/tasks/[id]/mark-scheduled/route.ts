@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task, postedContent, file as fileTable, taskFeedback } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, inArray, isNull, isNotNull } from "drizzle-orm";
 import { notifyUser } from "@/lib/notify";
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 import { invalidatePostedContentCache } from "@/lib/redis";
@@ -36,23 +39,20 @@ export async function PATCH(
     const { id } = await context.params;
 
     // Get previous status before update (also pulls what's needed to backfill PostedContent below)
-    const existingTask = await prisma.task.findUnique({
-      where: { id },
-      include: {
-        monthlyDeliverable: { select: { type: true } },
-        oneOffDeliverable: { select: { type: true } },
+    const existingTask = await db.query.task.findFirst({
+      where: eq(task.id, id),
+      with: {
+        monthlyDeliverable: { columns: { type: true } },
+        oneOffDeliverable: { columns: { type: true } },
       },
     });
 
-    const updated = await prisma.task.update({
-      where: { id },
-      data: {
-        status: "SCHEDULED",
-        // scheduledAt: postedAt ? new Date(postedAt) : new Date(),
-        // scheduledNotes: notes || null,
-        updatedAt: new Date(),
-      },
-    });
+    const [updated] = await db.update(task).set({
+      status: "SCHEDULED",
+      // scheduledAt: postedAt ? new Date(postedAt) : new Date(),
+      // scheduledNotes: notes || null,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id)).returning();
 
     // Backfill PostedContent for links already on this task.
     // /api/tasks/[id]/social-media-link only creates a PostedContent row when the task is
@@ -65,10 +65,8 @@ export async function PATCH(
         : [];
 
       if (links.length > 0) {
-        const alreadyLogged = await prisma.postedContent.findMany({
-          where: { taskId: id },
-          select: { platform: true, url: true },
-        });
+        const alreadyLogged = await db.select({ platform: postedContent.platform, url: postedContent.url })
+          .from(postedContent).where(eq(postedContent.taskId, id));
         const loggedKeys = new Set(alreadyLogged.map(p => `${p.platform.toLowerCase()}::${p.url}`));
 
         const deliverableType =
@@ -83,17 +81,16 @@ export async function PATCH(
         );
 
         if (toCreate.length > 0) {
-          await prisma.postedContent.createMany({
-            data: toCreate.map(l => ({
-              clientId: existingTask.clientId!,
-              title: existingTask.title || existingTask.description || null,
-              platform: l.platform.toLowerCase(),
-              url: l.url,
-              postedAt: l.postedAt ? new Date(l.postedAt) : new Date(),
-              deliverableType,
-              taskId: id,
-            })),
-          });
+          await db.insert(postedContent).values(toCreate.map(l => ({
+            id: createId(),
+            clientId: existingTask.clientId!,
+            title: existingTask.title || existingTask.description || null,
+            platform: l.platform.toLowerCase(),
+            url: l.url,
+            postedAt: (l.postedAt ? new Date(l.postedAt) : new Date()).toISOString(),
+            deliverableType,
+            taskId: id,
+          })));
           await invalidatePostedContentCache(existingTask.clientId);
         }
       }
@@ -108,21 +105,16 @@ export async function PATCH(
     // candidate cuts that QC turned down while approving another).
     let deletedVersionCount = 0;
     try {
-      const mainFiles = await prisma.file.findMany({
-        where: { taskId: id, folderType: "main" },
-        select: { id: true, s3Key: true, isActive: true },
-      });
+      const mainFiles = await db.select({ id: fileTable.id, s3Key: fileTable.s3Key, isActive: fileTable.isActive })
+        .from(fileTable).where(and(eq(fileTable.taskId, id), eq(fileTable.folderType, "main")));
 
-      const rejectedFeedback = await prisma.taskFeedback.findMany({
-        where: {
-          taskId: id,
-          folderType: "main",
-          fileId: { not: null },
-          status: "needs_revision",
-          resolvedAt: null,
-        },
-        select: { fileId: true },
-      });
+      const rejectedFeedback = await db.select({ fileId: taskFeedback.fileId }).from(taskFeedback).where(and(
+        eq(taskFeedback.taskId, id),
+        eq(taskFeedback.folderType, "main"),
+        isNotNull(taskFeedback.fileId),
+        eq(taskFeedback.status, "needs_revision"),
+        isNull(taskFeedback.resolvedAt),
+      ));
       const rejectedFileIds = new Set(rejectedFeedback.map((f) => f.fileId));
 
       const staleFiles = mainFiles.filter((f) => !f.isActive || rejectedFileIds.has(f.id));
@@ -131,16 +123,13 @@ export async function PATCH(
         const staleIds = staleFiles.map((f) => f.id);
 
         // Detach any feedback pointing at these files instead of losing the feedback history.
-        await prisma.taskFeedback.updateMany({
-          where: { fileId: { in: staleIds } },
-          data: { fileId: null },
-        });
+        await db.update(taskFeedback).set({ fileId: null }).where(inArray(taskFeedback.fileId, staleIds));
 
         await Promise.allSettled(
           staleFiles.filter((f) => f.s3Key).map((f) => deleteFromS3(f.s3Key!))
         );
 
-        await prisma.file.deleteMany({ where: { id: { in: staleIds } } });
+        await db.delete(fileTable).where(inArray(fileTable.id, staleIds));
         deletedVersionCount = staleFiles.length;
       }
     } catch (cleanupErr) {

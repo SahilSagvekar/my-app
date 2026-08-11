@@ -1,7 +1,10 @@
 // app/api/upload/route.ts
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, file as fileTable, task as taskTable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq, sql } from "drizzle-orm";
 import { uploadBufferToS3 } from "@/lib/s3";  // ⬅️ your S3 function
 
 export const runtime = "nodejs";
@@ -44,13 +47,14 @@ export async function POST(req: Request) {
     // -------------------------------
     // FETCH CLIENT FOLDERS
     // -------------------------------
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: {
-        rawFootageFolderId: true,   // this is now an S3 prefix
-        essentialsFolderId: true,   // also an S3 prefix
-      },
-    });
+    const [client] = await db
+      .select({
+        rawFootageFolderId: clientTable.rawFootageFolderId,   // this is now an S3 prefix
+        essentialsFolderId: clientTable.essentialsFolderId,   // also an S3 prefix
+      })
+      .from(clientTable)
+      .where(eq(clientTable.id, clientId))
+      .limit(1);
 
     if (!client) {
       return NextResponse.json(
@@ -89,32 +93,32 @@ export async function POST(req: Request) {
     console.log("✅ UPLOADED TO S3:", uploaded);
 
     // -------------------------------
-    // SAVE FILE RECORD TO PRISMA
+    // SAVE FILE RECORD TO DB
     // -------------------------------
-    await prisma.file.create({
-      data: {
-        taskId,
-        name: file.name,
-        url: uploaded.url, // S3 public URL
-        mimeType: file.type,
-        size: buffer.length,
-        folderType: folderType === "rawFootage" ? "raw" : folderType, // Save the folder type
-        s3Key: uploaded.key,
-        codec: codec,
-        version: 1,
-        isActive: true,
-      },
+    await db.insert(fileTable).values({
+      id: createId(),
+      taskId,
+      name: file.name,
+      url: uploaded.url, // S3 public URL
+      mimeType: file.type,
+      size: buffer.length,
+      folderType: folderType === "rawFootage" ? "raw" : folderType, // Save the folder type
+      s3Key: uploaded.key,
+      codec: codec,
+      version: 1,
+      isActive: true,
     });
 
     // -------------------------------
     // ADD LINK TO TASK.driveLinks
     // -------------------------------
-    await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        driveLinks: { push: uploaded.url }, // rename this later to generic `fileLinks`
-      },
-    });
+    await db
+      .update(taskTable)
+      .set({
+        driveLinks: sql`array_append(${taskTable.driveLinks}, ${uploaded.url})`, // rename this later to generic `fileLinks`
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(taskTable.id, taskId));
 
     return NextResponse.json(
       {

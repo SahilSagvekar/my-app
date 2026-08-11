@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task, postedContent } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { invalidatePostedContentCache } from '@/lib/redis';
@@ -44,21 +47,23 @@ export async function POST(
     const user = getUserFromToken(request);
 
     // Get current task with client info
-    const task = await prisma.task.findUnique({
-      where: { id: id },
-      select: {
+    const foundTask = await db.query.task.findFirst({
+      where: eq(task.id, id),
+      columns: {
         socialMediaLinks: true,
         title: true,
         description: true,
         clientId: true,
         status: true,
         deliverableType: true,
-        monthlyDeliverable: { select: { type: true } },
-        oneOffDeliverable: { select: { type: true } },
+      },
+      with: {
+        monthlyDeliverable: { columns: { type: true } },
+        oneOffDeliverable: { columns: { type: true } },
       }
     });
 
-    if (!task) {
+    if (!foundTask) {
       return NextResponse.json(
         { error: "Task not found" },
         { status: 404 }
@@ -66,8 +71,8 @@ export async function POST(
     }
 
     // Parse existing links (or default to empty array)
-    const existingLinks = Array.isArray(task.socialMediaLinks)
-      ? task.socialMediaLinks
+    const existingLinks = Array.isArray(foundTask.socialMediaLinks)
+      ? foundTask.socialMediaLinks
       : [];
 
     // Add new link with user info
@@ -81,35 +86,32 @@ export async function POST(
     };
 
     // Update task with new link
-    await prisma.task.update({
-      where: { id: id },
-      data: {
-        socialMediaLinks: [...existingLinks, newLink],
-      },
-    });
+    await db.update(task).set({
+      socialMediaLinks: [...existingLinks, newLink],
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id));
 
     // 🔥 Only save to PostedContent if task is SCHEDULED or POSTED
     // Links on in-progress tasks must not appear on the client's posted content screen
-    const isScheduledOrPosted = task.status === 'SCHEDULED' || task.status === 'POSTED';
-    if (task.clientId && isScheduledOrPosted) {
+    const isScheduledOrPosted = foundTask.status === 'SCHEDULED' || foundTask.status === 'POSTED';
+    if (foundTask.clientId && isScheduledOrPosted) {
       try {
-        const deliverableType = task.deliverableType ||
-          task.monthlyDeliverable?.type ||
-          task.oneOffDeliverable?.type ||
+        const deliverableType = foundTask.deliverableType ||
+          foundTask.monthlyDeliverable?.type ||
+          foundTask.oneOffDeliverable?.type ||
           null;
 
-        await prisma.postedContent.create({
-          data: {
-            clientId: task.clientId,
-            title: task.title || task.description || null,
-            platform: platform.toLowerCase(),
-            url: normalizedUrl,
-            postedAt: new Date(postedAtValue),
-            deliverableType: deliverableType,
-            taskId: id,
-          },
+        await db.insert(postedContent).values({
+          id: createId(),
+          clientId: foundTask.clientId,
+          title: foundTask.title || foundTask.description || null,
+          platform: platform.toLowerCase(),
+          url: normalizedUrl,
+          postedAt: new Date(postedAtValue).toISOString(),
+          deliverableType: deliverableType,
+          taskId: id,
         });
-        await invalidatePostedContentCache(task.clientId);
+        await invalidatePostedContentCache(foundTask.clientId);
         console.log(`✅ PostedContent created for task ${id}, platform ${platform}`);
       } catch (err) {
         console.error('Failed to save to PostedContent:', err);
@@ -126,7 +128,7 @@ export async function POST(
         details: `Added ${platform} link to task`,
         metadata: {
           taskId: id,
-          taskTitle: task.title || task.description,
+          taskTitle: foundTask.title || foundTask.description,
           platform,
           url,
           role: user.role,
@@ -137,12 +139,12 @@ export async function POST(
     // 📣 Notify #e8-app — one message per link added (this route fires once
     // per link, never batched per task), so schedulers see each post as it happens.
     try {
-      const taskTitle = task.title || task.description || 'Task';
+      const taskTitle = foundTask.title || foundTask.description || 'Task';
       await sendToChannel('e8app', {
         type: 'link_posted',
         title: `🔗 Link Posted — ${platform}`,
         body: `*${taskTitle}* was posted to ${platform}.\n${normalizedUrl}`,
-        payload: { taskId: id, clientId: task.clientId },
+        payload: { taskId: id, clientId: foundTask.clientId },
       });
     } catch (err) {
       console.error('[Slack] Failed to notify e8app channel for posted link:', err);
@@ -169,20 +171,22 @@ export async function PATCH(
     const { platform, url, postedAt } = body;
     const user = getUserFromToken(request);
 
-    const task = await prisma.task.findUnique({
-      where: { id: id },
-      select: { socialMediaLinks: true, title: true, description: true, clientId: true }
-    });
+    const foundTask = await db.select({
+      socialMediaLinks: task.socialMediaLinks,
+      title: task.title,
+      description: task.description,
+      clientId: task.clientId,
+    }).from(task).where(eq(task.id, id)).then(rows => rows[0]);
 
-    if (!task) {
+    if (!foundTask) {
       return NextResponse.json(
         { error: "Task not found" },
         { status: 404 }
       );
     }
 
-    const existingLinks = Array.isArray(task.socialMediaLinks)
-      ? task.socialMediaLinks as Array<{ platform: string; url: string; postedAt: string; addedBy?: number }>
+    const existingLinks = Array.isArray(foundTask.socialMediaLinks)
+      ? foundTask.socialMediaLinks as Array<{ platform: string; url: string; postedAt: string; addedBy?: number }>
       : [];
 
     const oldLink = existingLinks.find(l => l.platform.toLowerCase() === platform.toLowerCase());
@@ -201,30 +205,25 @@ export async function PATCH(
       return link;
     });
 
-    await prisma.task.update({
-      where: { id: id },
-      data: {
-        socialMediaLinks: updatedLinks,
-      },
-    });
+    await db.update(task).set({
+      socialMediaLinks: updatedLinks,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id));
 
     // Keep the mirrored PostedContent row (client-facing view + daily-target
     // counting) in sync — without this, a corrected URL never reaches the
     // client and the old URL keeps counting toward daily targets.
     if (oldLink) {
       try {
-        await prisma.postedContent.updateMany({
-          where: {
-            taskId: id,
-            platform: oldLink.platform.toLowerCase(),
-            url: oldLink.url,
-          },
-          data: {
-            url: normalizedUrl,
-            ...(postedAt ? { postedAt: new Date(postedAt) } : {}),
-          },
-        });
-        if (task.clientId) await invalidatePostedContentCache(task.clientId);
+        await db.update(postedContent).set({
+          url: normalizedUrl,
+          ...(postedAt ? { postedAt: new Date(postedAt).toISOString() } : {}),
+        }).where(and(
+          eq(postedContent.taskId, id),
+          eq(postedContent.platform, oldLink.platform.toLowerCase()),
+          eq(postedContent.url, oldLink.url),
+        ));
+        if (foundTask.clientId) await invalidatePostedContentCache(foundTask.clientId);
       } catch (err) {
         console.error('Failed to sync PostedContent on link update:', err);
       }
@@ -239,7 +238,7 @@ export async function PATCH(
         details: `Updated ${platform} link on task`,
         metadata: {
           taskId: id,
-          taskTitle: task.title || task.description,
+          taskTitle: foundTask.title || foundTask.description,
           platform,
           oldUrl: oldLink?.url,
           newUrl: url,
@@ -285,20 +284,22 @@ export async function DELETE(
 
     const user = getUserFromToken(request);
 
-    const task = await prisma.task.findUnique({
-      where: { id: id },
-      select: { socialMediaLinks: true, title: true, description: true, clientId: true }
-    });
+    const foundTask = await db.select({
+      socialMediaLinks: task.socialMediaLinks,
+      title: task.title,
+      description: task.description,
+      clientId: task.clientId,
+    }).from(task).where(eq(task.id, id)).then(rows => rows[0]);
 
-    if (!task) {
+    if (!foundTask) {
       return NextResponse.json(
         { error: "Task not found" },
         { status: 404 }
       );
     }
 
-    const existingLinks = Array.isArray(task.socialMediaLinks)
-      ? task.socialMediaLinks as Array<{ platform: string; url: string; postedAt: string }>
+    const existingLinks = Array.isArray(foundTask.socialMediaLinks)
+      ? foundTask.socialMediaLinks as Array<{ platform: string; url: string; postedAt: string }>
       : [];
 
     const deletedLink = existingLinks.find(
@@ -309,26 +310,22 @@ export async function DELETE(
       (link) => link.platform.toLowerCase() !== platform!.toLowerCase()
     );
 
-    await prisma.task.update({
-      where: { id: id },
-      data: {
-        socialMediaLinks: filteredLinks,
-      },
-    });
+    await db.update(task).set({
+      socialMediaLinks: filteredLinks,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id));
 
     // Remove the mirrored PostedContent row too — otherwise a deleted link
     // keeps showing on the client's posted-content page and keeps counting
     // toward that day's daily-target completion.
     if (deletedLink) {
       try {
-        await prisma.postedContent.deleteMany({
-          where: {
-            taskId: id,
-            platform: deletedLink.platform.toLowerCase(),
-            url: deletedLink.url,
-          },
-        });
-        if (task.clientId) await invalidatePostedContentCache(task.clientId);
+        await db.delete(postedContent).where(and(
+          eq(postedContent.taskId, id),
+          eq(postedContent.platform, deletedLink.platform.toLowerCase()),
+          eq(postedContent.url, deletedLink.url),
+        ));
+        if (foundTask.clientId) await invalidatePostedContentCache(foundTask.clientId);
       } catch (err) {
         console.error('Failed to sync PostedContent on link delete:', err);
       }
@@ -343,7 +340,7 @@ export async function DELETE(
         details: `Removed ${platform} link from task`,
         metadata: {
           taskId: id,
-          taskTitle: task.title || task.description,
+          taskTitle: foundTask.title || foundTask.description,
           platform,
           deletedUrl: deletedLink?.url,
           role: user.role,

@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/meeting-notes/[id]/send/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { meetingNote as meetingNoteTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { getUserFromToken, requireAdmin } from "@/lib/auth-helpers";
 import { exportMeetingNotesPdf } from "@/lib/meeting-notes";
 import { sendMeetingNotesEmail } from "@/lib/email";
@@ -21,9 +23,9 @@ export async function POST(
 
     const { id } = await params;
 
-    const meetingNote = await prisma.meetingNote.findUnique({
-      where: { id },
-      include: { client: true },
+    const meetingNote = await db.query.meetingNote.findFirst({
+      where: eq(meetingNoteTable.id, id),
+      with: { client: true },
     });
     if (!meetingNote) {
       return NextResponse.json({ message: "Meeting note not found" }, { status: 404 });
@@ -42,7 +44,7 @@ export async function POST(
       to: meetingNote.client.email,
       cc: extraEmails,
       clientName: meetingNote.client.name,
-      meetingDate: meetingNote.meetingDate,
+      meetingDate: new Date(meetingNote.meetingDate),
       pdfBuffer,
       docTitle: meetingNote.title,
     });
@@ -51,14 +53,12 @@ export async function POST(
       return NextResponse.json({ message: result.error || "Failed to send email" }, { status: 500 });
     }
 
-    const updated = await prisma.meetingNote.update({
-      where: { id },
-      data: {
-        status: "sent",
-        sentAt: new Date(),
-        sentBy: String((user as any)?.id ?? (user as any)?.userId ?? ""),
-      },
-    });
+    const [updated] = await db.update(meetingNoteTable).set({
+      status: "sent",
+      sentAt: new Date().toISOString(),
+      sentBy: String((user as any)?.id ?? (user as any)?.userId ?? ""),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(meetingNoteTable.id, id)).returning();
 
     return NextResponse.json({ success: true, meetingNote: updated });
   } catch (err: any) {

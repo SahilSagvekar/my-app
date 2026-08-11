@@ -3,7 +3,10 @@ export const dynamic = 'force-dynamic';
 // Admin only — compensation, not something a sales_manager can self-serve.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesRepPayoutProfile } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -36,10 +39,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ us
       );
     }
 
-    await prisma.salesRepPayoutProfile.upsert({
-      where: { userId: targetId },
-      update: { commissionRate: parsedRate },
-      create: { userId: targetId, commissionRate: parsedRate },
+    const now = new Date().toISOString();
+    await db.insert(salesRepPayoutProfile).values({
+      id: createId(),
+      userId: targetId,
+      commissionRate: String(parsedRate),
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: salesRepPayoutProfile.userId,
+      set: { commissionRate: String(parsedRate), updatedAt: now },
     });
 
     return NextResponse.json({ ok: true, rate: parsedRate });

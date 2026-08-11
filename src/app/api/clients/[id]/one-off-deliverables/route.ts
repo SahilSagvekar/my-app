@@ -1,5 +1,8 @@
 export const dynamic = 'force-dynamic';
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client, oneOffDeliverable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 // POST - Create a new one-off deliverable for a client
@@ -14,28 +17,26 @@ export async function POST(
     console.log("➕ Creating one-off deliverable for client:", clientId);
 
     // Verify client exists
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-    });
+    const [existingClient] = await db.select().from(client).where(eq(client.id, clientId)).limit(1);
 
-    if (!client) {
+    if (!existingClient) {
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    const deliverable = await prisma.oneOffDeliverable.create({
-      data: {
-        clientId,
-        type: data.type,
-        quantity: data.quantity || 1,
-        videosPerDay: data.videosPerDay || 1,
-        postingSchedule: data.postingSchedule || "one-off",
-        postingDays: data.postingDays || [],
-        postingTimes: data.postingTimes || ["10:00 AM"],
-        platforms: data.platforms || [],
-        description: data.description || "",
-        status: "PENDING",
-      },
-    });
+    const [deliverable] = await db.insert(oneOffDeliverable).values({
+      id: createId(),
+      clientId,
+      type: data.type,
+      quantity: data.quantity || 1,
+      videosPerDay: data.videosPerDay || 1,
+      postingSchedule: data.postingSchedule || "one-off",
+      postingDays: data.postingDays || [],
+      postingTimes: data.postingTimes || ["10:00 AM"],
+      platforms: data.platforms || [],
+      description: data.description || "",
+      status: "PENDING",
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     console.log("✅ One-off deliverable created:", deliverable.id);
 
@@ -58,10 +59,9 @@ export async function GET(
   try {
     const { id: clientId } = await params;
 
-    const deliverables = await prisma.oneOffDeliverable.findMany({
-      where: { clientId },
-      orderBy: { createdAt: "desc" },
-    });
+    const deliverables = await db.select().from(oneOffDeliverable)
+      .where(eq(oneOffDeliverable.clientId, clientId))
+      .orderBy(desc(oneOffDeliverable.createdAt));
 
     return NextResponse.json({ deliverables, oneOffDeliverables: deliverables });
 

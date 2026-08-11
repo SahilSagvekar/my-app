@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { job, bid, user as userTable, notification } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, desc, inArray, count as countFn } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendNewJobNotificationEmail } from '@/lib/email';
 
@@ -28,67 +31,61 @@ export async function POST(req: NextRequest) {
         }
 
         // 1. Create Job
-        const job = await (prisma as any).job.create({
-            data: {
-                title,
-                description,
-                location,
-                startDate: new Date(startDate),
-                endDate: endDate ? new Date(endDate) : null,
-                equipment,
-                camera,
-                quality,
-                frameRate,
-                lighting,
-                exclusions,
-                referenceLinks: Array.isArray(referenceLinks) ? referenceLinks : [],
-                budget: budget ? parseFloat(budget) : null,
-                createdById: user.id,
-                clientId: clientId || null,
-                status: 'OPEN',
-            },
-        });
+        const [createdJob] = await db.insert(job).values({
+            id: createId(),
+            title,
+            description,
+            location,
+            startDate: new Date(startDate).toISOString(),
+            endDate: endDate ? new Date(endDate).toISOString() : null,
+            equipment,
+            camera,
+            quality,
+            frameRate,
+            lighting,
+            exclusions,
+            referenceLinks: Array.isArray(referenceLinks) ? referenceLinks : [],
+            budget: budget ? String(parseFloat(budget)) : null,
+            createdById: user.id,
+            clientId: clientId || null,
+            status: 'OPEN',
+            updatedAt: new Date().toISOString(),
+        }).returning();
 
         // 2. Fetch Active Videographers
-        const videographers = await prisma.user.findMany({
-            where: {
-                role: 'videographer',
-                employeeStatus: 'ACTIVE'
-            },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-            },
-        });
+        const videographers = await db.select({
+            id: userTable.id,
+            email: userTable.email,
+            name: userTable.name,
+        }).from(userTable).where(and(eq(userTable.role, 'videographer'), eq(userTable.employeeStatus, 'ACTIVE')));
 
         // 3. Create Notifications in DB
         await Promise.all(videographers.map(vg =>
-            (prisma as any).notification.create({
-                data: {
-                    userId: vg.id,
-                    type: 'JOB_ALERT',
-                    title: 'New Job Posted: ' + title,
-                    body: `A new job "${title}" is available for bidding.`,
-                    payload: { jobId: job.id, link: `/portal/jobs/${job.id}` },
-                }
+            db.insert(notification).values({
+                id: createId(),
+                userId: vg.id,
+                type: 'JOB_ALERT',
+                title: 'New Job Posted: ' + title,
+                body: `A new job "${title}" is available for bidding.`,
+                payload: { jobId: createdJob.id, link: `/portal/jobs/${createdJob.id}` },
+                updatedAt: new Date().toISOString(),
             })
         ));
 
         // 4. Send Emails
-        const jobLink = `${process.env.BASE_URL || 'http://localhost:3000'}/portal/jobs/${job.id}`;
+        const jobLink = `${process.env.BASE_URL || 'http://localhost:3000'}/portal/jobs/${createdJob.id}`;
 
         sendNewJobNotificationEmail(
             videographers.map(v => ({ email: v.email, name: v.name || 'Videographer' })),
             {
-                title: job.title,
-                location: job.location || 'TBD',
-                date: job.startDate.toLocaleDateString(),
+                title: createdJob.title,
+                location: createdJob.location || 'TBD',
+                date: new Date(createdJob.startDate).toLocaleDateString(),
                 link: jobLink
             }
         ).catch(err => console.error('Background email sending failed:', err));
 
-        return NextResponse.json(job, { status: 201 });
+        return NextResponse.json(createdJob, { status: 201 });
 
     } catch (error: any) {
         console.error('Error creating job:', error);
@@ -110,25 +107,41 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const status = searchParams.get('status');
 
-        const whereClause: any = {};
-        if (status) whereClause.status = status;
-
-        const jobs = await (prisma as any).job.findMany({
-            where: whereClause,
-            include: {
-                _count: {
-                    select: { bids: true }
-                },
+        const rawJobs = await db.query.job.findMany({
+            where: status ? eq(job.status, status as any) : undefined,
+            with: {
                 client: {
-                    select: { id: true, name: true, companyName: true }
+                    columns: { id: true, name: true, companyName: true }
                 },
                 bids: user.role === 'admin' || user.role === 'manager'
-                    ? { include: { videographer: { select: { name: true, email: true, image: true } } } }
+                    ? { with: { user: { columns: { name: true, email: true, image: true } } } }
                     : (user.role === 'videographer')
-                        ? { where: { userId: user.id } }
-                        : false
+                        ? { where: (b, { eq }) => eq(b.userId, user.id) }
+                        : undefined,
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: desc(job.createdAt),
+        });
+
+        // _count.bids must reflect the TOTAL bid count regardless of the
+        // role-based filter applied to `bids` above (matches Prisma's
+        // `_count` semantics, which ignores the sibling `include` filter) —
+        // fetched separately rather than derived from the filtered array.
+        const jobIds = rawJobs.map((j: any) => j.id);
+        const bidCounts = jobIds.length > 0
+            ? await db.select({ jobId: bid.jobId, value: countFn() }).from(bid).where(inArray(bid.jobId, jobIds)).groupBy(bid.jobId)
+            : [];
+        const bidCountMap = new Map(bidCounts.map(c => [c.jobId, c.value]));
+
+        // Rename bid.user -> bid.videographer (Prisma relation name).
+        const jobs = rawJobs.map((j: any) => {
+            const bids = j.bids === undefined ? undefined : j.bids.map(({ user: videographer, ...b }: any) =>
+                videographer !== undefined ? { ...b, videographer } : b
+            );
+            return {
+                ...j,
+                bids,
+                _count: { bids: bidCountMap.get(j.id) || 0 },
+            };
         });
 
         return NextResponse.json(jobs);

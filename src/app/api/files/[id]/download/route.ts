@@ -6,7 +6,9 @@ export const dynamic = 'force-dynamic';
 // 🔥 ALWAYS downloads the ORIGINAL file, never the optimized/proxy version.
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { file as fileTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { extractS3KeyFromUrl, generateDownloadUrl, checkFileExists } from '@/lib/s3';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 
@@ -27,16 +29,18 @@ export async function GET(
         }
 
         // Find the file record
-        const file = await prisma.file.findUnique({
-            where: { id: fileId },
-            select: {
+        const file = await db.query.file.findFirst({
+            where: eq(fileTable.id, fileId),
+            columns: {
                 id: true,
                 url: true,
                 s3Key: true,
                 name: true,
                 deletedFromCloud: true,
+            },
+            with: {
                 task: {
-                    select: { clientId: true },
+                    columns: { clientId: true },
                 },
             },
         });

@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable, contractSigner as contractSignerTable, contractAuditLog as contractAuditLogTable, client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import { downloadSignWellPdf, mapSignWellStatus, mapSignWellSignerStatus } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
 import { notifyContractSigned } from '@/lib/pipeline-notifications';
@@ -42,24 +45,43 @@ export async function POST(req: NextRequest) {
     }
 
     // Find the contract linked to this SignWell document
-    const contract = await prisma.contract.findFirst({
-      where: { signwellDocumentId: doc.id },
-      include: {
-        signers: true,
-        client: { include: { portalAccess: true } },
+    //
+    // NOTE(prisma-migration): the original Prisma query here included a
+    // `client: { include: { portalAccess: true } }` relation on Contract that
+    // does not exist on the Contract model in prisma/schema.prisma (no `client`
+    // field defined there) nor in the live-DB-introspected src/lib/db/schema.ts
+    // (Contract.clientId has no FK/relation to Client). This was schema drift
+    // that would have thrown a PrismaClientValidationError on every webhook
+    // call. Converted to the same manual clientId -> Client lookup pattern used
+    // by the sibling src/app/api/signwell/webhook/route.ts, which works.
+    const found = await db.query.contract.findFirst({
+      where: eq(contractTable.signwellDocumentId, doc.id),
+      with: {
+        contractSigners: true,
       },
     });
 
-    if (!contract) {
+    if (!found) {
       console.warn(`[signwell webhook] No contract found for document ${doc.id}`);
       return NextResponse.json({ received: true });
+    }
+
+    const contract: any = { ...found, signers: found.contractSigners };
+    if (contract.clientId) {
+      const clientRow = await db.query.client.findFirst({
+        where: eq(clientTable.id, contract.clientId),
+        with: { clientPortalAccesses: true },
+      });
+      contract.client = clientRow
+        ? { ...clientRow, portalAccess: clientRow.clientPortalAccesses?.[0] ?? null }
+        : null;
     }
 
     // ── Update individual signer statuses ──────────────────────────────────────
     const swSigners: any[] = doc.recipients || doc.signers || [];
     for (const swSigner of swSigners) {
       const dbSigner = contract.signers.find(
-        (s) => s.email?.toLowerCase() === swSigner.email?.toLowerCase()
+        (s: any) => s.email?.toLowerCase() === swSigner.email?.toLowerCase()
       );
       if (!dbSigner) continue;
 
@@ -68,31 +90,28 @@ export async function POST(req: NextRequest) {
         const ipAddress = swSigner.ip_address || swSigner.ip || null;
         const userAgent = swSigner.user_agent || null;
 
-        await prisma.contractSigner.update({
-          where: { id: dbSigner.id },
-          data: {
-            status: newStatus,
-            signedAt:  newStatus === 'SIGNED'  ? new Date() : dbSigner.signedAt  ?? undefined,
-            viewedAt:  newStatus === 'VIEWED'  ? new Date() : dbSigner.viewedAt  ?? undefined,
-            declinedAt: newStatus === 'DECLINED' ? new Date() : dbSigner.declinedAt ?? undefined,
-            declineReason: newStatus === 'DECLINED' ? (swSigner.decline_reason || null) : dbSigner.declineReason ?? undefined,
-            ipAddress,
-            userAgent,
-          },
-        });
+        await db.update(contractSignerTable).set({
+          status: newStatus,
+          signedAt:  newStatus === 'SIGNED'  ? new Date().toISOString() : dbSigner.signedAt  ?? undefined,
+          viewedAt:  newStatus === 'VIEWED'  ? new Date().toISOString() : dbSigner.viewedAt  ?? undefined,
+          declinedAt: newStatus === 'DECLINED' ? new Date().toISOString() : dbSigner.declinedAt ?? undefined,
+          declineReason: newStatus === 'DECLINED' ? (swSigner.decline_reason || null) : dbSigner.declineReason ?? undefined,
+          ipAddress,
+          userAgent,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(contractSignerTable.id, dbSigner.id));
 
         if (['VIEWED', 'SIGNED', 'DECLINED'].includes(newStatus)) {
-          await prisma.contractAuditLog.create({
-            data: {
-              contractId: contract.id,
-              action: newStatus.toLowerCase(),
-              performedBy: `${dbSigner.name} <${dbSigner.email}>`,
-              ipAddress,
-              userAgent,
-              details: newStatus === 'DECLINED' && swSigner.decline_reason
-                ? JSON.stringify({ reason: swSigner.decline_reason })
-                : null,
-            },
+          await db.insert(contractAuditLogTable).values({
+            id: createId(),
+            contractId: contract.id,
+            action: newStatus.toLowerCase(),
+            performedBy: `${dbSigner.name} <${dbSigner.email}>`,
+            ipAddress,
+            userAgent,
+            details: newStatus === 'DECLINED' && swSigner.decline_reason
+              ? JSON.stringify({ reason: swSigner.decline_reason })
+              : null,
           });
         }
 
@@ -119,34 +138,31 @@ export async function POST(req: NextRequest) {
           mimeType: 'application/pdf',
         });
 
-        await prisma.contract.update({
-          where: { id: contract.id },
-          data: {
-            status: 'COMPLETED',
-            completedAt: new Date(),
-            signedS3Key: key,
-          },
-        });
+        await db.update(contractTable).set({
+          status: 'COMPLETED',
+          completedAt: new Date().toISOString(),
+          signedS3Key: key,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(contractTable.id, contract.id));
 
         // Advance portal access if applicable
         const portalAccess = (contract.client as any)?.portalAccess;
         if (portalAccess) {
           const cur = portalAccess.status;
           if (cur === 'CONTRACT_PENDING' || cur === 'ONBOARDING') {
-            await prisma.clientPortalAccess.update({
-              where: { clientId: (contract.client as any).id },
-              data: { status: 'PAYMENT_PENDING' },
-            });
+            await db.update(clientPortalAccessTable).set({
+              status: 'PAYMENT_PENDING',
+              updatedAt: new Date().toISOString(),
+            }).where(eq(clientPortalAccessTable.clientId, (contract.client as any).id));
           }
         }
 
-        await prisma.contractAuditLog.create({
-          data: {
-            contractId: contract.id,
-            action: 'completed',
-            performedBy: 'system',
-            details: JSON.stringify({ message: 'All signers have signed. Document completed via SignWell.' }),
-          },
+        await db.insert(contractAuditLogTable).values({
+          id: createId(),
+          contractId: contract.id,
+          action: 'completed',
+          performedBy: 'system',
+          details: JSON.stringify({ message: 'All signers have signed. Document completed via SignWell.' }),
         });
 
         await notifyContractSigned(contract.title);
@@ -155,16 +171,17 @@ export async function POST(req: NextRequest) {
       } catch (pdfErr) {
         console.error('[signwell webhook] Failed to download/store signed PDF:', pdfErr);
         // Still mark as completed even if PDF storage fails
-        await prisma.contract.update({
-          where: { id: contract.id },
-          data: { status: 'COMPLETED', completedAt: new Date() },
-        });
+        await db.update(contractTable).set({
+          status: 'COMPLETED',
+          completedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }).where(eq(contractTable.id, contract.id));
       }
     } else if (newContractStatus !== contract.status) {
-      await prisma.contract.update({
-        where: { id: contract.id },
-        data: { status: newContractStatus as any },
-      });
+      await db.update(contractTable).set({
+        status: newContractStatus as any,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(contractTable.id, contract.id));
       console.log(`[signwell webhook] Contract ${contract.id} → ${newContractStatus}`);
     }
 

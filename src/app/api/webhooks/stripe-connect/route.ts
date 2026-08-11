@@ -11,7 +11,9 @@ export const dynamic = 'force-dynamic';
 // or liability for it once transferred.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { affiliateCommission, commissionPayout, user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { syncAccountStatus } from '@/lib/stripe-payouts';
@@ -64,19 +66,18 @@ async function handleTransferCreated(transfer: Stripe.Transfer) {
   const commissionId = transfer.metadata?.commissionId;
   if (!commissionId) return;
 
-  const commission = await prisma.affiliateCommission.findUnique({ where: { id: commissionId } });
+  const [commission] = await db.select().from(affiliateCommission).where(eq(affiliateCommission.id, commissionId)).limit(1);
   if (!commission || commission.status !== 'PAYOUT_PENDING') return; // already processed or not ours
 
-  await prisma.$transaction([
-    prisma.commissionPayout.updateMany({
-      where: { stripeTransferId: transfer.id },
-      data: { status: 'PAID', paidAt: new Date() },
-    }),
-    prisma.affiliateCommission.update({
-      where: { id: commissionId },
-      data: { status: 'PAID', paidAt: new Date() },
-    }),
-  ]);
+  const now = new Date().toISOString();
+  await db.batch([
+    db.update(commissionPayout).set({
+      status: 'PAID', paidAt: now, updatedAt: now,
+    }).where(eq(commissionPayout.stripeTransferId, transfer.id)),
+    db.update(affiliateCommission).set({
+      status: 'PAID', paidAt: now, updatedAt: now,
+    }).where(eq(affiliateCommission.id, commissionId)),
+  ] as any);
 
   await notifyUser({
     userId: commission.salesUserId,
@@ -91,22 +92,21 @@ async function handleTransferReversed(transfer: Stripe.Transfer) {
   const commissionId = transfer.metadata?.commissionId;
   if (!commissionId) return;
 
-  const commission = await prisma.affiliateCommission.findUnique({ where: { id: commissionId } });
+  const [commission] = await db.select().from(affiliateCommission).where(eq(affiliateCommission.id, commissionId)).limit(1);
   if (!commission) return;
 
-  await prisma.$transaction([
-    prisma.commissionPayout.updateMany({
-      where: { stripeTransferId: transfer.id },
-      data: { status: 'FAILED', failedAt: new Date(), failureReason: 'Transfer reversed by Stripe' },
-    }),
-    prisma.affiliateCommission.update({
-      where: { id: commissionId },
-      data: { status: 'FAILED' },
-    }),
-  ]);
+  const now = new Date().toISOString();
+  await db.batch([
+    db.update(commissionPayout).set({
+      status: 'FAILED', failedAt: now, failureReason: 'Transfer reversed by Stripe', updatedAt: now,
+    }).where(eq(commissionPayout.stripeTransferId, transfer.id)),
+    db.update(affiliateCommission).set({
+      status: 'FAILED', updatedAt: now,
+    }).where(eq(affiliateCommission.id, commissionId)),
+  ] as any);
 
   // Admin only — see dev doc 3.3 (rep isn't notified of internal payout failures).
-  const admins = await prisma.user.findMany({ where: { role: 'admin' }, select: { id: true } });
+  const admins = await db.select({ id: userTable.id }).from(userTable).where(eq(userTable.role, 'admin'));
   await Promise.all(
     admins.map((admin) =>
       notifyUser({

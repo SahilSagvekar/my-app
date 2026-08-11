@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { job, bid } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, asc, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -24,42 +27,33 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         }
 
         // Check if job is open
-        const job = await (prisma as any).job.findUnique({ where: { id: jobId } });
-        if (!job || job.status !== 'OPEN') {
+        const [foundJob] = await db.select().from(job).where(eq(job.id, jobId)).limit(1);
+        if (!foundJob || foundJob.status !== 'OPEN') {
             return NextResponse.json({ error: 'Job is not open for bidding.' }, { status: 400 });
         }
 
         // Check if user already bid
-        const existingBid = await prisma.bid.findFirst({
-            where: {
-                jobId,
-                userId: user.id
-            }
-        });
+        const [existingBid] = await db.select().from(bid).where(and(eq(bid.jobId, jobId), eq(bid.userId, user.id))).limit(1);
 
         if (existingBid) {
             // Update existing bid
-            const updatedBid = await prisma.bid.update({
-                where: { id: existingBid.id },
-                data: {
-                    amount: parseFloat(amount),
-                    note,
-                    status: 'PENDING' // Reset status if they update
-                }
-            });
+            const [updatedBid] = await db.update(bid).set({
+                amount: String(parseFloat(amount)),
+                note,
+                status: 'PENDING' // Reset status if they update
+            }).where(eq(bid.id, existingBid.id)).returning();
             return NextResponse.json(updatedBid);
         }
 
         // Create new bid
-        const newBid = await prisma.bid.create({
-            data: {
-                jobId,
-                userId: user.id,
-                amount: parseFloat(amount),
-                note,
-                status: 'PENDING'
-            }
-        });
+        const [newBid] = await db.insert(bid).values({
+            id: createId(),
+            jobId,
+            userId: user.id,
+            amount: String(parseFloat(amount)),
+            note,
+            status: 'PENDING'
+        }).returning();
 
         return NextResponse.json(newBid, { status: 201 });
 
@@ -85,17 +79,16 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
         const { searchParams } = new URL(req.url);
         const sort = searchParams.get('sort') || 'asc'; // asc = lowest first, desc = highest first
 
-        const bids = await prisma.bid.findMany({
-            where: { jobId: params.id },
-            include: {
-                videographer: {
-                    select: { id: true, name: true, email: true, image: true }
+        const rawBids = await db.query.bid.findMany({
+            where: eq(bid.jobId, params.id),
+            with: {
+                user: {
+                    columns: { id: true, name: true, email: true, image: true }
                 }
             },
-            orderBy: {
-                amount: sort === 'desc' ? 'desc' : 'asc'
-            }
+            orderBy: sort === 'desc' ? desc(bid.amount) : asc(bid.amount),
         });
+        const bids = rawBids.map(({ user: videographer, ...b }: any) => ({ ...b, videographer }));
 
         return NextResponse.json(bids);
 

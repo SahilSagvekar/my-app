@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/clients/[clientId]/deliverables/route.ts
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, monthlyDeliverable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq, desc } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { syncPostingTargetsForClient } from "@/lib/posting-target-sync";
 
@@ -17,28 +20,26 @@ export async function POST(
     console.log("📦 Deliverable data:", data);
 
     // Verify client exists
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-    });
+    const [existingClient] = await db.select().from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
 
-    if (!client) {
+    if (!existingClient) {
       return NextResponse.json({ message: "Client not found" }, { status: 404 });
     }
 
-    const deliverable = await prisma.monthlyDeliverable.create({
-      data: {
-        clientId,
-        type: data.type,
-        quantity: data.quantity || 1,
-        videosPerDay: data.videosPerDay || 1,
-        postingSchedule: data.postingSchedule || "weekly",
-        postingDays: data.postingDays || [],
-        postingTimes: data.postingTimes || ["10:00 AM"],
-        platforms: data.platforms || [],
-        description: data.description || "",
-        isTrial: data.isTrial ?? false,
-      },
-    });
+    const [deliverable] = await db.insert(monthlyDeliverable).values({
+      id: createId(),
+      clientId,
+      type: data.type,
+      quantity: data.quantity || 1,
+      videosPerDay: data.videosPerDay || 1,
+      postingSchedule: data.postingSchedule || "weekly",
+      postingDays: data.postingDays || [],
+      postingTimes: data.postingTimes || ["10:00 AM"],
+      platforms: data.platforms || [],
+      description: data.description || "",
+      isTrial: data.isTrial ?? false,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     console.log("✅ Deliverable created:", deliverable.id);
 
@@ -63,10 +64,9 @@ export async function GET(
   try {
     const { id: clientId } = await params;
 
-    const deliverables = await prisma.monthlyDeliverable.findMany({
-      where: { clientId },
-      orderBy: { createdAt: "desc" },
-    });
+    const deliverables = await db.select().from(monthlyDeliverable)
+      .where(eq(monthlyDeliverable.clientId, clientId))
+      .orderBy(desc(monthlyDeliverable.createdAt));
 
     return NextResponse.json({ deliverables, monthlyDeliverables: deliverables });
 

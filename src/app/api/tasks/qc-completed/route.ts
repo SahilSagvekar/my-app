@@ -1,10 +1,11 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import type { Prisma } from '@prisma/client';
 
 import { getCurrentUser2 } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { and, or, eq, ilike, inArray, desc, count, type SQL } from 'drizzle-orm';
 
 const QC_COMPLETED_STATUSES = ['COMPLETED', 'REJECTED', 'CLIENT_REVIEW'] as const;
 type QcCompletedStatus = (typeof QC_COMPLETED_STATUSES)[number];
@@ -21,20 +22,18 @@ function parsePositiveInt(value: string | null, fallback: number) {
 function buildBaseWhere(
   role: string | null | undefined,
   userId: number
-): Prisma.TaskWhereInput | null {
+): SQL | null {
   const normalizedRole = role?.toLowerCase();
 
   if (normalizedRole === 'qc') {
-    return {
-      qc_specialist: userId,
-      status: { in: [...QC_COMPLETED_STATUSES] },
-    };
+    return and(
+      eq(task.qcSpecialist, userId),
+      inArray(task.status, [...QC_COMPLETED_STATUSES] as any)
+    )!;
   }
 
   if (normalizedRole === 'admin' || normalizedRole === 'manager') {
-    return {
-      status: { in: [...QC_COMPLETED_STATUSES] },
-    };
+    return inArray(task.status, [...QC_COMPLETED_STATUSES] as any);
   }
 
   return null;
@@ -102,9 +101,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const search = searchParams.get('search')?.trim() || '';
 
-    const where: Prisma.TaskWhereInput = {
-      ...baseWhere,
-    };
+    const conditions: SQL[] = [baseWhere];
 
     if (status && status !== 'all') {
       const normalizedStatus = status.toUpperCase();
@@ -115,34 +112,28 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      where.status = normalizedStatus;
+      conditions.push(eq(task.status, normalizedStatus as any));
     }
 
     if (search) {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { clientId: { contains: search, mode: 'insensitive' } },
-            { description: { contains: search, mode: 'insensitive' } },
-          ],
-        },
-      ];
+      const pattern = `%${search}%`;
+      conditions.push(or(
+        ilike(task.title, pattern),
+        ilike(task.clientId, pattern),
+        ilike(task.description, pattern),
+      )!);
     }
 
-    const [total, tasks, totalReviewed, approvedCount, rejectedCount] = await Promise.all([
-      prisma.task.count({ where }),
-      prisma.task.findMany({
+    const where = and(...conditions)!;
+
+    const [[{ value: total }], rawTasks, [{ value: totalReviewed }], [{ value: approvedCount }], [{ value: rejectedCount }]] = await Promise.all([
+      db.select({ value: count() }).from(task).where(where),
+      db.query.task.findMany({
         where,
-        orderBy: [
-          { updatedAt: 'desc' },
-          { qcReviewedAt: 'desc' },
-          { createdAt: 'desc' },
-        ],
-        skip: (page - 1) * limit,
-        take: limit,
-        select: {
+        orderBy: [desc(task.updatedAt), desc(task.qcReviewedAt), desc(task.createdAt)],
+        offset: (page - 1) * limit,
+        limit,
+        columns: {
           id: true,
           title: true,
           description: true,
@@ -157,18 +148,19 @@ export async function GET(request: NextRequest) {
           priority: true,
           qcResult: true,
           qcReviewedAt: true,
-          qcReviewer: {
-            select: {
-              id: true,
-              name: true,
-            },
+        },
+        with: {
+          user_qcReviewedBy: {
+            columns: { id: true, name: true },
           },
         },
       }),
-      prisma.task.count({ where: baseWhere }),
-      prisma.task.count({ where: { ...baseWhere, status: 'COMPLETED' } }),
-      prisma.task.count({ where: { ...baseWhere, status: 'REJECTED' } }),
+      db.select({ value: count() }).from(task).where(baseWhere),
+      db.select({ value: count() }).from(task).where(and(baseWhere, eq(task.status, 'COMPLETED'))!),
+      db.select({ value: count() }).from(task).where(and(baseWhere, eq(task.status, 'REJECTED'))!),
     ]);
+
+    const tasks = rawTasks.map(({ user_qcReviewedBy, ...t }: any) => ({ ...t, qcReviewer: user_qcReviewedBy }));
 
     const totalPages = Math.max(1, Math.ceil(total / limit));
 

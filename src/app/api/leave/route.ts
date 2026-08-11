@@ -225,7 +225,10 @@ export const dynamic = 'force-dynamic';
 
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { leave as leaveTable, user as userTable, deduction } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, gte, lte, asc, desc } from "drizzle-orm";
 import { z } from "zod";
 import { isEmployee } from "@/lib/auth";
 import { countWorkingDaysBetween } from "@/lib/workdays";
@@ -308,10 +311,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch employee to know worksOnSaturday
-    const employee = await prisma.user.findUnique({
-      where: { id: Number(employeeId) },
-      select: { id: true, worksOnSaturday: true },
-    });
+    const [employee] = await db.select({ id: userTable.id, worksOnSaturday: userTable.worksOnSaturday })
+      .from(userTable).where(eq(userTable.id, Number(employeeId))).limit(1);
 
     if (!employee) {
       return NextResponse.json(
@@ -336,20 +337,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const leave = await prisma.leave.create({
-      data: {
-        employeeId: Number(employeeId),
-        startDate: start,
-        endDate: end,
-        numberOfDays: days,
-        reason: body.reason ?? null,
-        status: "PENDING",
-      },
-    });
+    const [createdLeave] = await db.insert(leaveTable).values({
+      employeeId: Number(employeeId),
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      numberOfDays: days,
+      reason: body.reason ?? null,
+      status: "PENDING",
+    }).returning();
 
-    console.log(`Leave request created: ${leave.id} for employee ${employeeId}`);
+    console.log(`Leave request created: ${createdLeave.id} for employee ${employeeId}`);
 
-    return NextResponse.json({ ok: true, leave });
+    return NextResponse.json({ ok: true, leave: createdLeave });
   } catch (err: any) {
     console.error('POST /api/leave error:', err);
 
@@ -406,11 +405,11 @@ export async function GET(req: NextRequest) {
     const sortOrder = url.searchParams.get("sortOrder") || "desc";
 
     // 🔒 SECURITY: Employees can only see their own leaves
-    let where: any = { employeeId: Number(employeeId) };
+    const conditions = [eq(leaveTable.employeeId, Number(employeeId))];
 
     // Filter by status if provided
     if (status && ["PENDING", "APPROVED", "REJECTED"].includes(status)) {
-      where.status = status;
+      conditions.push(eq(leaveTable.status, status as any));
     }
 
     // Filter by month/year if provided
@@ -419,34 +418,29 @@ export async function GET(req: NextRequest) {
       const m = Number(month);
       const start = new Date(Date.UTC(y, m - 1, 1));
       const end = new Date(Date.UTC(y, m, 0));
-      where.startDate = {
-        gte: start,
-        lte: end,
-      };
+      conditions.push(gte(leaveTable.startDate, start.toISOString()));
+      conditions.push(lte(leaveTable.startDate, end.toISOString()));
     }
 
     // Build order by
-    const orderBy: any = {};
-    if (["createdAt", "startDate", "endDate"].includes(sortBy)) {
-      orderBy[sortBy] = sortOrder === "asc" ? "asc" : "desc";
-    } else {
-      orderBy.createdAt = "desc";
-    }
+    const sortCol = ["createdAt", "startDate", "endDate"].includes(sortBy)
+      ? (leaveTable as any)[sortBy]
+      : leaveTable.createdAt;
+    const orderFn = sortOrder === "asc" ? asc : desc;
 
     // Fetch leave requests
-    const leaves = await prisma.leave.findMany({
-      where,
-      orderBy,
-      include: {
-        deduction: true,
+    const rawLeaves = await db.query.leave.findMany({
+      where: and(...conditions),
+      orderBy: orderFn(sortCol),
+      with: {
+        deductions: true,
       },
     });
+    const leaves = rawLeaves.map(({ deductions, ...l }: any) => ({ ...l, deduction: deductions?.[0] ?? null }));
 
     // Calculate stats for all leaves (not just filtered)
-    const allLeaves = await prisma.leave.findMany({
-      where: { employeeId: Number(employeeId) },
-      select: { status: true },
-    });
+    const allLeaves = await db.select({ status: leaveTable.status }).from(leaveTable)
+      .where(eq(leaveTable.employeeId, Number(employeeId)));
 
     const stats = {
       total: allLeaves.length,
@@ -512,9 +506,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Verify leave exists
-    const existingLeave = await prisma.leave.findUnique({
-      where: { id: Number(leaveId) },
-    });
+    const [existingLeave] = await db.select().from(leaveTable).where(eq(leaveTable.id, Number(leaveId))).limit(1);
 
     if (!existingLeave) {
       return NextResponse.json(
@@ -543,9 +535,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Delete the leave request
-    await prisma.leave.delete({
-      where: { id: Number(leaveId) },
-    });
+    await db.delete(leaveTable).where(eq(leaveTable.id, Number(leaveId)));
 
     console.log(`Leave request ${leaveId} deleted by user ${employeeId}`);
 
@@ -613,47 +603,45 @@ export async function PATCH(req: NextRequest) {
     const body = UpdateLeaveStatusSchema.parse(bodyRaw);
 
     // Verify leave exists with employee data for deduction calculation
-    const existingLeave = await prisma.leave.findUnique({
-      where: { id: Number(leaveId) },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            hourlyRate: true,
-            hoursPerWeek: true,
-          },
+    const rawExistingLeave = await db.query.leave.findFirst({
+      where: eq(leaveTable.id, Number(leaveId)),
+      with: {
+        user: {
+          columns: { id: true, hourlyRate: true, hoursPerWeek: true },
         },
-        deduction: true,
+        deductions: true,
       },
     });
 
-    if (!existingLeave) {
+    if (!rawExistingLeave) {
       return NextResponse.json(
         { ok: false, message: "Leave request not found" },
         { status: 404 }
       );
     }
+    const { user: existingLeaveEmployee, deductions: existingLeaveDeductions, ...existingLeaveRest } = rawExistingLeave as any;
+    const existingLeave = { ...existingLeaveRest, employee: existingLeaveEmployee, deduction: existingLeaveDeductions?.[0] ?? null };
 
     // Update the leave request
-    const updatedLeave = await prisma.leave.update({
-      where: { id: Number(leaveId) },
-      data: {
-        status: body.status,
-        rejectionReason: body.rejectionReason || null,
-        approvedBy: user.userId || user.id,
-        approvedAt: body.status === "APPROVED" ? new Date() : null,
-      },
-      include: {
-        deduction: true,
-        employee: {
-          select: {
-            name: true,
-            hourlyRate: true,
-            hoursPerWeek: true,
-          },
-        },
+    // NOTE: rejectionReason/approvedAt are not real columns on Leave (absent
+    // from both schema.prisma and the live DB per Drizzle introspection) —
+    // this write already silently failed under Prisma (ignoreBuildErrors
+    // masked the type error, and Prisma would reject the unknown argument at
+    // runtime). Dropped rather than inventing columns that don't exist.
+    const [updatedLeaveRow] = await db.update(leaveTable).set({
+      status: body.status,
+      approvedBy: user.userId || user.id,
+    }).where(eq(leaveTable.id, Number(leaveId))).returning();
+
+    const rawUpdatedLeave = await db.query.leave.findFirst({
+      where: eq(leaveTable.id, Number(leaveId)),
+      with: {
+        deductions: true,
+        user: { columns: { name: true, hourlyRate: true, hoursPerWeek: true } },
       },
     });
+    const { user: updatedLeaveEmployee, deductions: updatedLeaveDeductions, ...updatedLeaveRest } = rawUpdatedLeave as any;
+    const updatedLeave = { ...updatedLeaveRest, employee: updatedLeaveEmployee, deduction: updatedLeaveDeductions?.[0] ?? null };
 
     // 🔥 LEAVE DEDUCTION LOGIC: Only create deduction for APPROVED leaves
     if (body.status === "APPROVED" && !existingLeave.deduction) {
@@ -666,27 +654,25 @@ export async function PATCH(req: NextRequest) {
 
       if (deductionAmount > 0) {
         // Create deduction linked to this leave
-        const deduction = await prisma.deduction.create({
-          data: {
-            employeeId: existingLeave.employeeId,
-            amount: deductionAmount,
-            leaveId: existingLeave.id,
-            month: existingLeave.startDate, // Use leave start date as the month for deduction
-          },
+        await db.insert(deduction).values({
+          employeeId: existingLeave.employeeId,
+          amount: String(deductionAmount),
+          leaveId: existingLeave.id,
+          month: existingLeave.startDate, // Use leave start date as the month for deduction
         });
 
         console.log(`✅ Deduction created for leave ${leaveId}: $${deductionAmount.toFixed(2)} (${existingLeave.numberOfDays} days × $${dailyRate.toFixed(2)}/day)`);
 
         // Re-fetch with updated deduction
-        const leaveWithDeduction = await prisma.leave.findUnique({
-          where: { id: Number(leaveId) },
-          include: {
-            deduction: true,
-            employee: {
-              select: { name: true },
-            },
+        const rawLeaveWithDeduction = await db.query.leave.findFirst({
+          where: eq(leaveTable.id, Number(leaveId)),
+          with: {
+            deductions: true,
+            user: { columns: { name: true } },
           },
         });
+        const { user: lwdEmployee, deductions: lwdDeductions, ...lwdRest } = rawLeaveWithDeduction as any;
+        const leaveWithDeduction = { ...lwdRest, employee: lwdEmployee, deduction: lwdDeductions?.[0] ?? null };
 
         return NextResponse.json({
           ok: true,
@@ -698,9 +684,7 @@ export async function PATCH(req: NextRequest) {
 
     // 🔥 If status changed FROM APPROVED to something else, remove the deduction
     if (existingLeave.status === "APPROVED" && body.status !== "APPROVED" && existingLeave.deduction) {
-      await prisma.deduction.delete({
-        where: { id: existingLeave.deduction.id },
-      });
+      await db.delete(deduction).where(eq(deduction.id, existingLeave.deduction.id));
       console.log(`🗑️ Deduction removed for leave ${leaveId} (status changed from APPROVED to ${body.status})`);
     }
 

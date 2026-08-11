@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/reports/youtube-analytics/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { youTubeSnapshot } from '@/lib/db/schema';
+import { and, eq, gte, lt, asc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -24,34 +26,28 @@ export async function GET(req: NextRequest) {
         prevStartDate.setDate(prevStartDate.getDate() - days);
 
         // 1. Fetch all connected channels for the filter
-        const allChannels = await prisma.youTubeChannel.findMany({
-            include: { client: { select: { companyName: true, name: true } } }
+        const allChannels = await db.query.youTubeChannel.findMany({
+            with: { client: { columns: { companyName: true, name: true } } }
         });
 
         // 2. Build filter for snapshots
-        const snapshotWhere: any = {
-            periodStart: { gte: startDate },
-            periodType: "DAILY",
-        };
-
+        const baseConditions = [eq(youTubeSnapshot.periodType, "DAILY")];
         if (clientId && clientId !== 'all') {
-            snapshotWhere.clientId = clientId;
+            baseConditions.push(eq(youTubeSnapshot.clientId, clientId));
         }
 
         // 3. Fetch snapshots for the current period
-        const snapshots = await prisma.youTubeSnapshot.findMany({
-            where: snapshotWhere,
-            orderBy: { periodStart: "asc" },
-        });
+        const snapshots = await db.select().from(youTubeSnapshot)
+            .where(and(...baseConditions, gte(youTubeSnapshot.periodStart, startDate.toISOString())))
+            .orderBy(asc(youTubeSnapshot.periodStart));
 
         // 4. Fetch snapshots for the previous period to calculate trends
-        const prevSnapshotWhere = {
-            ...snapshotWhere,
-            periodStart: { gte: prevStartDate, lt: startDate },
-        };
-        const prevSnapshots = await prisma.youTubeSnapshot.findMany({
-            where: prevSnapshotWhere,
-        });
+        const prevSnapshots = await db.select().from(youTubeSnapshot)
+            .where(and(
+                ...baseConditions,
+                gte(youTubeSnapshot.periodStart, prevStartDate.toISOString()),
+                lt(youTubeSnapshot.periodStart, startDate.toISOString())
+            ));
 
         // 5. Aggregate KPI Metrics
         const totalViews = snapshots.reduce((sum, s) => sum + Number(s.views), 0);
@@ -68,7 +64,7 @@ export async function GET(req: NextRequest) {
         // 6. Format monthly/daily trend data for chart
         const dailyDataMap = new Map();
         snapshots.forEach(s => {
-            const date = s.periodStart.toISOString().split('T')[0];
+            const date = new Date(s.periodStart).toISOString().split('T')[0];
             const existing = dailyDataMap.get(date) || { views: 0, engagement: 0 };
             dailyDataMap.set(date, {
                 views: existing.views + Number(s.views),

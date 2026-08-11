@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 // admin: every sales rep. sales_manager: only reps an admin has granted them.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable } from '@/lib/db/schema';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
@@ -25,16 +27,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const where =
+    const whereCondition =
       decoded.role === 'sales_manager'
-        ? { role: 'sales' as const, id: { in: (await getVisibleSalesRepIds(Number(decoded.userId))).filter(id => id !== Number(decoded.userId)) } }
-        : { role: 'sales' as const };
+        ? and(
+            eq(userTable.role, 'sales'),
+            inArray(
+              userTable.id,
+              (await getVisibleSalesRepIds(Number(decoded.userId))).filter(id => id !== Number(decoded.userId))
+            )
+          )
+        : eq(userTable.role, 'sales');
 
-    const reps = await prisma.user.findMany({
-      where,
-      select: { id: true, name: true, email: true },
-      orderBy: { name: 'asc' },
-    });
+    const reps = await db.select({ id: userTable.id, name: userTable.name, email: userTable.email })
+      .from(userTable)
+      .where(whereCondition)
+      .orderBy(asc(userTable.name));
 
     return NextResponse.json({ ok: true, reps });
   } catch (err) {

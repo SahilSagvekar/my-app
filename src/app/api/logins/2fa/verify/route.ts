@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/2fa/verify/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { userTwoFactorAuth } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { decrypt } from "@/lib/encryption";
 import { authenticator } from "otplib";
@@ -67,9 +69,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Get user's 2FA settings
-        const twoFactorAuth = await prisma.userTwoFactorAuth.findUnique({
-            where: { userId },
-        });
+        const [twoFactorAuth] = await db.select().from(userTwoFactorAuth).where(eq(userTwoFactorAuth.userId, userId)).limit(1);
 
         if (!twoFactorAuth) {
             return NextResponse.json(
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
             let backupCodeUsed = false;
             const remainingBackupCodes: string[] = [];
 
-            for (const encryptedCode of twoFactorAuth.backupCodes) {
+            for (const encryptedCode of (twoFactorAuth.backupCodes ?? [])) {
                 const decryptedCode = decrypt(encryptedCode);
                 if (decryptedCode.toUpperCase() === cleanCode.toUpperCase()) {
                     backupCodeUsed = true;
@@ -109,13 +109,11 @@ export async function POST(req: NextRequest) {
             }
 
             // Remove used backup code
-            await prisma.userTwoFactorAuth.update({
-                where: { userId },
-                data: {
-                    backupCodes: remainingBackupCodes,
-                    lastVerifiedAt: new Date(),
-                },
-            });
+            await db.update(userTwoFactorAuth).set({
+                backupCodes: remainingBackupCodes,
+                lastVerifiedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            }).where(eq(userTwoFactorAuth.userId, userId));
 
             return NextResponse.json({
                 success: true,
@@ -127,13 +125,11 @@ export async function POST(req: NextRequest) {
 
         // If enableAfterVerify is true, enable 2FA after successful verification
         if (enableAfterVerify && !twoFactorAuth.isEnabled) {
-            await prisma.userTwoFactorAuth.update({
-                where: { userId },
-                data: {
-                    isEnabled: true,
-                    lastVerifiedAt: new Date(),
-                },
-            });
+            await db.update(userTwoFactorAuth).set({
+                isEnabled: true,
+                lastVerifiedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            }).where(eq(userTwoFactorAuth.userId, userId));
 
             return NextResponse.json({
                 success: true,
@@ -144,10 +140,10 @@ export async function POST(req: NextRequest) {
         }
 
         // Update last verified timestamp
-        await prisma.userTwoFactorAuth.update({
-            where: { userId },
-            data: { lastVerifiedAt: new Date() },
-        });
+        await db.update(userTwoFactorAuth).set({
+            lastVerifiedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        }).where(eq(userTwoFactorAuth.userId, userId));
 
         return NextResponse.json({
             success: true,

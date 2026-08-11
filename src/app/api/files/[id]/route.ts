@@ -1,6 +1,8 @@
 // src/app/api/files/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { file as fileTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
@@ -42,11 +44,11 @@ export async function DELETE(
     const { id } = await params;
 
     // Get file with task info
-    const file = await prisma.file.findUnique({
-      where: { id },
-      include: {
+    const file = await db.query.file.findFirst({
+      where: eq(fileTable.id, id),
+      with: {
         task: {
-          select: {
+          columns: {
             id: true,
             assignedTo: true,
             clientId: true,
@@ -88,9 +90,7 @@ export async function DELETE(
     }
 
     // Delete from database
-    await prisma.file.delete({
-      where: { id },
-    });
+    await db.delete(fileTable).where(eq(fileTable.id, id));
 
     return NextResponse.json({ success: true, message: "File deleted" });
   } catch (error) {

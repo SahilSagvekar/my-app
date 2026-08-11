@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 // visible to any sales/sales_manager/admin viewer — non-sensitive aggregate counts).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable, salesActivityLog } from '@/lib/db/schema';
+import { asc, eq, gte } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -24,19 +26,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const reps = await prisma.user.findMany({
-      where: { role: 'sales' },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: 'asc' },
-    });
+    const reps = await db.select({ id: userTable.id, name: userTable.name, email: userTable.email })
+      .from(userTable)
+      .where(eq(userTable.role, 'sales'))
+      .orderBy(asc(userTable.name));
 
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const events = await (prisma as any).salesActivityLog.findMany({
-      where: { createdAt: { gte: startOfToday } },
-      select: { userId: true, type: true },
-    });
+    const events = await db.select({ userId: salesActivityLog.userId, type: salesActivityLog.type })
+      .from(salesActivityLog)
+      .where(gte(salesActivityLog.createdAt, startOfToday.toISOString()));
 
     const counts: Record<number, { calls: number; dealsClosed: number; meetings: number }> = {};
     for (const rep of reps) counts[rep.id] = { calls: 0, dealsClosed: 0, meetings: 0 };

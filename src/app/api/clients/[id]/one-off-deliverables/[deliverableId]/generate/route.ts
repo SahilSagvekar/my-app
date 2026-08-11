@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { oneOffDeliverable, task, user } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, inArray } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3, BUCKET } from "@/lib/s3";
 
@@ -88,9 +91,9 @@ export async function POST(
     try {
         const { id: clientId, deliverableId } = await params;
 
-        const deliverable = await prisma.oneOffDeliverable.findFirst({
-            where: { id: deliverableId, clientId },
-            include: { client: true }
+        const deliverable = await db.query.oneOffDeliverable.findFirst({
+            where: and(eq(oneOffDeliverable.id, deliverableId), eq(oneOffDeliverable.clientId, clientId)),
+            with: { client: true }
         });
 
         if (!deliverable) {
@@ -108,15 +111,14 @@ export async function POST(
         const deliverableSlug = getDeliverableShortCode(deliverable.type);
 
         // Default user for assignment
-        const defaultUser = await prisma.user.findFirst({
-            where: { role: { in: ["admin", "manager"] }, employeeStatus: "ACTIVE" },
-            select: { id: true },
-        });
+        const [defaultUser] = await db.select({ id: user.id }).from(user)
+            .where(and(inArray(user.role, ["admin", "manager"] as any), eq(user.employeeStatus, "ACTIVE")))
+            .limit(1);
 
         const createdTasks = [];
         const quantity = deliverable.quantity;
         const videosPerDay = deliverable.videosPerDay || 1;
-        const times = [...deliverable.postingTimes];
+        const times = [...(deliverable.postingTimes ?? [])];
         while (times.length < videosPerDay) times.push(times[times.length - 1] || "10:00");
 
         // Simple generation: spread tasks across days starting from today if postingDays is available, 
@@ -128,8 +130,8 @@ export async function POST(
 
         while (tasksCreated < quantity) {
             // Find next valid date if postingDays is used
-            if (deliverable.postingDays.length > 0) {
-                const targetWeekdays = deliverable.postingDays.map(d => WEEKDAY_MAP[d]).filter(v => v !== undefined);
+            if ((deliverable.postingDays ?? []).length > 0) {
+                const targetWeekdays = (deliverable.postingDays ?? []).map(d => WEEKDAY_MAP[d]).filter(v => v !== undefined);
                 while (targetWeekdays.length > 0 && !targetWeekdays.includes(currentTaskDate.getDay())) {
                     currentTaskDate.setDate(currentTaskDate.getDate() + 1);
                 }
@@ -148,22 +150,23 @@ export async function POST(
                     console.error(`⚠️ S3 folder creation failed for ${title}`);
                 }
 
-                const newTask = await prisma.task.create({
-                    data: {
-                        title,
-                        description: deliverable.description || "",
-                        taskType: deliverable.type,
-                        status: "PENDING",
-                        dueDate: taskDueDate,
-                        assignedTo: defaultUser?.id || 1, // Fallback
-                        clientId,
-                        clientUserId: deliverable.client.userId,
-                        oneOffDeliverableId: deliverable.id,
-                        outputFolderId,
-                        monthFolder,
-                        isTrial: deliverable.isTrial ?? deliverable.client.isTrial ?? false,
-                    },
-                });
+                const [newTask] = await db.insert(task).values({
+                    id: createId(),
+                    title,
+                    description: deliverable.description || "",
+                    taskType: deliverable.type,
+                    status: "PENDING",
+                    dueDate: taskDueDate.toISOString(),
+                    assignedTo: defaultUser?.id || 1, // Fallback
+                    clientId,
+                    clientUserId: deliverable.client.userId,
+                    oneOffDeliverableId: deliverable.id,
+                    outputFolderId,
+                    monthFolder,
+                    // OneOffDeliverable has no isTrial column (schema.prisma confirms) — was always undefined here
+                    isTrial: deliverable.client.isTrial ?? false,
+                    updatedAt: new Date().toISOString(),
+                }).returning();
                 createdTasks.push(newTask);
                 tasksCreated++;
             }
@@ -171,10 +174,10 @@ export async function POST(
         }
 
         // Update deliverable status
-        await prisma.oneOffDeliverable.update({
-            where: { id: deliverableId },
-            data: { status: "GENERATED" }
-        });
+        await db.update(oneOffDeliverable).set({
+            status: "GENERATED",
+            updatedAt: new Date().toISOString(),
+        }).where(eq(oneOffDeliverable.id, deliverableId));
 
         return NextResponse.json({
             success: true,

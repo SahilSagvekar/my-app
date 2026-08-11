@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, task, user as userTable, monthlyDeliverable, oneOffDeliverable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, or, ilike, arrayContains, gte, lte, asc, count } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { createClientFolders } from "@/lib/s3";
 import { createRecurringTasksForClient } from "@/app/api/clients/recurring";
@@ -23,26 +26,25 @@ export async function GET(req: NextRequest) {
     // This prevents client users from seeing all clients in the dropdown.
     const caller = await getCurrentUser2(req);
     if (caller?.role === "client") {
-      const linkedClientId = caller.linkedClientId
-        ?? (await prisma.client.findFirst({
-             where: { OR: [{ email: caller.email }, { emails: { has: caller.email } }] },
-             select: { id: true },
-           }))?.id
-        ?? null;
+      let linkedClientId = caller.linkedClientId ?? null;
+      if (!linkedClientId) {
+        const [found] = await db.select({ id: clientTable.id }).from(clientTable)
+          .where(or(eq(clientTable.email, caller.email), arrayContains(clientTable.emails, [caller.email])))
+          .limit(1);
+        linkedClientId = found?.id ?? null;
+      }
 
       if (!linkedClientId) {
         return NextResponse.json({ clients: [] });
       }
 
-      const client = await prisma.client.findUnique({
-        where: { id: linkedClientId },
-        select: { id: true, name: true, companyName: true },
-      });
+      const [foundClient] = await db.select({ id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName })
+        .from(clientTable).where(eq(clientTable.id, linkedClientId)).limit(1);
 
-      if (!client) return NextResponse.json({ clients: [] });
+      if (!foundClient) return NextResponse.json({ clients: [] });
 
       return NextResponse.json({
-        clients: [{ id: client.id, name: client.name, companyName: client.companyName || client.name }],
+        clients: [{ id: foundClient.id, name: foundClient.name, companyName: foundClient.companyName || foundClient.name }],
       });
     }
 
@@ -52,16 +54,16 @@ export async function GET(req: NextRequest) {
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     // Optimized: Fetch clients and task counts separately but concurrently
-    const [clients, taskCounts] = await Promise.all([
-      prisma.client.findMany({
-        orderBy: { name: "asc" },
-        include: {
+    const [rawClients, taskCounts] = await Promise.all([
+      db.query.client.findMany({
+        orderBy: asc(clientTable.name),
+        with: {
           monthlyDeliverables: true,
           oneOffDeliverables: true,
           brandAssets: true,
           recurringTasks: true,
-          portalAccess: {
-            select: {
+          clientPortalAccesses: {
+            columns: {
               status: true,
               nextBillingDate: true,
               lockedAt: true,
@@ -70,29 +72,28 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      prisma.task.groupBy({
-        by: ['clientId', 'status'],
-        where: {
-          createdAt: {
-            gte: startOfMonth,
-            lte: endOfMonth,
-          },
-        },
-        _count: { id: true },
-      })
+      db.select({ clientId: task.clientId, status: task.status, value: count() })
+        .from(task)
+        .where(and(gte(task.createdAt, startOfMonth.toISOString()), lte(task.createdAt, endOfMonth.toISOString())))
+        .groupBy(task.clientId, task.status)
     ]);
+
+    const clients = rawClients.map(({ clientPortalAccesses, ...c }: any) => ({
+      ...c,
+      portalAccess: clientPortalAccesses?.[0] ?? null,
+    }));
 
     // Map task counts for easy lookup
     const statsMap = new Map<string, { total: number; completed: number }>();
     taskCounts.forEach((stat) => {
       const clientId = stat.clientId;
       if (!clientId) return;
-      
+
       const current = statsMap.get(clientId) || { total: 0, completed: 0 };
-      const count = stat._count.id;
-      current.total += count;
+      const statCount = stat.value;
+      current.total += statCount;
       if (stat.status === "COMPLETED" || stat.status === "SCHEDULED") {
-        current.completed += count;
+        current.completed += statCount;
       }
       statsMap.set(clientId, current);
     });
@@ -223,87 +224,84 @@ export async function POST(req: Request) {
 
     const folders = await createClientFolders(companyName);
 
-    const { user, client, createdDeliverables, createdOneOffs } = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          name,
-          email,
-          password: null,
-          role: "client",
-        }
-      });
+    const { user, client, createdDeliverables, createdOneOffs } = await db.transaction(async (tx) => {
+      const [user] = await tx.insert(userTable).values({
+        name,
+        email,
+        password: null,
+        role: "client",
+        updatedAt: new Date().toISOString(),
+      }).returning();
 
-      const client = await tx.client.create({
-        data: {
-          name,
-          email,
-          emails: additionalEmails,
-          companyName: companyName || null,
-          address: address || null,
-          phone,
-          phones: additionalPhones,
-          createdBy: decoded.userId.toString(),
-          user: {
-            connect: { id: user.id },
-          },
-          accountManagerId,
-          status: "active",
-          startDate: new Date(),
-          renewalDate: null,
-          lastActivity: new Date(),
-          driveFolderId: folders.mainFolderId,
-          rawFootageFolderId: folders.rawFolderId,
-          essentialsFolderId: folders.elementsFolderId,
-          outputsFolderId: folders.outputsFolderId,
-          brandGuidelines,
-          projectSettings,
-          billing,
-          postingSchedule,
-          requiresClientReview: clientReview,
-          clientReviewDeliverableTypes: clientReviewDeliverableTypes ?? [],
-          requiresVideographer: videographer,
-          requiresCoverImage: coverImage,
-          hasPostingServices: hasPostingServices ?? true,
-          templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
-          currentProgress: { completed: 0, total: 0 },
-        },
-      });
+      const [client] = await tx.insert(clientTable).values({
+        id: createId(),
+        name,
+        email,
+        emails: additionalEmails,
+        companyName: companyName || null,
+        address: address || null,
+        phone,
+        phones: additionalPhones,
+        createdBy: decoded.userId.toString(),
+        userId: user.id,
+        accountManagerId,
+        status: "active",
+        startDate: new Date().toISOString(),
+        renewalDate: null,
+        lastActivity: new Date().toISOString(),
+        driveFolderId: folders.mainFolderId,
+        rawFootageFolderId: folders.rawFolderId,
+        essentialsFolderId: folders.elementsFolderId,
+        outputsFolderId: folders.outputsFolderId,
+        brandGuidelines,
+        projectSettings,
+        billing,
+        postingSchedule,
+        requiresClientReview: clientReview,
+        clientReviewDeliverableTypes: clientReviewDeliverableTypes ?? [],
+        requiresVideographer: videographer,
+        requiresCoverImage: coverImage,
+        hasPostingServices: hasPostingServices ?? true,
+        templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
+        currentProgress: { completed: 0, total: 0 },
+        updatedAt: new Date().toISOString(),
+      }).returning();
 
       const createdDeliverables = await Promise.all(
         (monthlyDeliverables || []).map((d: any) =>
-          tx.monthlyDeliverable.create({
-            data: {
-              clientId: client.id,
-              type: d.type,
-              quantity: d.quantity,
-              videosPerDay: d.videosPerDay,
-              postingSchedule: d.postingSchedule,
-              postingDays: d.postingDays,
-              postingTimes: d.postingTimes,
-              platforms: d.platforms,
-              description: d.description,
-              isTrial: d.isTrial ?? false,
-            },
-          })
+          tx.insert(monthlyDeliverable).values({
+            id: createId(),
+            clientId: client.id,
+            type: d.type,
+            quantity: d.quantity,
+            videosPerDay: d.videosPerDay,
+            postingSchedule: d.postingSchedule,
+            postingDays: d.postingDays,
+            postingTimes: d.postingTimes,
+            platforms: d.platforms,
+            description: d.description,
+            isTrial: d.isTrial ?? false,
+            updatedAt: new Date().toISOString(),
+          }).returning().then((rows) => rows[0])
         )
       );
 
       const createdOneOffs = await Promise.all(
         (oneOffDeliverables || []).map((d: any) =>
-          tx.oneOffDeliverable.create({
-            data: {
-              clientId: client.id,
-              type: d.type,
-              quantity: d.quantity,
-              videosPerDay: d.videosPerDay,
-              postingSchedule: "one-off",
-              postingDays: d.postingDays,
-              postingTimes: d.postingTimes,
-              platforms: d.platforms,
-              description: d.description,
-              status: "PENDING",
-            },
-          })
+          tx.insert(oneOffDeliverable).values({
+            id: createId(),
+            clientId: client.id,
+            type: d.type,
+            quantity: d.quantity,
+            videosPerDay: d.videosPerDay,
+            postingSchedule: "one-off",
+            postingDays: d.postingDays,
+            postingTimes: d.postingTimes,
+            platforms: d.platforms,
+            description: d.description,
+            status: "PENDING",
+            updatedAt: new Date().toISOString(),
+          }).returning().then((rows) => rows[0])
         )
       );
 

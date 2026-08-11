@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/roles/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user } from '@/lib/db/schema';
+import { inArray } from 'drizzle-orm';
 import { cached } from '@/lib/redis';
 
 const taskTypeRoleMap: Record<string, string[]> = {
@@ -24,9 +26,7 @@ export async function GET(req: NextRequest) {
       const users = await cached(
         "users:all",
         async () => {
-          return prisma.user.findMany({
-            select: { id: true, name: true, email: true, role: true },
-          });
+          return db.select({ id: user.id, name: user.name, email: user.email, role: user.role }).from(user);
         },
         600 // 10 minutes
       );
@@ -46,10 +46,9 @@ export async function GET(req: NextRequest) {
     const roleUsers = await cached(
       `users:role:${taskType}`,
       async () => {
-        return prisma.user.findMany({
-          where: { role: { in: allowedRoles } },
-          select: { id: true, name: true, email: true, role: true },
-        });
+        return db.select({ id: user.id, name: user.name, email: user.email, role: user.role })
+          .from(user)
+          .where(inArray(user.role, allowedRoles as any));
       },
       600 // 10 minutes
     );

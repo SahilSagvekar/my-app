@@ -2,7 +2,9 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, editorClientPermission } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import { sendSlackWebhook, sendToChannel } from "@/lib/slack";
 
@@ -23,20 +25,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "clientId is required" }, { status: 400 });
     }
 
-    const [client, permission] = await Promise.all([
-      prisma.client.findUnique({
-        where: { id: clientId },
-        select: {
-          id: true,
-          name: true,
-          companyName: true,
-          slackEnabled: true,
-          slackWebhookUrl: true,
-        },
-      }),
-      (prisma as any).editorClientPermission.findFirst({
-        where: { editorId: user.id, clientId },
-      }),
+    const [[client], [permission]] = await Promise.all([
+      db.select({
+        id: clientTable.id,
+        name: clientTable.name,
+        companyName: clientTable.companyName,
+        slackEnabled: clientTable.slackEnabled,
+        slackWebhookUrl: clientTable.slackWebhookUrl,
+      }).from(clientTable).where(eq(clientTable.id, clientId)).limit(1),
+      db.select().from(editorClientPermission)
+        .where(and(eq(editorClientPermission.editorId, user.id), eq(editorClientPermission.clientId, clientId)))
+        .limit(1),
     ]);
 
     if (!client) {

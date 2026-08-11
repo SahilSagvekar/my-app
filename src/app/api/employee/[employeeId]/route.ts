@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
@@ -58,10 +60,7 @@ export async function PATCH(
     // Grab the pre-update role so we only email when it actually changes —
     // PATCH is also used for unrelated edits (rate, hours, status, etc.)
     // that shouldn't trigger a "your role changed" notification.
-    const existingUser = await prisma.user.findUnique({
-      where: { id },
-      select: { role: true },
-    });
+    const [existingUser] = await db.select({ role: user.role }).from(user).where(eq(user.id, id)).limit(1);
 
     // Sanitize phone - treat "N/A", empty strings, etc. as null
     let sanitizedPhone: string | null | undefined = undefined;
@@ -74,25 +73,23 @@ export async function PATCH(
       }
     }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: {
-        name: payload.name ?? undefined,
-        email: payload.email ?? undefined,
-        role: payload.role ?? undefined,
-        phone: sanitizedPhone,
-        hourlyRate: payload.hourlyRate ?? undefined,
-        hoursPerWeek: Number(payload.hoursPerWeek) ?? undefined,
-        monthlyRate: Number(payload.monthlyRate) ?? undefined,
-        monthlyBaseHours: payload.monthlyBaseHours ?? undefined,
-        employeeStatus: payload.employeeStatus ?? undefined,
-        joinedAt: payload.joinedAt ? new Date(payload.joinedAt) : undefined,
-        // 🔥 Handle client linking directly on User
-        linkedClientId: payload.role === 'client' && body.clientId
-          ? body.clientId
-          : (payload.role && payload.role !== 'client' ? null : undefined),
-      },
-    });
+    const [updatedUser] = await db.update(user).set({
+      name: payload.name ?? undefined,
+      email: payload.email ?? undefined,
+      role: payload.role ?? undefined,
+      phone: sanitizedPhone,
+      hourlyRate: payload.hourlyRate !== undefined ? String(payload.hourlyRate) : undefined,
+      hoursPerWeek: payload.hoursPerWeek !== undefined ? String(Number(payload.hoursPerWeek)) : undefined,
+      monthlyRate: Number(payload.monthlyRate) ?? undefined,
+      monthlyBaseHours: payload.monthlyBaseHours ?? undefined,
+      employeeStatus: payload.employeeStatus ?? undefined,
+      joinedAt: payload.joinedAt ? new Date(payload.joinedAt).toISOString() : undefined,
+      // 🔥 Handle client linking directly on User
+      linkedClientId: payload.role === 'client' && body.clientId
+        ? body.clientId
+        : (payload.role && payload.role !== 'client' ? null : undefined),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(user.id, id)).returning();
 
     // Log the change
     if (payload.role === 'client' && body.clientId) {
@@ -102,11 +99,11 @@ export async function PATCH(
     }
 
     await createAuditLog({
-      userId: user.id,
+      userId: updatedUser.id,
       action: AuditAction.USER_UPDATED,
       entity: "User",
-      entityId: user.id.toString(),
-      details: `Updated employee: ${user.name}`,
+      entityId: updatedUser.id.toString(),
+      details: `Updated employee: ${updatedUser.name}`,
       metadata: {
         changes: payload,
         linkedClientId: body.clientId || null,
@@ -116,10 +113,10 @@ export async function PATCH(
     // Notify the user by email when their role actually changed — admins no
     // longer need to tell people manually after assigning a new role.
     const roleChanged = !!payload.role && payload.role !== existingUser?.role;
-    if (roleChanged && user.email) {
+    if (roleChanged && updatedUser.email) {
       sendRoleAssignedEmail({
-        email: user.email,
-        name: user.name || 'there',
+        email: updatedUser.email,
+        name: updatedUser.name || 'there',
         newRole: payload.role!,
         previousRole: existingUser?.role ?? null,
       }).catch((err) => {
@@ -128,7 +125,7 @@ export async function PATCH(
       });
     }
 
-    return NextResponse.json({ ok: true, user });
+    return NextResponse.json({ ok: true, user: updatedUser });
   } catch (err: any) {
     console.error(err);
     const status = err?.status || 400;

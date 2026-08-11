@@ -1,7 +1,9 @@
 // src/app/api/social/callback/[platform]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { socialAccount } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
 import { encrypt } from '@/lib/encryption';
 
 const TOKEN_CONFIGS: Record<string, {
@@ -127,36 +129,37 @@ export async function GET(
     }
 
     // Save to database
-    await prisma.socialAccount.upsert({
-      where: {
-        clientId_platform_platformId: {
-          clientId,
-          platform,
-          platformId: accountInfo.id,
-        },
-      },
-      create: {
-        clientId,
-        platform,
-        platformId: accountInfo.id,
+    const tokenExpiry = tokenData.expires_in
+      ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+      : null;
+    const refreshTokenEncrypted = tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null;
+
+    await db.insert(socialAccount).values({
+      id: createId(),
+      clientId,
+      platform,
+      platformId: accountInfo.id,
+      platformName: accountInfo.name || 'Unknown',
+      accessToken: encrypt(accessToken),
+      refreshToken: refreshTokenEncrypted,
+      tokenExpiry,
+      profileUrl: accountInfo.url || null,
+      profileImage: accountInfo.image || null,
+      followerCount: accountInfo.followers || 0,
+      isActive: true,
+      updatedAt: new Date().toISOString(),
+    }).onConflictDoUpdate({
+      target: [socialAccount.clientId, socialAccount.platform, socialAccount.platformId],
+      set: {
         platformName: accountInfo.name || 'Unknown',
         accessToken: encrypt(accessToken),
-        refreshToken: tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null,
-        tokenExpiry: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
+        refreshToken: refreshTokenEncrypted,
+        tokenExpiry,
         profileUrl: accountInfo.url || null,
         profileImage: accountInfo.image || null,
         followerCount: accountInfo.followers || 0,
         isActive: true,
-      },
-      update: {
-        platformName: accountInfo.name || 'Unknown',
-        accessToken: encrypt(accessToken),
-        refreshToken: tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null,
-        tokenExpiry: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
-        profileUrl: accountInfo.url || null,
-        profileImage: accountInfo.image || null,
-        followerCount: accountInfo.followers || 0,
-        isActive: true,
+        updatedAt: new Date().toISOString(),
       },
     });
 

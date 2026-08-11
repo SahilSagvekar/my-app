@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesRepPayoutProfile } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { uploadBufferToS3, generateDownloadUrl } from '@/lib/s3';
 import { fillW9Pdf, W9Input } from '@/lib/tax-form';
@@ -15,7 +18,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const profile = await prisma.salesRepPayoutProfile.findUnique({ where: { userId: user.id } });
+  const [profile] = await db.select().from(salesRepPayoutProfile).where(eq(salesRepPayoutProfile.userId, user.id)).limit(1);
 
   let downloadUrl: string | null = null;
   if (profile?.taxFormS3Key) {
@@ -98,18 +101,21 @@ export async function POST(req: NextRequest) {
       mimeType: 'application/pdf',
     });
 
-    await prisma.salesRepPayoutProfile.upsert({
-      where: { userId: user.id },
-      update: {
+    const now = new Date().toISOString();
+    await db.insert(salesRepPayoutProfile).values({
+      id: createId(),
+      userId: user.id,
+      taxFormType: 'W9',
+      taxFormCollectedAt: now,
+      taxFormS3Key: key,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: salesRepPayoutProfile.userId,
+      set: {
         taxFormType: 'W9',
-        taxFormCollectedAt: new Date(),
+        taxFormCollectedAt: now,
         taxFormS3Key: key,
-      },
-      create: {
-        userId: user.id,
-        taxFormType: 'W9',
-        taxFormCollectedAt: new Date(),
-        taxFormS3Key: key,
+        updatedAt: now,
       },
     });
 

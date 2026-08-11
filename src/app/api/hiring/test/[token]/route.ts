@@ -3,21 +3,29 @@ export const dynamic = 'force-dynamic';
 // Public (no login) — candidate-facing test task page reads/submits by token.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { hiringCandidate, hiringTestTask } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const testTask = await prisma.hiringTestTask.findUnique({
-    where: { submissionToken: token },
-    include: { candidate: { select: { name: true } } },
-  });
+  const rows = await db.select({
+    task: hiringTestTask,
+    candidate: { name: hiringCandidate.name },
+  })
+    .from(hiringTestTask)
+    .innerJoin(hiringCandidate, eq(hiringTestTask.candidateId, hiringCandidate.id))
+    .where(eq(hiringTestTask.submissionToken, token))
+    .limit(1);
 
-  if (!testTask) {
+  const row = rows[0];
+  if (!row) {
     return NextResponse.json({ error: 'This link is invalid.' }, { status: 404 });
   }
+  const testTask = { ...row.task, candidate: row.candidate };
 
-  const expired = testTask.expiresAt ? testTask.expiresAt.getTime() < Date.now() : false;
+  const expired = testTask.expiresAt ? new Date(testTask.expiresAt).getTime() < Date.now() : false;
 
   return NextResponse.json({
     testTask: {
@@ -37,11 +45,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const testTask = await prisma.hiringTestTask.findUnique({ where: { submissionToken: token } });
+  const [testTask] = await db.select().from(hiringTestTask).where(eq(hiringTestTask.submissionToken, token)).limit(1);
   if (!testTask) {
     return NextResponse.json({ error: 'This link is invalid.' }, { status: 404 });
   }
-  if (testTask.expiresAt && testTask.expiresAt.getTime() < Date.now()) {
+  if (testTask.expiresAt && new Date(testTask.expiresAt).getTime() < Date.now()) {
     return NextResponse.json({ error: 'This link has expired. Reach out to E8 Productions for a new one.' }, { status: 410 });
   }
   if (testTask.status === 'SUBMITTED' || testTask.status === 'IN_REVIEW' || testTask.status === 'APPROVED' || testTask.status === 'REJECTED') {
@@ -56,20 +64,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ error: 'Provide a link or complete the upload first.' }, { status: 400 });
     }
 
-    const updated = await prisma.hiringTestTask.update({
-      where: { submissionToken: token },
-      data: {
+    const [updated] = await db.update(hiringTestTask)
+      .set({
         submissionUrl: submissionUrl || null,
         submissionS3Key: submissionS3Key || null,
         status: 'SUBMITTED',
-        submittedAt: new Date(),
-      },
-    });
+        submittedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(hiringTestTask.submissionToken, token))
+      .returning();
 
-    await prisma.hiringCandidate.update({
-      where: { id: updated.candidateId },
-      data: { status: 'TEST_SUBMITTED' },
-    });
+    await db.update(hiringCandidate)
+      .set({ status: 'TEST_SUBMITTED', updatedAt: new Date().toISOString() })
+      .where(eq(hiringCandidate.id, updated.candidateId));
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {

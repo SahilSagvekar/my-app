@@ -1,9 +1,12 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/reports/performance/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user, task } from '@/lib/db/schema';
+import { and, or, eq, ne, gte, lte, lt, count } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
-import { TaskStatus } from '@prisma/client';
+
+const TaskStatus = { COMPLETED: 'COMPLETED' } as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,7 +25,7 @@ export async function GET(req: NextRequest) {
     const endDate = url.searchParams.get('endDate');
 
     // Build date filter
-    let dateFilter: any = {};
+    let dateFilter: { gte: Date; lte?: Date };
     if (startDate && endDate) {
       dateFilter = {
         gte: new Date(startDate),
@@ -35,43 +38,38 @@ export async function GET(req: NextRequest) {
         gte: thirtyDaysAgo
       };
     }
+    const dateRange = (col: typeof task.createdAt, filter: { gte: Date; lte?: Date; lt?: Date }) => {
+      const conditions = [gte(col, filter.gte.toISOString())];
+      if (filter.lte) conditions.push(lte(col, filter.lte.toISOString()));
+      if (filter.lt) conditions.push(lt(col, filter.lt.toISOString()));
+      return and(...conditions);
+    };
 
     // Get all active employees
-    const employees = await prisma.user.findMany({
-      where: {
-        role: { not: 'client' },
-        employeeStatus: 'ACTIVE'
-      },
-      select: {
-        id: true,
-        name: true,
-        role: true
-      }
-    });
+    const employees = await db
+      .select({ id: user.id, name: user.name, role: user.role })
+      .from(user)
+      .where(and(ne(user.role, 'client'), eq(user.employeeStatus, 'ACTIVE')));
 
     const performanceData = await Promise.all(
       employees.map(async (employee) => {
         // Get total tasks for this employee
-        const totalTasks = await prisma.task.count({
-          where: {
-            OR: [
-              { assignedTo: employee.id },
-              { createdBy: employee.id },
-              { qc_specialist: employee.id },
-              { scheduler: employee.id }
-            ],
-            createdAt: dateFilter
-          }
-        });
+        const [{ value: totalTasks }] = await db.select({ value: count() }).from(task).where(and(
+          or(
+            eq(task.assignedTo, employee.id),
+            eq(task.createdBy, employee.id),
+            eq(task.qcSpecialist, employee.id),
+            eq(task.scheduler, employee.id)
+          ),
+          dateRange(task.createdAt, dateFilter)
+        ));
 
         // Get completed tasks
-        const completedTasks = await prisma.task.count({
-          where: {
-            assignedTo: employee.id,
-            status: TaskStatus.COMPLETED,
-            updatedAt: dateFilter
-          }
-        });
+        const [{ value: completedTasks }] = await db.select({ value: count() }).from(task).where(and(
+          eq(task.assignedTo, employee.id),
+          eq(task.status, TaskStatus.COMPLETED),
+          dateRange(task.updatedAt, dateFilter)
+        ));
 
         // Calculate working days in period
         const start = new Date(dateFilter.gte);
@@ -82,33 +80,27 @@ export async function GET(req: NextRequest) {
         const avgDaily = workingDays > 0 ? totalTasks / workingDays : 0;
 
         // Calculate efficiency (completed / assigned * 100)
-        const assignedTasks = await prisma.task.count({
-          where: {
-            assignedTo: employee.id,
-            createdAt: dateFilter
-          }
-        });
+        const [{ value: assignedTasks }] = await db.select({ value: count() }).from(task).where(and(
+          eq(task.assignedTo, employee.id),
+          dateRange(task.createdAt, dateFilter)
+        ));
 
-        const efficiency = assignedTasks > 0 
+        const efficiency = assignedTasks > 0
           ? Math.round((completedTasks / assignedTasks) * 100)
           : 0;
 
         // Calculate trend (compare with previous period)
         const previousPeriodStart = new Date(start);
         previousPeriodStart.setDate(previousPeriodStart.getDate() - workingDays);
-        
-        const previousTasks = await prisma.task.count({
-          where: {
-            OR: [
-              { assignedTo: employee.id },
-              { createdBy: employee.id }
-            ],
-            createdAt: {
-              gte: previousPeriodStart,
-              lt: start
-            }
-          }
-        });
+
+        const [{ value: previousTasks }] = await db.select({ value: count() }).from(task).where(and(
+          or(
+            eq(task.assignedTo, employee.id),
+            eq(task.createdBy, employee.id)
+          ),
+          gte(task.createdAt, previousPeriodStart.toISOString()),
+          lt(task.createdAt, start.toISOString())
+        ));
 
         let trend: 'up' | 'down' | 'stable' = 'stable';
         if (totalTasks > previousTasks * 1.1) trend = 'up';

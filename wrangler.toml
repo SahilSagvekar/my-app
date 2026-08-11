@@ -33,17 +33,9 @@ bucket_name = "e8-app-r2-prod"
 queue = "commission-payouts"
 binding = "COMMISSION_QUEUE"
 
-[[env.production.queues.consumers]]
-queue = "commission-payouts"
-max_batch_size = 10
-
 [[env.production.queues.producers]]
 queue = "scheduler-activity-rollup"
 binding = "ROLLUP_QUEUE"
-
-[[env.production.queues.consumers]]
-queue = "scheduler-activity-rollup"
-max_batch_size = 10
 
 # ============================================
 # Staging environment
@@ -62,17 +54,9 @@ bucket_name = "e8-app-r2-prod"
 queue = "commission-payouts"
 binding = "COMMISSION_QUEUE"
 
-[[env.staging.queues.consumers]]
-queue = "commission-payouts"
-max_batch_size = 10
-
 [[env.staging.queues.producers]]
 queue = "scheduler-activity-rollup"
 binding = "ROLLUP_QUEUE"
-
-[[env.staging.queues.consumers]]
-queue = "scheduler-activity-rollup"
-max_batch_size = 10
 
 # NOTE — jobs staying on EC2 (exceed 30s Worker CPU limit):
 #   - s3-to-nas (2-10 min file transfer)

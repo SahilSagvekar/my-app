@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/verify-pin/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, userSecurityPin, loginAuditLog } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq } from "drizzle-orm";
 // import { getServerSession } from "next-auth";
 // import { authOptions } from "@/lib/auth";
 import bcrypt from "bcryptjs";
@@ -50,35 +53,30 @@ export async function POST(req: NextRequest) {
    
            const { userId } = decoded;
            
-               const user = await prisma.user.findUnique({
-                 where: { id: userId },
-                 select: {
-                   id: true,
-                   name: true,
-                   email: true,
-                   image: true,
-                   phone: true,
-                   role: true,
-                 },
-               });
-           
+               const [user] = await db.select({
+                 id: userTable.id,
+                 name: userTable.name,
+                 email: userTable.email,
+                 image: userTable.image,
+                 phone: userTable.phone,
+                 role: userTable.role,
+               }).from(userTable).where(eq(userTable.id, userId)).limit(1);
+
                if (!user) {
                  return NextResponse.json(
                    { success: false, error: "User not found" },
                    { status: 404 }
                  );
                }
-       
-   
+
+
     const { pin } = await req.json();
 
     if (!pin) {
       return NextResponse.json({ valid: false, message: "PIN required" });
     }
 
-    const userPin = await prisma.userSecurityPin.findUnique({
-      where: { userId },
-    });
+    const [userPin] = await db.select().from(userSecurityPin).where(eq(userSecurityPin.userId, userId)).limit(1);
 
     if (!userPin) {
       return NextResponse.json({ valid: false, message: "No PIN set" });
@@ -89,22 +87,21 @@ export async function POST(req: NextRequest) {
 
     if (isValid) {
       // Update last verified timestamp
-      await prisma.userSecurityPin.update({
-        where: { userId },
-        data: { lastVerifiedAt: new Date() },
-      });
+      await db.update(userSecurityPin).set({
+        lastVerifiedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(userSecurityPin.userId, userId));
     } else {
       // Log failed attempt
-      await prisma.loginAuditLog.create({
-        data: {
-          action: "pin_failed",
-          loginId: null,
-          userId,
-          details: JSON.stringify({ 
-            message: "Failed PIN verification attempt",
-            ip: req.headers.get("x-forwarded-for") || "unknown",
-          }),
-        },
+      await db.insert(loginAuditLog).values({
+        id: createId(),
+        action: "pin_failed",
+        loginId: null,
+        userId,
+        details: JSON.stringify({
+          message: "Failed PIN verification attempt",
+          ip: req.headers.get("x-forwarded-for") || "unknown",
+        }),
       });
     }
 

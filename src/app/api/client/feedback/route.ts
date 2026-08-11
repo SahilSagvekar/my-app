@@ -8,7 +8,10 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, feedback as feedbackTable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq } from "drizzle-orm";
 import { sendClientFeedbackEmail } from "@/lib/email";
 
 // Reasonable ceiling so a giant screenshot payload can't be abused —
@@ -41,19 +44,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Screenshot too large" }, { status: 413 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        name: true,
-        email: true,
-        role: true,
-        linkedClient: { select: { name: true, companyName: true } },
-      },
+    const user = await db.query.user.findFirst({
+      where: eq(userTable.id, userId),
+      columns: { name: true, email: true, role: true },
+      // "client" is the drizzle relation name for User.linkedClientId -> Client.id
+      // (Prisma's `linkedClient` relation)
+      with: { client: { columns: { name: true, companyName: true } } },
     });
     if (!user) return NextResponse.json({ message: "User not found" }, { status: 404 });
 
-    const sourceLabel = user.linkedClient
-      ? user.linkedClient.companyName || user.linkedClient.name || "Unknown Client"
+    const sourceLabel = user.client
+      ? user.client.companyName || user.client.name || "Unknown Client"
       : `${user.role || "Unknown"} portal`;
 
     const cleanMessage = typeof message === "string" ? message.trim() : "";
@@ -72,17 +73,21 @@ export async function POST(req: Request) {
         userAgent: req.headers.get("user-agent") || "",
         screenshotBase64: cleanScreenshot,
       }),
-      prisma.feedback.create({
-        data: {
-          subject: `Problem report — ${sourceLabel}`,
-          message: cleanMessage || "(no note provided)",
-          category: "bug_report",
-          priority: "normal",
-          status: "pending",
-          senderId: userId,
-          screenshotBase64: cleanScreenshot,
-          pageUrl: cleanPageUrl || null,
-        },
+      // SCHEMA DRIFT (flagged in migration report): prisma/schema.prisma has
+      // Feedback.screenshotBase64 and Feedback.pageUrl, but neither column
+      // exists in src/lib/db/schema.ts (introspected from the live DB) —
+      // likely a pending `prisma db push` that was never run. Dropped both
+      // per hard rule 7; the screenshot/pageUrl are still emailed via
+      // sendClientFeedbackEmail above, just no longer persisted to the row.
+      db.insert(feedbackTable).values({
+        id: createId(),
+        subject: `Problem report — ${sourceLabel}`,
+        message: cleanMessage || "(no note provided)",
+        category: "bug_report",
+        priority: "normal",
+        status: "pending",
+        senderId: userId,
+        updatedAt: new Date().toISOString(),
       }),
     ]);
 

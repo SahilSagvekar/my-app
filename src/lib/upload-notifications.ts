@@ -1,7 +1,9 @@
 // src/lib/upload-notifications.ts
 // Handles Slack notifications for file uploads (Files & Drive)
 
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, client as clientTable, task as taskTable } from "@/lib/db/schema";
+import { and, eq, exists, inArray, notInArray, sql } from "drizzle-orm";
 import { sendSlackWebhook, sendToChannel, SlackNotification } from "@/lib/slack";
 
 interface UploadNotificationParams {
@@ -28,26 +30,31 @@ interface UploaderInfo {
  * Get assigned editors for a client's tasks
  */
 async function getClientAssignedEditors(clientId: string): Promise<UploaderInfo[]> {
-  const editors = await prisma.user.findMany({
-    where: {
-      role: "editor",
-      assignedTasks: {
-        some: {
-          clientId: clientId,
-          status: {
-            notIn: ["COMPLETED", "POSTED"],
-          },
-        },
-      },
-    },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      slackUserId: true,
-    },
-    distinct: ["id"],
-  });
+  const editors = await db
+    .select({
+      id: userTable.id,
+      name: userTable.name,
+      role: userTable.role,
+      slackUserId: userTable.slackUserId,
+    })
+    .from(userTable)
+    .where(
+      and(
+        eq(userTable.role, "editor"),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(taskTable)
+            .where(
+              and(
+                eq(taskTable.assignedTo, userTable.id),
+                eq(taskTable.clientId, clientId),
+                notInArray(taskTable.status, ["COMPLETED", "POSTED"]),
+              ),
+            ),
+        ),
+      ),
+    );
 
   return editors;
 }
@@ -63,18 +70,15 @@ async function getEditorsByIds(editorIds: string[]): Promise<UploaderInfo[]> {
 
   if (numericIds.length === 0) return [];
 
-  const editors = await prisma.user.findMany({
-    where: {
-      id: { in: numericIds },
-      role: "editor",
-    },
-    select: {
-      id: true,
-      name: true,
-      role: true,
-      slackUserId: true,
-    },
-  });
+  const editors = await db
+    .select({
+      id: userTable.id,
+      name: userTable.name,
+      role: userTable.role,
+      slackUserId: userTable.slackUserId,
+    })
+    .from(userTable)
+    .where(and(inArray(userTable.id, numericIds), eq(userTable.role, "editor")));
 
   return editors;
 }
@@ -125,15 +129,16 @@ export async function sendUploadNotification(
 
   try {
     // Get uploader info
-    const uploader = await prisma.user.findUnique({
-      where: { id: uploadedBy },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-        slackUserId: true,
-      },
-    });
+    const [uploader] = await db
+      .select({
+        id: userTable.id,
+        name: userTable.name,
+        role: userTable.role,
+        slackUserId: userTable.slackUserId,
+      })
+      .from(userTable)
+      .where(eq(userTable.id, uploadedBy))
+      .limit(1);
 
     if (!uploader) {
       console.log(`[UploadNotification] Uploader ${uploadedBy} not found, skipping`);
@@ -155,16 +160,17 @@ export async function sendUploadNotification(
 
     if (isClientUpload && clientId) {
       // Client upload - send to client channel and tag editors
-      const client = await prisma.client.findUnique({
-        where: { id: clientId },
-        select: {
-          id: true,
-          name: true,
-          companyName: true,
-          slackEnabled: true,
-          slackWebhookUrl: true,
-        },
-      });
+      const [client] = await db
+        .select({
+          id: clientTable.id,
+          name: clientTable.name,
+          companyName: clientTable.companyName,
+          slackEnabled: clientTable.slackEnabled,
+          slackWebhookUrl: clientTable.slackWebhookUrl,
+        })
+        .from(clientTable)
+        .where(eq(clientTable.id, clientId))
+        .limit(1);
 
       if (!client) {
         console.log(`[UploadNotification] Client ${clientId} not found, skipping`);
@@ -215,10 +221,11 @@ export async function sendUploadNotification(
       // Get client name if available
       let clientName = "";
       if (clientId) {
-        const client = await prisma.client.findUnique({
-          where: { id: clientId },
-          select: { name: true, companyName: true },
-        });
+        const [client] = await db
+          .select({ name: clientTable.name, companyName: clientTable.companyName })
+          .from(clientTable)
+          .where(eq(clientTable.id, clientId))
+          .limit(1);
         clientName = client?.companyName || client?.name || "";
       }
 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { affiliateCommission } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { sendCommissionTransfer, PayoutError } from '@/lib/stripe-payouts';
 
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         const { id } = await params;
-        const existing = await prisma.affiliateCommission.findUnique({ where: { id } });
+        const [existing] = await db.select().from(affiliateCommission).where(eq(affiliateCommission.id, id)).limit(1);
         if (!existing) {
             return NextResponse.json({ ok: false, message: 'Commission not found' }, { status: 404 });
         }
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             return NextResponse.json({ ok: false, message: `Can only retry FAILED commissions (found ${existing.status})` }, { status: 400 });
         }
 
-        await prisma.affiliateCommission.update({ where: { id }, data: { status: 'APPROVED' } });
+        await db.update(affiliateCommission).set({ status: 'APPROVED', updatedAt: new Date().toISOString() }).where(eq(affiliateCommission.id, id));
 
         try {
             const result = await sendCommissionTransfer(id);

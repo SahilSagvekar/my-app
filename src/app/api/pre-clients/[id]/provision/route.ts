@@ -1,6 +1,15 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import {
+  preClient as preClientTable,
+  client as clientTable,
+  user as userTable,
+  clientPortalAccess as clientPortalAccessTable,
+  onboardingToken as onboardingTokenTable,
+} from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { createClientFolders } from '@/lib/s3';
 import { createClientSlackChannel } from '@/lib/client-onboarding';
@@ -109,13 +118,13 @@ export async function POST(
 
     const { id: preClientId } = await params;
 
-    const preClient = await prisma.preClient.findUnique({
-      where: { id: preClientId },
-      include: {
+    const preClient = await db.query.preClient.findFirst({
+      where: (pc, { eq }) => eq(pc.id, preClientId),
+      with: {
         quotes: {
-          where: { status: 'ACCEPTED' },
-          orderBy: { version: 'desc' },
-          take: 1,
+          where: (q, { eq }) => eq(q.status, 'ACCEPTED'),
+          orderBy: (q, { desc }) => [desc(q.version)],
+          limit: 1,
         },
       },
     });
@@ -136,9 +145,7 @@ export async function POST(
     }
 
     // Check if a client with this email already exists (idempotency)
-    const existingClient = await prisma.client.findFirst({
-      where: { email: preClient.email },
-    });
+    const [existingClient] = await db.select().from(clientTable).where(eq(clientTable.email, preClient.email)).limit(1);
     if (existingClient) {
       return NextResponse.json({ error: 'A client with this email already exists' }, { status: 400 });
     }
@@ -150,11 +157,11 @@ export async function POST(
     // emails. This update only succeeds for whichever request gets there
     // first — everyone else sees count === 0 and bails before doing any
     // side effects.
-    const claim = await prisma.preClient.updateMany({
-      where: { id: preClientId, status: 'QUOTE_ACCEPTED' },
-      data: { status: 'PROVISIONING' },
-    });
-    if (claim.count === 0) {
+    const claim = await db.update(preClientTable)
+      .set({ status: 'PROVISIONING', updatedAt: new Date().toISOString() })
+      .where(and(eq(preClientTable.id, preClientId), eq(preClientTable.status, 'QUOTE_ACCEPTED')))
+      .returning({ id: preClientTable.id });
+    if (claim.length === 0) {
       return NextResponse.json(
         { error: 'Pre-client is already being provisioned' },
         { status: 409 }
@@ -172,44 +179,43 @@ export async function POST(
     }));
 
     // 2. Create portal User
-    const portalUser = await prisma.user.create({
-      data: {
-        name: preClient.name,
-        email: preClient.email,
-        password: null,
-        role: 'client',
-      },
-    });
+    const [portalUser] = await db.insert(userTable).values({
+      name: preClient.name,
+      email: preClient.email,
+      password: null,
+      role: 'client',
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     // 3. Create Client record
-    const client = await prisma.client.create({
-      data: {
-        name: preClient.name,
-        email: preClient.email,
-        phone: preClient.phone || '',
-        companyName: preClient.companyName || null,
-        address: preClient.address || null,
-        status: 'active',
-        startDate: new Date(),
-        lastActivity: new Date(),
-        preClientId: preClient.id,
-        portalPasswordSet: false,
-        welcomeVideoWatched: false,
-        driveFolderId: folders.mainFolderId,
-        rawFootageFolderId: folders.rawFolderId,
-        essentialsFolderId: folders.elementsFolderId,
-        outputsFolderId: folders.outputsFolderId,
-        currentProgress: { completed: 0, total: 0 },
-        user: { connect: { id: portalUser.id } },
-      },
-    });
+    const [client] = await db.insert(clientTable).values({
+      id: createId(),
+      name: preClient.name,
+      email: preClient.email,
+      phone: preClient.phone || '',
+      companyName: preClient.companyName || null,
+      address: preClient.address || null,
+      status: 'active',
+      startDate: new Date().toISOString(),
+      lastActivity: new Date().toISOString(),
+      preClientId: preClient.id,
+      portalPasswordSet: false,
+      welcomeVideoWatched: false,
+      driveFolderId: folders.mainFolderId,
+      rawFootageFolderId: folders.rawFolderId,
+      essentialsFolderId: folders.elementsFolderId,
+      outputsFolderId: folders.outputsFolderId,
+      currentProgress: { completed: 0, total: 0 },
+      userId: portalUser.id,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     // 4. Create ClientPortalAccess
-    await prisma.clientPortalAccess.create({
-      data: {
-        clientId: client.id,
-        status: 'ONBOARDING',
-      },
+    await db.insert(clientPortalAccessTable).values({
+      id: createId(),
+      clientId: client.id,
+      status: 'ONBOARDING',
+      updatedAt: new Date().toISOString(),
     });
 
     // 4b. Generate Schedules A/B + PSA, merge just those two into one combined
@@ -252,18 +258,18 @@ export async function POST(
 
     // 5. Create onboarding token
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
-    const onboardingToken = await prisma.onboardingToken.create({
-      data: {
-        clientId: client.id,
-        expiresAt,
-      },
-    });
+    const [onboardingToken] = await db.insert(onboardingTokenTable).values({
+      id: createId(),
+      clientId: client.id,
+      token: createId(),
+      expiresAt: expiresAt.toISOString(),
+    }).returning();
 
     // 6. Mark pre-client as converted
-    await prisma.preClient.update({
-      where: { id: preClientId },
-      data: { status: 'CONVERTED' },
-    });
+    await db.update(preClientTable).set({
+      status: 'CONVERTED',
+      updatedAt: new Date().toISOString(),
+    }).where(eq(preClientTable.id, preClientId));
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const magicLink = `${baseUrl}/onboarding/${onboardingToken.token}`;
@@ -315,10 +321,9 @@ export async function POST(
     // and the claim above would reject every retry.
     try {
       const { id: pid } = await params;
-      await prisma.preClient.updateMany({
-        where: { id: pid, status: 'PROVISIONING' },
-        data: { status: 'QUOTE_ACCEPTED' },
-      });
+      await db.update(preClientTable)
+        .set({ status: 'QUOTE_ACCEPTED', updatedAt: new Date().toISOString() })
+        .where(and(eq(preClientTable.id, pid), eq(preClientTable.status, 'PROVISIONING')));
     } catch {}
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }

@@ -1,9 +1,17 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/reports/weekly-trends/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { and, eq, gte, lt, inArray, count } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
-import { TaskStatus } from '@prisma/client';
+
+const TaskStatus = {
+  COMPLETED: 'COMPLETED',
+  QC_IN_PROGRESS: 'QC_IN_PROGRESS',
+  READY_FOR_QC: 'READY_FOR_QC',
+  SCHEDULED: 'SCHEDULED',
+} as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,49 +40,31 @@ export async function GET(req: NextRequest) {
       weekEnd.setDate(weekStart.getDate() + 7);
 
       // Get tasks created this week
-      const tasksUploaded = await prisma.task.count({
-        where: {
-          createdAt: {
-            gte: weekStart,
-            lt: weekEnd
-          }
-        }
-      });
+      const [{ value: tasksUploaded }] = await db.select({ value: count() }).from(task).where(and(
+        gte(task.createdAt, weekStart.toISOString()),
+        lt(task.createdAt, weekEnd.toISOString())
+      ));
 
       // Get tasks approved this week
-      const tasksApproved = await prisma.task.count({
-        where: {
-          status: TaskStatus.COMPLETED,
-          updatedAt: {
-            gte: weekStart,
-            lt: weekEnd
-          }
-        }
-      });
+      const [{ value: tasksApproved }] = await db.select({ value: count() }).from(task).where(and(
+        eq(task.status, TaskStatus.COMPLETED),
+        gte(task.updatedAt, weekStart.toISOString()),
+        lt(task.updatedAt, weekEnd.toISOString())
+      ));
 
       // Get QC checks this week
-      const qcChecks = await prisma.task.count({
-        where: {
-          status: {
-            in: [TaskStatus.QC_IN_PROGRESS, TaskStatus.READY_FOR_QC]
-          },
-          updatedAt: {
-            gte: weekStart,
-            lt: weekEnd
-          }
-        }
-      });
+      const [{ value: qcChecks }] = await db.select({ value: count() }).from(task).where(and(
+        inArray(task.status, [TaskStatus.QC_IN_PROGRESS, TaskStatus.READY_FOR_QC]),
+        gte(task.updatedAt, weekStart.toISOString()),
+        lt(task.updatedAt, weekEnd.toISOString())
+      ));
 
       // Get scheduled tasks this week
-      const schedulingTasks = await prisma.task.count({
-        where: {
-          status: TaskStatus.SCHEDULED,
-          updatedAt: {
-            gte: weekStart,
-            lt: weekEnd
-          }
-        }
-      });
+      const [{ value: schedulingTasks }] = await db.select({ value: count() }).from(task).where(and(
+        eq(task.status, TaskStatus.SCHEDULED),
+        gte(task.updatedAt, weekStart.toISOString()),
+        lt(task.updatedAt, weekEnd.toISOString())
+      ));
 
       weeklyData.push({
         week: `Week ${weeks - i}`,

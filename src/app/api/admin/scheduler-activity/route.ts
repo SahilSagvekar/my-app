@@ -11,7 +11,13 @@ export const dynamic = 'force-dynamic';
 //                        window; older days only have the summary row).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import {
+  user as userTable,
+  schedulerActivityEvent as schedulerActivityEventTable,
+  schedulerActivityDailySummary as schedulerActivityDailySummaryTable,
+} from '@/lib/db/schema';
+import { and, or, eq, gte, lt, inArray, asc, desc, sql as drizzleSql } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { computeActivityStats, startOfUTCDay } from '@/lib/scheduler-activity-rollup';
 
@@ -31,11 +37,14 @@ export async function GET(req: NextRequest) {
       const dayStart = new Date(`${date}T00:00:00.000Z`);
       const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
-      const events = await prisma.schedulerActivityEvent.findMany({
-        where: { userId: Number(userId), timestamp: { gte: dayStart, lt: dayEnd } },
-        orderBy: { timestamp: 'asc' },
-        take: 5000, // hard cap — a single day should never legitimately exceed this
-      });
+      const events = await db.select().from(schedulerActivityEventTable)
+        .where(and(
+          eq(schedulerActivityEventTable.userId, Number(userId)),
+          gte(schedulerActivityEventTable.timestamp, dayStart.toISOString()),
+          lt(schedulerActivityEventTable.timestamp, dayEnd.toISOString()),
+        ))
+        .orderBy(asc(schedulerActivityEventTable.timestamp))
+        .limit(5000); // hard cap — a single day should never legitimately exceed this
 
       return NextResponse.json({ events });
     }
@@ -44,15 +53,18 @@ export async function GET(req: NextRequest) {
     const days = Math.min(parseInt(searchParams.get('days') || '30', 10), 90);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    const schedulers = await prisma.user.findMany({
-      where: { OR: [{ role: 'scheduler' }, { roles: { has: 'scheduler' } }] },
-      select: { id: true, name: true, email: true },
-    });
+    const schedulers = await db.select({ id: userTable.id, name: userTable.name, email: userTable.email })
+      .from(userTable)
+      .where(or(eq(userTable.role, 'scheduler' as any), drizzleSql`${userTable.roles} @> ARRAY['scheduler']`));
 
-    const summaries = await prisma.schedulerActivityDailySummary.findMany({
-      where: { userId: { in: schedulers.map((s) => s.id) }, date: { gte: since } },
-      orderBy: [{ userId: 'asc' }, { date: 'desc' }],
-    });
+    const summaries = schedulers.length > 0
+      ? await db.select().from(schedulerActivityDailySummaryTable)
+          .where(and(
+            inArray(schedulerActivityDailySummaryTable.userId, schedulers.map((s) => s.id)),
+            gte(schedulerActivityDailySummaryTable.date, since.toISOString()),
+          ))
+          .orderBy(asc(schedulerActivityDailySummaryTable.userId), desc(schedulerActivityDailySummaryTable.date))
+      : [];
 
     // Today never has a summary row yet (that only gets written by tonight's
     // rollup) — compute it live instead, straight from raw events. Bounded
@@ -61,10 +73,9 @@ export async function GET(req: NextRequest) {
     const todayStart = startOfUTCDay(new Date());
     const todayLive = await Promise.all(
       schedulers.map(async (s) => {
-        const events = await prisma.schedulerActivityEvent.findMany({
-          where: { userId: s.id, timestamp: { gte: todayStart } },
-          orderBy: { timestamp: 'asc' },
-        });
+        const events = await db.select().from(schedulerActivityEventTable)
+          .where(and(eq(schedulerActivityEventTable.userId, s.id), gte(schedulerActivityEventTable.timestamp, todayStart.toISOString())))
+          .orderBy(asc(schedulerActivityEventTable.timestamp));
         return { userId: s.id, date: todayStart.toISOString(), ...computeActivityStats(events) };
       })
     );

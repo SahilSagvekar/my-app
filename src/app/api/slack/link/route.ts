@@ -1,7 +1,9 @@
 // src/app/api/slack/link/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { WebClient } from "@slack/web-api";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -44,14 +46,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Could not resolve Slack user ID" }, { status: 404 });
     }
 
-    // Save the Slack user ID to the database
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        slackUserId: slackUser.id,
-        slackNotifications: true, // Auto-enable on link
-      },
-    });
+    // Save the Slack user ID to the database.
+    // User.updatedAt is @updatedAt in Prisma (client-managed) — set
+    // explicitly, matching that behavior.
+    await db.update(userTable).set({
+      slackUserId: slackUser.id,
+      slackNotifications: true, // Auto-enable on link
+      updatedAt: new Date().toISOString(),
+    }).where(eq(userTable.id, user.id));
 
     return NextResponse.json({
       success: true,
@@ -72,13 +74,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        slackUserId: null,
-        slackNotifications: false,
-      },
-    });
+    await db.update(userTable).set({
+      slackUserId: null,
+      slackNotifications: false,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(userTable.id, user.id));
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { recurringTask, task, user } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, inArray, isNull, gte, lte, count } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3, BUCKET } from "@/lib/s3";
 
@@ -178,14 +181,19 @@ export async function POST(
     const targetMonth = now.getMonth();
 
     // Find active recurring tasks for this client
-    const recurringTasks = await prisma.recurringTask.findMany({
-      where: { clientId, active: true },
-      include: {
+    const rawRecurringTasks = await db.query.recurringTask.findMany({
+      where: and(eq(recurringTask.clientId, clientId), eq(recurringTask.active, true)),
+      with: {
         client: true,
-        deliverable: true,
-        templateTask: true,
+        monthlyDeliverable: true,
+        task: true,
       },
     });
+    const recurringTasks = rawRecurringTasks.map(({ monthlyDeliverable, task: templateTask, ...rt }: any) => ({
+      ...rt,
+      deliverable: monthlyDeliverable,
+      templateTask,
+    }));
 
     if (recurringTasks.length === 0) {
       return NextResponse.json({
@@ -196,10 +204,9 @@ export async function POST(
     }
 
     // Get a default admin/manager user for fallback assignment
-    const defaultUser = await prisma.user.findFirst({
-      where: { role: { in: ["admin", "manager"] }, employeeStatus: "ACTIVE" },
-      select: { id: true },
-    });
+    const [defaultUser] = await db.select({ id: user.id }).from(user)
+      .where(and(inArray(user.role, ["admin", "manager"] as any), eq(user.employeeStatus, "ACTIVE")))
+      .limit(1);
 
     if (!defaultUser) {
       return NextResponse.json(
@@ -220,41 +227,31 @@ export async function POST(
       const recurringMonthLabel = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
 
       // Primary: count tasks tagged with this recurringMonth
-      const taggedTasks = await prisma.task.count({
-        where: {
-          clientId,
-          monthlyDeliverableId: deliverable.id,
-          recurringMonth: recurringMonthLabel,
-        },
-      });
+      const [{ value: taggedTasks }] = await db.select({ value: count() }).from(task).where(and(
+        eq(task.clientId, clientId),
+        eq(task.monthlyDeliverableId, deliverable.id),
+        eq(task.recurringMonth, recurringMonthLabel),
+      ));
 
       // Fallback: count tasks with dueDate in this month but WITHOUT recurringMonth
       const monthStart = new Date(targetYear, targetMonth, 1);
       const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
 
-      const untaggedTasks = await prisma.task.count({
-        where: {
-          clientId,
-          monthlyDeliverableId: deliverable.id,
-          recurringMonth: null,
-          dueDate: { gte: monthStart, lte: monthEnd },
-        },
-      });
+      const untaggedCondition = and(
+        eq(task.clientId, clientId),
+        eq(task.monthlyDeliverableId, deliverable.id),
+        isNull(task.recurringMonth),
+        gte(task.dueDate, monthStart.toISOString()),
+        lte(task.dueDate, monthEnd.toISOString()),
+      );
+      const [{ value: untaggedTasks }] = await db.select({ value: count() }).from(task).where(untaggedCondition);
 
       const existingTasks = taggedTasks + untaggedTasks;
 
       // Backfill recurringMonth on untagged tasks
       if (untaggedTasks > 0) {
         console.log(`🏷️ Backfilling recurringMonth="${recurringMonthLabel}" on ${untaggedTasks} untagged tasks for ${client.name}`);
-        await prisma.task.updateMany({
-          where: {
-            clientId,
-            monthlyDeliverableId: deliverable.id,
-            recurringMonth: null,
-            dueDate: { gte: monthStart, lte: monthEnd },
-          },
-          data: { recurringMonth: recurringMonthLabel },
-        });
+        await db.update(task).set({ recurringMonth: recurringMonthLabel, updatedAt: new Date().toISOString() }).where(untaggedCondition);
       }
 
       if (existingTasks >= deliverable.quantity) continue;
@@ -295,39 +292,39 @@ export async function POST(
           console.error(`⚠️ S3 folder creation failed for ${title}`);
         }
 
-        const newTask = await prisma.task.create({
-          data: {
-            title,
-            description: templateTask?.description || "",
-            taskType: templateTask?.taskType || deliverable.type,
-            status: "PENDING",
-            dueDate: dueDates[i],
-            assignedTo: templateTask?.assignedTo || defaultUser.id,
-            createdBy: templateTask?.createdBy,
-            clientId,
-            clientUserId: client.userId,
-            monthlyDeliverableId: deliverable.id,
-            outputFolderId,
-            monthFolder: monthYearFolder,
-            recurringMonth: recurringMonthLabel,
-            qc_specialist: templateTask?.qc_specialist,
-            scheduler: templateTask?.scheduler,
-            videographer: templateTask?.videographer,
-            folderType: templateTask?.folderType,
-            driveLinks: templateTask?.driveLinks ?? [],
-            isTrial: deliverable.isTrial ?? client.isTrial ?? false,
-          },
-        });
+        const [newTask] = await db.insert(task).values({
+          id: createId(),
+          title,
+          description: templateTask?.description || "",
+          taskType: templateTask?.taskType || deliverable.type,
+          status: "PENDING",
+          dueDate: dueDates[i].toISOString(),
+          assignedTo: templateTask?.assignedTo || defaultUser.id,
+          createdBy: templateTask?.createdBy,
+          clientId,
+          clientUserId: client.userId,
+          monthlyDeliverableId: deliverable.id,
+          outputFolderId,
+          monthFolder: monthYearFolder,
+          recurringMonth: recurringMonthLabel,
+          qcSpecialist: templateTask?.qcSpecialist,
+          scheduler: templateTask?.scheduler,
+          videographer: templateTask?.videographer,
+          folderType: templateTask?.folderType,
+          driveLinks: templateTask?.driveLinks ?? [],
+          isTrial: deliverable.isTrial ?? client.isTrial ?? false,
+          updatedAt: new Date().toISOString(),
+        }).returning();
         createdTasks.push(newTask);
       }
 
       // Update nextRunDate
       const nextMonth = targetMonth === 11 ? 0 : targetMonth + 1;
       const nextYear = targetMonth === 11 ? targetYear + 1 : targetYear;
-      await prisma.recurringTask.update({
-        where: { id: rt.id },
-        data: { lastRunDate: now, nextRunDate: new Date(nextYear, nextMonth, 1) },
-      });
+      await db.update(recurringTask).set({
+        lastRunDate: now.toISOString(),
+        nextRunDate: new Date(nextYear, nextMonth, 1).toISOString(),
+      }).where(eq(recurringTask.id, rt.id));
     }
 
     return NextResponse.json({

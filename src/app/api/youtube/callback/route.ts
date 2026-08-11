@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // Handles the OAuth callback from Google
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { youTubeChannel } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
 import { fetchChannelInfo } from "@/lib/youtube";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -86,39 +88,42 @@ export async function GET(req: NextRequest) {
     }
 
     // Upsert the YouTube channel record
-    await prisma.youTubeChannel.upsert({
-      where: { clientId },
-      update: {
+    const tokenExpiryIso = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+    await db.insert(youTubeChannel).values({
+      id: createId(),
+      clientId,
+      channelId: channel.id,
+      channelTitle: channel.snippet.title,
+      channelAvatar: channel.snippet.thumbnails?.medium?.url || "",
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      tokenExpiry: tokenExpiryIso,
+      scope: tokens.scope || "",
+      subscriberCount: parseInt(
+        channel.statistics.subscriberCount || "0"
+      ),
+      totalViews: Number(channel.statistics.viewCount || "0"),
+      totalVideos: parseInt(channel.statistics.videoCount || "0"),
+      updatedAt: new Date().toISOString(),
+    }).onConflictDoUpdate({
+      target: youTubeChannel.clientId,
+      set: {
         channelId: channel.id,
         channelTitle: channel.snippet.title,
         channelAvatar: channel.snippet.thumbnails?.medium?.url || "",
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
-        tokenExpiry: new Date(Date.now() + tokens.expires_in * 1000),
+        tokenExpiry: tokenExpiryIso,
         scope: tokens.scope || "",
         subscriberCount: parseInt(
           channel.statistics.subscriberCount || "0"
         ),
-        totalViews: BigInt(channel.statistics.viewCount || "0"),
+        totalViews: Number(channel.statistics.viewCount || "0"),
         totalVideos: parseInt(channel.statistics.videoCount || "0"),
         isActive: true,
         syncStatus: "PENDING",
         syncError: null,
-      },
-      create: {
-        clientId,
-        channelId: channel.id,
-        channelTitle: channel.snippet.title,
-        channelAvatar: channel.snippet.thumbnails?.medium?.url || "",
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        tokenExpiry: new Date(Date.now() + tokens.expires_in * 1000),
-        scope: tokens.scope || "",
-        subscriberCount: parseInt(
-          channel.statistics.subscriberCount || "0"
-        ),
-        totalViews: BigInt(channel.statistics.viewCount || "0"),
-        totalVideos: parseInt(channel.statistics.videoCount || "0"),
+        updatedAt: new Date().toISOString(),
       },
     });
 

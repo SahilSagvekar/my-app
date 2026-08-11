@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { portfolioJourneyClient } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, asc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 // GET /api/portfolio/journey-clients — public: active clients + active steps, ordered.
@@ -18,17 +21,19 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        const clients = await prisma.portfolioJourneyClient.findMany({
-            where: showAll ? {} : { isActive: true },
-            orderBy: { order: 'asc' },
-            include: {
-                steps: {
-                    orderBy: { order: 'asc' },
+        const clients = await db.query.portfolioJourneyClient.findMany({
+            where: showAll ? undefined : eq(portfolioJourneyClient.isActive, true),
+            orderBy: [asc(portfolioJourneyClient.order)],
+            with: {
+                portfolioJourneySteps: {
+                    orderBy: (steps, { asc }) => [asc(steps.order)],
                 },
             },
         });
 
-        return NextResponse.json({ ok: true, clients });
+        const clientsWithSteps = clients.map(({ portfolioJourneySteps, ...c }) => ({ ...c, steps: portfolioJourneySteps }));
+
+        return NextResponse.json({ ok: true, clients: clientsWithSteps });
     } catch (err) {
         console.error('[GET /api/portfolio/journey-clients]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
@@ -51,15 +56,16 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, message: 'Label is required' }, { status: 400 });
         }
 
-        const client = await prisma.portfolioJourneyClient.create({
-            data: {
-                label,
-                sublabel: sublabel || null,
-                iconKey: iconKey || null,
-                order: order ?? 0,
-            },
-            include: { steps: true },
-        });
+        const [created] = await db.insert(portfolioJourneyClient).values({
+            id: createId(),
+            label,
+            sublabel: sublabel || null,
+            iconKey: iconKey || null,
+            order: order ?? 0,
+            updatedAt: new Date().toISOString(),
+        }).returning();
+
+        const client = { ...created, steps: [] as any[] };
 
         return NextResponse.json({ ok: true, client });
     } catch (err) {

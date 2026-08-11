@@ -6,7 +6,14 @@ export const dynamic = 'force-dynamic';
 // DELETE - revoke permission { editorId: number, clientId: string }
 //
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import {
+    user as userTable,
+    client as clientTable,
+    editorClientPermission as editorClientPermissionTable,
+} from '@/lib/db/schema';
+import { and, or, eq, asc, sql as drizzleSql } from 'drizzle-orm';
+import { createId } from '@/lib/db/id';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -38,26 +45,22 @@ export async function GET(req: NextRequest) {
 
     try {
         // Fetch all editors
-        const editors = await (prisma as any).user.findMany({
-            where: { OR: [{ role: 'editor' }, { roles: { has: 'editor' } }] },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
+        const editors = await db.query.user.findMany({
+            where: or(eq(userTable.role, 'editor' as any), drizzleSql`${userTable.roles} @> ARRAY['editor']`),
+            columns: { id: true, name: true, email: true, image: true },
+            with: {
                 editorClientPermissions: {
-                    select: { clientId: true, id: true },
+                    columns: { clientId: true, id: true },
                 },
             },
-            orderBy: { name: 'asc' },
+            orderBy: asc(userTable.name),
         });
 
         // Fetch all clients (for the admin dropdown)
-        const clients = await prisma.client.findMany({
-            where: { status: 'active' },
-            select: { id: true, name: true, companyName: true },
-            orderBy: { name: 'asc' },
-        });
+        const clients = await db.select({ id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName })
+            .from(clientTable)
+            .where(eq(clientTable.status, 'active'))
+            .orderBy(asc(clientTable.name));
 
         return NextResponse.json({ editors, clients });
     } catch (err: any) {
@@ -82,19 +85,24 @@ export async function POST(req: NextRequest) {
         }
 
         // Verify editor exists with role=editor
-        const editor = await prisma.user.findFirst({
-            where: { id: Number(editorId), OR: [{ role: 'editor' }, { roles: { has: 'editor' } }] },
-        });
+        const [editor] = await db.select().from(userTable)
+            .where(and(
+                eq(userTable.id, Number(editorId)),
+                or(eq(userTable.role, 'editor' as any), drizzleSql`${userTable.roles} @> ARRAY['editor']`)
+            ))
+            .limit(1);
         if (!editor) {
             return NextResponse.json({ error: 'Editor not found' }, { status: 404 });
         }
 
         // Upsert — safe to call if already exists
-        const permission = await (prisma as any).editorClientPermission.upsert({
-            where: { editorId_clientId: { editorId: Number(editorId), clientId } },
-            create: { editorId: Number(editorId), clientId },
-            update: {},
-        });
+        await db.insert(editorClientPermissionTable)
+            .values({ id: createId(), editorId: Number(editorId), clientId })
+            .onConflictDoNothing({ target: [editorClientPermissionTable.editorId, editorClientPermissionTable.clientId] });
+
+        const [permission] = await db.select().from(editorClientPermissionTable)
+            .where(and(eq(editorClientPermissionTable.editorId, Number(editorId)), eq(editorClientPermissionTable.clientId, clientId)))
+            .limit(1);
 
         return NextResponse.json({ success: true, permission });
     } catch (err: any) {
@@ -118,9 +126,8 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: 'editorId and clientId are required' }, { status: 400 });
         }
 
-        await (prisma as any).editorClientPermission.deleteMany({
-            where: { editorId: Number(editorId), clientId },
-        });
+        await db.delete(editorClientPermissionTable)
+            .where(and(eq(editorClientPermissionTable.editorId, Number(editorId)), eq(editorClientPermissionTable.clientId, clientId)));
 
         return NextResponse.json({ success: true });
     } catch (err: any) {

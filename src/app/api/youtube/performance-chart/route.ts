@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 // app/api/youtube/performance-chart/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { youTubeSnapshot } from '@/lib/db/schema';
+import { and, asc, eq, gte } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
     try {
@@ -52,21 +54,19 @@ export async function GET(req: NextRequest) {
         startDate.setDate(startDate.getDate() - period);
 
         // Fetch snapshots for the period
-        const snapshots = await prisma.youTubeSnapshot.findMany({
-            where: {
-                clientId,
-                periodStart: { gte: startDate },
-                periodType: 'DAILY',
-            },
-            orderBy: { periodStart: 'asc' },
-            select: {
-                periodStart: true,
-                views: true,
-                watchTimeHours: true,
-                estimatedRevenue: true,
-                subscriberCount: true,
-            },
-        });
+        const snapshots = await db.select({
+            periodStart: youTubeSnapshot.periodStart,
+            views: youTubeSnapshot.views,
+            watchTimeHours: youTubeSnapshot.watchTimeHours,
+            estimatedRevenue: youTubeSnapshot.estimatedRevenue,
+            subscriberCount: youTubeSnapshot.subscriberCount,
+        }).from(youTubeSnapshot)
+            .where(and(
+                eq(youTubeSnapshot.clientId, clientId),
+                gte(youTubeSnapshot.periodStart, startDate.toISOString()),
+                eq(youTubeSnapshot.periodType, 'DAILY'),
+            ))
+            .orderBy(asc(youTubeSnapshot.periodStart));
 
         // Format data for chart
         const chartData = snapshots.map((snapshot) => {
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
             }
 
             return {
-                date: snapshot.periodStart.toISOString().split('T')[0],
+                date: new Date(snapshot.periodStart).toISOString().split('T')[0],
                 value,
             };
         });

@@ -7,12 +7,14 @@
 // per-file verification) and only then delete the R2 copy. Raw footage is
 // never touched here.
 
-import { TaskStatus } from '@prisma/client';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { file as fileTable, task as taskTable, nasSyncLog } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, inArray, isNotNull, not, like } from 'drizzle-orm';
 import { deleteFromS3 } from '@/lib/s3';
 import { headObjectOnNas, NAS_BUCKET } from '@/lib/nas-s3';
 
-const FINALIZED_STATUSES: TaskStatus[] = [TaskStatus.COMPLETED, TaskStatus.SCHEDULED, TaskStatus.POSTED];
+const FINALIZED_STATUSES = ['COMPLETED', 'SCHEDULED', 'POSTED'] as const;
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -75,28 +77,30 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
   const cutoff = getCutoffDate();
   const cutoffMonthFolder = `${MONTH_NAMES[cutoff.getMonth()]}-${cutoff.getFullYear()}`;
 
-  const candidates = await prisma.file.findMany({
-    where: {
-      isActive: true,
-      deletedFromCloud: false,
-      s3Key: { not: null },
-      NOT: { s3Key: { contains: 'raw-footage' } },
-      task: {
-        status: { in: FINALIZED_STATUSES },
-        monthFolder: { not: null },
-        ...(opts.clientId ? { clientId: opts.clientId } : {}),
-      },
-    },
-    select: {
-      id: true,
-      s3Key: true,
-      size: true,
-      taskId: true,
-      task: { select: { monthFolder: true } },
-    },
-  });
+  const taskConditions = [
+    inArray(taskTable.status, FINALIZED_STATUSES as any),
+    isNotNull(taskTable.monthFolder),
+    ...(opts.clientId ? [eq(taskTable.clientId, opts.clientId)] : []),
+  ];
 
-  const eligible = candidates.filter(f => isEligibleMonthFolder(f.task.monthFolder, cutoff));
+  const candidates = await db.select({
+    id: fileTable.id,
+    s3Key: fileTable.s3Key,
+    size: fileTable.size,
+    taskId: fileTable.taskId,
+    monthFolder: taskTable.monthFolder,
+  })
+    .from(fileTable)
+    .innerJoin(taskTable, eq(fileTable.taskId, taskTable.id))
+    .where(and(
+      eq(fileTable.isActive, true),
+      eq(fileTable.deletedFromCloud, false),
+      isNotNull(fileTable.s3Key),
+      not(like(fileTable.s3Key, '%raw-footage%')),
+      ...taskConditions,
+    ));
+
+  const eligible = candidates.filter(f => isEligibleMonthFolder(f.monthFolder, cutoff));
 
   const results: SweepFileResult[] = [];
   const monthsSwept = new Set<string>();
@@ -108,7 +112,7 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
   for (const file of eligible) {
     const s3Key = file.s3Key!;
     const sizeBytes = Number(file.size);
-    const monthFolder = file.task.monthFolder!;
+    const monthFolder = file.monthFolder!;
 
     const verification = await verifyOnNas(s3Key, sizeBytes);
     if (!verification.ok) {
@@ -131,16 +135,13 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
       const deleted = await deleteFromS3(s3Key);
       if (!deleted) throw new Error('deleteFromS3 returned false');
 
-      await prisma.file.update({
-        where: { id: file.id },
-        data: {
-          deletedFromCloud: true,
-          deletedFromCloudAt: new Date(),
-          archivedToNas: true,
-          nasArchivedAt: new Date(),
-          nasPath: `minio://${NAS_BUCKET}`,
-        },
-      });
+      await db.update(fileTable).set({
+        deletedFromCloud: true,
+        deletedFromCloudAt: new Date().toISOString(),
+        archivedToNas: true,
+        nasArchivedAt: new Date().toISOString(),
+        nasPath: `minio://${NAS_BUCKET}`,
+      }).where(eq(fileTable.id, file.id));
 
       deletedCount++;
       bytesFreed += sizeBytes;
@@ -156,16 +157,15 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
   }
 
   if (!opts.dryRun && eligible.length > 0) {
-    await prisma.nasSyncLog.create({
-      data: {
-        status: failedCount === 0 ? 'success' : (deletedCount > 0 ? 'partial' : 'failed'),
-        completedAt: new Date(),
-        bucketName: NAS_BUCKET,
-        paths: Array.from(monthsSwept),
-        filesCount: deletedCount,
-        bytesCount: BigInt(bytesFreed),
-        errorMessage: failedCount > 0 ? `${failedCount} file(s) failed to delete from R2` : null,
-      },
+    await db.insert(nasSyncLog).values({
+      id: createId(),
+      status: failedCount === 0 ? 'success' : (deletedCount > 0 ? 'partial' : 'failed'),
+      completedAt: new Date().toISOString(),
+      bucketName: NAS_BUCKET,
+      paths: Array.from(monthsSwept),
+      filesCount: deletedCount,
+      bytesCount: bytesFreed,
+      errorMessage: failedCount > 0 ? `${failedCount} file(s) failed to delete from R2` : null,
     });
   }
 

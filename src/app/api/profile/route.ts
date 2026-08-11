@@ -1,7 +1,9 @@
 // src/app/api/profile/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { uploadOnCloudinary } from "../../config/cloudinary";
 import jwt from "jsonwebtoken";
 
@@ -81,26 +83,23 @@ export async function GET(req: any) {
 
     const userId = user.id;
 
-    const dbUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        phone: true,
-        role: true,
-        joinedAt: true,
-        employeeStatus: true,
-        hourlyRate: true,
-        monthlyRate: true,
-        hoursPerWeek: true,
-        monthlyBaseHours: true,
-        emailNotifications: true,
-        slackUserId: true,
-        slackNotifications: true,
-      },
-    });
+    const [dbUser] = await db.select({
+      id: userTable.id,
+      name: userTable.name,
+      email: userTable.email,
+      image: userTable.image,
+      phone: userTable.phone,
+      role: userTable.role,
+      joinedAt: userTable.joinedAt,
+      employeeStatus: userTable.employeeStatus,
+      hourlyRate: userTable.hourlyRate,
+      monthlyRate: userTable.monthlyRate,
+      hoursPerWeek: userTable.hoursPerWeek,
+      monthlyBaseHours: userTable.monthlyBaseHours,
+      emailNotifications: userTable.emailNotifications,
+      slackUserId: userTable.slackUserId,
+      slackNotifications: userTable.slackNotifications,
+    }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
     if (!dbUser) {
       return NextResponse.json(
@@ -156,9 +155,7 @@ export async function PUT(req: any) {
     console.log("Received data:", { name, phone, emailNotifications, hasImage: !!imageFile });
 
     // Find existing user
-    const dbUser = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const [dbUser] = await db.select().from(userTable).where(eq(userTable.id, userId)).limit(1);
 
     if (!dbUser) {
       return NextResponse.json(
@@ -218,7 +215,7 @@ export async function PUT(req: any) {
 
     // Build update data - only include fields that have values
     const updateData: any = {
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     };
 
     if (name && name.trim()) {
@@ -238,20 +235,18 @@ export async function PUT(req: any) {
     console.log("Updating user with data:", updateData);
 
     // Update user profile in database
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        phone: true,
-        role: true,
-        emailNotifications: true,
-        updatedAt: true,
-      },
-    });
+    const [updatedUser] = await db.update(userTable).set(updateData)
+      .where(eq(userTable.id, userId))
+      .returning({
+        id: userTable.id,
+        name: userTable.name,
+        email: userTable.email,
+        image: userTable.image,
+        phone: userTable.phone,
+        role: userTable.role,
+        emailNotifications: userTable.emailNotifications,
+        updatedAt: userTable.updatedAt,
+      });
 
     console.log("User updated successfully:", updatedUser.id);
 
@@ -276,13 +271,15 @@ export async function PUT(req: any) {
       }
     }
 
-    // Prisma unique constraint violation — `phone` has @unique in the schema,
-    // so saving a number already used on another account was previously
-    // falling through to the generic 500 below with no explanation of why.
-    if ((error as any)?.code === "P2002") {
-      const target = (error as any)?.meta?.target;
-      const fields = Array.isArray(target) ? target.join(", ") : String(target || "");
-      if (fields.includes("phone")) {
+    // Postgres unique_violation SQLSTATE (was Prisma's P2002) — `phone` has
+    // a unique index in the schema, so saving a number already used on
+    // another account was previously falling through to the generic 500
+    // below with no explanation of why.
+    if ((error as any)?.code === "23505") {
+      const constraint = (error as any)?.constraint || "";
+      const detail = (error as any)?.detail || "";
+      const fields = constraint || detail;
+      if (constraint.toLowerCase().includes("phone") || detail.toLowerCase().includes("phone")) {
         return NextResponse.json(
           {
             success: false,
@@ -291,6 +288,10 @@ export async function PUT(req: any) {
           { status: 409 }
         );
       }
+      // Unreachable in practice — `phone` is the only unique column this
+      // route writes — but kept as a fallback. `fields` is now a raw
+      // Postgres constraint/detail string rather than Prisma's clean
+      // comma-joined column list, since that shaping was Prisma-specific.
       return NextResponse.json(
         { success: false, error: `That ${fields || "value"} is already in use.` },
         { status: 409 }

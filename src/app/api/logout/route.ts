@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { auditLog } from "@/lib/db/schema";
 import { getGeoLocation } from "@/lib/geo";
 
 export async function POST(req: Request) {
@@ -41,15 +42,13 @@ export async function POST(req: Request) {
 
       if (geo?.countryCode !== "IN") {
         (async () => {
-          await prisma.auditLog.create({
-            data: {
-              userId,
-              action: "USER_LOGOUT",
-              entity: "User",
-              entityId: String(userId),
-              details: "User logged out",
-              metadata: { sessionEnded: new Date().toISOString() } as any,
-            },
+          await db.insert(auditLog).values({
+            userId,
+            action: "USER_LOGOUT",
+            entity: "User",
+            entityId: String(userId),
+            details: "User logged out",
+            metadata: { sessionEnded: new Date().toISOString() } as any,
           });
         })();
       } else {

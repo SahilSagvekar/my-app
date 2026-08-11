@@ -1,4 +1,7 @@
-import { prisma } from './prisma';
+import { db } from './db';
+import { account as accountTable, user as userTable } from './db/schema';
+import { createId } from './db/id';
+import { and, eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 export async function findOrCreateOAuthUser(
@@ -8,14 +11,12 @@ export async function findOrCreateOAuthUser(
   name?: string
 ) {
   // Check if account exists
-  const existingAccount = await prisma.account.findUnique({
-    where: {
-      provider_providerAccountId: {
-        provider,
-        providerAccountId,
-      },
-    },
-    include: { user: true },
+  const existingAccount = await db.query.account.findFirst({
+    where: and(
+      eq(accountTable.provider, provider),
+      eq(accountTable.providerAccountId, providerAccountId),
+    ),
+    with: { user: true },
   });
 
   if (existingAccount) {
@@ -23,29 +24,26 @@ export async function findOrCreateOAuthUser(
   }
 
   // Check if user with this email exists
-  let user = await prisma.user.findFirst({
-    where: { email },
-  });
+  let [user] = await db.select().from(userTable).where(eq(userTable.email, email)).limit(1);
 
   if (!user) {
     // Create new user with role: null
-    user = await prisma.user.create({
-      data: {
-        email,
-        name: name || email,
-        role: null,
-      },
-    });
+    const [newUser] = await db.insert(userTable).values({
+      email,
+      name: name || email,
+      role: null,
+      updatedAt: new Date().toISOString(),
+    }).returning();
+    user = newUser;
   }
 
   // Link OAuth account to user
-  await prisma.account.create({
-    data: {
-      userId: user.id,
-      type: 'oauth',
-      provider,
-      providerAccountId,
-    },
+  await db.insert(accountTable).values({
+    id: createId(),
+    userId: user.id,
+    type: 'oauth',
+    provider,
+    providerAccountId,
   });
 
   return user;

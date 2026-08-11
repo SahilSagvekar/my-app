@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/tasks/bulk/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task as taskTable } from '@/lib/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { notifyEditorTaskAssignment } from '@/lib/notify';
 // import { getServerSession } from 'next-auth';
 // import { authOptions } from '@/lib/auth';
@@ -27,11 +29,14 @@ export async function PATCH(req: NextRequest) {
 
         // Validate allowed fields
         const allowedFields = ['status', 'assignedTo', 'qc_specialist', 'scheduler', 'videographer', 'priority'];
+        // Prisma field name -> Drizzle schema.ts property name (only differs
+        // for qc_specialist, which maps to the DB column "qc_specialist").
+        const fieldNameMap: Record<string, string> = { qc_specialist: 'qcSpecialist' };
         const updateData: any = {};
 
         for (const [key, value] of Object.entries(updates)) {
             if (allowedFields.includes(key)) {
-                updateData[key] = value;
+                updateData[fieldNameMap[key] || key] = value;
             }
         }
 
@@ -44,22 +49,20 @@ export async function PATCH(req: NextRequest) {
         // a Slack notification, not tasks already assigned to that editor.
         let reassignedTaskIds: string[] = [];
         if (updateData.assignedTo !== undefined && updateData.assignedTo) {
-            const existingTasks = await prisma.task.findMany({
-                where: { id: { in: taskIds } },
-                select: { id: true, assignedTo: true },
-            });
+            const existingTasks = await db.select({ id: taskTable.id, assignedTo: taskTable.assignedTo })
+                .from(taskTable)
+                .where(inArray(taskTable.id, taskIds));
             reassignedTaskIds = existingTasks
                 .filter((t) => t.assignedTo !== updateData.assignedTo)
                 .map((t) => t.id);
         }
 
         // Perform bulk update
-        const result = await prisma.task.updateMany({
-            where: {
-                id: { in: taskIds }
-            },
-            data: updateData
-        });
+        const updatedRows = await db.update(taskTable)
+            .set({ ...updateData, updatedAt: new Date().toISOString() })
+            .where(inArray(taskTable.id, taskIds))
+            .returning({ id: taskTable.id });
+        const result = { count: updatedRows.length };
 
         // 🔔 Notify the editor once with a grouped list of all reassigned tasks
         if (reassignedTaskIds.length > 0) {

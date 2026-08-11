@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, client as clientTable, socialLogin, loginAuditLog } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq } from "drizzle-orm";
 // import { getServerSession } from "next-auth";
 // import { authOptions } from "@/lib/auth";
 import { encrypt, decrypt } from "@/lib/encryption";
@@ -54,17 +57,14 @@ export async function PUT(
 
     const { userId } = decoded;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        phone: true,
-        role: true,
-      },
-    });
+    const [user] = await db.select({
+      id: userTable.id,
+      name: userTable.name,
+      email: userTable.email,
+      image: userTable.image,
+      phone: userTable.phone,
+      role: userTable.role,
+    }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
     if (!user) {
       return NextResponse.json(
@@ -91,9 +91,7 @@ export async function PUT(
     const isEmailInvitePlatform = platform === "Facebook" || platform === "YouTube";
 
     // Check if login exists
-    const existingLogin = await prisma.socialLogin.findUnique({
-      where: { id },
-    });
+    const [existingLogin] = await db.select().from(socialLogin).where(eq(socialLogin.id, id)).limit(1);
 
     if (!existingLogin) {
       return NextResponse.json({ message: "Login not found" }, { status: 404 });
@@ -101,19 +99,13 @@ export async function PUT(
 
     // If user is a client, verify the login belongs to their client
     if (userRole === "client") {
-      const userWithClient = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { linkedClientId: true },
-      });
+      const [userWithClient] = await db.select({ linkedClientId: userTable.linkedClientId }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
       let userClientId = userWithClient?.linkedClientId;
 
       // Fallback to Client.userId
       if (!userClientId) {
-        const clientByUserId = await prisma.client.findFirst({
-          where: { userId: userId },
-          select: { id: true },
-        });
+        const [clientByUserId] = await db.select({ id: clientTable.id }).from(clientTable).where(eq(clientTable.userId, userId)).limit(1);
         userClientId = clientByUserId?.id || null;
       }
 
@@ -136,10 +128,7 @@ export async function PUT(
     // Get client info (only if clientId is provided)
     let client = null;
     if (clientId) {
-      client = await prisma.client.findUnique({
-        where: { id: clientId },
-        select: { companyName: true },
-      });
+      [client] = await db.select({ companyName: clientTable.companyName }).from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
 
       if (!client) {
         return NextResponse.json({ message: "Client not found" }, { status: 404 });
@@ -158,43 +147,40 @@ export async function PUT(
     const finalClientId = isNewAdminOnly ? null : (clientId || null);
     const effectiveUsername = isEmailInvitePlatform ? (email || existingLogin.username) : username;
 
-    const login = await prisma.socialLogin.update({
-      where: { id },
-      data: {
-        clientId: finalClientId,
-        platform,
-        username: effectiveUsername,
-        encryptedPassword,
-        loginUrl: loginUrl || null,
-        recoveryEmail: email || null,
-        recoveryPhone: phone || null,
-        notes: notes || null,
-        backupCodesLocation: backupCodesLocation || null,
-        adminOnly: adminOnly ?? existingLogin.adminOnly,
-        accessRole: isEmailInvitePlatform ? (accessRole ?? existingLogin.accessRole) : null,
-        // Only update permissions if provided (admin only)
-        ...(allowedRoles !== undefined ? { allowedRoles } : {}),
-        ...(allowedUserIds !== undefined ? { allowedUserIds } : {}),
-        updatedById: userId,
-        // Update passwordChangedAt only if password is being changed
-        ...(passwordIsChanging ? { passwordChangedAt: new Date() } : {}),
-      },
-    });
+    const [login] = await db.update(socialLogin).set({
+      clientId: finalClientId,
+      platform,
+      username: effectiveUsername,
+      encryptedPassword,
+      loginUrl: loginUrl || null,
+      recoveryEmail: email || null,
+      recoveryPhone: phone || null,
+      notes: notes || null,
+      backupCodesLocation: backupCodesLocation || null,
+      adminOnly: adminOnly ?? existingLogin.adminOnly,
+      accessRole: isEmailInvitePlatform ? (accessRole ?? existingLogin.accessRole) : null,
+      // Only update permissions if provided (admin only)
+      ...(allowedRoles !== undefined ? { allowedRoles } : {}),
+      ...(allowedUserIds !== undefined ? { allowedUserIds } : {}),
+      updatedById: userId,
+      updatedAt: new Date().toISOString(),
+      // Update passwordChangedAt only if password is being changed
+      ...(passwordIsChanging ? { passwordChangedAt: new Date().toISOString() } : {}),
+    }).where(eq(socialLogin.id, id)).returning();
 
     // Log the update
-    await prisma.loginAuditLog.create({
-      data: {
-        action: "update",
-        loginId: login.id,
-        userId: userId,
-        details: JSON.stringify({
-          platform,
-          clientId,
-          passwordChanged: !!password,
-          allowedRoles: allowedRoles ?? existingLogin.allowedRoles,
-          allowedUserIds: allowedUserIds ?? existingLogin.allowedUserIds,
-        }),
-      },
+    await db.insert(loginAuditLog).values({
+      id: createId(),
+      action: "update",
+      loginId: login.id,
+      userId: userId,
+      details: JSON.stringify({
+        platform,
+        clientId,
+        passwordChanged: !!password,
+        allowedRoles: allowedRoles ?? existingLogin.allowedRoles,
+        allowedUserIds: allowedUserIds ?? existingLogin.allowedUserIds,
+      }),
     });
 
     return NextResponse.json({
@@ -219,8 +205,8 @@ export async function PUT(
         allowedUserIds: login.allowedUserIds,
         passwordChangedAt: passwordIsChanging
           ? new Date().toISOString()
-          : (existingLogin.passwordChangedAt?.toISOString() || existingLogin.createdAt.toISOString()),
-        lastUpdated: login.updatedAt.toISOString(),
+          : (existingLogin.passwordChangedAt ? new Date(existingLogin.passwordChangedAt).toISOString() : new Date(existingLogin.createdAt).toISOString()),
+        lastUpdated: new Date(login.updatedAt).toISOString(),
         updatedBy: user.name || "Admin",
       },
     });
@@ -259,17 +245,14 @@ export async function DELETE(
 
     const { userId } = decoded;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        phone: true,
-        role: true,
-      },
-    });
+    const [user] = await db.select({
+      id: userTable.id,
+      name: userTable.name,
+      email: userTable.email,
+      image: userTable.image,
+      phone: userTable.phone,
+      role: userTable.role,
+    }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
     if (!user) {
       return NextResponse.json(
@@ -291,12 +274,10 @@ export async function DELETE(
     const { id } = await params;
 
     // Check if login exists
-    const existingLogin = await prisma.socialLogin.findUnique({
-      where: { id },
-      include: {
-        client: {
-          select: { companyName: true },
-        },
+    const existingLogin = await db.query.socialLogin.findFirst({
+      where: eq(socialLogin.id, id),
+      with: {
+        client: { columns: { companyName: true } },
       },
     });
 
@@ -306,19 +287,13 @@ export async function DELETE(
 
     // If user is a client, verify the login belongs to their client
     if (userRole === "client") {
-      const userWithClient = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { linkedClientId: true },
-      });
+      const [userWithClient] = await db.select({ linkedClientId: userTable.linkedClientId }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
       let userClientId = userWithClient?.linkedClientId;
 
       // Fallback to Client.userId
       if (!userClientId) {
-        const clientByUserId = await prisma.client.findFirst({
-          where: { userId: userId },
-          select: { id: true },
-        });
+        const [clientByUserId] = await db.select({ id: clientTable.id }).from(clientTable).where(eq(clientTable.userId, userId)).limit(1);
         userClientId = clientByUserId?.id || null;
       }
 
@@ -333,23 +308,20 @@ export async function DELETE(
     // Deletion allowed as everything else passed
 
     // Log before deletion
-    await prisma.loginAuditLog.create({
-      data: {
-        action: "delete",
-        loginId: id,
-        userId: userId,
-        details: JSON.stringify({
-          platform: existingLogin.platform,
-          clientName: existingLogin.client?.companyName || "N/A (Admin)",
-          username: existingLogin.username,
-        }),
-      },
+    await db.insert(loginAuditLog).values({
+      id: createId(),
+      action: "delete",
+      loginId: id,
+      userId: userId,
+      details: JSON.stringify({
+        platform: existingLogin.platform,
+        clientName: existingLogin.client?.companyName || "N/A (Admin)",
+        username: existingLogin.username,
+      }),
     });
 
     // Delete the login
-    await prisma.socialLogin.delete({
-      where: { id },
-    });
+    await db.delete(socialLogin).where(eq(socialLogin.id, id));
 
     return NextResponse.json({ success: true });
   } catch (error) {

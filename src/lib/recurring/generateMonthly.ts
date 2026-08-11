@@ -251,7 +251,16 @@
 //   return { created: creates.length };
 // }
 
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import {
+  task as taskTable,
+  client as clientTable,
+  monthlyDeliverable as monthlyDeliverableTable,
+  recurringTask as recurringTaskTable,
+  monthlyRun as monthlyRunTable,
+} from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq } from "drizzle-orm";
 import { createTaskOutputFolder, getS3, BUCKET } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 
@@ -369,9 +378,7 @@ async function createTaskFolderStructure(
 
 export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDeliverableId?: string) {
   // STEP 1 — Fetch template task
-  const templateTask = await prisma.task.findUnique({
-    where: { id: taskId },
-  });
+  const [templateTask] = await db.select().from(taskTable).where(eq(taskTable.id, taskId)).limit(1);
 
   if (!templateTask || !templateTask.clientId || !templateTask.dueDate) {
     return { created: 0, error: "Invalid template task" };
@@ -380,17 +387,23 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   const clientId = templateTask.clientId;
 
   // STEP 2 — Fetch client + deliverable
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    include: { monthlyDeliverables: true },
+  const client = await db.query.client.findFirst({
+    where: eq(clientTable.id, clientId),
+    with: { monthlyDeliverables: true },
   });
 
-  const deliverable = await prisma.monthlyDeliverable.findFirst({
-    where: {
-      id: monthlyDeliverableId,
-      clientId: clientId,
-    },
-  });
+  // Preserves Prisma's undefined-filter semantics: when monthlyDeliverableId
+  // is undefined, Prisma dropped that condition entirely (matching the first
+  // deliverable for the client), rather than matching nothing.
+  const deliverableConditions = [eq(monthlyDeliverableTable.clientId, clientId)];
+  if (monthlyDeliverableId !== undefined) {
+    deliverableConditions.push(eq(monthlyDeliverableTable.id, monthlyDeliverableId));
+  }
+  const [deliverable] = await db
+    .select()
+    .from(monthlyDeliverableTable)
+    .where(and(...deliverableConditions))
+    .limit(1);
 
   if (!deliverable) {
     console.error("❌ Deliverable not found for ID:", monthlyDeliverableId);
@@ -470,7 +483,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   const companyName = client?.companyName || client.name;
   const companyNameSlug = (client?.companyName || client.name).replace(/\s/g, '');
   const deliverableSlug = getDeliverableShortCode(deliverable.type);
-  const createdAtStr = formatDateMMDDYYYY(templateTask.createdAt);
+  const createdAtStr = formatDateMMDDYYYY(new Date(templateTask.createdAt));
 
   // STEP 6 — Update template task with title and folder (Task #1)
   let count = 1;
@@ -483,35 +496,29 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   // 🔥 FIX: Tag the template task with recurringMonth so duplicate prevention works
   const recurringMonthLabel = `${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, "0")}`;
 
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      title: title1,
-      outputFolderId: taskFolderPath1,
-      recurringMonth: recurringMonthLabel,
-      monthFolder,
-      deliverableType: deliverableSlug,
-      requiresClientReview: client.requiresClientReview,
-    },
-  });
+  await db.update(taskTable).set({
+    title: title1,
+    outputFolderId: taskFolderPath1,
+    recurringMonth: recurringMonthLabel,
+    monthFolder,
+    deliverableType: deliverableSlug,
+    requiresClientReview: client.requiresClientReview,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(taskTable.id, taskId));
 
   // ─────────────────────────────────────────
   // 🔥 ENSURE RECURRING TASK TRACKER IS UPDATED
   // ─────────────────────────────────────────
-  const existingRecurring = await prisma.recurringTask.findFirst({
-    where: {
-      clientId: clientId,
-      deliverableId: deliverable.id,
-    },
-  });
+  const [existingRecurring] = await db
+    .select()
+    .from(recurringTaskTable)
+    .where(and(eq(recurringTaskTable.clientId, clientId), eq(recurringTaskTable.deliverableId, deliverable.id)))
+    .limit(1);
 
   if (existingRecurring) {
-    await prisma.recurringTask.update({
-      where: { id: existingRecurring.id },
-      data: {
-        templateTaskId: taskId, // Update to the newest blueprint
-      },
-    });
+    await db.update(recurringTaskTable).set({
+      templateTaskId: taskId, // Update to the newest blueprint
+    }).where(eq(recurringTaskTable.id, existingRecurring.id));
     console.log(`✅ Updated existing RecurringTask ${existingRecurring.id} with new template ${taskId}`);
   } else {
     // Determine next month's start for the tracker
@@ -520,16 +527,15 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     const nextYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
     const nextRunDate = new Date(nextYear, nextMonth, 1);
 
-    const newRecurring = await prisma.recurringTask.create({
-      data: {
-        clientId: clientId,
-        deliverableId: deliverable.id,
-        templateTaskId: taskId,
-        active: true,
-        nextRunDate: nextRunDate,
-        scheduleType: deliverable.postingSchedule || "monthly",
-      },
-    });
+    const [newRecurring] = await db.insert(recurringTaskTable).values({
+      id: createId(),
+      clientId: clientId,
+      deliverableId: deliverable.id,
+      templateTaskId: taskId,
+      active: true,
+      nextRunDate: nextRunDate.toISOString(),
+      scheduleType: deliverable.postingSchedule || "monthly",
+    }).returning();
     console.log(`✅ Created NEW RecurringTask ${newRecurring.id} for deliverable ${deliverable.id}`);
   }
   console.log(`✅ Template task (#1) updated: ${title1}`);
@@ -552,28 +558,28 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
       const taskFolderPath = await createTaskFolderStructure(companyName, title, monthFolder);
 
       creates.push(
-        prisma.task.create({
-          data: {
-            title,
-            description: templateTask.description,
-            taskType: templateTask.taskType,
-            status: "PENDING",
-            dueDate: date,
-            outputFolderId: taskFolderPath,
-            clientId: clientId,
-            clientUserId: client?.userId,
-            assignedTo: templateTask.assignedTo,
-            createdBy: templateTask.createdBy,
-            scheduler: templateTask.scheduler,
-            videographer: templateTask.videographer,
-            qc_specialist: templateTask.qc_specialist,
-            monthlyDeliverableId: templateTask.monthlyDeliverableId,
-            // 🔥 FIX: Tag with recurringMonth so duplicate prevention works
-            recurringMonth: recurringMonthLabel,
-            monthFolder,
-            deliverableType: deliverableSlug,
-            requiresClientReview: client.requiresClientReview,
-          },
+        db.insert(taskTable).values({
+          id: createId(),
+          title,
+          description: templateTask.description,
+          taskType: templateTask.taskType,
+          status: "PENDING",
+          dueDate: date.toISOString(),
+          outputFolderId: taskFolderPath,
+          clientId: clientId,
+          clientUserId: client?.userId,
+          assignedTo: templateTask.assignedTo,
+          createdBy: templateTask.createdBy,
+          scheduler: templateTask.scheduler,
+          videographer: templateTask.videographer,
+          qcSpecialist: templateTask.qcSpecialist,
+          monthlyDeliverableId: templateTask.monthlyDeliverableId,
+          // 🔥 FIX: Tag with recurringMonth so duplicate prevention works
+          recurringMonth: recurringMonthLabel,
+          monthFolder,
+          deliverableType: deliverableSlug,
+          requiresClientReview: client.requiresClientReview,
+          updatedAt: new Date().toISOString(),
         })
       );
 
@@ -596,13 +602,12 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   // 📝 LOG THE SUCCESSFUL RUN
   try {
     const runDate = new Date(templateTask.dueDate);
-    await prisma.monthlyRun.create({
-      data: {
-        clientId: clientId,
-        month: runDate.getMonth() + 1, // 1-based month
-        year: runDate.getFullYear(),
-        runAt: new Date(),
-      },
+    await db.insert(monthlyRunTable).values({
+      id: createId(),
+      clientId: clientId,
+      month: runDate.getMonth() + 1, // 1-based month
+      year: runDate.getFullYear(),
+      runAt: new Date().toISOString(),
     });
     console.log(`📊 Logged MonthlyRun for ${clientId} (${runDate.getMonth() + 1}/${runDate.getFullYear()})`);
   } catch (error) {

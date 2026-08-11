@@ -4,7 +4,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { file as fileTable, task as taskTable, client as clientTable } from '@/lib/db/schema';
+import { and, eq, isNull, lt, like, desc } from 'drizzle-orm';
 
 type DriveMirrorCallbackToken = {
   purpose: 'drive-mirror-complete';
@@ -44,20 +46,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Check the file record exists before trying to update
-    const existing = await prisma.file.findUnique({
-      where: { id: fileRecordId },
-      select: { id: true, reviewDriveUrl: true },
-    });
+    const [existing] = await db.select({ id: fileTable.id, reviewDriveUrl: fileTable.reviewDriveUrl })
+      .from(fileTable).where(eq(fileTable.id, fileRecordId)).limit(1);
 
     if (!existing) {
       console.error(`[Drive Mirror CB] File record not found: ${fileRecordId}`);
       return NextResponse.json({ error: 'File record not found' }, { status: 404 });
     }
 
-    await prisma.file.update({
-      where: { id: fileRecordId },
-      data: { reviewDriveUrl },
-    });
+    await db.update(fileTable).set({ reviewDriveUrl }).where(eq(fileTable.id, fileRecordId));
 
     console.log(`✅ [Drive Mirror CB] File ${fileRecordId} updated with Drive URL${driveFileId ? ` (${driveFileId})` : ''}`);
     return NextResponse.json({ ok: true });
@@ -79,24 +76,29 @@ export async function GET(req: NextRequest) {
 
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
 
-  const missing = await prisma.file.findMany({
-    where: {
-      reviewDriveUrl: null,
-      mimeType: { startsWith: 'video/' },
-      createdAt: { lt: tenMinutesAgo },
-      task: { requiresClientReview: true },
+  // Nested `task: { requiresClientReview: true }` filter requires a join
+  // (drizzle relational queries can't filter on a related table's columns).
+  const missing = await db.select({
+    id: fileTable.id,
+    name: fileTable.name,
+    s3Key: fileTable.s3Key,
+    createdAt: fileTable.createdAt,
+    taskId: fileTable.taskId,
+    task: {
+      title: taskTable.title,
+      client: { companyName: clientTable.companyName },
     },
-    select: {
-      id: true,
-      name: true,
-      s3Key: true,
-      createdAt: true,
-      taskId: true,
-      task: { select: { title: true, client: { select: { companyName: true } } } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
+  }).from(fileTable)
+    .innerJoin(taskTable, eq(fileTable.taskId, taskTable.id))
+    .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
+    .where(and(
+      isNull(fileTable.reviewDriveUrl),
+      like(fileTable.mimeType, 'video/%'),
+      lt(fileTable.createdAt, tenMinutesAgo.toISOString()),
+      eq(taskTable.requiresClientReview, true),
+    ))
+    .orderBy(desc(fileTable.createdAt))
+    .limit(50);
 
   return NextResponse.json({
     count: missing.length,

@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task, shareableReview } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, or, isNull, gt, desc } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 
 function getTokenFromCookies(req: Request) {
@@ -36,18 +39,18 @@ export async function POST(
         console.log('⏳ Expiration (days):', expiresInDays);
 
         // Verify the task exists and user has access
-        const task = await prisma.task.findUnique({
-            where: { id: taskId },
-            include: {
+        const foundTask = await db.query.task.findFirst({
+            where: eq(task.id, taskId),
+            with: {
                 client: true,
                 files: {
-                    where: { isActive: true },
-                    orderBy: { createdAt: 'desc' }
+                    where: (f, { eq }) => eq(f.isActive, true),
+                    orderBy: (f, { desc }) => desc(f.createdAt),
                 }
             }
         });
 
-        if (!task) {
+        if (!foundTask) {
             return NextResponse.json({ error: 'Task not found' }, { status: 404 });
         }
 
@@ -69,16 +72,16 @@ export async function POST(
         }
 
         console.log('💾 Saving ShareableReview to database...');
-        const shareableReview = await prisma.shareableReview.create({
-            data: {
-                taskId,
-                shareToken,
-                createdBy: Number(decoded.userId),
-                expiresAt,
-                isActive: true,
-            }
-        });
-        console.log('✅ ShareableReview created:', shareableReview.id);
+        const [createdShareableReview] = await db.insert(shareableReview).values({
+            id: createId(),
+            taskId,
+            shareToken,
+            createdBy: Number(decoded.userId),
+            expiresAt: expiresAt ? expiresAt.toISOString() : null,
+            isActive: true,
+            updatedAt: new Date().toISOString(),
+        }).returning();
+        console.log('✅ ShareableReview created:', createdShareableReview.id);
 
         // 🔥 Audit share link generation
         const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
@@ -140,17 +143,11 @@ export async function GET(
         }
 
         // Get all active share links for this task
-        const shareLinks = await prisma.shareableReview.findMany({
-            where: {
-                taskId,
-                isActive: true,
-                OR: [
-                    { expiresAt: null },
-                    { expiresAt: { gt: new Date() } }
-                ]
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        const shareLinks = await db.select().from(shareableReview).where(and(
+            eq(shareableReview.taskId, taskId),
+            eq(shareableReview.isActive, true),
+            or(isNull(shareableReview.expiresAt), gt(shareableReview.expiresAt, new Date().toISOString())),
+        )).orderBy(desc(shareableReview.createdAt));
 
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.headers.get('origin') || 'http://localhost:3000';
 
@@ -201,15 +198,10 @@ export async function DELETE(
         }
 
         // Deactivate the share link
-        await prisma.shareableReview.updateMany({
-            where: {
-                taskId,
-                shareToken,
-            },
-            data: {
-                isActive: false
-            }
-        });
+        await db.update(shareableReview).set({
+            isActive: false,
+            updatedAt: new Date().toISOString(),
+        }).where(and(eq(shareableReview.taskId, taskId), eq(shareableReview.shareToken, shareToken)));
 
         // 🔥 Audit share link deactivation
         const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');

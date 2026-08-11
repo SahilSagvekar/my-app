@@ -1,6 +1,13 @@
 // src/lib/titling-service.ts
 
-import { prisma } from './prisma';
+import { db } from './db';
+import {
+  task as taskTable,
+  file as fileTable,
+  titlingJob as titlingJobTable,
+} from './db/schema';
+import { createId } from './db/id';
+import { and, eq, desc, like, lt, sql } from 'drizzle-orm';
 import { submitVideoForTranscription, getTranscription } from './assemblyai';
 import { generateTitlesFromTranscript, GeneratedTitle } from './ai-titling';
 
@@ -23,16 +30,13 @@ export async function startTitlingJob(taskId: string): Promise<{ jobId: string; 
   console.log(`\n🎬 Starting titling job for task: ${taskId}`);
 
   // 1. Get task with files
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: {
+  const task = await db.query.task.findFirst({
+    where: eq(taskTable.id, taskId),
+    with: {
       files: {
-        where: {
-          isActive: true,
-          mimeType: { startsWith: 'video/' },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
+        where: and(eq(fileTable.isActive, true), like(fileTable.mimeType, 'video/%')),
+        orderBy: [desc(fileTable.createdAt)],
+        limit: 1,
       },
       client: true,
       monthlyDeliverable: true,
@@ -59,16 +63,18 @@ export async function startTitlingJob(taskId: string): Promise<{ jobId: string; 
   console.log(`   Video source: ${videoSource}`);
 
   // 3. Determine platform from deliverable or default
-  // const platform = task.platform || 
-  //   (task.monthlyDeliverable?.platforms?.[0] as any) || 
+  // const platform = task.platform ||
+  //   (task.monthlyDeliverable?.platforms?.[0] as any) ||
   //   'youtube';
 
   const platform = 'general';
 
   // 4. Check for existing job
-  const existingJob = await prisma.titlingJob.findUnique({
-    where: { taskId },
-  });
+  const [existingJob] = await db
+    .select()
+    .from(titlingJobTable)
+    .where(eq(titlingJobTable.taskId, taskId))
+    .limit(1);
 
   if (existingJob && existingJob.status === 'PROCESSING') {
     console.log(`   ⚠️ Job already processing: ${existingJob.id}`);
@@ -83,35 +89,40 @@ export async function startTitlingJob(taskId: string): Promise<{ jobId: string; 
   console.log(`   AssemblyAI transcript ID: ${transcriptId}`);
 
   // 6. Create or update job record
-  const job = await prisma.titlingJob.upsert({
-    where: { taskId },
-    create: {
+  const now = new Date().toISOString();
+  const [job] = await db
+    .insert(titlingJobTable)
+    .values({
+      id: createId(),
       taskId,
       status: 'PROCESSING',
       assemblyId: transcriptId,
       videoFileId: videoFile.id,
       videoFileName: videoFile.name,
-      startedAt: new Date(),
-    },
-    update: {
-      status: 'PROCESSING',
-      assemblyId: transcriptId,
-      videoFileId: videoFile.id,
-      videoFileName: videoFile.name,
-      startedAt: new Date(),
-      error: null,
-      attempts: { increment: 1 },
-    },
-  });
+      startedAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: titlingJobTable.taskId,
+      set: {
+        status: 'PROCESSING',
+        assemblyId: transcriptId,
+        videoFileId: videoFile.id,
+        videoFileName: videoFile.name,
+        startedAt: now,
+        error: null,
+        attempts: sql`${titlingJobTable.attempts} + 1`,
+        updatedAt: now,
+      },
+    })
+    .returning();
 
   // 7. Update task status
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      titlingStatus: 'PROCESSING',
-      platform,
-    },
-  });
+  await db.update(taskTable).set({
+    titlingStatus: 'PROCESSING',
+    platform,
+    updatedAt: now,
+  }).where(eq(taskTable.id, taskId));
 
   console.log(`   ✅ Job created: ${job.id}`);
 
@@ -129,11 +140,11 @@ export async function completeTitlingJob(
   console.log(`\n📝 Completing titling job for AssemblyAI ID: ${assemblyId}`);
 
   // 1. Find the job
-  const job = await prisma.titlingJob.findFirst({
-    where: { assemblyId },
-    include: {
+  const job = await db.query.titlingJob.findFirst({
+    where: eq(titlingJobTable.assemblyId, assemblyId),
+    with: {
       task: {
-        include: {
+        with: {
           monthlyDeliverable: true,
         },
       },
@@ -155,13 +166,13 @@ export async function completeTitlingJob(
 
   try {
     // 2. Determine platform
-    const platform = job.task.platform || 
-      (job.task.monthlyDeliverable?.platforms?.[0] as any) || 
+    const platform = job.task.platform ||
+      (job.task.monthlyDeliverable?.platforms?.[0] as any) ||
       'youtube';
 
     // 3. Generate titles using AI API
     console.log(`   🤖 Generating titles for platform: ${platform}`);
-    
+
     const titleResult = await generateTitlesFromTranscript({
       transcript,
       platform,
@@ -174,26 +185,22 @@ export async function completeTitlingJob(
     }
 
     // 4. Update task with results
-    await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        transcript,
-        transcriptSummary: titleResult.transcript_summary,
-        suggestedTitles: titleResult.generated_titles as any,
-        titlingStatus: 'COMPLETED',
-        titlingError: null,
-      },
-    });
+    await db.update(taskTable).set({
+      transcript,
+      transcriptSummary: titleResult.transcript_summary,
+      suggestedTitles: titleResult.generated_titles as any,
+      titlingStatus: 'COMPLETED',
+      titlingError: null,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(taskTable.id, taskId));
 
     // 5. Update job status
-    await prisma.titlingJob.update({
-      where: { id: job.id },
-      data: {
-        status: 'COMPLETED',
-        completedAt: new Date(),
-        videoDuration: audioDuration ? Math.round(audioDuration) : null,
-      },
-    });
+    await db.update(titlingJobTable).set({
+      status: 'COMPLETED',
+      completedAt: new Date().toISOString(),
+      videoDuration: audioDuration ? Math.round(audioDuration) : null,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(titlingJobTable.id, job.id));
 
     console.log(`   ✅ Titling completed! Generated ${titleResult.generated_titles?.length || 0} titles`);
 
@@ -209,22 +216,18 @@ export async function completeTitlingJob(
     console.error(`   ❌ Error completing titling job:`, error.message);
 
     // Update job with error
-    await prisma.titlingJob.update({
-      where: { id: job.id },
-      data: {
-        status: 'FAILED',
-        error: error.message,
-      },
-    });
+    await db.update(titlingJobTable).set({
+      status: 'FAILED',
+      error: error.message,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(titlingJobTable.id, job.id));
 
     // Update task status
-    await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        titlingStatus: 'FAILED',
-        titlingError: error.message,
-      },
-    });
+    await db.update(taskTable).set({
+      titlingStatus: 'FAILED',
+      titlingError: error.message,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(taskTable.id, taskId));
 
     return {
       success: false,
@@ -241,30 +244,28 @@ export async function failTitlingJob(assemblyId: string, error: string): Promise
   console.log(`\n❌ Failing titling job for AssemblyAI ID: ${assemblyId}`);
   console.log(`   Error: ${error}`);
 
-  const job = await prisma.titlingJob.findFirst({
-    where: { assemblyId },
-  });
+  const [job] = await db
+    .select()
+    .from(titlingJobTable)
+    .where(eq(titlingJobTable.assemblyId, assemblyId))
+    .limit(1);
 
   if (!job) {
     console.error(`   Job not found for AssemblyAI ID: ${assemblyId}`);
     return;
   }
 
-  await prisma.titlingJob.update({
-    where: { id: job.id },
-    data: {
-      status: 'FAILED',
-      error,
-    },
-  });
+  await db.update(titlingJobTable).set({
+    status: 'FAILED',
+    error,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(titlingJobTable.id, job.id));
 
-  await prisma.task.update({
-    where: { id: job.taskId },
-    data: {
-      titlingStatus: 'FAILED',
-      titlingError: error,
-    },
-  });
+  await db.update(taskTable).set({
+    titlingStatus: 'FAILED',
+    titlingError: error,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(taskTable.id, job.taskId));
 }
 
 /**
@@ -274,13 +275,11 @@ export async function retryTitlingJob(taskId: string): Promise<{ jobId: string; 
   console.log(`\n🔄 Retrying titling job for task: ${taskId}`);
 
   // Reset task status
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      titlingStatus: 'PENDING',
-      titlingError: null,
-    },
-  });
+  await db.update(taskTable).set({
+    titlingStatus: 'PENDING',
+    titlingError: null,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(taskTable.id, taskId));
 
   // Start fresh
   return startTitlingJob(taskId);
@@ -290,16 +289,21 @@ export async function retryTitlingJob(taskId: string): Promise<{ jobId: string; 
  * Get titling status for a task
  */
 export async function getTitlingStatus(taskId: string) {
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: {
+  const task = await db.query.task.findFirst({
+    where: eq(taskTable.id, taskId),
+    columns: {
       titlingStatus: true,
       titlingError: true,
       transcript: true,
       transcriptSummary: true,
       suggestedTitles: true,
-      titlingJob: {
-        select: {
+    },
+    with: {
+      // NOTE: TitlingJob has a unique index on taskId (true 1:1), but
+      // drizzle-kit introspection labels the reverse relation `many()` —
+      // fetch as a list and take the first entry (see CLAUDE.md pitfall #3).
+      titlingJobs: {
+        columns: {
           id: true,
           status: true,
           assemblyId: true,
@@ -312,7 +316,10 @@ export async function getTitlingStatus(taskId: string) {
     },
   });
 
-  return task;
+  if (!task) return null;
+
+  const { titlingJobs, ...rest } = task;
+  return { ...rest, titlingJob: titlingJobs[0] ?? null };
 }
 
 /**
@@ -324,14 +331,15 @@ export async function checkStuckJobs(): Promise<number> {
   const now = new Date();
 
   // Find jobs that have been processing for too long
-  const stuckJobs = await prisma.titlingJob.findMany({
-    where: {
-      status: 'PROCESSING',
-      startedAt: {
-        lt: new Date(now.getTime() - STUCK_THRESHOLD_MS),
-      },
-    },
-  });
+  const stuckJobs = await db
+    .select()
+    .from(titlingJobTable)
+    .where(
+      and(
+        eq(titlingJobTable.status, 'PROCESSING'),
+        lt(titlingJobTable.startedAt, new Date(now.getTime() - STUCK_THRESHOLD_MS).toISOString()),
+      )
+    );
 
   console.log(`\n🔍 Found ${stuckJobs.length} stuck jobs`);
 
@@ -340,7 +348,7 @@ export async function checkStuckJobs(): Promise<number> {
       // Check actual status with AssemblyAI
       if (job.assemblyId) {
         const result = await getTranscription(job.assemblyId);
-        
+
         if (result.status === 'completed' && result.text) {
           // Webhook missed, complete manually
           console.log(`   Completing missed job: ${job.id}`);

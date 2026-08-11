@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesDashboardColumn } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -20,21 +22,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     if (!decoded?.userId) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
-    const existing = await prisma.salesDashboardColumn.findFirst({
-      where: { id, userId: decoded.userId }
-    });
+    const [existing] = await db.select().from(salesDashboardColumn)
+      .where(and(eq(salesDashboardColumn.id, id), eq(salesDashboardColumn.userId, decoded.userId)))
+      .limit(1);
     if (!existing) return NextResponse.json({ ok: false, message: 'Not found' }, { status: 404 });
 
     const body = await req.json();
-    const column = await prisma.salesDashboardColumn.update({
-      where: { id },
-      data: {
-        label: body.label ?? existing.label,
-        width: body.width ?? existing.width,
-        order: body.order ?? existing.order,
-        isVisible: body.isVisible !== undefined ? body.isVisible : existing.isVisible,
-      }
-    });
+    const [column] = await db.update(salesDashboardColumn).set({
+      label: body.label ?? existing.label,
+      width: body.width ?? existing.width,
+      order: body.order ?? existing.order,
+      isVisible: body.isVisible !== undefined ? body.isVisible : existing.isVisible,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(salesDashboardColumn.id, id)).returning();
 
     return NextResponse.json({ ok: true, column });
   } catch (err) {
@@ -53,12 +53,12 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     if (!decoded?.userId) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
-    const existing = await prisma.salesDashboardColumn.findFirst({
-      where: { id, userId: decoded.userId }
-    });
+    const [existing] = await db.select().from(salesDashboardColumn)
+      .where(and(eq(salesDashboardColumn.id, id), eq(salesDashboardColumn.userId, decoded.userId)))
+      .limit(1);
     if (!existing || !existing.isCustom) return NextResponse.json({ ok: false, message: 'Cannot delete core column' }, { status: 400 });
 
-    await prisma.salesDashboardColumn.delete({ where: { id } });
+    await db.delete(salesDashboardColumn).where(eq(salesDashboardColumn.id, id));
 
     return NextResponse.json({ ok: true });
   } catch (err) {

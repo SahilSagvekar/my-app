@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { asc, eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 // GET - List every active client with their recurring auto-invoice settings
@@ -13,15 +16,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, message: authError.error }, { status: authError.status });
     }
 
-    const clients = await prisma.client.findMany({
-      where: { status: 'active' },
-      select: {
-        id: true,
-        name: true,
-        companyName: true,
-        email: true,
-        portalAccess: {
-          select: {
+    const clients = await db.query.client.findMany({
+      where: eq(clientTable.status, 'active'),
+      columns: { id: true, name: true, companyName: true, email: true },
+      with: {
+        clientPortalAccesses: {
+          columns: {
             id: true,
             status: true,
             autoInvoiceActive: true,
@@ -33,21 +33,26 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: asc(clientTable.name),
     });
 
-    const rows = clients.map((c) => ({
-      clientId: c.id,
-      name: c.name,
-      companyName: c.companyName,
-      email: c.email,
-      portalStatus: c.portalAccess?.status ?? null,
-      autoInvoiceActive: c.portalAccess?.autoInvoiceActive ?? false,
-      recurringAmount: c.portalAccess?.recurringAmount ?? null, // cents
-      recurringDescription: c.portalAccess?.recurringDescription ?? '',
-      dueDays: c.portalAccess?.dueDays ?? 15,
-      nextBillingDate: c.portalAccess?.nextBillingDate ?? null,
-    }));
+    const rows = clients.map((c) => {
+      // clientPortalAccess has a unique clientId FK (1:1), but drizzle-kit
+      // introspection mislabels it many() — take the first (only) entry.
+      const portalAccess = c.clientPortalAccesses[0];
+      return {
+        clientId: c.id,
+        name: c.name,
+        companyName: c.companyName,
+        email: c.email,
+        portalStatus: portalAccess?.status ?? null,
+        autoInvoiceActive: portalAccess?.autoInvoiceActive ?? false,
+        recurringAmount: portalAccess?.recurringAmount ?? null, // cents
+        recurringDescription: portalAccess?.recurringDescription ?? '',
+        dueDays: portalAccess?.dueDays ?? 15,
+        nextBillingDate: portalAccess?.nextBillingDate ?? null,
+      };
+    });
 
     return NextResponse.json({ ok: true, rows });
   } catch (error: any) {
@@ -88,18 +93,19 @@ export async function PATCH(req: NextRequest) {
         recurringAmount: amountCents,
         recurringDescription: recurringDescription || null,
         dueDays: dueDays ? parseInt(dueDays, 10) : 15,
-        ...(nextBillingDate ? { nextBillingDate: new Date(nextBillingDate) } : {}),
+        ...(nextBillingDate ? { nextBillingDate: new Date(nextBillingDate).toISOString() } : {}),
+        updatedAt: new Date().toISOString(),
       };
 
-      const updated = await prisma.clientPortalAccess.upsert({
-        where: { clientId },
-        update: data,
-        create: {
-          clientId,
-          status: 'ACTIVE',
-          ...data,
-        },
-      });
+      const [updated] = await db.insert(clientPortalAccessTable).values({
+        id: createId(),
+        clientId,
+        status: 'ACTIVE',
+        ...data,
+      }).onConflictDoUpdate({
+        target: clientPortalAccessTable.clientId,
+        set: data,
+      }).returning();
 
       results.push({ clientId, id: updated.id });
     }

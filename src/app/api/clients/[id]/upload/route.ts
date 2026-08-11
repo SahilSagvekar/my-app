@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { brandAsset } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
 import { uploadBufferToS3 } from "@/lib/s3";
 
 export async function POST(
@@ -25,20 +27,19 @@ export async function POST(
       mimeType: file.type,
     });
 
-    const asset = await prisma.brandAsset.create({
-      data: {
-        clientId: id,
-        name: file.name.split(".")[0],
-        type: file.type.includes("image")
-          ? "logo"
-          : "other",
-        fileUrl: uploaded.url,
-        fileName: file.name,
-        fileSize: `${Math.round(file.size / 1024)} KB`,
-        uploadedAt: new Date(),
-        uploadedBy: "System",
-      },
-    });
+    const [asset] = await db.insert(brandAsset).values({
+      id: createId(),
+      clientId: id,
+      name: file.name.split(".")[0],
+      type: file.type.includes("image")
+        ? "logo"
+        : "other",
+      fileUrl: uploaded.url,
+      fileName: file.name,
+      fileSize: `${Math.round(file.size / 1024)} KB`,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: "System",
+    }).returning();
 
     return NextResponse.json({ success: true, asset });
   } catch (err) {

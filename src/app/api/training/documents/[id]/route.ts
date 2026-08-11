@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from '@/lib/db';
+import { trainingDocument } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from "@/lib/auth";
 import { deleteFromS3 } from "@/lib/s3";
 
@@ -35,17 +37,17 @@ export async function PATCH(
     if (typeof order === "number" && !isNaN(order)) updateData.order = order;
     if (role && isTrainingRole(role)) updateData.role = role;
 
-    const document = await prisma.trainingDocument.update({
-      where: { id },
-      data: updateData,
-    });
+    const [document] = await db.update(trainingDocument).set({
+      ...updateData,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(trainingDocument.id, id)).returning();
+
+    if (!document) {
+      return NextResponse.json({ error: "Training document not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ document });
   } catch (err: unknown) {
-    const e = err as { code?: string };
-    if (e?.code === "P2025") {
-      return NextResponse.json({ error: "Training document not found" }, { status: 404 });
-    }
     console.error("PATCH /api/training/documents/[id] error:", err);
     return NextResponse.json({ error: "Failed to update training document" }, { status: 500 });
   }
@@ -67,12 +69,12 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const document = await prisma.trainingDocument.findUnique({ where: { id } });
+    const [document] = await db.select().from(trainingDocument).where(eq(trainingDocument.id, id)).limit(1);
     if (!document) {
       return NextResponse.json({ error: "Training document not found" }, { status: 404 });
     }
 
-    await prisma.trainingDocument.delete({ where: { id } });
+    await db.delete(trainingDocument).where(eq(trainingDocument.id, id));
 
     // Best-effort cleanup of the actual R2 object — don't fail the request
     // if this errors, the DB record is already gone.
@@ -82,10 +84,6 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
-    const e = err as { code?: string };
-    if (e?.code === "P2025") {
-      return NextResponse.json({ error: "Training document not found" }, { status: 404 });
-    }
     console.error("DELETE /api/training/documents/[id] error:", err);
     return NextResponse.json({ error: "Failed to delete training document" }, { status: 500 });
   }

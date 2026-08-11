@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { invoice, stripeCustomer as stripeCustomerTable, client as clientTable, task } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, inArray, isNotNull, desc, count as countFn } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import { resolveClientIdForUser } from '@/lib/auth';
 import { 
@@ -29,11 +32,11 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Build where clause
-    const where: any = {};
+    const conditions: any[] = [];
 
     // Check if user is a client - need to fetch from DB since linkedClientId isn't in JWT
     const isClientRole = currentUser.role === 'client' || currentUser.role === 'CLIENT';
-    
+
     if (isClientRole) {
       const resolvedClientId = await resolveClientIdForUser(currentUser.userId || currentUser.id);
 
@@ -43,23 +46,19 @@ export async function GET(req: NextRequest) {
       }
 
       // Get the stripe customer for this client
-      const stripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId: resolvedClientId },
-      });
+      const [foundStripeCustomer] = await db.select().from(stripeCustomerTable).where(eq(stripeCustomerTable.clientId, resolvedClientId)).limit(1);
 
-      if (stripeCustomer) {
-        where.stripeCustomerId = stripeCustomer.id;
+      if (foundStripeCustomer) {
+        conditions.push(eq(invoice.stripeCustomerId, foundStripeCustomer.id));
       } else {
         // No stripe customer for this client - return empty
         return NextResponse.json({ ok: true, invoices: [], total: 0 });
       }
     } else if (clientId) {
       // Admin/manager filtering by specific client
-      const stripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId },
-      });
-      if (stripeCustomer) {
-        where.stripeCustomerId = stripeCustomer.id;
+      const [foundStripeCustomer] = await db.select().from(stripeCustomerTable).where(eq(stripeCustomerTable.clientId, clientId)).limit(1);
+      if (foundStripeCustomer) {
+        conditions.push(eq(invoice.stripeCustomerId, foundStripeCustomer.id));
       } else {
         // No stripe customer for this client - return empty (not all invoices!)
         return NextResponse.json({ ok: true, invoices: [], total: 0 });
@@ -68,33 +67,36 @@ export async function GET(req: NextRequest) {
     // Note: If no clientId provided and user is admin, returns all invoices (for admin dashboard)
 
     if (status) {
-      where.status = status;
+      conditions.push(eq(invoice.status, status as any));
     }
 
-    const [invoices, total] = await Promise.all([
-      prisma.invoice.findMany({
+    const where = conditions.length ? and(...conditions) : undefined;
+
+    const [rawInvoices, [{ value: total }]] = await Promise.all([
+      db.query.invoice.findMany({
         where,
-        include: {
+        with: {
           stripeCustomer: {
-            include: {
+            with: {
               client: {
-                select: { id: true, name: true, companyName: true, email: true },
+                columns: { id: true, name: true, companyName: true, email: true },
               },
             },
           },
-          creator: {
-            select: { id: true, name: true },
+          user: {
+            columns: { id: true, name: true },
           },
           payments: {
-            orderBy: { createdAt: 'desc' },
+            orderBy: (p, { desc }) => desc(p.createdAt),
           },
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
+        orderBy: desc(invoice.createdAt),
+        offset: skip,
+        limit,
       }),
-      prisma.invoice.count({ where }),
+      db.select({ value: countFn() }).from(invoice).where(where),
     ]);
+    const invoices = rawInvoices.map(({ user: creator, ...inv }: any) => ({ ...inv, creator }));
 
     return NextResponse.json({
       ok: true,
@@ -139,10 +141,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Get client
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { id: true, name: true, companyName: true, email: true },
-    });
+    const [client] = await db.select({ id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName, email: clientTable.email })
+      .from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
 
     if (!client) {
       return NextResponse.json({ ok: false, message: 'Client not found' }, { status: 404 });
@@ -156,9 +156,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Get our StripeCustomer record
-    const dbStripeCustomer = await prisma.stripeCustomer.findUnique({
-      where: { stripeCustomerId: stripeCustomer.id },
-    });
+    const [dbStripeCustomer] = await db.select().from(stripeCustomerTable).where(eq(stripeCustomerTable.stripeCustomerId, stripeCustomer.id)).limit(1);
 
     if (!dbStripeCustomer) {
       return NextResponse.json({ ok: false, message: 'Failed to create customer' }, { status: 500 });
@@ -250,29 +248,33 @@ export async function POST(req: NextRequest) {
     }
 
     // Create invoice in our database
-    const invoice = await prisma.invoice.create({
-      data: {
-        stripeCustomerId: dbStripeCustomer.id,
-        stripeInvoiceId,
-        invoiceNumber,
-        status: sendImmediately ? 'SENT' : 'DRAFT',
-        amount: finalTotalAmount,
-        currency: 'usd',
-        dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        description,
-        lineItems: finalLineItems,
-        notes,
-        stripeHostedInvoiceUrl,
-        stripePdfUrl,
-        createdBy: currentUser.userId,
-        sentAt: sendImmediately ? new Date() : null,
-        metadata: invoiceType === 'ONE_OFF' ? { invoiceType: 'ONE_OFF', taskIds } : undefined,
-      },
-      include: {
+    const [createdInvoiceRow] = await db.insert(invoice).values({
+      id: createId(),
+      stripeCustomerId: dbStripeCustomer.id,
+      stripeInvoiceId,
+      invoiceNumber,
+      status: sendImmediately ? 'SENT' : 'DRAFT',
+      amount: finalTotalAmount,
+      currency: 'usd',
+      dueDate: (dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).toISOString(),
+      description,
+      lineItems: finalLineItems,
+      notes,
+      stripeHostedInvoiceUrl,
+      stripePdfUrl,
+      createdBy: currentUser.userId,
+      sentAt: sendImmediately ? new Date().toISOString() : null,
+      metadata: invoiceType === 'ONE_OFF' ? { invoiceType: 'ONE_OFF', taskIds } : undefined,
+      updatedAt: new Date().toISOString(),
+    }).returning();
+
+    const createdInvoice = await db.query.invoice.findFirst({
+      where: eq(invoice.id, createdInvoiceRow.id),
+      with: {
         stripeCustomer: {
-          include: {
+          with: {
             client: {
-              select: { id: true, name: true, companyName: true, email: true },
+              columns: { id: true, name: true, companyName: true, email: true },
             },
           },
         },
@@ -281,21 +283,19 @@ export async function POST(req: NextRequest) {
 
     // Mark tasks as billed (if any)
     if (taskIds.length > 0) {
-      await prisma.task.updateMany({
-        where: {
-          id: { in: taskIds },
-          clientId: clientId, // Security: ensure they belong to this client
-          oneOffDeliverableId: { not: null }, // Must be one-off tasks
-        },
-        data: {
-          billedAt: new Date(),
-          invoiceId: invoice.id,
-        },
-      });
+      await db.update(task).set({
+        billedAt: new Date().toISOString(),
+        invoiceId: createdInvoiceRow.id,
+        updatedAt: new Date().toISOString(),
+      }).where(and(
+        inArray(task.id, taskIds),
+        eq(task.clientId, clientId), // Security: ensure they belong to this client
+        isNotNull(task.oneOffDeliverableId), // Must be one-off tasks
+      ));
       console.log(`✅ Marked ${taskIds.length} one-off tasks as billed`);
     }
 
-    return NextResponse.json({ ok: true, invoice });
+    return NextResponse.json({ ok: true, invoice: createdInvoice });
   } catch (error: any) {
     console.error('Error creating invoice:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });

@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { portfolioJourneyClient, portfolioJourneyStep } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 // POST /api/portfolio/journey-clients/[id]/steps — admin: add a step to a client.
@@ -23,14 +26,19 @@ export async function POST(
             return NextResponse.json({ ok: false, message: 'imageUrl and caption are required' }, { status: 400 });
         }
 
-        const client = await prisma.portfolioJourneyClient.findUnique({ where: { id: clientId } });
+        const [client] = await db.select().from(portfolioJourneyClient).where(eq(portfolioJourneyClient.id, clientId)).limit(1);
         if (!client) {
             return NextResponse.json({ ok: false, message: 'Client not found' }, { status: 404 });
         }
 
-        const step = await prisma.portfolioJourneyStep.create({
-            data: { clientId, imageUrl, caption, order: order ?? 0 },
-        });
+        const [step] = await db.insert(portfolioJourneyStep).values({
+            id: createId(),
+            clientId,
+            imageUrl,
+            caption,
+            order: order ?? 0,
+            updatedAt: new Date().toISOString(),
+        }).returning();
 
         return NextResponse.json({ ok: true, step });
     } catch (err) {

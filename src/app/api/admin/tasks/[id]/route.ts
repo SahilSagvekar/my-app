@@ -1,11 +1,16 @@
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
-import { prisma } from "@/lib/prisma";
-import { TaskStatus } from "@prisma/client";
+import { db } from "@/lib/db";
+import {
+    task as taskTable,
+    user as userTable,
+    client as clientTable,
+    taskStatus as taskStatusEnum,
+} from "@/lib/db/schema";
+import { eq, inArray } from "drizzle-orm";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { notifyEditorTaskAssignment } from '@/lib/notify';
 
@@ -52,18 +57,18 @@ export async function GET(
 
         const { id } = await params;
 
-        const task = await prisma.task.findUnique({
-            where: { id },
-            include: {
-                user: {
-                    select: { id: true, name: true, email: true, role: true },
+        const rawTask = await db.query.task.findFirst({
+            where: eq(taskTable.id, id),
+            with: {
+                user_assignedTo: {
+                    columns: { id: true, name: true, email: true, role: true },
                 },
                 client: {
-                    select: { id: true, name: true, companyName: true },
+                    columns: { id: true, name: true, companyName: true },
                 },
                 monthlyDeliverable: true,
                 files: {
-                    select: {
+                    columns: {
                         id: true,
                         name: true,
                         url: true,
@@ -71,14 +76,19 @@ export async function GET(
                         size: true,
                         uploadedAt: true,
                     },
-                    orderBy: { uploadedAt: "desc" },
+                    orderBy: (f, { desc }) => desc(f.uploadedAt),
                 },
             },
         });
 
-        if (!task) {
+        if (!rawTask) {
             return NextResponse.json({ message: "Task not found" }, { status: 404 });
         }
+
+        // Rename Drizzle relation keys back to the Prisma field names this
+        // handler was written against (qc_specialist raw FK, user relation).
+        const { qcSpecialist, user_assignedTo, ...restTask } = rawTask as any;
+        const task = { ...restTask, qc_specialist: qcSpecialist, user: user_assignedTo };
 
         // Fetch team member details
         const userIds: number[] = [];
@@ -87,10 +97,9 @@ export async function GET(
         if (task.videographer) userIds.push(task.videographer);
 
         const teamMembers = userIds.length > 0
-            ? await prisma.user.findMany({
-                where: { id: { in: userIds } },
-                select: { id: true, name: true, role: true },
-            })
+            ? await db.select({ id: userTable.id, name: userTable.name, role: userTable.role })
+                .from(userTable)
+                .where(inArray(userTable.id, userIds))
             : [];
 
         const memberMap = new Map(teamMembers.map((m) => [m.id, m]));
@@ -133,10 +142,8 @@ export async function PATCH(
         const body = await req.json();
 
         // Validate task exists
-        const existingTask = await prisma.task.findUnique({
-            where: { id },
-            select: { id: true, title: true, status: true, assignedTo: true },
-        });
+        const [existingTask] = await db.select({ id: taskTable.id, title: taskTable.title, status: taskTable.status, assignedTo: taskTable.assignedTo })
+            .from(taskTable).where(eq(taskTable.id, id)).limit(1);
 
         if (!existingTask) {
             return NextResponse.json({ message: "Task not found" }, { status: 404 });
@@ -160,12 +167,12 @@ export async function PATCH(
 
         // Build update data
         const updateData: any = {
-            updatedAt: new Date(),
+            updatedAt: new Date().toISOString(),
         };
 
         // Status update
         if (status !== undefined) {
-            if (!Object.values(TaskStatus).includes(status)) {
+            if (!(taskStatusEnum.enumValues as readonly string[]).includes(status)) {
                 return NextResponse.json(
                     { message: `Invalid status: ${status}` },
                     { status: 400 }
@@ -177,7 +184,7 @@ export async function PATCH(
         // Assignment updates - validate users exist
         if (assignedTo !== undefined) {
             if (assignedTo) {
-                const user = await prisma.user.findUnique({ where: { id: assignedTo } });
+                const [user] = await db.select().from(userTable).where(eq(userTable.id, assignedTo)).limit(1);
                 if (!user) {
                     return NextResponse.json(
                         { message: `Editor not found (id: ${assignedTo})` },
@@ -190,7 +197,7 @@ export async function PATCH(
 
         if (qc_specialist !== undefined) {
             if (qc_specialist) {
-                const user = await prisma.user.findUnique({ where: { id: qc_specialist } });
+                const [user] = await db.select().from(userTable).where(eq(userTable.id, qc_specialist)).limit(1);
                 if (!user) {
                     return NextResponse.json(
                         { message: `QC Specialist not found (id: ${qc_specialist})` },
@@ -198,12 +205,12 @@ export async function PATCH(
                     );
                 }
             }
-            updateData.qc_specialist = qc_specialist;
+            updateData.qcSpecialist = qc_specialist;
         }
 
         if (scheduler !== undefined) {
             if (scheduler) {
-                const user = await prisma.user.findUnique({ where: { id: scheduler } });
+                const [user] = await db.select().from(userTable).where(eq(userTable.id, scheduler)).limit(1);
                 if (!user) {
                     return NextResponse.json(
                         { message: `Scheduler not found (id: ${scheduler})` },
@@ -216,7 +223,7 @@ export async function PATCH(
 
         if (videographer !== undefined) {
             if (videographer) {
-                const user = await prisma.user.findUnique({ where: { id: videographer } });
+                const [user] = await db.select().from(userTable).where(eq(userTable.id, videographer)).limit(1);
                 if (!user) {
                     return NextResponse.json(
                         { message: `Videographer not found (id: ${videographer})` },
@@ -229,7 +236,7 @@ export async function PATCH(
 
         // Other field updates
         if (priority !== undefined) updateData.priority = priority;
-        if (dueDate !== undefined) updateData.dueDate = new Date(dueDate);
+        if (dueDate !== undefined) updateData.dueDate = new Date(dueDate).toISOString();
         if (feedback !== undefined) updateData.feedback = feedback;
         if (qcNotes !== undefined) updateData.qcNotes = qcNotes;
         if (title !== undefined) updateData.title = title;
@@ -237,18 +244,25 @@ export async function PATCH(
         if (workflowStep !== undefined) updateData.workflowStep = workflowStep;
 
         // Perform update
-        const updatedTask = await prisma.task.update({
-            where: { id },
-            data: updateData,
-            include: {
-                user: {
-                    select: { id: true, name: true, email: true, role: true },
-                },
-                client: {
-                    select: { id: true, name: true, companyName: true },
-                },
-            },
-        });
+        const [updatedTaskRaw] = await db.update(taskTable).set(updateData).where(eq(taskTable.id, id)).returning();
+
+        const [updatedUser] = await db.select({ id: userTable.id, name: userTable.name, email: userTable.email, role: userTable.role })
+            .from(userTable).where(eq(userTable.id, updatedTaskRaw.assignedTo)).limit(1);
+        const [updatedClient] = updatedTaskRaw.clientId
+            ? await db.select({ id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName })
+                .from(clientTable).where(eq(clientTable.id, updatedTaskRaw.clientId)).limit(1)
+            : [null];
+
+        // Rename Drizzle's `qcSpecialist` schema property back to the raw
+        // Prisma field name `qc_specialist`, and attach the `user`/`client`
+        // relations the way Prisma's `include` used to.
+        const { qcSpecialist, ...restUpdatedTask } = updatedTaskRaw as any;
+        const updatedTask = {
+            ...restUpdatedTask,
+            qc_specialist: qcSpecialist,
+            user: updatedUser ?? null,
+            client: updatedClient ?? null,
+        };
 
         // Create audit log
         await createAuditLog({
@@ -310,19 +324,15 @@ export async function DELETE(
         const { id } = await params;
 
         // Validate task exists
-        const existingTask = await prisma.task.findUnique({
-            where: { id },
-            select: { id: true, title: true },
-        });
+        const [existingTask] = await db.select({ id: taskTable.id, title: taskTable.title })
+            .from(taskTable).where(eq(taskTable.id, id)).limit(1);
 
         if (!existingTask) {
             return NextResponse.json({ message: "Task not found" }, { status: 404 });
         }
 
         // Delete task (files will cascade delete due to relation)
-        await prisma.task.delete({
-            where: { id },
-        });
+        await db.delete(taskTable).where(eq(taskTable.id, id));
 
         // Create audit log
         await createAuditLog({

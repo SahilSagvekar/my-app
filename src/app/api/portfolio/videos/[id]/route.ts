@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { portfolioVideo } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 // PATCH /api/portfolio/videos/[id] — update a portfolio video
 export async function PATCH(
@@ -11,7 +13,7 @@ export async function PATCH(
         const { id } = await params;
         const body = await req.json();
 
-        const video = await prisma.portfolioVideo.findUnique({ where: { id } });
+        const [video] = await db.select().from(portfolioVideo).where(eq(portfolioVideo.id, id)).limit(1);
         if (!video) {
             return NextResponse.json(
                 { ok: false, message: 'Video not found' },
@@ -19,18 +21,16 @@ export async function PATCH(
             );
         }
 
-        const updated = await prisma.portfolioVideo.update({
-            where: { id },
-            data: {
-                ...(body.title !== undefined && { title: body.title }),
-                ...(body.description !== undefined && { description: body.description }),
-                ...(body.videoUrl !== undefined && { videoUrl: body.videoUrl }),
-                ...(body.thumbnailUrl !== undefined && { thumbnailUrl: body.thumbnailUrl }),
-                ...(body.category !== undefined && { category: body.category }),
-                ...(body.order !== undefined && { order: body.order }),
-                ...(body.isActive !== undefined && { isActive: body.isActive }),
-            },
-        });
+        const [updated] = await db.update(portfolioVideo).set({
+            ...(body.title !== undefined && { title: body.title }),
+            ...(body.description !== undefined && { description: body.description }),
+            ...(body.videoUrl !== undefined && { videoUrl: body.videoUrl }),
+            ...(body.thumbnailUrl !== undefined && { thumbnailUrl: body.thumbnailUrl }),
+            ...(body.category !== undefined && { category: body.category }),
+            ...(body.order !== undefined && { order: body.order }),
+            ...(body.isActive !== undefined && { isActive: body.isActive }),
+            updatedAt: new Date().toISOString(),
+        }).where(eq(portfolioVideo.id, id)).returning();
 
         return NextResponse.json({ ok: true, video: updated });
     } catch (err) {
@@ -50,7 +50,7 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        const video = await prisma.portfolioVideo.findUnique({ where: { id } });
+        const [video] = await db.select().from(portfolioVideo).where(eq(portfolioVideo.id, id)).limit(1);
         if (!video) {
             return NextResponse.json(
                 { ok: false, message: 'Video not found' },
@@ -58,7 +58,7 @@ export async function DELETE(
             );
         }
 
-        await prisma.portfolioVideo.delete({ where: { id } });
+        await db.delete(portfolioVideo).where(eq(portfolioVideo.id, id));
 
         return NextResponse.json({ ok: true });
     } catch (err) {

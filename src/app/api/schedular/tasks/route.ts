@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task, client, monthlyDeliverable, oneOffDeliverable, tagToTask, tag as tagTable } from "@/lib/db/schema";
+import { and, or, eq, ne, ilike, inArray, exists, gte, desc, count as countFn } from "drizzle-orm";
 import { addSignedUrlsToFiles } from "@/lib/s3";
 
 function getTokenFromCookies(req: Request) {
@@ -35,10 +37,10 @@ export async function GET(req: Request) {
     const includeTitling = url.searchParams.get("includeTitling") === "true";
 
     // Build filter
-    const where: any = {};
+    const conditions: any[] = [];
 
     if (clientId && clientId !== "all") {
-      where.clientId = clientId;
+      conditions.push(eq(task.clientId, clientId));
     }
 
     // Status filter logic
@@ -47,49 +49,43 @@ export async function GET(req: Request) {
       const upperStatus = status.toUpperCase();
       if (upperStatus === "PENDING") {
         // Pending = COMPLETED (QC approved, waiting to be scheduled)
-        where.status = "COMPLETED";
+        conditions.push(eq(task.status, "COMPLETED"));
       } else if (upperStatus === "SCHEDULED") {
         // Scheduled includes SCHEDULED and POSTED
-        where.status = { in: ["SCHEDULED", "POSTED"] };
+        conditions.push(inArray(task.status, ["SCHEDULED", "POSTED"] as any));
       } else {
-        where.status = upperStatus;
+        conditions.push(eq(task.status, upperStatus as any));
       }
     } else {
       // Default: show COMPLETED + SCHEDULED + POSTED (scheduler-relevant tasks)
-      where.status = { in: ["COMPLETED", "SCHEDULED", "POSTED"] };
+      conditions.push(inArray(task.status, ["COMPLETED", "SCHEDULED", "POSTED"] as any));
     }
 
     if (search) {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: [
-            { title: { contains: search, mode: "insensitive" } },
-            { client: { name: { contains: search, mode: "insensitive" } } },
-            { client: { companyName: { contains: search, mode: "insensitive" } } },
-          ]
-        }
-      ];
+      const pattern = `%${search}%`;
+      conditions.push(or(
+        ilike(task.title, pattern),
+        exists(db.select().from(client).where(and(eq(client.id, task.clientId), or(ilike(client.name, pattern), ilike(client.companyName, pattern))))),
+      ));
     }
 
     if (deliverableType && deliverableType !== "all") {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: [
-            { monthlyDeliverable: { type: deliverableType } },
-            { oneOffDeliverable: { type: deliverableType } },
-          ]
-        }
-      ];
+      conditions.push(or(
+        exists(db.select().from(monthlyDeliverable).where(and(eq(monthlyDeliverable.id, task.monthlyDeliverableId), eq(monthlyDeliverable.type, deliverableType)))),
+        exists(db.select().from(oneOffDeliverable).where(and(eq(oneOffDeliverable.id, task.oneOffDeliverableId), eq(oneOffDeliverable.type, deliverableType)))),
+      ));
     }
 
     if (editorId && editorId !== "all") {
-      where.assignedTo = Number(editorId);
+      conditions.push(eq(task.assignedTo, Number(editorId)));
     }
 
     if (tag && tag !== "all") {
-      where.tags = { some: { name: tag } };
+      conditions.push(exists(
+        db.select().from(tagToTask)
+          .innerJoin(tagTable, eq(tagToTask.a, tagTable.id))
+          .where(and(eq(tagToTask.b, task.id), eq(tagTable.name, tag)))
+      ));
     }
 
     if (dateRange && dateRange !== "all") {
@@ -98,39 +94,41 @@ export async function GET(req: Request) {
       if (dateRange === "7d") startDate.setDate(now.getDate() - 7);
       else if (dateRange === "30d") startDate.setDate(now.getDate() - 30);
       else if (dateRange === "90d") startDate.setDate(now.getDate() - 90);
-      
-      where.createdAt = { gte: startDate };
+
+      conditions.push(gte(task.createdAt, startDate.toISOString()));
     }
 
     // If role is scheduler, only show tasks assigned to them
     if (role === "scheduler") {
-      where.scheduler = userId;
+      conditions.push(eq(task.scheduler, userId));
     }
+
+    const where = and(...conditions);
 
     const page = parseInt(url.searchParams.get("page") || "1");
     const limit = parseInt(url.searchParams.get("limit") || "50");
     const skip = (page - 1) * limit;
 
     // Fetch tasks that are ready for scheduler (QC approved or in scheduler status)
-    const [tasks, total] = await Promise.all([
-      prisma.task.findMany({
+    const [rawTasks, [{ value: total }]] = await Promise.all([
+      db.query.task.findMany({
         where,
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
-        include: {
+        orderBy: desc(task.createdAt),
+        offset: skip,
+        limit,
+        with: {
           client: {
-            select: {
+            columns: {
               id: true,
               name: true,
               companyName: true,
               requiresCoverImage: true,
             },
           },
-          user: true,
+          user_assignedTo: true,
           files: {
-            where: { isActive: true },
-            select: {
+            where: (f, { eq }) => eq(f.isActive, true),
+            columns: {
               id: true,
               name: true,
               url: true,
@@ -142,9 +140,9 @@ export async function GET(req: Request) {
           },
           monthlyDeliverable: true,
           oneOffDeliverable: true,
-          tags: true,
-          taskFeedback: {
-            select: {
+          tagToTasks: { with: { tag: true } },
+          taskFeedbacks: {
+            columns: {
               id: true,
               fileId: true,
               folderType: true,
@@ -156,25 +154,20 @@ export async function GET(req: Request) {
               resolvedAt: true,
               acknowledgedAt: true,
               acknowledgedBy: true,
+            },
+            with: {
               file: {
-                select: {
-                  version: true,
-                  name: true,
-                },
+                columns: { version: true, name: true },
               },
               user: {
-                select: {
-                  id: true,
-                  name: true,
-                  role: true,
-                },
+                columns: { id: true, name: true, role: true },
               },
             },
-            orderBy: { createdAt: 'desc' as const },
+            orderBy: (tf, { desc }) => desc(tf.createdAt),
           },
           ...(includeTitling && {
-            titlingJob: {
-              select: {
+            titlingJobs: {
+              columns: {
                 id: true,
                 status: true,
                 videoDuration: true,
@@ -186,12 +179,25 @@ export async function GET(req: Request) {
           }),
         },
       }),
-      prisma.task.count({ where })
+      db.select({ value: countFn() }).from(task).where(where),
     ]);
 
+    // Rename relation keys back to the Prisma-era shape the rest of this
+    // handler (and frontend) expects.
+    const tasks = rawTasks.map((t: any) => {
+      const { user_assignedTo, tagToTasks, taskFeedbacks, titlingJobs, ...rest } = t;
+      return {
+        ...rest,
+        user: user_assignedTo,
+        tags: (tagToTasks ?? []).map((tt: any) => tt.tag),
+        taskFeedback: taskFeedbacks,
+        titlingJob: titlingJobs?.[0] ?? null,
+      };
+    });
+
     const uniqueClients = Array.from(new Set(tasks.map(t => t.client?.id).filter(Boolean))).map(id => {
-      const client = tasks.find(t => t.client?.id === id)?.client;
-      return { id, name: client?.name, companyName: client?.companyName };
+      const c = tasks.find(t => t.client?.id === id)?.client;
+      return { id, name: c?.name, companyName: c?.companyName };
     });
 
     const uniqueDeliverables = Array.from(new Set(tasks.map(t => {
@@ -199,15 +205,9 @@ export async function GET(req: Request) {
       return d?.type;
     }).filter(Boolean)));
 
-    // Fetch isSponsored via raw query to bypass stale Prisma client
-    const taskIds = tasks.map(t => t.id);
-    const sponsoredRows = taskIds.length > 0
-      ? await prisma.$queryRawUnsafe<{ id: string; isSponsored: boolean }[]>(
-          `SELECT id, "isSponsored" FROM "Task" WHERE id = ANY($1::text[])`,
-          taskIds
-        )
-      : [];
-    const sponsoredMap = new Map(sponsoredRows.map((r: any) => [r.id, r.isSponsored]));
+    // isSponsored is a normal accessible column via Drizzle (the raw-query
+    // workaround here was only needed for a stale generated Prisma client)
+    const sponsoredMap = new Map(tasks.map((t: any) => [t.id, t.isSponsored ?? false]));
 
     // Map and add signed URLs
     const payload = await Promise.all(
@@ -225,7 +225,7 @@ export async function GET(req: Request) {
           id: t.id,
           title: t.title,
           postingTitle: (t as any).postingTitle || null,
-          titleSetByQC: (t as any).titleSetByQC ?? false,
+          titleSetByQC: (t as any).titleSetByQc ?? false,
           titleSetByClient: (t as any).titleSetByClient ?? false,
           postingTitles: (t as any).postingTitles || [],
           postingDescriptions: (t as any).postingDescriptions || [],

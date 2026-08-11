@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 // Returns a presigned URL — browser uploads directly to R2, main EC2 never touches the bytes
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable, user as userTable } from '@/lib/db/schema';
+import { eq, or } from 'drizzle-orm';
 import { presignUpload } from '@/lib/file-server';
 import { sendDriveUploadNotification } from '@/lib/upload-notifications';
 
@@ -49,10 +51,15 @@ export async function POST(request: NextRequest) {
 
     // Send Slack notification
     const companyName = s3Key.split('/')[0];
-    const client = companyName ? await prisma.client.findFirst({
-      where: { OR: [{ companyName }, { name: companyName }] },
-      select: { id: true },
-    }) : null;
+    let matchedClient: { id: string } | null = null;
+    if (companyName) {
+      const [row] = await db
+        .select({ id: clientTable.id })
+        .from(clientTable)
+        .where(or(eq(clientTable.companyName, companyName), eq(clientTable.name, companyName)))
+        .limit(1);
+      matchedClient = row ?? null;
+    }
 
     if (userId) {
       sendDriveUploadNotification({
@@ -60,7 +67,7 @@ export async function POST(request: NextRequest) {
         fileSize: file.size,
         uploadedBy: parseInt(userId),
         s3Key,
-        clientId: client?.id,
+        clientId: matchedClient?.id,
       }).catch(err => console.error('[DriveUpload] Slack notification failed:', err));
     }
 
@@ -82,18 +89,19 @@ async function resolveS3Key(fileName: string, folderPath: string, userId: string
   let basePath = '';
 
   if (role === 'client') {
-    const user = await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
-      select: { linkedClient: { select: { companyName: true, name: true } } },
+    const foundUser = await db.query.user.findFirst({
+      where: eq(userTable.id, parseInt(userId)),
+      with: { client: { columns: { companyName: true, name: true } } },
     });
-    if (user?.linkedClient) {
-      const companyName = user.linkedClient.companyName || user.linkedClient.name;
+    if (foundUser?.client) {
+      const companyName = foundUser.client.companyName || foundUser.client.name;
       basePath = `${companyName}/`;
     } else {
-      const clientRecord = await prisma.client.findFirst({
-        where: { userId: parseInt(userId) },
-        select: { companyName: true, name: true },
-      });
+      const [clientRecord] = await db
+        .select({ companyName: clientTable.companyName, name: clientTable.name })
+        .from(clientTable)
+        .where(eq(clientTable.userId, parseInt(userId)))
+        .limit(1);
       if (clientRecord) {
         basePath = `${clientRecord.companyName || clientRecord.name}/`;
       }

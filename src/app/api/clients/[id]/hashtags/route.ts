@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -22,14 +24,11 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     const { id } = await context.params;
     if (!id) return NextResponse.json({ message: "Client id required" }, { status: 400 });
 
-    const client = await prisma.client.findUnique({
-      where: { id },
-      select: { templateHashtags: true },
-    });
+    const [foundClient] = await db.select({ templateHashtags: client.templateHashtags }).from(client).where(eq(client.id, id)).limit(1);
 
-    if (!client) return NextResponse.json({ message: "Client not found" }, { status: 404 });
+    if (!foundClient) return NextResponse.json({ message: "Client not found" }, { status: 404 });
 
-    return NextResponse.json({ hashtags: client.templateHashtags ?? [] });
+    return NextResponse.json({ hashtags: foundClient.templateHashtags ?? [] });
   } catch (err) {
     console.error("[GET /api/clients/:id/hashtags]", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });

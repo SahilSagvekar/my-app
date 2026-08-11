@@ -9,7 +9,9 @@ export const dynamic = 'force-dynamic';
 // existing read-only LinkedSfTasks view keeps working exactly as before.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 type Params = { params: Promise<{ id: string }> };
@@ -21,11 +23,12 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const { id: sfTaskId } = await params;
 
-    const sfTask = await prisma.task.findUnique({
-      where: { id: sfTaskId },
-      select: {
-        relatedTask: {
-          select: {
+    const sfTask = await db.query.task.findFirst({
+      where: eq(task.id, sfTaskId),
+      columns: {},
+      with: {
+        task: {
+          columns: {
             id: true,
             title: true,
             description: true,
@@ -34,8 +37,10 @@ export async function GET(req: NextRequest, { params }: Params) {
             dueDate: true,
             assignedTo: true,
             clientId: true,
-            client: { select: { name: true } },
-            user: { select: { name: true } },
+          },
+          with: {
+            client: { columns: { name: true } },
+            user_assignedTo: { columns: { name: true } },
           },
         },
       },
@@ -43,7 +48,12 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     if (!sfTask) return NextResponse.json({ error: 'SF task not found' }, { status: 404 });
 
-    return NextResponse.json({ linked: sfTask.relatedTask ?? null });
+    const relatedTaskRaw: any = sfTask.task;
+    const relatedTask = relatedTaskRaw
+      ? (({ user_assignedTo, ...rest }: any) => ({ ...rest, user: user_assignedTo }))(relatedTaskRaw)
+      : null;
+
+    return NextResponse.json({ linked: relatedTask });
   } catch (err: any) {
     console.error('[link-lf GET]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -60,18 +70,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (!lfTaskId) return NextResponse.json({ error: 'lfTaskId is required' }, { status: 400 });
 
-    const sfTask = await prisma.task.findUnique({ where: { id: sfTaskId }, select: { id: true } });
+    const [sfTask] = await db.select({ id: task.id }).from(task).where(eq(task.id, sfTaskId)).limit(1);
     if (!sfTask) return NextResponse.json({ error: 'SF task not found' }, { status: 404 });
 
     if (lfTaskId === sfTaskId) return NextResponse.json({ error: 'Cannot link a task to itself' }, { status: 400 });
 
-    const lfTask = await prisma.task.findUnique({ where: { id: lfTaskId }, select: { id: true } });
+    const [lfTask] = await db.select({ id: task.id }).from(task).where(eq(task.id, lfTaskId)).limit(1);
     if (!lfTask) return NextResponse.json({ error: 'LF task not found' }, { status: 404 });
 
-    await prisma.task.update({
-      where: { id: sfTaskId },
-      data: { relatedTaskId: lfTaskId },
-    });
+    await db.update(task).set({ relatedTaskId: lfTaskId, updatedAt: new Date().toISOString() }).where(eq(task.id, sfTaskId));
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
@@ -87,10 +94,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
     const { id: sfTaskId } = await params;
 
-    await prisma.task.update({
-      where: { id: sfTaskId },
-      data: { relatedTaskId: null },
-    });
+    await db.update(task).set({ relatedTaskId: null, updatedAt: new Date().toISOString() }).where(eq(task.id, sfTaskId));
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

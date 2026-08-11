@@ -1,5 +1,8 @@
 // lib/youtube-sync-service.ts
-import { prisma } from './prisma';
+import { db } from './db';
+import { youTubeChannel, youTubeSnapshot, clientRevenue } from './db/schema';
+import { and, avg, eq, gte, lt, sum } from 'drizzle-orm';
+import { createId } from './db/id';
 import { google } from 'googleapis';
 
 const youtube = google.youtube('v3');
@@ -69,13 +72,13 @@ async function getValidAccessToken(youtubeChannel: any): Promise<string> {
         const newTokens = await refreshAccessToken(youtubeChannel.refreshToken);
 
         // Update token in database
-        await prisma.youTubeChannel.update({
-            where: { id: youtubeChannel.id },
-            data: {
+        await db.update(youTubeChannel)
+            .set({
                 accessToken: newTokens.access_token,
-                tokenExpiry: new Date(Date.now() + newTokens.expires_in * 1000),
-            },
-        });
+                tokenExpiry: new Date(Date.now() + newTokens.expires_in * 1000).toISOString(),
+                updatedAt: new Date().toISOString(),
+            })
+            .where(eq(youTubeChannel.id, youtubeChannel.id));
 
         return newTokens.access_token;
     }
@@ -251,10 +254,8 @@ export async function syncYouTubeChannel(clientId: string): Promise<SyncResult> 
         console.log(`[YouTube Sync] Starting sync for client: ${clientId}`);
 
         // Get client's YouTube channel
-        const youtubeChannel = await prisma.youTubeChannel.findUnique({
-            where: { clientId },
-            include: { client: true },
-        });
+        const [youtubeChannel] = await db.select().from(youTubeChannel)
+            .where(eq(youTubeChannel.clientId, clientId)).limit(1);
 
         if (!youtubeChannel) {
             return {
@@ -292,73 +293,66 @@ export async function syncYouTubeChannel(clientId: string): Promise<SyncResult> 
         analytics.subscriberCount = channelStats.subscriberCount;
 
         // Store daily snapshot
-        await prisma.youTubeSnapshot.create({
-            data: {
-                clientId,
-                channelId: youtubeChannel.id,
-                subscriberCount: analytics.subscriberCount,
-                views: analytics.views,
-                watchTimeHours: analytics.watchTimeHours,
-                estimatedRevenue: analytics.estimatedRevenue,
-                likes: analytics.likes,
-                comments: analytics.comments,
-                shares: analytics.shares,
-                impressions: analytics.impressions,
-                impressionsCtr: analytics.impressionsCtr,
-                avgViewDuration: analytics.avgViewDuration,
-                subscribersGained: analytics.subscribersGained,
-                subscribersLost: analytics.subscribersLost,
-                geographyData: analytics.geographyData || [],
-                deviceData: analytics.deviceData || [],
-                periodStart: new Date(startDate),
-                periodEnd: new Date(endDate),
-                periodType: 'DAILY',
-                snapshotDate: new Date(),
-            },
+        await db.insert(youTubeSnapshot).values({
+            id: createId(),
+            clientId,
+            channelId: youtubeChannel.id,
+            subscriberCount: analytics.subscriberCount,
+            views: Number(analytics.views),
+            watchTimeHours: analytics.watchTimeHours,
+            estimatedRevenue: analytics.estimatedRevenue,
+            likes: analytics.likes,
+            comments: analytics.comments,
+            shares: analytics.shares,
+            impressions: Number(analytics.impressions),
+            impressionsCtr: analytics.impressionsCtr,
+            avgViewDuration: analytics.avgViewDuration,
+            subscribersGained: analytics.subscribersGained,
+            subscribersLost: analytics.subscribersLost,
+            geographyData: analytics.geographyData || [],
+            deviceData: analytics.deviceData || [],
+            periodStart: new Date(startDate).toISOString(),
+            periodEnd: new Date(endDate).toISOString(),
+            periodType: 'DAILY',
+            snapshotDate: new Date().toISOString(),
         });
 
         // 🔥 Auto-populate ClientRevenue for YouTube AdSense
         try {
             const normalizedPeriod = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-            await (prisma as any).clientRevenue.upsert({
-                where: {
-                    clientId_platform_period_source: {
-                        clientId,
-                        platform: 'youtube',
-                        period: normalizedPeriod,
-                        source: 'adsense'
-                    }
-                },
-                update: {
-                    amount: analytics.estimatedRevenue,
+            await db.insert(clientRevenue).values({
+                id: createId(),
+                clientId,
+                platform: 'youtube',
+                amount: String(analytics.estimatedRevenue),
+                period: normalizedPeriod.toISOString(),
+                source: 'adsense',
+                isAutomatic: true,
+                updatedAt: new Date().toISOString(),
+            }).onConflictDoUpdate({
+                target: [clientRevenue.clientId, clientRevenue.platform, clientRevenue.period, clientRevenue.source],
+                set: {
+                    amount: String(analytics.estimatedRevenue),
                     isAutomatic: true,
-                    updatedAt: new Date(),
+                    updatedAt: new Date().toISOString(),
                 },
-                create: {
-                    clientId,
-                    platform: 'youtube',
-                    amount: analytics.estimatedRevenue,
-                    period: normalizedPeriod,
-                    source: 'adsense',
-                    isAutomatic: true
-                }
             });
         } catch (revError) {
             console.error('[YouTube Sync] Failed to auto-populate revenue:', revError);
         }
 
         // Update channel's last sync time and stats
-        await prisma.youTubeChannel.update({
-            where: { id: youtubeChannel.id },
-            data: {
-                lastSyncedAt: new Date(),
+        await db.update(youTubeChannel)
+            .set({
+                lastSyncedAt: new Date().toISOString(),
                 syncStatus: 'COMPLETED',
                 syncError: null,
                 subscriberCount: analytics.subscriberCount,
-                totalViews: channelStats.totalViews,
+                totalViews: Number(channelStats.totalViews),
                 totalVideos: channelStats.totalVideos,
-            },
-        });
+                updatedAt: new Date().toISOString(),
+            })
+            .where(eq(youTubeChannel.id, youtubeChannel.id));
 
         console.log(`[YouTube Sync] Successfully synced channel: ${youtubeChannel.channelId}`);
 
@@ -372,13 +366,13 @@ export async function syncYouTubeChannel(clientId: string): Promise<SyncResult> 
 
         // Update sync status to failed
         try {
-            await prisma.youTubeChannel.updateMany({
-                where: { clientId },
-                data: {
+            await db.update(youTubeChannel)
+                .set({
                     syncStatus: 'FAILED',
                     syncError: error.message,
-                },
-            });
+                    updatedAt: new Date().toISOString(),
+                })
+                .where(eq(youTubeChannel.clientId, clientId));
         } catch (updateError) {
             console.error('[YouTube Sync] Failed to update sync status:', updateError);
         }
@@ -403,10 +397,10 @@ export async function syncAllYouTubeChannels(): Promise<{
     console.log('[YouTube Sync] Starting batch sync for all channels');
 
     // Get all active YouTube channels
-    const channels = await prisma.youTubeChannel.findMany({
-        where: { isActive: true },
-        select: { clientId: true, channelId: true },
-    });
+    const channels = await db.select({
+        clientId: youTubeChannel.clientId,
+        channelId: youTubeChannel.channelId,
+    }).from(youTubeChannel).where(eq(youTubeChannel.isActive, true));
 
     console.log(`[YouTube Sync] Found ${channels.length} active channels`);
 
@@ -456,42 +450,33 @@ export async function getYouTubeDashboardStats(
     const { startDate: previousStart, endDate: previousEnd } = getDateRange(period * 2);
 
     // Get current period data - use snapshotDate for filtering
-    const currentData = await prisma.youTubeSnapshot.aggregate({
-        where: {
-            clientId,
-            snapshotDate: { gte: new Date(currentStart) },  // Changed from periodStart
-        },
-        _sum: {
-            views: true,
-            watchTimeHours: true,
-            estimatedRevenue: true,
-        },
-        _avg: {
-            subscriberCount: true,
-        },
-    });
+    const [currentData] = await db.select({
+        sumViews: sum(youTubeSnapshot.views),
+        sumWatchTimeHours: sum(youTubeSnapshot.watchTimeHours),
+        sumEstimatedRevenue: sum(youTubeSnapshot.estimatedRevenue),
+        avgSubscriberCount: avg(youTubeSnapshot.subscriberCount),
+    }).from(youTubeSnapshot)
+        .where(and(
+            eq(youTubeSnapshot.clientId, clientId),
+            gte(youTubeSnapshot.snapshotDate, new Date(currentStart).toISOString()),  // Changed from periodStart
+        ));
 
     // Get previous period data for comparison
-    const previousData = await prisma.youTubeSnapshot.aggregate({
-        where: {
-            clientId,
-            snapshotDate: { gte: new Date(previousStart), lt: new Date(currentStart) },  // Changed from periodStart
-        },
-        _sum: {
-            views: true,
-            watchTimeHours: true,
-            estimatedRevenue: true,
-        },
-        _avg: {
-            subscriberCount: true,
-        },
-    });
+    const [previousData] = await db.select({
+        sumViews: sum(youTubeSnapshot.views),
+        sumWatchTimeHours: sum(youTubeSnapshot.watchTimeHours),
+        sumEstimatedRevenue: sum(youTubeSnapshot.estimatedRevenue),
+        avgSubscriberCount: avg(youTubeSnapshot.subscriberCount),
+    }).from(youTubeSnapshot)
+        .where(and(
+            eq(youTubeSnapshot.clientId, clientId),
+            gte(youTubeSnapshot.snapshotDate, new Date(previousStart).toISOString()),
+            lt(youTubeSnapshot.snapshotDate, new Date(currentStart).toISOString()),  // Changed from periodStart
+        ));
 
     // Get last sync time
-    const channel = await prisma.youTubeChannel.findUnique({
-        where: { clientId },
-        select: { lastSyncedAt: true },
-    });
+    const [channel] = await db.select({ lastSyncedAt: youTubeChannel.lastSyncedAt })
+        .from(youTubeChannel).where(eq(youTubeChannel.clientId, clientId)).limit(1);
 
     // Calculate changes and trends
     const calculateChange = (current: number, previous: number) => {
@@ -502,43 +487,43 @@ export async function getYouTubeDashboardStats(
     };
 
     const subscribers = calculateChange(
-        currentData._avg.subscriberCount || 0,
-        previousData._avg.subscriberCount || 0
+        Number(currentData.avgSubscriberCount || 0),
+        Number(previousData.avgSubscriberCount || 0)
     );
 
     const views = calculateChange(
-        Number(currentData._sum.views || 0),
-        Number(previousData._sum.views || 0)
+        Number(currentData.sumViews || 0),
+        Number(previousData.sumViews || 0)
     );
 
     const watchTime = calculateChange(
-        currentData._sum.watchTimeHours || 0,
-        previousData._sum.watchTimeHours || 0
+        Number(currentData.sumWatchTimeHours || 0),
+        Number(previousData.sumWatchTimeHours || 0)
     );
 
     const revenue = calculateChange(
-        currentData._sum.estimatedRevenue || 0,
-        previousData._sum.estimatedRevenue || 0
+        Number(currentData.sumEstimatedRevenue || 0),
+        Number(previousData.sumEstimatedRevenue || 0)
     );
 
     return {
         subscribers: {
-            current: Math.round(currentData._avg.subscriberCount || 0),
+            current: Math.round(Number(currentData.avgSubscriberCount || 0)),
             ...subscribers,
         },
         views: {
-            current: Number(currentData._sum.views || 0),
+            current: Number(currentData.sumViews || 0),
             ...views,
         },
         watchTime: {
-            current: currentData._sum.watchTimeHours || 0,
+            current: Number(currentData.sumWatchTimeHours || 0),
             ...watchTime,
         },
         revenue: {
-            current: Math.round((currentData._sum.estimatedRevenue || 0) * 100) / 100,
+            current: Math.round(Number(currentData.sumEstimatedRevenue || 0) * 100) / 100,
             ...revenue,
         },
-        lastSyncedAt: channel?.lastSyncedAt || null,
+        lastSyncedAt: channel?.lastSyncedAt ? new Date(channel.lastSyncedAt) : null,
     };
 }
 
@@ -552,16 +537,15 @@ export async function fetchLiveYouTubeAnalytics(clientId: string, days: number):
     error?: string;
 }> {
     try {
-        const client = await prisma.client.findUnique({
-            where: { id: clientId },
-            include: { youtubeChannel: true },
-        });
+        // NOTE: YouTubeChannel has a unique index on clientId (1:1 with Client),
+        // so querying it directly by clientId is equivalent to the original
+        // `client.youtubeChannel` include.
+        const [youtubeChannel] = await db.select().from(youTubeChannel)
+            .where(eq(youTubeChannel.clientId, clientId)).limit(1);
 
-        if (!client?.youtubeChannel) {
+        if (!youtubeChannel) {
             return { success: false, error: 'No YouTube channel connected' };
         }
-
-        const youtubeChannel = client.youtubeChannel;
 
         if (!youtubeChannel.isActive) {
             return { success: false, error: 'YouTube channel is inactive' };

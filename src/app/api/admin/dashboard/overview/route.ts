@@ -1,8 +1,17 @@
 // app/api/admin/dashboard/overview/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { TaskStatus } from '@prisma/client';
+import { db } from '@/lib/db';
+import {
+  user as userTable,
+  task as taskTable,
+  auditLog as auditLogTable,
+  client as clientTable,
+  taskStatus as taskStatusEnum,
+} from '@/lib/db/schema';
+import { and, or, eq, ne, gte, lte, lt, inArray, isNotNull, ilike, desc, count, sql as drizzleSql } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
+
+type TaskStatus = typeof taskStatusEnum.enumValues[number];
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -109,49 +118,43 @@ async function getKPIData() {
 
   // Wrap independent queries in Promise.all for speed
   const [
-    currentTeamCount,
-    prevTeamCount,
-    currentActiveTasks,
-    prevActiveTasks,
-    avgResult,
-    prevAvgResult
+    [{ value: currentTeamCount }],
+    [{ value: prevTeamCount }],
+    [{ value: currentActiveTasks }],
+    [{ value: prevActiveTasks }],
+    avgResultRaw,
+    prevAvgResultRaw
   ] = await Promise.all([
-    prisma.user.count({
-      where: {
-        employeeStatus: 'ACTIVE',
-        role: { not: 'client' }
-      }
-    }),
-    prisma.user.count({
-      where: {
-        employeeStatus: 'ACTIVE',
-        role: { not: 'client' },
-        createdAt: { lt: thirtyDaysAgo }
-      }
-    }),
-    prisma.task.count({
-      where: { status: { in: activeStatuses } }
-    }),
-    prisma.task.count({
-      where: {
-        status: { in: activeStatuses },
-        createdAt: { lt: thirtyDaysAgo }
-      }
-    }),
-    prisma.$queryRaw<Array<{ avg: number | null }>>`
+    db.select({ value: count() }).from(userTable).where(and(
+      eq(userTable.employeeStatus, 'ACTIVE'),
+      ne(userTable.role, 'client' as any)
+    )),
+    db.select({ value: count() }).from(userTable).where(and(
+      eq(userTable.employeeStatus, 'ACTIVE'),
+      ne(userTable.role, 'client' as any),
+      lt(userTable.createdAt, thirtyDaysAgo.toISOString())
+    )),
+    db.select({ value: count() }).from(taskTable).where(inArray(taskTable.status, activeStatuses as any)),
+    db.select({ value: count() }).from(taskTable).where(and(
+      inArray(taskTable.status, activeStatuses as any),
+      lt(taskTable.createdAt, thirtyDaysAgo.toISOString())
+    )),
+    db.execute(drizzleSql`
       SELECT AVG(EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400) as avg
       FROM "Task" t
       WHERE t.status = 'COMPLETED'
       AND t."updatedAt" >= ${thirtyDaysAgo}
-    `,
-    prisma.$queryRaw<Array<{ avg: number | null }>>`
+    `),
+    db.execute(drizzleSql`
       SELECT AVG(EXTRACT(EPOCH FROM (t."updatedAt" - t."createdAt")) / 86400) as avg
       FROM "Task" t
       WHERE t.status = 'COMPLETED'
       AND t."updatedAt" BETWEEN ${sixtyDaysAgo} AND ${thirtyDaysAgo}
-    `
+    `)
   ]);
 
+  const avgResult = avgResultRaw.rows as Array<{ avg: number | null }>;
+  const prevAvgResult = prevAvgResultRaw.rows as Array<{ avg: number | null }>;
   const currentAvg = Number(avgResult[0]?.avg || 0);
   const prevAvg = Number(prevAvgResult[0]?.avg || 0);
 
@@ -185,13 +188,12 @@ async function getKPIData() {
 }
 
 async function getPipelineData() {
-  const statusCounts = await prisma.task.groupBy({
-    by: ['status'],
-    _count: { id: true }
-  });
+  const statusCounts = await db.select({ status: taskTable.status, cnt: count() })
+    .from(taskTable)
+    .groupBy(taskTable.status);
 
   const countMap = new Map(
-    statusCounts.map(item => [item.status, item._count.id])
+    statusCounts.map(item => [item.status, item.cnt])
   );
 
   const stages = ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED'] as const;
@@ -204,26 +206,27 @@ async function getPipelineData() {
 }
 
 async function getProjectHealthData() {
-  const stats = await prisma.$queryRaw<Array<{
+  const statsResult = await db.execute<{
     client_id: string;
     total_tasks: bigint;
     overdue_tasks: bigint;
     due_soon_tasks: bigint;
-  }>>`
-    SELECT 
+  }>(drizzleSql`
+    SELECT
       c.id as client_id,
       COUNT(t.id) as total_tasks,
       COUNT(CASE WHEN t."dueDate" < NOW() THEN 1 END) as overdue_tasks,
-      COUNT(CASE 
-        WHEN t."dueDate" BETWEEN NOW() AND NOW() + INTERVAL '3 days' 
-        THEN 1 
+      COUNT(CASE
+        WHEN t."dueDate" BETWEEN NOW() AND NOW() + INTERVAL '3 days'
+        THEN 1
       END) as due_soon_tasks
     FROM "Client" c
     LEFT JOIN "Task" t ON t."clientId" = c.id
     WHERE c.status = 'active'
       AND (t.status IS NULL OR t.status != 'COMPLETED')
     GROUP BY c.id
-  `;
+  `);
+  const stats = statsResult.rows;
 
   let onTrack = 0;
   let atRisk = 0;
@@ -261,16 +264,18 @@ async function getProjectHealthData() {
 }
 
 async function getRecentActivity() {
-  const recentLogs = await prisma.auditLog.findMany({
-    take: 10,
-    orderBy: { timestamp: 'desc' },
-    select: {
-      id: true,
-      action: true,
-      details: true,
-      User: { select: { name: true } }
-    }
-  });
+  const rows = await db.select({
+    id: auditLogTable.id,
+    action: auditLogTable.action,
+    details: auditLogTable.details,
+    User: { name: userTable.name },
+  })
+    .from(auditLogTable)
+    .leftJoin(userTable, eq(auditLogTable.userId, userTable.id))
+    .orderBy(desc(auditLogTable.timestamp))
+    .limit(10);
+
+  const recentLogs = rows;
 
   return recentLogs.map(log => {
     let type = 'info';
@@ -300,14 +305,12 @@ async function getRecentActivity() {
 async function getSystemStatus() {
   const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
 
-  const activeUserIds = await prisma.auditLog.groupBy({
-    by: ['userId'],
-    where: {
-      timestamp: { gte: fifteenMinutesAgo },
-      userId: { not: null }
-    },
-    _count: { userId: true }
-  });
+  const activeUserIds = await db.selectDistinct({ userId: auditLogTable.userId })
+    .from(auditLogTable)
+    .where(and(
+      gte(auditLogTable.timestamp, fifteenMinutesAgo.toISOString()),
+      isNotNull(auditLogTable.userId)
+    ));
 
   const activeUsers = activeUserIds.length;
 
@@ -315,20 +318,18 @@ async function getSystemStatus() {
   let dbResponseTime = 0;
   try {
     const startTime = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
+    await db.execute(drizzleSql`SELECT 1`);
     dbResponseTime = Date.now() - startTime;
   } catch {
     dbHealthy = false;
   }
 
-  const recentLogs = await prisma.auditLog.findMany({
-    take: 20,
-    orderBy: { timestamp: 'desc' },
-    where: {
-      metadata: { path: ['responseTime'], not: null }
-    },
-    select: { metadata: true }
-  });
+  const recentLogsResult = await db.select({ metadata: auditLogTable.metadata })
+    .from(auditLogTable)
+    .where(drizzleSql`${auditLogTable.metadata} -> 'responseTime' IS NOT NULL`)
+    .orderBy(desc(auditLogTable.timestamp))
+    .limit(20);
+  const recentLogs = recentLogsResult;
 
   let avgResponseTime = 125;
   if (recentLogs.length > 0) {
@@ -345,19 +346,19 @@ async function getSystemStatus() {
 
   let dbSize = 'N/A';
   try {
-    const result = await prisma.$queryRaw<Array<{ size: string }>>`
+    const result = await db.execute<{ size: string }>(drizzleSql`
       SELECT pg_size_pretty(pg_database_size(current_database())) as size
-    `;
-    if (result?.[0]) dbSize = result[0].size;
+    `);
+    if (result.rows?.[0]) dbSize = result.rows[0].size;
   } catch (error) {
     console.error('Failed to get database size:', error);
   }
 
-  const [taskCount, userCount, clientCount, auditLogCount] = await Promise.all([
-    prisma.task.count(),
-    prisma.user.count(),
-    prisma.client.count(),
-    prisma.auditLog.count()
+  const [[{ value: taskCount }], [{ value: userCount }], [{ value: clientCount }], [{ value: auditLogCount }]] = await Promise.all([
+    db.select({ value: count() }).from(taskTable),
+    db.select({ value: count() }).from(userTable),
+    db.select({ value: count() }).from(clientTable),
+    db.select({ value: count() }).from(auditLogTable)
   ]);
 
   const memoryUsage = process.memoryUsage();
@@ -407,31 +408,19 @@ async function getClientDeliverablesProgress() {
   const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
 
   // Get active clients with their monthly deliverables
-  const clients = await prisma.client.findMany({
-    where: { status: 'active' },
-    select: {
-      id: true,
-      companyName: true,
+  const clients = await db.query.client.findMany({
+    where: eq(clientTable.status, 'active'),
+    columns: { id: true, companyName: true },
+    with: {
       monthlyDeliverables: {
-        select: {
-          id: true,
-          type: true,
-          quantity: true,
-          platforms: true,
-        }
+        columns: { id: true, type: true, quantity: true, platforms: true },
       },
       tasks: {
-        where: {
-          dueDate: { gte: monthStart, lte: monthEnd },
-        },
-        select: {
-          id: true,
-          status: true,
-          monthlyDeliverableId: true,
-        }
-      }
+        where: and(gte(taskTable.dueDate, monthStart.toISOString()), lte(taskTable.dueDate, monthEnd.toISOString())),
+        columns: { id: true, status: true, monthlyDeliverableId: true },
+      },
     },
-    orderBy: { companyName: 'asc' },
+    orderBy: (c, { asc }) => asc(c.companyName),
   });
 
   return clients

@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { portfolioLead } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { desc, inArray } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
 import { sendToChannel } from '@/lib/slack';
 
@@ -39,15 +42,14 @@ export async function POST(req: NextRequest) {
 
         const ip = req.headers.get('x-forwarded-for') || (req as any).ip || 'unknown';
 
-        const lead = await prisma.portfolioLead.create({
-            data: {
-                firstName: firstName.trim(),
-                lastName: lastName.trim(),
-                phone: phone.trim(),
-                email: email.trim().toLowerCase(),
-                serviceNeeded: `${serviceNeeded} | IP: ${ip}`,
-            },
-        });
+        const [lead] = await db.insert(portfolioLead).values({
+            id: createId(),
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            phone: phone.trim(),
+            email: email.trim().toLowerCase(),
+            serviceNeeded: `${serviceNeeded} | IP: ${ip}`,
+        }).returning();
 
         sendToChannel('sales', {
             type: 'portfolio_lead',
@@ -80,9 +82,7 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const leads = await prisma.portfolioLead.findMany({
-            orderBy: { createdAt: 'desc' },
-        });
+        const leads = await db.select().from(portfolioLead).orderBy(desc(portfolioLead.createdAt));
 
         return NextResponse.json({ ok: true, leads });
     } catch (err) {
@@ -116,11 +116,9 @@ export async function DELETE(req: NextRequest) {
             );
         }
 
-        const result = await prisma.portfolioLead.deleteMany({
-            where: { id: { in: ids } },
-        });
+        const deleted = await db.delete(portfolioLead).where(inArray(portfolioLead.id, ids)).returning({ id: portfolioLead.id });
 
-        return NextResponse.json({ ok: true, deleted: result.count });
+        return NextResponse.json({ ok: true, deleted: deleted.length });
     } catch (err) {
         console.error('[DELETE /api/portfolio/leads]', err);
         return NextResponse.json(

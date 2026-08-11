@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { quote as quoteTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import nodemailer from 'nodemailer';
 import { notifyQuoteSent } from '@/lib/pipeline-notifications';
@@ -29,9 +31,9 @@ export async function POST(
 
     const { id: preClientId, quoteId } = await params;
 
-    const quote = await prisma.quote.findUnique({
-      where: { id: quoteId },
-      include: { preClient: true },
+    const quote = await db.query.quote.findFirst({
+      where: (q, { eq }) => eq(q.id, quoteId),
+      with: { preClient: true },
     });
 
     if (!quote || quote.preClientId !== preClientId) {
@@ -84,10 +86,11 @@ export async function POST(
       `,
     });
 
-    const updated = await prisma.quote.update({
-      where: { id: quoteId },
-      data: { status: 'SENT', sentAt: new Date() },
-    });
+    const [updated] = await db.update(quoteTable).set({
+      status: 'SENT',
+      sentAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(quoteTable.id, quoteId)).returning();
 
     const amount = `$${(quote.totalAmount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
     notifyQuoteSent(quote.preClient.name, amount).catch((err) =>

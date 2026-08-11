@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { stripeCustomer, subscription, client as clientTable } from '@/lib/db/schema';
+import { and, eq, desc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import {
   getOrCreateStripeCustomer,
@@ -22,43 +24,39 @@ export async function GET(req: NextRequest) {
     const clientId = searchParams.get('clientId');
     const status = searchParams.get('status');
 
-    const where: any = {};
+    const conditions: any[] = [];
 
     // If client user, only show their subscriptions
     if (currentUser.role === 'client' && currentUser.linkedClientId) {
-      const stripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId: currentUser.linkedClientId },
-      });
-      if (stripeCustomer) {
-        where.stripeCustomerId = stripeCustomer.id;
+      const [foundStripeCustomer] = await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, currentUser.linkedClientId)).limit(1);
+      if (foundStripeCustomer) {
+        conditions.push(eq(subscription.stripeCustomerId, foundStripeCustomer.id));
       } else {
         return NextResponse.json({ ok: true, subscriptions: [] });
       }
     } else if (clientId) {
-      const stripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId },
-      });
-      if (stripeCustomer) {
-        where.stripeCustomerId = stripeCustomer.id;
+      const [foundStripeCustomer] = await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, clientId)).limit(1);
+      if (foundStripeCustomer) {
+        conditions.push(eq(subscription.stripeCustomerId, foundStripeCustomer.id));
       }
     }
 
     if (status) {
-      where.status = status;
+      conditions.push(eq(subscription.status, status as any));
     }
 
-    const subscriptions = await prisma.subscription.findMany({
-      where,
-      include: {
+    const subscriptions = await db.query.subscription.findMany({
+      where: conditions.length ? and(...conditions) : undefined,
+      with: {
         stripeCustomer: {
-          include: {
+          with: {
             client: {
-              select: { id: true, name: true, companyName: true, email: true },
+              columns: { id: true, name: true, companyName: true, email: true },
             },
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: desc(subscription.createdAt),
     });
 
     return NextResponse.json({ ok: true, subscriptions });
@@ -102,9 +100,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Get client
-      const client = await prisma.client.findUnique({
-        where: { id: targetClientId },
-      });
+      const [client] = await db.select().from(clientTable).where(eq(clientTable.id, targetClientId)).limit(1);
 
       if (!client) {
         return NextResponse.json({ ok: false, message: 'Client not found' }, { status: 404 });
@@ -135,38 +131,34 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: 'subscriptionId is required' }, { status: 400 });
       }
 
-      const subscription = await prisma.subscription.findUnique({
-        where: { id: subscriptionId },
-        include: { stripeCustomer: true },
+      const foundSubscription = await db.query.subscription.findFirst({
+        where: eq(subscription.id, subscriptionId),
+        with: { stripeCustomer: true },
       });
 
-      if (!subscription) {
+      if (!foundSubscription) {
         return NextResponse.json({ ok: false, message: 'Subscription not found' }, { status: 404 });
       }
 
       // Check access
       if (currentUser.role === 'client') {
-        const clientStripeCustomer = await prisma.stripeCustomer.findUnique({
-          where: { clientId: currentUser.linkedClientId || '' },
-        });
-        if (!clientStripeCustomer || clientStripeCustomer.id !== subscription.stripeCustomerId) {
+        const [clientStripeCustomer] = await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, currentUser.linkedClientId || '')).limit(1);
+        if (!clientStripeCustomer || clientStripeCustomer.id !== foundSubscription.stripeCustomerId) {
           return NextResponse.json({ ok: false, message: 'Access denied' }, { status: 403 });
         }
       }
 
       // Cancel in Stripe (at period end by default)
       const cancelAtPeriodEnd = body.cancelAtPeriodEnd !== false;
-      await cancelSubscription(subscription.stripeSubscriptionId, cancelAtPeriodEnd);
+      await cancelSubscription(foundSubscription.stripeSubscriptionId, cancelAtPeriodEnd);
 
       // Update our record
-      await prisma.subscription.update({
-        where: { id: subscriptionId },
-        data: {
-          cancelAtPeriodEnd,
-          canceledAt: cancelAtPeriodEnd ? null : new Date(),
-          status: cancelAtPeriodEnd ? subscription.status : 'CANCELED',
-        },
-      });
+      await db.update(subscription).set({
+        cancelAtPeriodEnd,
+        canceledAt: cancelAtPeriodEnd ? null : new Date().toISOString(),
+        status: cancelAtPeriodEnd ? foundSubscription.status : 'CANCELED',
+        updatedAt: new Date().toISOString(),
+      }).where(eq(subscription.id, subscriptionId));
 
       return NextResponse.json({ ok: true, message: 'Subscription canceled' });
     }
@@ -182,16 +174,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, message: 'clientId is required' }, { status: 400 });
       }
 
-      const stripeCustomer = await prisma.stripeCustomer.findUnique({
-        where: { clientId: targetClientId },
-      });
+      const [foundStripeCustomer] = await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, targetClientId)).limit(1);
 
-      if (!stripeCustomer) {
+      if (!foundStripeCustomer) {
         return NextResponse.json({ ok: false, message: 'No billing account found' }, { status: 404 });
       }
 
       const session = await createBillingPortalSession(
-        stripeCustomer.stripeCustomerId,
+        foundStripeCustomer.stripeCustomerId,
         `${baseUrl}/billing`
       );
 

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { sql as drizzleSql } from 'drizzle-orm';
 import { NAVIGATION_ITEMS, type NavigationRole } from '@/components/constants/navigation';
 import jwt from 'jsonwebtoken';
 
@@ -25,7 +26,8 @@ export async function GET(req: NextRequest) {
         }
 
         // Use raw query to bypass Prisma client generation issues
-        const dbPermissions: any[] = await prisma.$queryRaw`SELECT * FROM "RolePermission"`;
+        const dbPermissionsResult = await db.execute(drizzleSql`SELECT * FROM "RolePermission"`);
+        const dbPermissions: any[] = dbPermissionsResult.rows as any[];
 
         // Map of DB permissions for quick lookup
         const permissionMap = new Map(dbPermissions.map((p: any) => [p.role, p.navigationItems]));
@@ -80,12 +82,12 @@ export async function POST(req: NextRequest) {
         const id = `perm_${Date.now()}`;
 
         // Postgres Upsert logic
-        await prisma.$executeRaw`
+        await db.execute(drizzleSql`
             INSERT INTO "RolePermission" ("id", "role", "navigationItems", "createdAt", "updatedAt")
             VALUES (${id}, ${role}::"Role", ${itemsJson}::jsonb, ${now}, ${now})
-            ON CONFLICT ("role") 
+            ON CONFLICT ("role")
             DO UPDATE SET "navigationItems" = ${itemsJson}::jsonb, "updatedAt" = ${now}
-        `;
+        `);
 
         return NextResponse.json({ success: true });
 

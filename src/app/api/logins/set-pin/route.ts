@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/set-pin/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, userSecurityPin, loginAuditLog } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq } from "drizzle-orm";
 // import { getServerSession } from "next-auth";
 // import { authOptions } from "@/lib/auth";
 import bcrypt from "bcryptjs";
@@ -51,26 +54,23 @@ export async function POST(req: NextRequest) {
    
            const { userId } = decoded;
            
-               const user = await prisma.user.findUnique({
-                 where: { id: userId },
-                 select: {
-                   id: true,
-                   name: true,
-                   email: true,
-                   image: true,
-                   phone: true,
-                   role: true,
-                 },
-               });
-           
+               const [user] = await db.select({
+                 id: userTable.id,
+                 name: userTable.name,
+                 email: userTable.email,
+                 image: userTable.image,
+                 phone: userTable.phone,
+                 role: userTable.role,
+               }).from(userTable).where(eq(userTable.id, userId)).limit(1);
+
                if (!user) {
                  return NextResponse.json(
                    { success: false, error: "User not found" },
                    { status: 404 }
                  );
                }
-       
-   
+
+
     const { pin } = await req.json();
 
     if (!pin || pin.length !== 6) {
@@ -84,26 +84,26 @@ export async function POST(req: NextRequest) {
     const hashedPin = await bcrypt.hash(pin, 12);
 
     // Upsert - create or update
-    await prisma.userSecurityPin.upsert({
-      where: { userId },
-      update: { 
+    await db.insert(userSecurityPin).values({
+      id: createId(),
+      userId,
+      pinHash: hashedPin,
+      updatedAt: new Date().toISOString(),
+    }).onConflictDoUpdate({
+      target: userSecurityPin.userId,
+      set: {
         pinHash: hashedPin,
-        updatedAt: new Date(),
-      },
-      create: {
-        userId,
-        pinHash: hashedPin,
+        updatedAt: new Date().toISOString(),
       },
     });
 
     // Log PIN change
-    await prisma.loginAuditLog.create({
-      data: {
-        action: "pin_set",
-        loginId: null,
-        userId,
-        details: JSON.stringify({ action: "PIN set/updated" }),
-      },
+    await db.insert(loginAuditLog).values({
+      id: createId(),
+      action: "pin_set",
+      loginId: null,
+      userId,
+      details: JSON.stringify({ action: "PIN set/updated" }),
     });
 
     return NextResponse.json({ success: true });

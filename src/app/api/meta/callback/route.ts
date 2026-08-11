@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/meta/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, metaAccount } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { createId } from "@/lib/db/id";
 import { getCurrentUser2 } from "@/lib/auth";
 import { MetaService } from "@/lib/meta";
 
@@ -29,11 +32,9 @@ export async function GET(req: NextRequest) {
         if (state && state !== "self") {
             clientId = state;
         } else if (user.role === "client") {
-            const client = await prisma.client.findUnique({
-                where: { userId: user.id },
-                select: { id: true },
-            });
-            clientId = client?.id || null;
+            const [foundClient] = await db.select({ id: clientTable.id }).from(clientTable)
+                .where(eq(clientTable.userId, user.id)).limit(1);
+            clientId = foundClient?.id || null;
         }
 
         if (!clientId) {
@@ -82,34 +83,37 @@ export async function GET(req: NextRequest) {
         const profile = await MetaService.getProfile(igAccountId, accessToken);
 
         // 6. Store in Database
-        await prisma.metaAccount.upsert({
-            where: { clientId },
-            create: {
-                clientId,
+        const now = new Date().toISOString();
+        await db.insert(metaAccount).values({
+            id: createId(),
+            clientId,
+            instagramId: igAccountId,
+            facebookPageId: fbPageId,
+            username: profile.username,
+            profilePicture: profile.profile_picture_url,
+            accessToken,
+            tokenExpiry: expiry.toISOString(),
+            followerCount: profile.followers_count,
+            followingCount: profile.follows_count,
+            mediaCount: profile.media_count,
+            syncStatus: "COMPLETED",
+            lastSyncedAt: now,
+            updatedAt: now,
+        }).onConflictDoUpdate({
+            target: metaAccount.clientId,
+            set: {
                 instagramId: igAccountId,
                 facebookPageId: fbPageId,
                 username: profile.username,
                 profilePicture: profile.profile_picture_url,
                 accessToken,
-                tokenExpiry: expiry,
+                tokenExpiry: expiry.toISOString(),
                 followerCount: profile.followers_count,
                 followingCount: profile.follows_count,
                 mediaCount: profile.media_count,
+                lastSyncedAt: now,
                 syncStatus: "COMPLETED",
-                lastSyncedAt: new Date(),
-            },
-            update: {
-                instagramId: igAccountId,
-                facebookPageId: fbPageId,
-                username: profile.username,
-                profilePicture: profile.profile_picture_url,
-                accessToken,
-                tokenExpiry: expiry,
-                followerCount: profile.followers_count,
-                followingCount: profile.follows_count,
-                mediaCount: profile.media_count,
-                lastSyncedAt: new Date(),
-                syncStatus: "COMPLETED",
+                updatedAt: now,
             }
         });
 

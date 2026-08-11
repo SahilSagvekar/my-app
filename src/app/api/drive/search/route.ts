@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { generateSignedUrl, getS3, BUCKET } from '@/lib/s3';
 import { searchFiles } from '@/lib/file-server';
 
@@ -24,12 +26,12 @@ export async function GET(request: NextRequest) {
 
     let prefix = '';
     if (role === 'client' && userId) {
-      const user = await prisma.user.findUnique({
-        where: { id: parseInt(userId) },
-        select: { linkedClient: { select: { companyName: true, name: true } } },
+      const foundUser = await db.query.user.findFirst({
+        where: eq(userTable.id, parseInt(userId)),
+        with: { client: { columns: { companyName: true, name: true } } },
       });
-      if (user?.linkedClient) {
-        const company = user.linkedClient.companyName || user.linkedClient.name;
+      if (foundUser?.client) {
+        const company = foundUser.client.companyName || foundUser.client.name;
         prefix = `${company}/`;
       }
     }

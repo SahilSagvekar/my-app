@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesLead } from '@/lib/db/schema';
+import { inArray, asc } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
@@ -25,17 +27,17 @@ export async function GET(req: NextRequest) {
 
     const where =
       decoded.role === 'sales_manager'
-        ? { userId: { in: await getVisibleSalesRepIds(Number(decoded.userId)) } }
-        : {};
+        ? inArray(salesLead.userId, await getVisibleSalesRepIds(Number(decoded.userId)))
+        : undefined;
 
-    const leads = await prisma.salesLead.findMany({
+    const leads = await db.query.salesLead.findMany({
       where,
-      include: {
+      with: {
         user: {
-          select: { id: true, name: true, email: true, image: true },
+          columns: { id: true, name: true, email: true, image: true },
         },
       },
-      orderBy: [{ userId: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [asc(salesLead.userId), asc(salesLead.createdAt)],
     });
 
     return NextResponse.json({ ok: true, leads });

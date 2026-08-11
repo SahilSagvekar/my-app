@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { nasMirrorJob, user as userTable } from '@/lib/db/schema';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { createNasMirrorJob, NasFolderType } from '@/lib/nas-mirror-queue';
 
@@ -47,14 +49,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Avoid queuing a duplicate if one's already pending/running for the same target.
-    const existing = await prisma.nasMirrorJob.findFirst({
-      where: {
-        clientName,
-        folderType,
-        status: { in: ['pending', 'running'] },
-        ...(folderType === 'raw-footage' ? { folderPath } : { monthFolder }),
-      },
-    });
+    const [existing] = await db.select().from(nasMirrorJob).where(and(
+      eq(nasMirrorJob.clientName, clientName),
+      eq(nasMirrorJob.folderType, folderType),
+      inArray(nasMirrorJob.status, ['pending', 'running']),
+      folderType === 'raw-footage' ? eq(nasMirrorJob.folderPath, folderPath!) : eq(nasMirrorJob.monthFolder, monthFolder),
+    )).limit(1);
     if (existing) {
       return NextResponse.json({ job: existing, alreadyQueued: true });
     }
@@ -82,11 +82,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
-    const jobs = await prisma.nasMirrorJob.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-      include: { TriggeredBy: { select: { id: true, name: true } } },
-    });
+    const rows = await db.select({
+      job: nasMirrorJob,
+      TriggeredBy: { id: userTable.id, name: userTable.name },
+    })
+      .from(nasMirrorJob)
+      .leftJoin(userTable, eq(nasMirrorJob.triggeredById, userTable.id))
+      .orderBy(desc(nasMirrorJob.createdAt))
+      .limit(30);
+
+    const jobs = rows.map(r => ({ ...r.job, TriggeredBy: r.TriggeredBy.id !== null ? r.TriggeredBy : null }));
 
     return NextResponse.json({ jobs });
   } catch (err: any) {

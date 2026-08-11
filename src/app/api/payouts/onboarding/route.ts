@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesRepPayoutProfile } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getOrCreateConnectAccount, createOnboardingLink } from '@/lib/stripe-payouts';
 
@@ -14,7 +16,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const profile = await prisma.salesRepPayoutProfile.findUnique({ where: { userId: user.id } });
+  const [profile] = await db.select().from(salesRepPayoutProfile).where(eq(salesRepPayoutProfile.userId, user.id)).limit(1);
 
   return NextResponse.json({
     success: true,
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const existing = await prisma.salesRepPayoutProfile.findUnique({ where: { userId: user.id } });
+  const [existing] = await db.select().from(salesRepPayoutProfile).where(eq(salesRepPayoutProfile.userId, user.id)).limit(1);
 
   if (!existing?.taxFormCollectedAt) {
     return NextResponse.json(

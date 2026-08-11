@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // Look up clientId by company name — used when admin needs to use RawFootageUploadDialog
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { or, sql } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,15 +16,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'companyName required' }, { status: 400 });
     }
 
-    const client = await prisma.client.findFirst({
-      where: {
-        OR: [
-          { companyName: { equals: companyName.trim(), mode: 'insensitive' } },
-          { name: { equals: companyName.trim(), mode: 'insensitive' } },
-        ]
-      },
-      select: { id: true, companyName: true, name: true },
-    });
+    const trimmed = companyName.trim();
+    const [client] = await db
+      .select({ id: clientTable.id, companyName: clientTable.companyName, name: clientTable.name })
+      .from(clientTable)
+      .where(
+        or(
+          sql`lower(${clientTable.companyName}) = lower(${trimmed})`,
+          sql`lower(${clientTable.name}) = lower(${trimmed})`
+        )
+      )
+      .limit(1);
 
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });

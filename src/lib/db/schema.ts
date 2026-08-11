@@ -244,8 +244,10 @@ export const user = pgTable("User", {
 	slackUserId: text(),
 	loginOtp: text(),
 	loginOtpExpiry: timestamp({ precision: 3, mode: 'string' }),
-	// TODO: failed to parse database type 'Role"[]'
-	roles: text("roles").array(),
+	// Real DB type is Role[] (array of the "Role" enum) — drizzle-kit couldn't
+	// parse that during introspection and fell back to text[], which silently
+	// broke reads/writes on this column. Fixed to use the actual enum.
+	roles: role("roles").array(),
 }, (table) => [
 	index("User_email_idx").using("btree", table.email.asc().nullsLast().op("text_ops")),
 	index("User_employeeStatus_idx").using("btree", table.employeeStatus.asc().nullsLast().op("enum_ops")),

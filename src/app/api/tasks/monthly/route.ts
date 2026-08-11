@@ -3,7 +3,9 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task } from "@/lib/db/schema";
+import { and, eq, gte, lte, asc } from "drizzle-orm";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -19,10 +21,10 @@ export async function GET(req: Request) {
 
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
 
-    const where =
+    const roleCondition =
       ["admin", "manager"].includes(decoded.role)
-        ? {}
-        : { assignedTo: Number(decoded.userId) };
+        ? undefined
+        : eq(task.assignedTo, Number(decoded.userId));
 
     const now = new Date();
     const year = now.getFullYear();
@@ -32,13 +34,13 @@ export async function GET(req: Request) {
     const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
 
     // Single query — was being run twice with identical params (bug from refactor)
-    const currentMonthTasks = await prisma.task.findMany({
-      where: {
-        ...where,
-        dueDate: { gte: monthStart, lte: monthEnd },
-      },
-      orderBy: { dueDate: "asc" },
-    });
+    const currentMonthTasks = await db.select().from(task)
+      .where(and(
+        ...(roleCondition ? [roleCondition] : []),
+        gte(task.dueDate, monthStart.toISOString()),
+        lte(task.dueDate, monthEnd.toISOString()),
+      ))
+      .orderBy(asc(task.dueDate));
 
     return NextResponse.json(
       {

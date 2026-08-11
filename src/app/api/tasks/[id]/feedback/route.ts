@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/feedback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { taskFeedback, shareableReview as shareableReviewTable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, ne, desc } from "drizzle-orm";
 
 // GET - Fetch all feedback for a task
 export async function GET(
@@ -11,18 +14,19 @@ export async function GET(
   try {
     const { id } = await params;
 
-    const feedback = await prisma.taskFeedback.findMany({
-      where: { taskId: id },
-      include: {
+    const rawFeedback = await db.query.taskFeedback.findMany({
+      where: eq(taskFeedback.taskId, id),
+      with: {
         user: {
-          select: { id: true, name: true, role: true }
+          columns: { id: true, name: true, role: true }
         },
         file: {
-          select: { id: true, name: true, version: true, folderType: true }
+          columns: { id: true, name: true, version: true, folderType: true }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: desc(taskFeedback.createdAt)
     });
+    const feedback = rawFeedback;
 
     // Group by folderType
     const groupedFeedback: Record<string, typeof feedback> = {};
@@ -70,25 +74,24 @@ export async function POST(
       );
     }
 
-    const newFeedback = await prisma.taskFeedback.create({
-      data: {
-        taskId: id,
-        folderType,
-        fileId: fileId || null,
-        feedback,
-        timestamp: timestamp || null,
-        category: category || null,
-        status,
-        createdBy,
+    const [createdFeedback] = await db.insert(taskFeedback).values({
+      id: createId(),
+      taskId: id,
+      folderType,
+      fileId: fileId || null,
+      feedback,
+      timestamp: timestamp || null,
+      category: category || null,
+      status,
+      createdBy,
+    }).returning();
+
+    const newFeedback = await db.query.taskFeedback.findFirst({
+      where: eq(taskFeedback.id, createdFeedback.id),
+      with: {
+        user: { columns: { id: true, name: true, role: true } },
+        file: { columns: { id: true, name: true, version: true } },
       },
-      include: {
-        user: {
-          select: { id: true, name: true, role: true }
-        },
-        file: {
-          select: { id: true, name: true, version: true }
-        }
-      }
     });
 
     const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
@@ -128,11 +131,10 @@ export async function PATCH(
     // Verify guest if using shareToken
     if (!createdBy || createdBy === 0) {
       if (shareToken) {
-        const shareableReview = await (prisma as any).shareableReview.findUnique({
-          where: { shareToken },
-        });
+        const [shareableReview] = await db.select().from(shareableReviewTable)
+          .where(eq(shareableReviewTable.shareToken, shareToken)).limit(1);
 
-        if (shareableReview && shareableReview.isActive && (!shareableReview.expiresAt || shareableReview.expiresAt > new Date())) {
+        if (shareableReview && shareableReview.isActive && (!shareableReview.expiresAt || new Date(shareableReview.expiresAt) > new Date())) {
           if (shareableReview.taskId !== id) {
             return NextResponse.json({ error: "Invalid share token for this task" }, { status: 403 });
           }
@@ -153,18 +155,15 @@ export async function PATCH(
     }
 
     // Get existing unresolved feedback to avoid duplicates
-    const existingFeedback = await prisma.taskFeedback.findMany({
-      where: {
-        taskId: id,
-        status: { not: 'resolved' },
-      },
-      select: {
-        feedback: true,
-        timestamp: true,
-        folderType: true,
-        createdBy: true,
-      }
-    });
+    const existingFeedback = await db.select({
+      feedback: taskFeedback.feedback,
+      timestamp: taskFeedback.timestamp,
+      folderType: taskFeedback.folderType,
+      createdBy: taskFeedback.createdBy,
+    }).from(taskFeedback).where(and(
+      eq(taskFeedback.taskId, id),
+      ne(taskFeedback.status, 'resolved'),
+    ));
 
     // Create a Set of existing feedback signatures for fast lookup
     // Include createdBy to allow same comment from different users
@@ -209,11 +208,14 @@ export async function PATCH(
       });
     }
 
-    // Start a transaction
-    const result = await prisma.$transaction(async (tx) => {
+    // Start a transaction — interactive (db.transaction), matches original
+    // prisma.$transaction(async (tx) => {...}) form. Atomicity preserved:
+    // single insert of all new rows, all-or-nothing.
+    const result = await db.transaction(async (tx) => {
       // Create new feedback items (only the ones that don't exist)
-      const created = await tx.taskFeedback.createMany({
-        data: newItems.map((item: any) => ({
+      const created = await tx.insert(taskFeedback).values(
+        newItems.map((item: any) => ({
+          id: createId(),
           taskId: id,
           folderType: item.folderType || 'main',
           fileId: item.fileId || null,
@@ -223,9 +225,9 @@ export async function PATCH(
           status: "needs_revision",
           createdBy: finalCreatedBy,
         }))
-      });
+      ).returning();
 
-      return created;
+      return { count: created.length };
     });
 
     console.log(`✅ Created ${result.count} feedback items for task ${id} (${feedbackItems.length - newItems.length} duplicates skipped)`);
@@ -279,14 +281,11 @@ export async function DELETE(
         return NextResponse.json({ error: 'Missing acknowledgedBy' }, { status: 400 });
       }
 
-      const updated = await prisma.taskFeedback.update({
-        where: { id: feedbackId },
-        data: {
-          acknowledgedAt: new Date(),
-          acknowledgedBy,
-          status: 'acknowledged',
-        }
-      });
+      const [updated] = await db.update(taskFeedback).set({
+        acknowledgedAt: new Date().toISOString(),
+        acknowledgedBy,
+        status: 'acknowledged',
+      }).where(eq(taskFeedback.id, feedbackId)).returning();
 
       const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
       await createAuditLog({
@@ -303,13 +302,10 @@ export async function DELETE(
 
     if (action === 'resolve') {
       // Mark feedback as resolved
-      const updated = await prisma.taskFeedback.update({
-        where: { id: feedbackId },
-        data: {
-          resolvedAt: new Date(),
-          status: 'resolved'
-        }
-      });
+      const [updated] = await db.update(taskFeedback).set({
+        resolvedAt: new Date().toISOString(),
+        status: 'resolved'
+      }).where(eq(taskFeedback.id, feedbackId)).returning();
 
       const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
       await createAuditLog({
@@ -327,9 +323,7 @@ export async function DELETE(
       });
     } else {
       // Delete feedback
-      await prisma.taskFeedback.delete({
-        where: { id: feedbackId }
-      });
+      await db.delete(taskFeedback).where(eq(taskFeedback.id, feedbackId));
 
       return NextResponse.json({
         success: true,
@@ -359,21 +353,19 @@ export async function PUT(
       );
     }
 
-    const updated = await prisma.taskFeedback.update({
-      where: { id: feedbackId },
-      data: {
-        feedback,
-        category: category || undefined,
-        updatedAt: new Date(),
+    // NOTE: TaskFeedback has no updatedAt column (schema.prisma confirms it
+    // was never a real field) — dropped rather than mapped to a nonexistent column.
+    const [updatedRow] = await db.update(taskFeedback).set({
+      feedback,
+      category: category || undefined,
+    }).where(eq(taskFeedback.id, feedbackId)).returning();
+
+    const updated = await db.query.taskFeedback.findFirst({
+      where: eq(taskFeedback.id, updatedRow.id),
+      with: {
+        user: { columns: { id: true, name: true, role: true } },
+        file: { columns: { id: true, name: true, version: true } },
       },
-      include: {
-        user: {
-          select: { id: true, name: true, role: true }
-        },
-        file: {
-          select: { id: true, name: true, version: true }
-        }
-      }
     });
 
     const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');

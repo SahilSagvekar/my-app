@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable, client as clientTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export const verifyToken = (token: string) => {
   try {
@@ -48,7 +50,7 @@ export async function getTokenFromCookies(req: Request) {
 // export async function requireAdmin(req: NextRequest) {
 //   try{
 //   const authHeader = req.headers.get('authorization');
-//   const token = authHeader?.split(' ')[1];  
+//   const token = authHeader?.split(' ')[1];
 //   if (!token) return null;
 //   // Mock token validation for now (replace with real JWT verification)
 //   const user = await prisma.user.findUnique({ where: { id: Number(token) } });
@@ -124,8 +126,12 @@ export async function getCurrentUser2(req?: NextRequest) {
         const effectiveId = decoded?.userId || decoded?.id;
 
         if (effectiveId) {
-          const user = await prisma.user.findUnique({ where: { id: Number(effectiveId) } });
-          if (user) return user;
+          const [foundUser] = await db
+            .select()
+            .from(userTable)
+            .where(eq(userTable.id, Number(effectiveId)))
+            .limit(1);
+          if (foundUser) return foundUser;
         }
       } catch (jwtErr) {
         // Fall through to NextAuth
@@ -135,10 +141,12 @@ export async function getCurrentUser2(req?: NextRequest) {
     // 2. Try NextAuth Session (Google/Slack)
     const session = await auth();
     if (session?.user?.email) {
-      const user = await prisma.user.findFirst({
-        where: { email: session.user.email }
-      });
-      if (user && (user.employeeStatus === 'ACTIVE' || user.email === 'sahilsagvekar230@gmail.com')) return user;
+      const [foundUser] = await db
+        .select()
+        .from(userTable)
+        .where(eq(userTable.email, session.user.email))
+        .limit(1);
+      if (foundUser && (foundUser.employeeStatus === 'ACTIVE' || foundUser.email === 'sahilsagvekar230@gmail.com')) return foundUser;
     }
 
     return null;
@@ -190,7 +198,12 @@ export async function requireAdmin(req: NextRequest) {
 export async function getRequestingUser(req: NextRequest) {
   const userId = Number(req.headers.get('x-user-id'));
   if (!userId) return null;
-  return prisma.user.findUnique({ where: { id: userId } });
+  const [foundUser] = await db
+    .select()
+    .from(userTable)
+    .where(eq(userTable.id, userId))
+    .limit(1);
+  return foundUser ?? null;
 }
 
 export function isEmployee(user: { role: string } | null) {
@@ -200,32 +213,32 @@ export function isEmployee(user: { role: string } | null) {
 
 /**
  * Resolves the Client ID for a given user.
- * 
+ *
  * Strategy (with backward compatibility):
  *   1. Check user.linkedClientId (new multi-user method)
  *   2. Fallback: Check Client.userId (old 1:1 method)
- * 
+ *
  * This ensures ALL users linked to the same client resolve to the same clientId,
  * regardless of which linking method was used.
  */
 export async function resolveClientIdForUser(userId: number): Promise<string | null> {
   // Method 1: Check linkedClientId on the User record (preferred, supports multi-user)
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { linkedClientId: true },
-  });
+  const [foundUser] = await db
+    .select({ linkedClientId: userTable.linkedClientId })
+    .from(userTable)
+    .where(eq(userTable.id, userId))
+    .limit(1);
 
-  if (user?.linkedClientId) {
-    return user.linkedClientId;
+  if (foundUser?.linkedClientId) {
+    return foundUser.linkedClientId;
   }
 
   // Method 2: Fallback to old Client.userId (1:1 relation, backward compat)
-  const clientByUserId = await prisma.client.findFirst({
-    where: { userId: userId },
-    select: { id: true },
-  });
+  const [clientByUserId] = await db
+    .select({ id: clientTable.id })
+    .from(clientTable)
+    .where(eq(clientTable.userId, userId))
+    .limit(1);
 
   return clientByUserId?.id || null;
 }
-
-

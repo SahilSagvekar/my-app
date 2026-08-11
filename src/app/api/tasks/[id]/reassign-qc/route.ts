@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { prisma } from '../../../../../lib/prisma';
+import { db } from '@/lib/db';
+import { task, user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function PATCH(
@@ -26,10 +28,8 @@ export async function PATCH(
     }
 
     // Verify the target user exists and is a QC specialist
-    const targetUser = await prisma.user.findUnique({
-      where: { id: Number(newQcSpecialistId) },
-      select: { id: true, name: true, role: true, employeeStatus: true },
-    });
+    const [targetUser] = await db.select({ id: userTable.id, name: userTable.name, role: userTable.role, employeeStatus: userTable.employeeStatus })
+      .from(userTable).where(eq(userTable.id, Number(newQcSpecialistId))).limit(1);
 
     if (!targetUser) {
       return NextResponse.json({ message: 'Target user not found' }, { status: 404 });
@@ -44,35 +44,29 @@ export async function PATCH(
     }
 
     // Verify the task exists and is in a QC-relevant status
-    const task = await prisma.task.findUnique({
-      where: { id },
-      select: { id: true, title: true, status: true, qc_specialist: true },
-    });
+    const [foundTask] = await db.select({ id: task.id, title: task.title, status: task.status, qcSpecialist: task.qcSpecialist })
+      .from(task).where(eq(task.id, id)).limit(1);
 
-    if (!task) {
+    if (!foundTask) {
       return NextResponse.json({ message: 'Task not found' }, { status: 404 });
     }
 
     // If QC role (not admin/manager), ensure they are the current qc_specialist
-    if (role === 'qc' && task.qc_specialist !== user.id) {
+    if (role === 'qc' && foundTask.qcSpecialist !== user.id) {
       return NextResponse.json(
         { message: 'You can only reassign tasks assigned to you' },
         { status: 403 }
       );
     }
 
-    const updated = await prisma.task.update({
-      where: { id },
-      data: {
-        qc_specialist: Number(newQcSpecialistId),
-        updatedAt: new Date(),
-      },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        qc_specialist: true,
-      },
+    const [updated] = await db.update(task).set({
+      qcSpecialist: Number(newQcSpecialistId),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id)).returning({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      qcSpecialist: task.qcSpecialist,
     });
 
     return NextResponse.json({

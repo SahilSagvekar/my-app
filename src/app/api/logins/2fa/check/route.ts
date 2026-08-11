@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/2fa/check/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { userTwoFactorAuth } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: NextRequest): string | null {
@@ -49,15 +51,12 @@ export async function GET(req: NextRequest) {
         const { userId } = decoded;
 
         // Get user's 2FA settings
-        const twoFactorAuth = await prisma.userTwoFactorAuth.findUnique({
-            where: { userId },
-            select: {
-                isEnabled: true,
-                createdAt: true,
-                lastVerifiedAt: true,
-                backupCodes: true,
-            },
-        });
+        const [twoFactorAuth] = await db.select({
+            isEnabled: userTwoFactorAuth.isEnabled,
+            createdAt: userTwoFactorAuth.createdAt,
+            lastVerifiedAt: userTwoFactorAuth.lastVerifiedAt,
+            backupCodes: userTwoFactorAuth.backupCodes,
+        }).from(userTwoFactorAuth).where(eq(userTwoFactorAuth.userId, userId)).limit(1);
 
         if (!twoFactorAuth) {
             return NextResponse.json({
@@ -73,7 +72,7 @@ export async function GET(req: NextRequest) {
             isEnabled: twoFactorAuth.isEnabled,
             createdAt: twoFactorAuth.createdAt,
             lastVerifiedAt: twoFactorAuth.lastVerifiedAt,
-            remainingBackupCodes: twoFactorAuth.backupCodes.length,
+            remainingBackupCodes: (twoFactorAuth.backupCodes ?? []).length,
         });
     } catch (error) {
         console.error("Failed to check 2FA status:", error);

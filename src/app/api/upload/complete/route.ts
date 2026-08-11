@@ -18,7 +18,10 @@ import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
 import { completeMultipart } from '@/lib/file-server';
 import { pushUploadJob } from '@/lib/upload-queue';
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, file as fileTable, task as taskTable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 
 function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
   return !!value && !value.includes("/") && !value.includes("\\");
@@ -104,25 +107,30 @@ export async function POST(request: NextRequest) {
       let existingActiveFile: { id: string; version: number } | null = null;
 
       if (!isDriveUpload) {
-        const [taskResult, existingFile] = await Promise.all([
-          prisma.task.findUnique({
-            where: { id: taskId },
-            select: {
+        const [taskResult, [existingFile]] = await Promise.all([
+          db.query.task.findFirst({
+            where: eq(taskTable.id, taskId),
+            columns: {
               requiresClientReview: true,
               driveFolderId: true,
               clientId: true,
-              client: { select: { companyName: true, name: true } },
+            },
+            with: {
+              client: { columns: { companyName: true, name: true } },
             },
           }),
-          prisma.file.findFirst({
-            where: {
-              taskId,
-              folderType: !subfolder || subfolder === 'main' ? 'main' : subfolder,
-              isActive: true,
-            },
-            orderBy: { version: 'desc' },
-            select: { id: true, version: true },
-          }),
+          db
+            .select({ id: fileTable.id, version: fileTable.version })
+            .from(fileTable)
+            .where(
+              and(
+                eq(fileTable.taskId, taskId),
+                eq(fileTable.folderType, !subfolder || subfolder === 'main' ? 'main' : subfolder),
+                eq(fileTable.isActive, true),
+              ),
+            )
+            .orderBy(desc(fileTable.version))
+            .limit(1),
         ]);
 
         if (taskResult) {
@@ -133,16 +141,17 @@ export async function POST(request: NextRequest) {
           clientName = taskResult.client?.companyName || taskResult.client?.name || null;
           clientId = taskResult.clientId || null;
         }
-        existingActiveFile = existingFile;
+        existingActiveFile = existingFile ?? null;
       } else {
         const pathParts = key.split("/").filter(Boolean);
         const companyName = pathParts[0];
         if (companyName) {
-          const client = await prisma.client.findFirst({
-            where: { OR: [{ companyName }, { name: companyName }] },
-            select: { id: true },
-          });
-          clientId = client?.id || null;
+          const [foundClient] = await db
+            .select({ id: clientTable.id })
+            .from(clientTable)
+            .where(or(eq(clientTable.companyName, companyName), eq(clientTable.name, companyName)))
+            .limit(1);
+          clientId = foundClient?.id || null;
         }
       }
 
@@ -153,8 +162,10 @@ export async function POST(request: NextRequest) {
       let fileRecord: { id: string; version: number } | null = null;
 
       if (!isDriveUpload) {
-        fileRecord = await prisma.file.create({
-          data: {
+        const [insertedFile] = await db
+          .insert(fileTable)
+          .values({
+            id: createId(),
             name: fileName,
             url: fileUrl,
             s3Key: key,
@@ -169,16 +180,18 @@ export async function POST(request: NextRequest) {
             proxyUrl: fileType.startsWith('video/')
               ? null  // set after we have the ID
               : null,
-          },
-          select: { id: true, version: true },
-        });
+            uploadedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+          })
+          .returning({ id: fileTable.id, version: fileTable.version });
+        fileRecord = insertedFile;
 
         // Set proxyUrl now that we have the real ID
         if (fileType.startsWith('video/')) {
-          await prisma.file.update({
-            where: { id: fileRecord.id },
-            data: { proxyUrl: `/api/files/${fileRecord.id}/stream` },
-          });
+          await db
+            .update(fileTable)
+            .set({ proxyUrl: `/api/files/${fileRecord.id}/stream` })
+            .where(eq(fileTable.id, fileRecord.id));
         }
 
         console.log(`💾 File v${newVersion} saved: ${fileRecord.id}`);
@@ -186,19 +199,22 @@ export async function POST(request: NextRequest) {
         // ── STEP 4: Mark old version inactive + push fileUrl ─────────────
         await Promise.all([
           existingActiveFile
-            ? prisma.file.update({
-                where: { id: existingActiveFile.id },
-                data: {
+            ? db
+                .update(fileTable)
+                .set({
                   isActive: false,
-                  replacedAt: new Date(),
+                  replacedAt: new Date().toISOString(),
                   replacedBy: fileRecord.id,
-                },
-              })
+                })
+                .where(eq(fileTable.id, existingActiveFile.id))
             : Promise.resolve(null),
-          prisma.task.update({
-            where: { id: taskId },
-            data: { driveLinks: { push: fileUrl } },
-          }),
+          db
+            .update(taskTable)
+            .set({
+              driveLinks: sql`array_append(${taskTable.driveLinks}, ${fileUrl})`,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(taskTable.id, taskId)),
         ]);
 
         if (existingActiveFile) {

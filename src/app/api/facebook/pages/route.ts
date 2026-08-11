@@ -5,7 +5,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { facebookPage, metaAccount } from '@/lib/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
+import { createId } from '@/lib/db/id';
 import { getCurrentUser2 } from '@/lib/auth';
 import { FacebookService } from '@/lib/social/facebook';
 import { encrypt } from '@/lib/encryption';
@@ -26,26 +29,23 @@ export async function GET(req: NextRequest) {
     }
 
     // Get Meta account for this client (to get the access token)
-    const metaAccount = await prisma.metaAccount.findUnique({
-      where: { clientId },
-    });
+    const [metaAcct] = await db.select().from(metaAccount)
+      .where(eq(metaAccount.clientId, clientId)).limit(1);
 
-    if (!metaAccount) {
-      return NextResponse.json({ 
+    if (!metaAcct) {
+      return NextResponse.json({
         error: 'No Meta account connected. Please connect Instagram first.',
-        needsConnection: true 
+        needsConnection: true
       }, { status: 404 });
     }
 
     // Fetch pages from Facebook
-    const fbService = new FacebookService(metaAccount.accessToken);
+    const fbService = new FacebookService(metaAcct.accessToken);
     const pages = await fbService.getPages();
 
     // Check which pages are already connected
-    const connectedPages = await prisma.facebookPage.findMany({
-      where: { clientId },
-      select: { pageId: true },
-    });
+    const connectedPages = await db.select({ pageId: facebookPage.pageId }).from(facebookPage)
+      .where(eq(facebookPage.clientId, clientId));
 
     const connectedPageIds = new Set(connectedPages.map(p => p.pageId));
 
@@ -80,9 +80,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if already connected
-    const existing = await prisma.facebookPage.findUnique({
-      where: { clientId_pageId: { clientId, pageId } },
-    });
+    const [existing] = await db.select().from(facebookPage)
+      .where(and(eq(facebookPage.clientId, clientId), eq(facebookPage.pageId, pageId))).limit(1);
 
     if (existing) {
       return NextResponse.json({ error: 'Page already connected' }, { status: 409 });
@@ -93,37 +92,36 @@ export async function POST(req: NextRequest) {
     const pageInfo = await fbService.getPageInfo();
 
     // Save to database
-    const facebookPage = await prisma.facebookPage.create({
-      data: {
-        clientId,
-        pageId,
-        pageName: pageName || pageInfo.name,
-        pageAccessToken: encrypt(pageAccessToken),
-        category: category || pageInfo.category,
-        profilePicture: picture || pageInfo.picture,
-        followerCount: pageInfo.followers,
-        likeCount: pageInfo.likes,
-        isActive: true,
-      },
-    });
+    const [createdPage] = await db.insert(facebookPage).values({
+      id: createId(),
+      clientId,
+      pageId,
+      pageName: pageName || pageInfo.name,
+      pageAccessToken: encrypt(pageAccessToken),
+      category: category || pageInfo.category,
+      profilePicture: picture || pageInfo.picture,
+      followerCount: pageInfo.followers,
+      likeCount: pageInfo.likes,
+      isActive: true,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     // Also update MetaAccount if not already linked
-    await prisma.metaAccount.updateMany({
-      where: { clientId, facebookPageId: null },
-      data: { facebookPageId: pageId },
-    });
+    await db.update(metaAccount)
+      .set({ facebookPageId: pageId, updatedAt: new Date().toISOString() })
+      .where(and(eq(metaAccount.clientId, clientId), isNull(metaAccount.facebookPageId)));
 
     console.log(`[FACEBOOK] Connected page ${pageName} for client ${clientId}`);
 
     return NextResponse.json({
       ok: true,
       page: {
-        id: facebookPage.id,
-        pageId: facebookPage.pageId,
-        pageName: facebookPage.pageName,
-        category: facebookPage.category,
-        followerCount: facebookPage.followerCount,
-        likeCount: facebookPage.likeCount,
+        id: createdPage.id,
+        pageId: createdPage.pageId,
+        pageName: createdPage.pageName,
+        category: createdPage.category,
+        followerCount: createdPage.followerCount,
+        likeCount: createdPage.likeCount,
       },
     });
   } catch (error: any) {
@@ -148,15 +146,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'pageId and clientId required' }, { status: 400 });
     }
 
-    await prisma.facebookPage.delete({
-      where: { clientId_pageId: { clientId, pageId } },
-    });
+    await db.delete(facebookPage)
+      .where(and(eq(facebookPage.clientId, clientId), eq(facebookPage.pageId, pageId)));
 
     // Remove from MetaAccount if linked
-    await prisma.metaAccount.updateMany({
-      where: { clientId, facebookPageId: pageId },
-      data: { facebookPageId: null },
-    });
+    await db.update(metaAccount)
+      .set({ facebookPageId: null, updatedAt: new Date().toISOString() })
+      .where(and(eq(metaAccount.clientId, clientId), eq(metaAccount.facebookPageId, pageId)));
 
     return NextResponse.json({ ok: true, message: 'Page disconnected' });
   } catch (error: any) {

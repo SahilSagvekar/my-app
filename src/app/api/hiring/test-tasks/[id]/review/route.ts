@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // Admin approves or rejects a submitted test task and notifies the candidate.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { hiringCandidate, hiringTestTask } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendTestTaskDecisionEmail } from '@/lib/hiring-email';
 
@@ -23,21 +25,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'decision must be APPROVED or REJECTED' }, { status: 400 });
     }
 
-    const testTask = await prisma.hiringTestTask.update({
-      where: { id },
-      data: {
+    const [updatedTask] = await db.update(hiringTestTask)
+      .set({
         status: decision,
         reviewNotes: reviewNotes || null,
         reviewedById: user.id,
-        reviewedAt: new Date(),
-      },
-      include: { candidate: true },
-    });
+        reviewedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(hiringTestTask.id, id))
+      .returning();
 
-    await prisma.hiringCandidate.update({
-      where: { id: testTask.candidateId },
-      data: { status: decision === 'APPROVED' ? 'HIRED' : 'REJECTED' },
-    });
+    const [candidateRow] = await db.select().from(hiringCandidate).where(eq(hiringCandidate.id, updatedTask.candidateId)).limit(1);
+    const testTask = { ...updatedTask, candidate: candidateRow };
+
+    await db.update(hiringCandidate)
+      .set({ status: decision === 'APPROVED' ? 'HIRED' : 'REJECTED', updatedAt: new Date().toISOString() })
+      .where(eq(hiringCandidate.id, updatedTask.candidateId));
 
     const emailResult = await sendTestTaskDecisionEmail({
       candidateName: testTask.candidate.name,

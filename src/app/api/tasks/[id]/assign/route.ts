@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "../../../../../lib/prisma";
+import { db } from "@/lib/db";
+import { task, user, client as clientTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { notifyEditorTaskAssignment } from "../../../../../lib/notify";
 import jwt from "jsonwebtoken";
 
@@ -44,7 +46,7 @@ export async function PATCH(
 
     // Validate users exist
     if (assignedTo) {
-      const assignee = await prisma.user.findUnique({ where: { id: assignedTo } });
+      const [assignee] = await db.select().from(user).where(eq(user.id, assignedTo)).limit(1);
       if (!assignee)
         return NextResponse.json(
           { message: `Assigned user not found (id: ${assignedTo})` },
@@ -53,8 +55,8 @@ export async function PATCH(
     }
 
     if (clientId) {
-      const client = await prisma.user.findUnique({ where: { id: clientId } });
-      if (!client)
+      const [clientUser] = await db.select().from(user).where(eq(user.id, clientId)).limit(1);
+      if (!clientUser)
         return NextResponse.json(
           { message: `Client not found (id: ${clientId})` },
           { status: 404 }
@@ -63,22 +65,20 @@ export async function PATCH(
 
     // Look up current assignee so we only notify on a real reassignment
     const existingTask = assignedTo
-      ? await prisma.task.findUnique({ where: { id }, select: { assignedTo: true } })
+      ? (await db.select({ assignedTo: task.assignedTo }).from(task).where(eq(task.id, id)).limit(1))[0]
       : null;
 
     // Update task
-    const updatedTask = await prisma.task.update({
-      where: { id },
-      data: {
-        ...(assignedTo && { assignedTo }),
-        ...(clientId && { clientId }),
-        updatedAt: new Date(),
-      },
-      include: {
-        // assignedUser: true,
-        client: true,
-      },
-    });
+    const [updatedTaskRow] = await db.update(task).set({
+      ...(assignedTo && { assignedTo }),
+      ...(clientId && { clientId }),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id)).returning();
+
+    const [taskClient] = updatedTaskRow.clientId
+      ? await db.select().from(clientTable).where(eq(clientTable.id, updatedTaskRow.clientId)).limit(1)
+      : [null];
+    const updatedTask = { ...updatedTaskRow, client: taskClient };
 
     // 🔔 Notify the editor only if they were actually newly assigned
     if (assignedTo && existingTask?.assignedTo !== assignedTo) {

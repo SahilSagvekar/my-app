@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getSignWellDocument } from '@/lib/signwell';
 
@@ -16,9 +18,9 @@ export async function GET(
 
     const { id } = await params;
 
-    const contract = await prisma.contract.findUnique({
-      where: { id },
-      include: { signers: true },
+    const contract = await db.query.contract.findFirst({
+      where: eq(contractTable.id, id),
+      with: { contractSigners: true },
     });
 
     if (!contract) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });

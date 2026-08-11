@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { stripeCustomer, invoice, subscription, clientPortalAccess } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, inArray, count as countFn } from 'drizzle-orm';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { stripe } from '@/lib/stripe';
 
@@ -23,15 +26,15 @@ export async function GET(req: NextRequest) {
     if (isAdmin) {
       if (clientIdParam) {
         // Sync specific client
-        const customer = await prisma.stripeCustomer.findUnique({
-          where: { clientId: clientIdParam },
-          include: { client: true }
+        const customer = await db.query.stripeCustomer.findFirst({
+          where: eq(stripeCustomer.clientId, clientIdParam),
+          with: { client: true }
         });
         if (customer) stripeCustomersToSync.push(customer);
       } else {
         // Sync ALL clients
-        stripeCustomersToSync = await prisma.stripeCustomer.findMany({
-          include: { client: true }
+        stripeCustomersToSync = await db.query.stripeCustomer.findMany({
+          with: { client: true }
         });
       }
     } else {
@@ -40,10 +43,10 @@ export async function GET(req: NextRequest) {
       if (!effectiveClientId) {
         return NextResponse.json({ success: true, message: 'No client profile associated with this user.' });
       }
-      
-      const customer = await prisma.stripeCustomer.findUnique({
-        where: { clientId: effectiveClientId },
-        include: { client: true }
+
+      const customer = await db.query.stripeCustomer.findFirst({
+        where: eq(stripeCustomer.clientId, effectiveClientId),
+        with: { client: true }
       });
       if (customer) stripeCustomersToSync.push(customer);
     }
@@ -63,9 +66,7 @@ export async function GET(req: NextRequest) {
         
         for (const stripeInv of stripeInvoices.data) {
           // Check if invoice already exists by stripeInvoiceId
-          const existingInvoice = await prisma.invoice.findUnique({
-            where: { stripeInvoiceId: stripeInv.id },
-          });
+          const [existingInvoice] = await db.select().from(invoice).where(eq(invoice.stripeInvoiceId, stripeInv.id)).limit(1);
           
           let localStatus: any = 'SENT';
           if (stripeInv.status === 'open') {
@@ -97,9 +98,9 @@ export async function GET(req: NextRequest) {
             amount: stripeInv.amount_due || stripeInv.total || 0,
             amountPaid: stripeInv.amount_paid || 0,
             currency: stripeInv.currency || 'usd',
-            dueDate: stripeInv.due_date ? new Date(stripeInv.due_date * 1000) : new Date((stripeInv.created + 30 * 24 * 60 * 60) * 1000),
-            paidAt: stripeInv.status_transitions?.paid_at ? new Date(stripeInv.status_transitions.paid_at * 1000) : null,
-            sentAt: stripeInv.status_transitions?.finalized_at ? new Date(stripeInv.status_transitions.finalized_at * 1000) : null,
+            dueDate: (stripeInv.due_date ? new Date(stripeInv.due_date * 1000) : new Date((stripeInv.created + 30 * 24 * 60 * 60) * 1000)).toISOString(),
+            paidAt: stripeInv.status_transitions?.paid_at ? new Date(stripeInv.status_transitions.paid_at * 1000).toISOString() : null,
+            sentAt: stripeInv.status_transitions?.finalized_at ? new Date(stripeInv.status_transitions.finalized_at * 1000).toISOString() : null,
             description: stripeInv.description,
             lineItems: lineItems,
             stripeHostedInvoiceUrl: stripeInv.hosted_invoice_url,
@@ -107,46 +108,42 @@ export async function GET(req: NextRequest) {
             isRecurring: !!stripeInv.subscription,
             stripePaymentIntentId: stripeInv.payment_intent as string | null,
           };
-          
+
           if (existingInvoice) {
-            await prisma.invoice.update({
-              where: { id: existingInvoice.id },
-              data: {
+            await db.update(invoice).set({
+              status: invoiceData.status,
+              amountPaid: invoiceData.amountPaid,
+              paidAt: invoiceData.paidAt,
+              stripeHostedInvoiceUrl: invoiceData.stripeHostedInvoiceUrl,
+              stripePdfUrl: invoiceData.stripePdfUrl,
+              amount: invoiceData.amount,
+              sentAt: invoiceData.sentAt,
+              dueDate: invoiceData.dueDate,
+              stripePaymentIntentId: invoiceData.stripePaymentIntentId,
+              updatedAt: new Date().toISOString(),
+            }).where(eq(invoice.id, existingInvoice.id));
+          } else {
+            // Check if there is an invoice with the same invoiceNumber (created locally before stripeInvoiceId was set)
+            let invoiceByNumber = null;
+            if (stripeInv.number) {
+              [invoiceByNumber] = await db.select().from(invoice).where(eq(invoice.invoiceNumber, stripeInv.number)).limit(1);
+            }
+            if (invoiceByNumber) {
+              await db.update(invoice).set({
+                stripeInvoiceId: stripeInv.id,
                 status: invoiceData.status,
                 amountPaid: invoiceData.amountPaid,
                 paidAt: invoiceData.paidAt,
                 stripeHostedInvoiceUrl: invoiceData.stripeHostedInvoiceUrl,
                 stripePdfUrl: invoiceData.stripePdfUrl,
-                amount: invoiceData.amount,
-                sentAt: invoiceData.sentAt,
-                dueDate: invoiceData.dueDate,
                 stripePaymentIntentId: invoiceData.stripePaymentIntentId,
-              }
-            });
-          } else {
-            // Check if there is an invoice with the same invoiceNumber (created locally before stripeInvoiceId was set)
-            let invoiceByNumber = null;
-            if (stripeInv.number) {
-              invoiceByNumber = await prisma.invoice.findFirst({
-                where: { invoiceNumber: stripeInv.number },
-              });
-            }
-            if (invoiceByNumber) {
-              await prisma.invoice.update({
-                where: { id: invoiceByNumber.id },
-                data: {
-                  stripeInvoiceId: stripeInv.id,
-                  status: invoiceData.status,
-                  amountPaid: invoiceData.amountPaid,
-                  paidAt: invoiceData.paidAt,
-                  stripeHostedInvoiceUrl: invoiceData.stripeHostedInvoiceUrl,
-                  stripePdfUrl: invoiceData.stripePdfUrl,
-                  stripePaymentIntentId: invoiceData.stripePaymentIntentId,
-                }
-              });
+                updatedAt: new Date().toISOString(),
+              }).where(eq(invoice.id, invoiceByNumber.id));
             } else {
-              await prisma.invoice.create({
-                data: invoiceData,
+              await db.insert(invoice).values({
+                id: createId(),
+                ...invoiceData,
+                updatedAt: new Date().toISOString(),
               });
             }
           }
@@ -160,9 +157,7 @@ export async function GET(req: NextRequest) {
         });
         
         for (const stripeSub of stripeSubscriptions.data) {
-          const existingSub = await prisma.subscription.findUnique({
-            where: { stripeSubscriptionId: stripeSub.id },
-          });
+          const [existingSub] = await db.select().from(subscription).where(eq(subscription.stripeSubscriptionId, stripeSub.id)).limit(1);
           
           const mapSubscriptionStatus = (status: string) => {
             const statusMap: Record<string, any> = {
@@ -188,63 +183,50 @@ export async function GET(req: NextRequest) {
             stripeSubscriptionId: stripeSub.id,
             stripePriceId: priceId,
             status: localStatus,
-            currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
-            currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+            currentPeriodStart: new Date(stripeSub.current_period_start * 1000).toISOString(),
+            currentPeriodEnd: new Date(stripeSub.current_period_end * 1000).toISOString(),
             cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
-            canceledAt: stripeSub.canceled_at ? new Date(stripeSub.canceled_at * 1000) : null,
+            canceledAt: stripeSub.canceled_at ? new Date(stripeSub.canceled_at * 1000).toISOString() : null,
             amount,
             currency: stripeSub.currency || 'usd',
             interval,
           };
-          
+
           if (existingSub) {
-            await prisma.subscription.update({
-              where: { id: existingSub.id },
-              data: {
-                status: subscriptionData.status,
-                currentPeriodStart: subscriptionData.currentPeriodStart,
-                currentPeriodEnd: subscriptionData.currentPeriodEnd,
-                cancelAtPeriodEnd: subscriptionData.cancelAtPeriodEnd,
-                canceledAt: subscriptionData.canceledAt,
-                amount: subscriptionData.amount,
-              }
-            });
+            await db.update(subscription).set({
+              status: subscriptionData.status,
+              currentPeriodStart: subscriptionData.currentPeriodStart,
+              currentPeriodEnd: subscriptionData.currentPeriodEnd,
+              cancelAtPeriodEnd: subscriptionData.cancelAtPeriodEnd,
+              canceledAt: subscriptionData.canceledAt,
+              amount: subscriptionData.amount,
+              updatedAt: new Date().toISOString(),
+            }).where(eq(subscription.id, existingSub.id));
           } else {
-            await prisma.subscription.create({
-              data: subscriptionData,
+            await db.insert(subscription).values({
+              id: createId(),
+              ...subscriptionData,
+              updatedAt: new Date().toISOString(),
             });
           }
           subscriptionsSynced++;
         }
         
         // 3. Update Portal Lock State
-        const portalAccess = await prisma.clientPortalAccess.findUnique({
-          where: { clientId: customer.clientId }
-        });
-        
+        const [portalAccess] = await db.select().from(clientPortalAccess).where(eq(clientPortalAccess.clientId, customer.clientId)).limit(1);
+
         if (portalAccess) {
           // Check if there are overdue invoices or unpaid active subscriptions
-          const overdueInvoicesCount = await prisma.invoice.count({
-            where: {
-              stripeCustomerId: customer.id,
-              status: 'OVERDUE',
-            }
-          });
-          
-          const activeSubscriptions = await prisma.subscription.findMany({
-            where: {
-              stripeCustomerId: customer.id,
-              status: { in: ['ACTIVE', 'TRIALING'] }
-            }
-          });
-          
-          const hasPastDueSubscriptions = await prisma.subscription.count({
-            where: {
-              stripeCustomerId: customer.id,
-              status: 'PAST_DUE'
-            }
-          });
-          
+          const [{ value: overdueInvoicesCount }] = await db.select({ value: countFn() }).from(invoice).where(and(
+            eq(invoice.stripeCustomerId, customer.id),
+            eq(invoice.status, 'OVERDUE'),
+          ));
+
+          const [{ value: hasPastDueSubscriptions }] = await db.select({ value: countFn() }).from(subscription).where(and(
+            eq(subscription.stripeCustomerId, customer.id),
+            eq(subscription.status, 'PAST_DUE'),
+          ));
+
           const now = new Date();
           let shouldLock = overdueInvoicesCount > 0 || hasPastDueSubscriptions > 0;
 
@@ -252,30 +234,26 @@ export async function GET(req: NextRequest) {
           // sync job is allowed to re-lock them for an overdue invoice.
           const adminUnlockExempt = portalAccess.status === 'ADMIN_UNLOCKED'
             && portalAccess.adminUnlockedAt
-            && portalAccess.adminUnlockedAt > new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            && new Date(portalAccess.adminUnlockedAt) > new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
           if (shouldLock && portalAccess.status !== 'LOCKED' && !adminUnlockExempt) {
-            await prisma.clientPortalAccess.update({
-              where: { clientId: customer.clientId },
-              data: {
-                status: 'LOCKED',
-                lockedAt: now,
-              }
-            });
+            await db.update(clientPortalAccess).set({
+              status: 'LOCKED',
+              lockedAt: now.toISOString(),
+              updatedAt: now.toISOString(),
+            }).where(eq(clientPortalAccess.clientId, customer.clientId));
             console.log(`[Stripe Sync] Locked portal for client: ${customer.client?.name}`);
           } else if (!shouldLock && portalAccess.status === 'LOCKED') {
             // Auto unlock if everything is clean and they have a subscription
             const nextBilling = new Date(now);
             nextBilling.setMonth(nextBilling.getMonth() + 1);
-            
-            await prisma.clientPortalAccess.update({
-              where: { clientId: customer.clientId },
-              data: {
-                status: 'ACTIVE',
-                lockedAt: null,
-                nextBillingDate: nextBilling,
-              }
-            });
+
+            await db.update(clientPortalAccess).set({
+              status: 'ACTIVE',
+              lockedAt: null,
+              nextBillingDate: nextBilling.toISOString(),
+              updatedAt: now.toISOString(),
+            }).where(eq(clientPortalAccess.clientId, customer.clientId));
             console.log(`[Stripe Sync] Unlocked portal for client: ${customer.client?.name}`);
           }
         }

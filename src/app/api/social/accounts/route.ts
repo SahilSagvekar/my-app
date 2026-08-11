@@ -1,7 +1,9 @@
 // src/app/api/social/accounts/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { socialAccount, socialPost } from '@/lib/db/schema';
+import { count, desc, eq, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -29,33 +31,37 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const accounts = await prisma.socialAccount.findMany({
-      where: { clientId },
-      select: {
-        id: true,
-        platform: true,
-        platformId: true,
-        platformName: true,
-        profileUrl: true,
-        profileImage: true,
-        followerCount: true,
-        isActive: true,
-        lastSyncAt: true,
-        createdAt: true,
-        _count: {
-          select: { posts: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const accounts = await db.select({
+      id: socialAccount.id,
+      platform: socialAccount.platform,
+      platformId: socialAccount.platformId,
+      platformName: socialAccount.platformName,
+      profileUrl: socialAccount.profileUrl,
+      profileImage: socialAccount.profileImage,
+      followerCount: socialAccount.followerCount,
+      isActive: socialAccount.isActive,
+      lastSyncAt: socialAccount.lastSyncAt,
+      createdAt: socialAccount.createdAt,
+    }).from(socialAccount)
+      .where(eq(socialAccount.clientId, clientId))
+      .orderBy(desc(socialAccount.createdAt));
+
+    const accountIds = accounts.map(a => a.id);
+    const postCounts = accountIds.length > 0
+      ? await db.select({ socialAccountId: socialPost.socialAccountId, count: count() })
+          .from(socialPost)
+          .where(inArray(socialPost.socialAccountId, accountIds))
+          .groupBy(socialPost.socialAccountId)
+      : [];
+    const postCountMap = new Map(postCounts.map(pc => [pc.socialAccountId, Number(pc.count)]));
 
     return NextResponse.json({
       ok: true,
       accounts: accounts.map(a => ({
         ...a,
-        postCount: a._count.posts,
-        lastSyncAt: a.lastSyncAt?.toISOString(),
-        createdAt: a.createdAt.toISOString(),
+        postCount: postCountMap.get(a.id) || 0,
+        lastSyncAt: a.lastSyncAt ? new Date(a.lastSyncAt).toISOString() : a.lastSyncAt,
+        createdAt: new Date(a.createdAt).toISOString(),
       })),
     });
   } catch (error: any) {
@@ -83,10 +89,11 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Get account to verify access
-    const account = await prisma.socialAccount.findUnique({
-      where: { id: accountId },
-      select: { clientId: true, platform: true, platformName: true },
-    });
+    const [account] = await db.select({
+      clientId: socialAccount.clientId,
+      platform: socialAccount.platform,
+      platformName: socialAccount.platformName,
+    }).from(socialAccount).where(eq(socialAccount.id, accountId)).limit(1);
 
     if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
@@ -101,9 +108,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Delete account (cascades to posts and analytics)
-    await prisma.socialAccount.delete({
-      where: { id: accountId },
-    });
+    await db.delete(socialAccount).where(eq(socialAccount.id, accountId));
 
     console.log(`[SOCIAL ACCOUNTS] Disconnected ${account.platform} account: ${account.platformName}`);
 
@@ -136,10 +141,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Get account to verify access
-    const account = await prisma.socialAccount.findUnique({
-      where: { id: accountId },
-      select: { clientId: true },
-    });
+    const [account] = await db.select({ clientId: socialAccount.clientId })
+      .from(socialAccount).where(eq(socialAccount.id, accountId)).limit(1);
 
     if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
@@ -154,16 +157,15 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Update account
-    const updated = await prisma.socialAccount.update({
-      where: { id: accountId },
-      data: { isActive: isActive ?? true },
-      select: {
-        id: true,
-        platform: true,
-        platformName: true,
-        isActive: true,
-      },
-    });
+    const [updated] = await db.update(socialAccount)
+      .set({ isActive: isActive ?? true, updatedAt: new Date().toISOString() })
+      .where(eq(socialAccount.id, accountId))
+      .returning({
+        id: socialAccount.id,
+        platform: socialAccount.platform,
+        platformName: socialAccount.platformName,
+        isActive: socialAccount.isActive,
+      });
 
     return NextResponse.json({
       ok: true,

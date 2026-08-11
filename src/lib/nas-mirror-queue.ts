@@ -13,7 +13,10 @@
 // Triggered from the NAS Backup admin panel, picked up by
 // nas-mirror-worker.ts on the next cron-master tick.
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { nasMirrorJob } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, asc, eq, lt } from 'drizzle-orm';
 
 const STUCK_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour — mirror jobs can be big
 
@@ -26,30 +29,32 @@ export async function createNasMirrorJob(params: {
   folderPath?: string; // only for raw-footage — full relative path under raw-footage/
   triggeredById?: number | null;
 }) {
-  return prisma.nasMirrorJob.create({
-    data: {
-      clientName: params.clientName,
-      folderType: params.folderType,
-      monthFolder: params.monthFolder,
-      folderPath: params.folderPath ?? null,
-      status: 'pending',
-      triggeredById: params.triggeredById ?? null,
-    },
-  });
+  const [job] = await db.insert(nasMirrorJob).values({
+    id: createId(),
+    clientName: params.clientName,
+    folderType: params.folderType,
+    monthFolder: params.monthFolder,
+    folderPath: params.folderPath ?? null,
+    status: 'pending',
+    triggeredById: params.triggeredById ?? null,
+    updatedAt: new Date().toISOString(),
+  }).returning();
+  return job;
 }
 
 // Picks the oldest pending job, if any, and marks it running.
 export async function popPendingNasMirrorJob() {
-  const job = await prisma.nasMirrorJob.findFirst({
-    where: { status: 'pending' },
-    orderBy: { createdAt: 'asc' },
-  });
+  const [job] = await db.select().from(nasMirrorJob)
+    .where(eq(nasMirrorJob.status, 'pending'))
+    .orderBy(asc(nasMirrorJob.createdAt))
+    .limit(1);
   if (!job) return null;
 
-  return prisma.nasMirrorJob.update({
-    where: { id: job.id },
-    data: { status: 'running', startedAt: new Date() },
-  });
+  const [updated] = await db.update(nasMirrorJob)
+    .set({ status: 'running', startedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+    .where(eq(nasMirrorJob.id, job.id))
+    .returning();
+  return updated;
 }
 
 export async function updateNasMirrorJobProgress(
@@ -63,32 +68,34 @@ export async function updateNasMirrorJobProgress(
     currentFile: string | null;
   }>
 ) {
-  await prisma.nasMirrorJob.update({ where: { id }, data: patch }).catch(() => {
+  try {
+    await db.update(nasMirrorJob)
+      .set({ ...patch, updatedAt: new Date().toISOString() })
+      .where(eq(nasMirrorJob.id, id));
+  } catch {
     // best-effort — if the job row was deleted or the update races, don't crash the worker
-  });
+  }
 }
 
 export async function completeNasMirrorJob(id: string) {
-  await prisma.nasMirrorJob.update({
-    where: { id },
-    data: { status: 'completed', completedAt: new Date(), currentFile: null },
-  });
+  await db.update(nasMirrorJob)
+    .set({ status: 'completed', completedAt: new Date().toISOString(), currentFile: null, updatedAt: new Date().toISOString() })
+    .where(eq(nasMirrorJob.id, id));
 }
 
 export async function failNasMirrorJob(id: string, errorMessage: string) {
-  await prisma.nasMirrorJob.update({
-    where: { id },
-    data: { status: 'failed', completedAt: new Date(), errorMessage, currentFile: null },
-  });
+  await db.update(nasMirrorJob)
+    .set({ status: 'failed', completedAt: new Date().toISOString(), errorMessage, currentFile: null, updatedAt: new Date().toISOString() })
+    .where(eq(nasMirrorJob.id, id));
 }
 
 // On worker startup, any job stuck in "running" for over an hour (e.g. the
 // process died mid-job) gets reset to "pending" so it gets picked up again.
 export async function recoverStuckNasMirrorJobs(): Promise<number> {
-  const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
-  const result = await prisma.nasMirrorJob.updateMany({
-    where: { status: 'running', startedAt: { lt: cutoff } },
-    data: { status: 'pending', startedAt: null, currentFile: null },
-  });
-  return result.count;
+  const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MS).toISOString();
+  const result = await db.update(nasMirrorJob)
+    .set({ status: 'pending', startedAt: null, currentFile: null, updatedAt: new Date().toISOString() })
+    .where(and(eq(nasMirrorJob.status, 'running'), lt(nasMirrorJob.startedAt, cutoff)))
+    .returning({ id: nasMirrorJob.id });
+  return result.length;
 }

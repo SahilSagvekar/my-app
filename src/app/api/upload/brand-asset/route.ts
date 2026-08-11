@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, brandAsset } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq } from "drizzle-orm";
 import { uploadBufferToS3 } from "@/lib/s3";
 
 export async function POST(req: Request) {
@@ -17,7 +20,7 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Get client name for folder path
-    const client = await prisma.client.findUnique({ where: { id: clientId } });
+    const [client] = await db.select().from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
     if (!client)
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
 
@@ -34,17 +37,17 @@ export async function POST(req: Request) {
     });
 
     // Save asset in DB
-    const asset = await prisma.brandAsset.create({
-      data: {
-        clientId,
-        name: file.name.split(".")[0],
-        type: file.type.includes("image") ? "logo" : "other",
-        fileUrl: s3Upload.url,
-        fileName: file.name,
-        fileSize: `${Math.round(file.size / 1024)} KB`,
-        uploadedBy: "System",
-      },
-    });
+    const [asset] = await db.insert(brandAsset).values({
+      id: createId(),
+      clientId,
+      name: file.name.split(".")[0],
+      type: file.type.includes("image") ? "logo" : "other",
+      fileUrl: s3Upload.url,
+      fileName: file.name,
+      fileSize: `${Math.round(file.size / 1024)} KB`,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: "System",
+    }).returning();
 
     return NextResponse.json({ asset });
 

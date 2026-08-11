@@ -9,7 +9,10 @@
 // deliverable, but the tracker's progress route explicitly excludes it
 // ("Snapchat is no longer tracked"), so we don't create or delete Snapchat rows.
 
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { monthlyDeliverable, postingTarget } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq, inArray } from "drizzle-orm";
 import { normalizeDeliverableType } from "@/lib/posting-match";
 
 // Facebook is historically tracked as up to three separate destinations in
@@ -56,28 +59,22 @@ function defaultTargetNameForCreate(genericPlatform: string): string {
  */
 export async function syncPostingTargetsForClient(clientId: string): Promise<void> {
   if (!clientId) {
-    // Prisma silently drops `undefined` from `where` filters, which would
-    // otherwise make every query below run unscoped across ALL clients.
-    // Fail loudly instead.
+    // Fail loudly rather than run any query below unscoped across ALL clients.
     throw new Error("syncPostingTargetsForClient: clientId is required");
   }
 
   const [deliverables, existingTargets] = await Promise.all([
-    prisma.monthlyDeliverable.findMany({
-      where: { clientId },
-      select: { type: true, platforms: true },
-    }),
-    prisma.postingTarget.findMany({
-      where: { clientId },
-      select: { id: true, platform: true, deliverableType: true },
-    }),
+    db.select({ type: monthlyDeliverable.type, platforms: monthlyDeliverable.platforms })
+      .from(monthlyDeliverable).where(eq(monthlyDeliverable.clientId, clientId)),
+    db.select({ id: postingTarget.id, platform: postingTarget.platform, deliverableType: postingTarget.deliverableType })
+      .from(postingTarget).where(eq(postingTarget.clientId, clientId)),
   ]);
 
   // Desired set: "GenericPlatform::TYPE" -> true
   const desired = new Set<string>();
   for (const d of deliverables) {
     const normType = normalizeDeliverableType(d.type);
-    for (const platform of d.platforms) {
+    for (const platform of (d.platforms ?? [])) {
       if (platform === "Snapchat") continue; // never synced
       desired.add(`${platform}::${normType}`);
     }
@@ -112,28 +109,26 @@ export async function syncPostingTargetsForClient(clientId: string): Promise<voi
     });
   }
 
-  await prisma.$transaction([
+  const batchOps = [
     ...(toDelete.length
-      ? [prisma.postingTarget.deleteMany({ where: { id: { in: toDelete } } })]
+      ? [db.delete(postingTarget).where(inArray(postingTarget.id, toDelete))]
       : []),
     ...toCreate.map((t) =>
-      prisma.postingTarget.upsert({
-        where: {
-          clientId_platform_deliverableType: {
-            clientId: t.clientId,
-            platform: t.platform,
-            deliverableType: t.deliverableType,
-          },
-        },
-        update: {},
-        create: {
-          clientId: t.clientId,
-          platform: t.platform,
-          deliverableType: t.deliverableType,
-          count: 1,
-          frequency: "daily",
-        },
+      db.insert(postingTarget).values({
+        id: createId(),
+        clientId: t.clientId,
+        platform: t.platform,
+        deliverableType: t.deliverableType,
+        count: 1,
+        frequency: "daily",
+        updatedAt: new Date().toISOString(),
+      }).onConflictDoNothing({
+        target: [postingTarget.clientId, postingTarget.platform, postingTarget.deliverableType],
       })
     ),
-  ]);
+  ];
+
+  if (batchOps.length > 0) {
+    await db.batch(batchOps as any);
+  }
 }

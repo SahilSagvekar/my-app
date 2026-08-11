@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user, task } from '@/lib/db/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 
 export async function POST(req: Request, { params }: { params: { employeeId: string } }) {
@@ -22,12 +24,10 @@ export async function POST(req: Request, { params }: { params: { employeeId: str
     }
 
     // Get user being deactivated
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: { id: true, name: true, role: true, employeeStatus: true },
-    });
+    const [foundUser] = await db.select({ id: user.id, name: user.name, role: user.role, employeeStatus: user.employeeStatus })
+      .from(user).where(eq(user.id, id)).limit(1);
 
-    if (!user) {
+    if (!foundUser) {
       return NextResponse.json({ ok: false, message: 'User not found' }, { status: 404 });
     }
 
@@ -35,20 +35,15 @@ export async function POST(req: Request, { params }: { params: { employeeId: str
     const activeStatuses = ['PENDING', 'IN_PROGRESS', 'REJECTED', 'READY_FOR_QC'];
 
     // Get all active tasks for this user
-    const activeTasks = await prisma.task.findMany({
-      where: {
-        assignedTo: id,
-        status: { in: activeStatuses },
-      },
-      select: { id: true, title: true, status: true },
-    });
+    const activeTasks = await db.select({ id: task.id, title: task.title, status: task.status })
+      .from(task).where(and(eq(task.assignedTo, id), inArray(task.status, activeStatuses as any)));
 
     if (activeTasks.length === 0) {
       // No active tasks — just deactivate
-      const updatedUser = await prisma.user.update({
-        where: { id },
-        data: { employeeStatus: 'INACTIVE' },
-      });
+      const [updatedUser] = await db.update(user).set({
+        employeeStatus: 'INACTIVE',
+        updatedAt: new Date().toISOString(),
+      }).where(eq(user.id, id)).returning();
 
       const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
       await createAuditLog({
@@ -68,10 +63,8 @@ export async function POST(req: Request, { params }: { params: { employeeId: str
 
     if (reassignAllTo) {
       // Validate the target user exists and is active
-      const targetUser = await prisma.user.findUnique({
-        where: { id: Number(reassignAllTo) },
-        select: { id: true, name: true, employeeStatus: true },
-      });
+      const [targetUser] = await db.select({ id: user.id, name: user.name, employeeStatus: user.employeeStatus })
+        .from(user).where(eq(user.id, Number(reassignAllTo))).limit(1);
 
       if (!targetUser || targetUser.employeeStatus !== 'ACTIVE') {
         return NextResponse.json(
@@ -98,10 +91,8 @@ export async function POST(req: Request, { params }: { params: { employeeId: str
 
       // Validate all new assignees exist and are active
       const assigneeIds = [...new Set(reassignments.map((r: any) => Number(r.newAssigneeId)))];
-      const assignees = await prisma.user.findMany({
-        where: { id: { in: assigneeIds }, employeeStatus: 'ACTIVE' },
-        select: { id: true },
-      });
+      const assignees = await db.select({ id: user.id }).from(user)
+        .where(and(inArray(user.id, assigneeIds as number[]), eq(user.employeeStatus, 'ACTIVE')));
       const activeAssigneeIds = new Set(assignees.map(a => a.id));
 
       for (const r of reassignments) {
@@ -138,20 +129,17 @@ export async function POST(req: Request, { params }: { params: { employeeId: str
       tasksByAssignee.set(r.newAssigneeId, existing);
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       // Bulk reassign per assignee (1 query per unique assignee instead of 1 per task)
       for (const [assigneeId, taskIds] of tasksByAssignee) {
-        await tx.task.updateMany({
-          where: { id: { in: taskIds } },
-          data: { assignedTo: assigneeId },
-        });
+        await tx.update(task).set({ assignedTo: assigneeId, updatedAt: new Date().toISOString() }).where(inArray(task.id, taskIds));
       }
 
       // Deactivate user
-      const updatedUser = await tx.user.update({
-        where: { id },
-        data: { employeeStatus: 'INACTIVE' },
-      });
+      const [updatedUser] = await tx.update(user).set({
+        employeeStatus: 'INACTIVE',
+        updatedAt: new Date().toISOString(),
+      }).where(eq(user.id, id)).returning();
 
       return updatedUser;
     });

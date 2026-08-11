@@ -1,6 +1,8 @@
 // src/app/api/slack/toggle/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +29,12 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { slackNotifications: enabled },
-    });
+    // User.updatedAt is @updatedAt in Prisma (client-managed) — set
+    // explicitly, matching that behavior.
+    await db.update(userTable).set({
+      slackNotifications: enabled,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(userTable.id, user.id));
 
     return NextResponse.json({ success: true, slackNotifications: enabled });
   } catch (error) {

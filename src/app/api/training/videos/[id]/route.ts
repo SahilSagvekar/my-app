@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from '@/lib/db';
+import { trainingVideo } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from "@/lib/auth";
 
 const ROLES_WITH_TRAINING = ["editor", "qc", "scheduler", "manager", "videographer", "sales", "sales_manager", "admin"] as const;
@@ -34,17 +36,17 @@ export async function PATCH(
     if (typeof order === "number" && !isNaN(order)) updateData.order = order;
     if (role && isTrainingRole(role)) updateData.role = role;
 
-    const video = await prisma.trainingVideo.update({
-      where: { id },
-      data: updateData,
-    });
+    const [video] = await db.update(trainingVideo).set({
+      ...updateData,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(trainingVideo.id, id)).returning();
+
+    if (!video) {
+      return NextResponse.json({ error: "Training video not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ video });
   } catch (err: unknown) {
-    const e = err as { code?: string };
-    if (e?.code === "P2025") {
-      return NextResponse.json({ error: "Training video not found" }, { status: 404 });
-    }
     console.error("PATCH /api/training/videos/[id] error:", err);
     return NextResponse.json({ error: "Failed to update training video" }, { status: 500 });
   }
@@ -66,16 +68,14 @@ export async function DELETE(
 
     const { id } = await params;
 
-    await prisma.trainingVideo.delete({
-      where: { id },
-    });
+    const [deleted] = await db.delete(trainingVideo).where(eq(trainingVideo.id, id)).returning({ id: trainingVideo.id });
+
+    if (!deleted) {
+      return NextResponse.json({ error: "Training video not found" }, { status: 404 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
-    const e = err as { code?: string };
-    if (e?.code === "P2025") {
-      return NextResponse.json({ error: "Training video not found" }, { status: 404 });
-    }
     console.error("DELETE /api/training/videos/[id] error:", err);
     return NextResponse.json({ error: "Failed to delete training video" }, { status: 500 });
   }

@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // Update requiresClientReview + clientReviewDeliverableTypes for a client
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function PATCH(
   request: NextRequest,
@@ -28,22 +30,19 @@ export async function PATCH(
       );
     }
 
-    const updatedClient = await prisma.client.update({
-      where: { id: clientId },
-      data: {
-        requiresClientReview,
-        // If review is disabled, clear the types list
-        clientReviewDeliverableTypes: requiresClientReview
-          ? clientReviewDeliverableTypes
-          : [],
-      },
-      select: {
-        id: true,
-        requiresClientReview: true,
-        clientReviewDeliverableTypes: true,
-        companyName: true,
-        name: true,
-      },
+    const [updatedClient] = await db.update(client).set({
+      requiresClientReview,
+      // If review is disabled, clear the types list
+      clientReviewDeliverableTypes: requiresClientReview
+        ? clientReviewDeliverableTypes
+        : [],
+      updatedAt: new Date().toISOString(),
+    }).where(eq(client.id, clientId)).returning({
+      id: client.id,
+      requiresClientReview: client.requiresClientReview,
+      clientReviewDeliverableTypes: client.clientReviewDeliverableTypes,
+      companyName: client.companyName,
+      name: client.name,
     });
 
     console.log(

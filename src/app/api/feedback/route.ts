@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/feedback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { feedback as feedbackTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, desc, asc } from 'drizzle-orm';
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -26,64 +29,46 @@ export async function GET(request: NextRequest) {
     // every submission (including other people's screenshots).
     const userRole = (decoded.role || "").toLowerCase();
 
-    let feedback;
+    let rawFeedback;
 
     if (userRole === "admin" || userRole === "manager") {
       // Admin and managers see all feedback
-      feedback = await prisma.feedback.findMany({
-        include: {
-          sender: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-            },
-          },
-          responses: {
-            include: {
-              sender: {
-                select: {
-                  id: true,
-                  name: true,
-                  role: true,
-                },
-              },
-            },
-            orderBy: { createdAt: "asc" },
+      rawFeedback = await db.query.feedback.findMany({
+        with: {
+          user: { columns: { id: true, name: true, role: true } },
+          feedbackResponses: {
+            with: { user: { columns: { id: true, name: true, role: true } } },
+            orderBy: (fr, { asc }) => [asc(fr.createdAt)],
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: (f, { desc }) => [desc(f.createdAt)],
       });
     } else {
       // Other users only see their own feedback
-      feedback = await prisma.feedback.findMany({
-        where: {
-          senderId: userId,
-        },
-        include: {
-          sender: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-            },
-          },
-          responses: {
-            include: {
-              sender: {
-                select: {
-                  id: true,
-                  name: true,
-                  role: true,
-                },
-              },
-            },
-            orderBy: { createdAt: "asc" },
+      rawFeedback = await db.query.feedback.findMany({
+        where: eq(feedbackTable.senderId, userId),
+        with: {
+          user: { columns: { id: true, name: true, role: true } },
+          feedbackResponses: {
+            with: { user: { columns: { id: true, name: true, role: true } } },
+            orderBy: (fr, { asc }) => [asc(fr.createdAt)],
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: (f, { desc }) => [desc(f.createdAt)],
       });
     }
+
+    // Drizzle relation keys are "user" (sender) and "feedbackResponses"
+    // (responses), each response also nesting "user" — renamed below to
+    // keep the response shape identical to the original Prisma include.
+    const feedback = rawFeedback.map(({ user: sender, feedbackResponses, ...rest }) => ({
+      ...rest,
+      sender,
+      responses: feedbackResponses.map(({ user: respSender, ...respRest }) => ({
+        ...respRest,
+        sender: respSender,
+      })),
+    }));
 
     return NextResponse.json({ feedback });
   } catch (error) {
@@ -101,25 +86,25 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { subject, message, category, priority, senderId } = body;
 
-    const feedback = await prisma.feedback.create({
-      data: {
-        subject,
-        message,
-        category,
-        priority,
-        status: "pending",
-        senderId: parseInt(senderId),
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-          },
-        },
+    const [createdFeedback] = await db.insert(feedbackTable).values({
+      id: createId(),
+      subject,
+      message,
+      category,
+      priority,
+      status: "pending",
+      senderId: parseInt(senderId),
+      updatedAt: new Date().toISOString(),
+    }).returning();
+
+    const feedbackRow = await db.query.feedback.findFirst({
+      where: eq(feedbackTable.id, createdFeedback.id),
+      with: {
+        user: { columns: { id: true, name: true, role: true } },
       },
     });
+    const { user: sender, ...rest } = feedbackRow!;
+    const feedback = { ...rest, sender };
 
     return NextResponse.json({ feedback });
   } catch (error) {

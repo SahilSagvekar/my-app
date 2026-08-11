@@ -1,6 +1,8 @@
 // GET /api/client/me - Get the logged-in client's information
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable, client as clientTable, monthlyDeliverable, oneOffDeliverable } from '@/lib/db/schema';
+import { eq, asc, desc, ne } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
@@ -9,12 +11,16 @@ export async function GET(req: NextRequest) {
     if (!jwtUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
 
-    // Get the user with their linked client
-    const user = await prisma.user.findFirst({
-      where: { id: jwtUser.userId || jwtUser.id },
-      include: { client: true },
+
+    // Get the user with their linked client. NOTE: Prisma's `include: { client: true }`
+    // here refers to the reverse relation of Client.userId (1:1, unique-indexed) — NOT
+    // the linkedClientId-based relation. Drizzle-kit mislabeled that reverse relation
+    // `clients: many(client, ...)` on userRelations (pitfall #3 — unique FK mislabeled
+    // many()), so we fetch it via `with: { clients: true }` and take [0].
+    const user = await db.query.user.findFirst({
+      where: eq(userTable.id, jwtUser.userId || jwtUser.id),
+      with: { clients: true },
     });
 
     if (!user) {
@@ -26,7 +32,7 @@ export async function GET(req: NextRequest) {
     const isAdmin = ['admin', 'manager'].includes(jwtUser.role?.toLowerCase() ?? '');
 
     // Get the client ID - either from search param (for admin/manager) or linkedClientId/client relation
-    let clientId = user.linkedClientId || user.client?.id;
+    let clientId = user.linkedClientId || user.clients?.[0]?.id;
     if (isAdmin && clientIdParam) {
       clientId = clientIdParam;
     }
@@ -39,16 +45,16 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch the full client data
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      include: {
+    const client = await db.query.client.findFirst({
+      where: eq(clientTable.id, clientId),
+      with: {
         monthlyDeliverables: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: asc(monthlyDeliverable.createdAt),
         },
         oneOffDeliverables: {
-          where: { status: { not: 'COMPLETED' } },
-          orderBy: { createdAt: 'desc' },
-          take: 5,
+          where: ne(oneOffDeliverable.status, 'COMPLETED'),
+          orderBy: desc(oneOffDeliverable.createdAt),
+          limit: 5,
         },
       },
     });
@@ -75,12 +81,15 @@ export async function GET(req: NextRequest) {
           platforms: d.platforms || [],
           description: d.description,
         })),
+        // NOTE (schema drift, pre-existing): OneOffDeliverable has no `title`
+        // or `dueDate` column in either prisma/schema.prisma or the live DB —
+        // the original Prisma code read them anyway, so they always
+        // serialized as `undefined` and were dropped by JSON.stringify.
+        // Omitting them here reproduces that same (missing-key) output.
         oneOffDeliverables: client.oneOffDeliverables.map((d) => ({
           id: d.id,
-          title: d.title,
           type: d.type,
           status: d.status,
-          dueDate: d.dueDate,
         })),
         billing: client.billing,
         createdAt: client.createdAt,

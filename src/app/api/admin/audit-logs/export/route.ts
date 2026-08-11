@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/audit-logs/export/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { auditLog as auditLogTable, user as userTable } from '@/lib/db/schema';
+import { and, eq, gte, lte, desc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 export async function POST(req: NextRequest) {
@@ -20,37 +22,31 @@ export async function POST(req: NextRequest) {
     const { startDate, endDate, format = 'csv' } = body;
 
     // Build where clause
-    let where: any = {};
+    const conditions = [];
     if (startDate && endDate) {
-      where.timestamp = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      };
+      conditions.push(gte(auditLogTable.timestamp, new Date(startDate).toISOString()));
+      conditions.push(lte(auditLogTable.timestamp, new Date(endDate).toISOString()));
     }
+    const where = conditions.length ? and(...conditions) : undefined;
 
     // Fetch all logs for export
-    const logs = await prisma.auditLog.findMany({
-      where,
-      include: {
-        User: {
-          select: {
-            name: true,
-            email: true,
-            role: true
-          }
-        }
-      },
-      orderBy: {
-        timestamp: 'desc'
-      }
-    });
+    const rows = await db.select({
+      log: auditLogTable,
+      User: { name: userTable.name, email: userTable.email, role: userTable.role },
+    })
+      .from(auditLogTable)
+      .leftJoin(userTable, eq(auditLogTable.userId, userTable.id))
+      .where(where)
+      .orderBy(desc(auditLogTable.timestamp));
+
+    const logs = rows.map(r => ({ ...r.log, User: r.User }));
 
     if (format === 'csv') {
       // Generate CSV
       let csv = 'Timestamp,Action,User,User Role,Description,Entity,Entity ID,IP Address,User Agent\n';
-      
+
       logs.forEach(log => {
-        const timestamp = log.timestamp.toISOString();
+        const timestamp = new Date(log.timestamp).toISOString();
         const action = log.action;
         const user = log.User?.name || 'System';
         const userRole = log.User?.role || 'System';

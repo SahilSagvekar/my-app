@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user, task } from '@/lib/db/schema';
+import { and, eq, ne, inArray, asc, count } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 
 export async function GET(req: Request, { params }: { params: { employeeId: string } }) {
@@ -10,12 +12,10 @@ export async function GET(req: Request, { params }: { params: { employeeId: stri
     const id = Number(resolvedParams.employeeId);
 
     // Get the user's role
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: { id: true, name: true, role: true, employeeStatus: true },
-    });
+    const [foundUser] = await db.select({ id: user.id, name: user.name, role: user.role, employeeStatus: user.employeeStatus })
+      .from(user).where(eq(user.id, id)).limit(1);
 
-    if (!user) {
+    if (!foundUser) {
       return NextResponse.json({ ok: false, message: 'User not found' }, { status: 404 });
     }
 
@@ -23,58 +23,47 @@ export async function GET(req: Request, { params }: { params: { employeeId: stri
     const activeStatuses = ['PENDING', 'IN_PROGRESS', 'REJECTED', 'READY_FOR_QC'];
 
     // Fetch all active tasks assigned to this user
-    const tasks = await prisma.task.findMany({
-      where: {
-        assignedTo: id,
-        status: { in: activeStatuses },
-      },
-      select: {
+    const rawTasks = await db.query.task.findMany({
+      where: and(eq(task.assignedTo, id), inArray(task.status, activeStatuses as any)),
+      columns: {
         id: true,
         title: true,
         status: true,
         dueDate: true,
         deliverableType: true,
         clientId: true,
-        client: {
-          select: { id: true, name: true, companyName: true },
-        },
-        monthlyDeliverable: {
-          select: { type: true },
-        },
-        oneOffDeliverable: {
-          select: { type: true },
-        },
       },
-      orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
+      with: {
+        client: { columns: { id: true, name: true, companyName: true } },
+        monthlyDeliverable: { columns: { type: true } },
+        oneOffDeliverable: { columns: { type: true } },
+      },
+      orderBy: (t, { asc }) => [asc(t.status), asc(t.dueDate)],
     });
+    const tasks = rawTasks;
 
     // Fetch eligible reassignment candidates (active users with same role)
-    const candidates = await prisma.user.findMany({
-      where: {
-        role: user.role,
-        employeeStatus: 'ACTIVE',
-        id: { not: id }, // exclude the user being deactivated
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        _count: {
-          select: {
-            assignedTasks: {
-              where: { status: { in: activeStatuses } },
-            },
-          },
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+    const candidateRows = await db.select({ id: user.id, name: user.name, email: user.email })
+      .from(user)
+      .where(and(eq(user.role, foundUser.role as any), eq(user.employeeStatus, 'ACTIVE'), ne(user.id, id)))
+      .orderBy(asc(user.name));
 
-    const formattedCandidates = candidates.map(c => ({
+    // Active-task count per candidate — filtered relation count, done as a
+    // grouped query instead of a per-row correlated count.
+    const candidateIds = candidateRows.map(c => c.id);
+    const activeTaskCounts = candidateIds.length > 0
+      ? await db.select({ assignedTo: task.assignedTo, value: count() })
+          .from(task)
+          .where(and(inArray(task.assignedTo, candidateIds), inArray(task.status, activeStatuses as any)))
+          .groupBy(task.assignedTo)
+      : [];
+    const activeTaskCountMap = new Map(activeTaskCounts.map(c => [c.assignedTo, c.value]));
+
+    const formattedCandidates = candidateRows.map(c => ({
       id: c.id,
       name: c.name,
       email: c.email,
-      activeTaskCount: c._count.assignedTasks,
+      activeTaskCount: activeTaskCountMap.get(c.id) || 0,
     }));
 
     const formattedTasks = tasks.map(t => ({
@@ -89,7 +78,7 @@ export async function GET(req: Request, { params }: { params: { employeeId: stri
 
     return NextResponse.json({
       ok: true,
-      user: { id: user.id, name: user.name, role: user.role },
+      user: { id: foundUser.id, name: foundUser.name, role: foundUser.role },
       tasks: formattedTasks,
       taskCount: formattedTasks.length,
       candidates: formattedCandidates,

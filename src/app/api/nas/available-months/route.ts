@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task as taskTable, client as clientTable } from '@/lib/db/schema';
+import { and, eq, inArray, isNotNull, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 const FINALIZED_STATUSES = ['COMPLETED', 'SCHEDULED', 'POSTED'] as const;
@@ -22,15 +24,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'clientName is required' }, { status: 400 });
     }
 
-    const tasks = await prisma.task.findMany({
-      where: {
-        status: { in: FINALIZED_STATUSES as any },
-        monthFolder: { not: null },
-        client: { OR: [{ companyName: clientName }, { name: clientName }] },
-      },
-      select: { monthFolder: true },
-      distinct: ['monthFolder'],
-    });
+    const tasks = await db.selectDistinct({ monthFolder: taskTable.monthFolder })
+      .from(taskTable)
+      .innerJoin(clientTable, eq(taskTable.clientId, clientTable.id))
+      .where(and(
+        inArray(taskTable.status, FINALIZED_STATUSES as any),
+        isNotNull(taskTable.monthFolder),
+        or(eq(clientTable.companyName, clientName), eq(clientTable.name, clientName)),
+      ));
 
     const months = tasks
       .map(t => t.monthFolder!)

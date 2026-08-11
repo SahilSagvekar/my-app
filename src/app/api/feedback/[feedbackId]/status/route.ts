@@ -5,7 +5,9 @@ export const dynamic = 'force-dynamic';
 // Feedback queue to triage — despite the path name, it handles both fields
 // rather than adding a second near-identical route).
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { feedback as feedbackTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function PATCH(
   request: NextRequest,
@@ -23,10 +25,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
     }
 
-    const feedback = await prisma.feedback.update({
-      where: { id: params.feedbackId },
-      data,
-    });
+    // Feedback.updatedAt is @updatedAt in Prisma (client-managed, no DB
+    // default) — set explicitly on every update, matching that behavior.
+    const [feedback] = await db.update(feedbackTable)
+      .set({ ...data, updatedAt: new Date().toISOString() })
+      .where(eq(feedbackTable.id, params.feedbackId)).returning();
 
     return NextResponse.json({ feedback });
   } catch (error) {

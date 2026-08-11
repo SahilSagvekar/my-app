@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user, auditLog } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getGeoLocation, formatLocation } from '@/lib/geo';
 import { NextRequest, NextResponse } from "next/server";
 
@@ -28,36 +30,32 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user exists
-    const existingUser = await prisma.user.findFirst({ where: { email } });
+    const [existingUser] = await db.select().from(user).where(eq(user.email, email)).limit(1);
 
     if (existingUser) {
       if (existingUser.role === "client") {
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const updatedUser = await prisma.user.update({
-          where: { id: existingUser.id },
-          data: {
-            name: name || existingUser.name,
-            password: hashedPassword,
-            phone: String(phone),
-          },
-        });
+        const [updatedUser] = await db.update(user).set({
+          name: name || existingUser.name,
+          password: hashedPassword,
+          phone: String(phone),
+          updatedAt: new Date().toISOString(),
+        }).where(eq(user.id, existingUser.id)).returning();
 
         // Add audit log for existing client registration
-        await prisma.auditLog.create({
-          data: {
-            userId: updatedUser.id,
-            action: 'CLIENT_SIGNUP_COMPLETE',
-            entity: 'User',
-            entityId: String(updatedUser.id),
-            details: `Client completed registration from ${locationString}`,
-            ipAddress: ip,
-            userAgent: userAgent,
-            metadata: {
-              location: locationData,
-              method: 'standard'
-            } as any
-          }
+        await db.insert(auditLog).values({
+          userId: updatedUser.id,
+          action: 'CLIENT_SIGNUP_COMPLETE',
+          entity: 'User',
+          entityId: String(updatedUser.id),
+          details: `Client completed registration from ${locationString}`,
+          ipAddress: ip,
+          userAgent: userAgent,
+          metadata: {
+            location: locationData,
+            method: 'standard'
+          } as any
         });
 
         if (!process.env.JWT_SECRET) {
@@ -96,30 +94,27 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await prisma.user.create({
-      data: {
-        name: name || null,
-        email,
-        password: hashedPassword,
-        phone: String(phone),
-      },
-    });
+    const [newUser] = await db.insert(user).values({
+      name: name || null,
+      email,
+      password: hashedPassword,
+      phone: String(phone),
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     // Add audit log for new user signup
-    await prisma.auditLog.create({
-      data: {
-        userId: newUser.id,
-        action: 'USER_SIGNUP',
-        entity: 'User',
-        entityId: String(newUser.id),
-        details: `New user signed up from ${locationString}`,
-        ipAddress: ip,
-        userAgent: userAgent,
-        metadata: {
-          location: locationData,
-          method: 'standard'
-        } as any
-      }
+    await db.insert(auditLog).values({
+      userId: newUser.id,
+      action: 'USER_SIGNUP',
+      entity: 'User',
+      entityId: String(newUser.id),
+      details: `New user signed up from ${locationString}`,
+      ipAddress: ip,
+      userAgent: userAgent,
+      metadata: {
+        location: locationData,
+        method: 'standard'
+      } as any
     });
 
     if (!process.env.JWT_SECRET) {

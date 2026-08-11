@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -15,16 +18,11 @@ export async function GET(req: NextRequest) {
     const isAdmin = ['admin', 'manager'].includes(user.role?.toLowerCase() ?? '');
 
     // Find the client
-    const client = await prisma.client.findFirst({
+    const client = await db.query.client.findFirst({
       where: (isAdmin && clientIdParam)
-        ? { id: clientIdParam }
-        : {
-            OR: [
-              { userId: user.id },
-              { email: user.email },
-            ],
-          },
-      include: { portalAccess: true },
+        ? eq(clientTable.id, clientIdParam)
+        : or(eq(clientTable.userId, user.id), eq(clientTable.email, user.email)),
+      with: { clientPortalAccesses: true },
     });
 
     // No client record at all — not a pipeline client, give full access (legacy)
@@ -32,18 +30,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ status: 'ACTIVE', fullAccess: true });
     }
 
+    // clientPortalAccess has a unique clientId FK (1:1), but drizzle-kit
+    // introspection mislabels it many() — take the first (only) entry.
+    const portalAccess = client.clientPortalAccesses[0];
+
     // Client exists but no portalAccess record — this is a pipeline client
     // whose ClientPortalAccess wasn't created. Create it now locked to CONTRACT_PENDING
     // so they can't slip through.
-    if (!client.portalAccess) {
+    if (!portalAccess) {
       // Check if they came through the pipeline (has preClientId)
       if (client.preClientId) {
         // Create the missing record
-        await prisma.clientPortalAccess.create({
-          data: {
-            clientId: client.id,
-            status: 'CONTRACT_PENDING',
-          },
+        await db.insert(clientPortalAccessTable).values({
+          id: createId(),
+          clientId: client.id,
+          status: 'CONTRACT_PENDING',
+          updatedAt: new Date().toISOString(),
         });
 
         return NextResponse.json({
@@ -62,7 +64,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ status: 'ACTIVE', fullAccess: true });
     }
 
-    const status = client.portalAccess.status;
+    const status = portalAccess.status;
     const fullAccess = status === 'ACTIVE' || status === 'ADMIN_UNLOCKED';
 
     const response = {
@@ -71,9 +73,9 @@ export async function GET(req: NextRequest) {
       locked: status === 'LOCKED',
       forcePage: null as string | null,
       message: null as string | null,
-      adminUnlockedAt: client.portalAccess.adminUnlockedAt,
-      nextBillingDate: client.portalAccess.nextBillingDate,
-      lockedAt: client.portalAccess.lockedAt,
+      adminUnlockedAt: portalAccess.adminUnlockedAt,
+      nextBillingDate: portalAccess.nextBillingDate,
+      lockedAt: portalAccess.lockedAt,
     };
 
     if (status === 'ONBOARDING') {

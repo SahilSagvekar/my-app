@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { bonus } from "@/lib/db/schema";
+import { and, eq, gte, lte, desc } from "drizzle-orm";
 
 export async function GET(req: Request, context: { params: { employeeId: string } }) {
   try {
@@ -14,16 +16,11 @@ export async function GET(req: Request, context: { params: { employeeId: string 
     const monthStart = new Date(Date.UTC(year, month - 1, 1));
     const monthEnd = new Date(Date.UTC(year, month, 0));
 
-    const bonuses = await prisma.bonus.findMany({
-      where: {
-        employeeId,
-        createdAt: {
-          gte: monthStart,
-          lte: monthEnd,
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const bonuses = await db.select().from(bonus).where(and(
+      eq(bonus.employeeId, employeeId),
+      gte(bonus.createdAt, monthStart.toISOString()),
+      lte(bonus.createdAt, monthEnd.toISOString()),
+    )).orderBy(desc(bonus.createdAt));
 
     const total = bonuses.reduce((sum, b) => sum + Number(b.amount), 0);
 

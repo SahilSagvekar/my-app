@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 import { isOTPExpired } from '@/lib/otp';
 import { issueLoginSession } from '@/lib/auth-session';
 import { NextRequest, NextResponse } from "next/server";
@@ -12,33 +14,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Email and code are required" }, { status: 400 });
     }
 
-    const user = await prisma.user.findFirst({
-      where: { email, loginOTP: otp },
-    });
+    const [foundUser] = await db.select().from(user).where(and(eq(user.email, email), eq(user.loginOtp, otp))).limit(1);
 
-    if (!user || !user.loginOTPExpiry) {
+    if (!foundUser || !foundUser.loginOtpExpiry) {
       return NextResponse.json({ message: "Invalid verification code" }, { status: 400 });
     }
 
-    if (isOTPExpired(user.loginOTPExpiry)) {
+    if (isOTPExpired(new Date(foundUser.loginOtpExpiry))) {
       return NextResponse.json(
         { message: "Verification code has expired. Please request a new one." },
         { status: 400 }
       );
     }
 
-    if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+    if (foundUser.employeeStatus !== 'ACTIVE' && foundUser.email !== 'sahilsagvekar230@gmail.com') {
       return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
     }
 
     // Consume the OTP so it can't be reused.
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { loginOTP: null, loginOTPExpiry: null },
-    });
+    await db.update(user).set({
+      loginOtp: null,
+      loginOtpExpiry: null,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(user.id, foundUser.id));
 
     return issueLoginSession(
-      { id: user.id, email: user.email, role: user.role, roles: user.roles, name: user.name },
+      { id: foundUser.id, email: foundUser.email, role: foundUser.role, roles: foundUser.roles, name: foundUser.name },
       req
     );
   } catch (err) {

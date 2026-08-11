@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client } from "@/lib/db/schema";
+import { eq, count as countFn } from "drizzle-orm";
 import { cached } from "@/lib/redis";
 
 // Lightweight endpoint — returns only the count of active clients.
@@ -9,7 +11,10 @@ export async function GET() {
   try {
     const count = await cached(
       "clients:count",
-      () => prisma.client.count({ where: { status: "active" } }),
+      async () => {
+        const [{ value }] = await db.select({ value: countFn() }).from(client).where(eq(client.status, "active"));
+        return value;
+      },
       300 // 5 min TTL — count doesn't change often
     );
     return NextResponse.json({ count });

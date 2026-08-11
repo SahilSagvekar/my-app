@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesLead, salesDashboardColumn, user as userTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { asc, eq, or, sql } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -22,14 +25,12 @@ export async function GET(req: NextRequest) {
     }
 
     const [leads, columns] = await Promise.all([
-      prisma.salesLead.findMany({
-        where: { userId: decoded.userId },
-        orderBy: { createdAt: 'asc' },
-      }),
-      prisma.salesDashboardColumn.findMany({
-        where: { userId: decoded.userId },
-        orderBy: { order: 'asc' },
-      }),
+      db.select().from(salesLead)
+        .where(eq(salesLead.userId, decoded.userId))
+        .orderBy(asc(salesLead.createdAt)),
+      db.select().from(salesDashboardColumn)
+        .where(eq(salesDashboardColumn.userId, decoded.userId))
+        .orderBy(asc(salesDashboardColumn.order)),
     ]);
 
     return NextResponse.json({ ok: true, leads, columns }, {
@@ -63,13 +64,14 @@ export async function POST(req: NextRequest) {
     let duplicate: { matchedField: 'email' | 'phone'; leadName: string; ownerName: string } | null = null;
 
     if (trimmedEmail || trimmedPhone) {
-      const orConditions: any[] = [];
-      if (trimmedEmail) orConditions.push({ email: { equals: trimmedEmail, mode: 'insensitive' } });
-      if (trimmedPhone) orConditions.push({ phone: trimmedPhone });
+      const orConditions = [];
+      if (trimmedEmail) orConditions.push(sql`lower(${salesLead.email}) = lower(${trimmedEmail})`);
+      if (trimmedPhone) orConditions.push(eq(salesLead.phone, trimmedPhone));
 
-      const existing = await prisma.salesLead.findFirst({
-        where: { OR: orConditions },
-        select: { name: true, email: true, phone: true, user: { select: { name: true, email: true } } },
+      const existing = await db.query.salesLead.findFirst({
+        where: or(...orConditions),
+        columns: { name: true, email: true, phone: true },
+        with: { user: { columns: { name: true, email: true } } },
       });
 
       if (existing) {
@@ -83,38 +85,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const lead = await prisma.salesLead.create({
-      data: {
-        userId: decoded.userId,
-        name: body.name ?? '',
-        company: body.company ?? '',
-        email: body.email ?? '',
-        phone: body.phone ?? '',
-        profileUrl: body.profileUrl ?? null,
-        postUrl: body.postUrl ?? null,
-        socials: body.socials ?? '',
-        instagram: !!body.instagram,
-        facebook: !!body.facebook,
-        linkedin: !!body.linkedin,
-        twitter: !!body.twitter,
-        tiktok: !!body.tiktok,
-        status: body.status ?? 'NEW',
-        source: body.source ?? '',
-        value: body.value !== undefined ? parseFloat(body.value) : null,
-        priority: body.priority ?? '',
-        meetingBooked: !!body.meetingBooked,
-        emailed: !!body.emailed,
-        called: !!body.called,
-        texted: !!body.texted,
-        notes: body.notes ?? '',
-        emailTemplate: body.emailTemplate ?? '',
-        dmAt: body.dmAt ? new Date(body.dmAt) : null,
-        meetingAt: body.meetingAt ? new Date(body.meetingAt) : null,
-        emailedAt: body.emailedAt ? new Date(body.emailedAt) : null,
-        calledAt: body.calledAt ? new Date(body.calledAt) : null,
-        textedAt: body.textedAt ? new Date(body.textedAt) : null,
-      },
-    });
+    const [lead] = await db.insert(salesLead).values({
+      id: createId(),
+      userId: decoded.userId,
+      name: body.name ?? '',
+      company: body.company ?? '',
+      email: body.email ?? '',
+      phone: body.phone ?? '',
+      profileUrl: body.profileUrl ?? null,
+      postUrl: body.postUrl ?? null,
+      socials: body.socials ?? '',
+      instagram: !!body.instagram,
+      facebook: !!body.facebook,
+      linkedin: !!body.linkedin,
+      twitter: !!body.twitter,
+      tiktok: !!body.tiktok,
+      status: body.status ?? 'NEW',
+      source: body.source ?? '',
+      value: body.value !== undefined ? parseFloat(body.value) : null,
+      priority: body.priority ?? '',
+      meetingBooked: !!body.meetingBooked,
+      emailed: !!body.emailed,
+      called: !!body.called,
+      texted: !!body.texted,
+      notes: body.notes ?? '',
+      emailTemplate: body.emailTemplate ?? '',
+      dmAt: body.dmAt ? new Date(body.dmAt).toISOString() : null,
+      meetingAt: body.meetingAt ? new Date(body.meetingAt).toISOString() : null,
+      emailedAt: body.emailedAt ? new Date(body.emailedAt).toISOString() : null,
+      calledAt: body.calledAt ? new Date(body.calledAt).toISOString() : null,
+      textedAt: body.textedAt ? new Date(body.textedAt).toISOString() : null,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     return NextResponse.json({ ok: true, lead, duplicate });
   } catch (err) {

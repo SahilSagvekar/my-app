@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 // the new SF-side "Link LF" picker.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task, monthlyDeliverable, oneOffDeliverable } from '@/lib/db/schema';
+import { and, or, eq, ne, ilike, exists, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -17,48 +19,47 @@ export async function GET(req: NextRequest) {
     const clientId = searchParams.get('clientId') ?? undefined;
     const excludeSfId = searchParams.get('excludeSfId') ?? undefined;
 
-    const tasks = await prisma.task.findMany({
-      where: {
-        AND: [
-          clientId ? { clientId } : {},
-          excludeSfId ? { id: { not: excludeSfId } } : {},
-          {
-            OR: [
-              { deliverableType: { contains: 'LF', mode: 'insensitive' } },
-              { deliverableType: { contains: 'LONG', mode: 'insensitive' } },
-              { taskType: { contains: 'LF', mode: 'insensitive' } },
-              { monthlyDeliverable: { type: { contains: 'LF', mode: 'insensitive' } } },
-              { monthlyDeliverable: { type: { contains: 'LONG', mode: 'insensitive' } } },
-              { oneOffDeliverable: { type: { contains: 'LF', mode: 'insensitive' } } },
-              { oneOffDeliverable: { type: { contains: 'LONG', mode: 'insensitive' } } },
-            ],
-          },
-          query.length > 1
-            ? {
-                OR: [
-                  { title: { contains: query, mode: 'insensitive' } },
-                  { description: { contains: query, mode: 'insensitive' } },
-                ],
-              }
-            : {},
-        ],
-      },
-      select: {
+    const rawTasks = await db.query.task.findMany({
+      where: and(
+        clientId ? eq(task.clientId, clientId) : undefined,
+        excludeSfId ? ne(task.id, excludeSfId) : undefined,
+        or(
+          ilike(task.deliverableType, '%LF%'),
+          ilike(task.deliverableType, '%LONG%'),
+          ilike(task.taskType, '%LF%'),
+          exists(db.select().from(monthlyDeliverable).where(and(
+            eq(monthlyDeliverable.id, task.monthlyDeliverableId),
+            or(ilike(monthlyDeliverable.type, '%LF%'), ilike(monthlyDeliverable.type, '%LONG%')),
+          ))),
+          exists(db.select().from(oneOffDeliverable).where(and(
+            eq(oneOffDeliverable.id, task.oneOffDeliverableId),
+            or(ilike(oneOffDeliverable.type, '%LF%'), ilike(oneOffDeliverable.type, '%LONG%')),
+          ))),
+        ),
+        query.length > 1
+          ? or(ilike(task.title, `%${query}%`), ilike(task.description, `%${query}%`))
+          : undefined,
+      ),
+      columns: {
         id: true,
         title: true,
         description: true,
         deliverableType: true,
         status: true,
-        client: { select: { name: true } },
-        user: { select: { name: true } },
-        monthlyDeliverable: { select: { type: true } },
-        oneOffDeliverable: { select: { type: true } },
       },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+      with: {
+        client: { columns: { name: true } },
+        user_assignedTo: { columns: { name: true } },
+        monthlyDeliverable: { columns: { type: true } },
+        oneOffDeliverable: { columns: { type: true } },
+      },
+      orderBy: desc(task.createdAt),
+      limit: 100,
     });
 
-    const mapped = tasks.map(t => ({
+    const tasks = rawTasks.map(({ user_assignedTo, ...t }: any) => ({ ...t, user: user_assignedTo }));
+
+    const mapped = tasks.map((t: any) => ({
       ...t,
       deliverableType: t.deliverableType || t.monthlyDeliverable?.type || t.oneOffDeliverable?.type || null,
     }));

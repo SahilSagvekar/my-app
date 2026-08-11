@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -31,15 +33,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Slack user email not available" }, { status: 400 });
   }
 
-  let user = await prisma.user.findFirst({ where: { email } });
+  let [user] = await db.select().from(userTable).where(eq(userTable.email, email)).limit(1);
   if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email,
-        name: data.authed_user.name || "Slack User",
-        role: "client",
-      },
-    });
+    [user] = await db.insert(userTable).values({
+      email,
+      name: data.authed_user.name || "Slack User",
+      role: "client",
+      updatedAt: new Date().toISOString(),
+    }).returning();
   }
 
   if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {

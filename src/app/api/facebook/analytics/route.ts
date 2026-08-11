@@ -4,7 +4,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { facebookPage } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { FacebookService } from '@/lib/social/facebook';
 import { decrypt } from '@/lib/encryption';
@@ -25,9 +27,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Get Facebook pages for this client
-    const pages = await prisma.facebookPage.findMany({
-      where: { clientId, isActive: true },
-    });
+    const pages = await db.select().from(facebookPage)
+      .where(and(eq(facebookPage.clientId, clientId), eq(facebookPage.isActive, true)));
 
     if (pages.length === 0) {
       return NextResponse.json({

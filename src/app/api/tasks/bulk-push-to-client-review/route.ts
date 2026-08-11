@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,10 +16,8 @@ export async function POST(request: NextRequest) {
 
     // Only already-approved (COMPLETED) tasks are eligible — this pushes
     // an already-QC'd video into client review after the fact.
-    const eligible = await prisma.task.findMany({
-      where: { id: { in: taskIds }, status: 'COMPLETED' },
-      select: { id: true },
-    });
+    const eligible = await db.select({ id: task.id }).from(task)
+      .where(and(inArray(task.id, taskIds), eq(task.status, 'COMPLETED')));
 
     if (eligible.length === 0) {
       return NextResponse.json(

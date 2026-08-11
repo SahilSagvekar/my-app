@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
 
@@ -41,10 +43,10 @@ export async function POST(
       return NextResponse.json({ ok: false, message: 'Invalid storage plan' }, { status: 400 });
     }
 
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { id: true, email: true, name: true, companyName: true, userId: true },
-    });
+    const [client] = await db.select({
+      id: clientTable.id, email: clientTable.email, name: clientTable.name,
+      companyName: clientTable.companyName, userId: clientTable.userId,
+    }).from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
 
     if (!client) {
       return NextResponse.json({ ok: false, message: 'Client not found' }, { status: 404 });

@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable, contractSigner as contractSignerTable, contractAuditLog as contractAuditLogTable, client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, or } from 'drizzle-orm';
 import { downloadSignWellPdf, mapSignWellStatus, mapSignWellSignerStatus } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
 import nodemailer from 'nodemailer';
@@ -44,24 +47,27 @@ export async function POST(req: NextRequest) {
 }
 
 async function findContract(signwellDocId: string) {
-  const contract = await prisma.contract.findFirst({
-    where: {
-      OR: [
-        { signwellDocumentId: signwellDocId },
-        { signwellRequestId: signwellDocId },
-      ],
-    },
-    include: {
-      signers: true,
+  const found = await db.query.contract.findFirst({
+    where: or(
+      eq(contractTable.signwellDocumentId, signwellDocId),
+      eq(contractTable.signwellRequestId, signwellDocId)
+    ),
+    with: {
+      contractSigners: true,
     },
   });
 
-  if (contract?.clientId) {
-    const client = await prisma.client.findUnique({
-      where: { id: contract.clientId },
-      include: { portalAccess: true },
+  if (!found) return null;
+
+  const contract: any = { ...found, signers: found.contractSigners };
+
+  if (contract.clientId) {
+    const clientRow = await db.query.client.findFirst({
+      where: eq(clientTable.id, contract.clientId),
+      with: { clientPortalAccesses: true },
     });
-    (contract as any).client = client;
+    const client = clientRow ? { ...clientRow, portalAccess: clientRow.clientPortalAccesses?.[0] ?? null } : null;
+    contract.client = client;
   }
 
   return contract;
@@ -89,20 +95,21 @@ async function handleCompleted(document: any) {
       mimeType: 'application/pdf',
     });
 
-    // Update contract
-    await prisma.contract.update({
-      where: { id: contract.id },
-      data: {
+    // Update contract + mark all its signers SIGNED (was a single Prisma nested
+    // write, atomic by default — wrapped in a transaction to preserve that)
+    await db.transaction(async (tx) => {
+      await tx.update(contractTable).set({
         status: 'COMPLETED',
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         signedS3Key: key,
-        signers: {
-          updateMany: {
-            where: {},
-            data: { status: 'SIGNED', signedAt: new Date() },
-          },
-        },
-      },
+        updatedAt: new Date().toISOString(),
+      }).where(eq(contractTable.id, contract.id));
+
+      await tx.update(contractSignerTable).set({
+        status: 'SIGNED',
+        signedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(contractSignerTable.contractId, contract.id));
     });
 
     // Advance portal if pipeline client
@@ -110,21 +117,20 @@ async function handleCompleted(document: any) {
     if (client?.portalAccess) {
       const currentStatus = client.portalAccess.status;
       if (currentStatus === 'CONTRACT_PENDING' || currentStatus === 'ONBOARDING') {
-        await prisma.clientPortalAccess.update({
-          where: { clientId: client.id },
-          data: { status: 'PAYMENT_PENDING' },
-        });
+        await db.update(clientPortalAccessTable).set({
+          status: 'PAYMENT_PENDING',
+          updatedAt: new Date().toISOString(),
+        }).where(eq(clientPortalAccessTable.clientId, client.id));
         console.log(`✅ [Portal] Advanced to PAYMENT_PENDING for ${client.name}`);
       }
     }
 
-    await prisma.contractAuditLog.create({
-      data: {
-        contractId: contract.id,
-        action: 'completed',
-        performedBy: 'system',
-        details: JSON.stringify({ message: 'All signers have signed. Document completed via SignWell.' }),
-      },
+    await db.insert(contractAuditLogTable).values({
+      id: createId(),
+      contractId: contract.id,
+      action: 'completed',
+      performedBy: 'system',
+      details: JSON.stringify({ message: 'All signers have signed. Document completed via SignWell.' }),
     });
 
     // Notify pipeline recipients (Slack DM + email)
@@ -152,19 +158,21 @@ async function handleSignerSigned(document: any) {
         const ipAddress = swSigner.ip_address || swSigner.ip || null;
         const userAgent = swSigner.user_agent || null;
 
-        await prisma.contractSigner.update({
-          where: { id: dbSigner.id },
-          data: { status: 'SIGNED', signedAt: new Date(), ipAddress, userAgent },
-        });
+        await db.update(contractSignerTable).set({
+          status: 'SIGNED',
+          signedAt: new Date().toISOString(),
+          ipAddress,
+          userAgent,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(contractSignerTable.id, dbSigner.id));
 
-        await prisma.contractAuditLog.create({
-          data: {
-            contractId: contract.id,
-            action: 'signed',
-            performedBy: `${dbSigner.name} <${dbSigner.email}>`,
-            ipAddress,
-            userAgent,
-          },
+        await db.insert(contractAuditLogTable).values({
+          id: createId(),
+          contractId: contract.id,
+          action: 'signed',
+          performedBy: `${dbSigner.name} <${dbSigner.email}>`,
+          ipAddress,
+          userAgent,
         });
       }
     }
@@ -173,10 +181,10 @@ async function handleSignerSigned(document: any) {
   // Check if all signed → mark as PARTIALLY_SIGNED or keep SENT
   const allSigned = contract.signers.every((s: any) => s.status === 'SIGNED');
   if (!allSigned && contract.status === 'SENT') {
-    await prisma.contract.update({
-      where: { id: contract.id },
-      data: { status: 'PARTIALLY_SIGNED' },
-    });
+    await db.update(contractTable).set({
+      status: 'PARTIALLY_SIGNED',
+      updatedAt: new Date().toISOString(),
+    }).where(eq(contractTable.id, contract.id));
   }
 
   console.log(`✍️ [SignWell] Signer signed on contract: ${contract.id}`);
@@ -195,32 +203,29 @@ async function handleDeclined(document: any) {
   const userAgent = decliner?.user_agent || null;
 
   if (dbSigner) {
-    await prisma.contractSigner.update({
-      where: { id: dbSigner.id },
-      data: {
-        status: 'DECLINED',
-        declinedAt: new Date(),
-        declineReason: decliner?.decline_reason || null,
-        ipAddress,
-        userAgent,
-      },
-    });
-  }
-
-  await prisma.contract.update({
-    where: { id: contract.id },
-    data: { status: 'CANCELLED' },
-  });
-
-  await prisma.contractAuditLog.create({
-    data: {
-      contractId: contract.id,
-      action: 'declined',
-      performedBy: dbSigner ? `${dbSigner.name} <${dbSigner.email}>` : 'unknown signer',
+    await db.update(contractSignerTable).set({
+      status: 'DECLINED',
+      declinedAt: new Date().toISOString(),
+      declineReason: decliner?.decline_reason || null,
       ipAddress,
       userAgent,
-      details: decliner?.decline_reason ? JSON.stringify({ reason: decliner.decline_reason }) : null,
-    },
+      updatedAt: new Date().toISOString(),
+    }).where(eq(contractSignerTable.id, dbSigner.id));
+  }
+
+  await db.update(contractTable).set({
+    status: 'CANCELLED',
+    updatedAt: new Date().toISOString(),
+  }).where(eq(contractTable.id, contract.id));
+
+  await db.insert(contractAuditLogTable).values({
+    id: createId(),
+    contractId: contract.id,
+    action: 'declined',
+    performedBy: dbSigner ? `${dbSigner.name} <${dbSigner.email}>` : 'unknown signer',
+    ipAddress,
+    userAgent,
+    details: decliner?.decline_reason ? JSON.stringify({ reason: decliner.decline_reason }) : null,
   });
 
   await notifyAdmin(
@@ -246,19 +251,21 @@ async function handleViewed(document: any) {
         const ipAddress = swSigner.ip_address || swSigner.ip || null;
         const userAgent = swSigner.user_agent || null;
 
-        await prisma.contractSigner.update({
-          where: { id: dbSigner.id },
-          data: { status: 'VIEWED', viewedAt: new Date(), ipAddress, userAgent },
-        });
+        await db.update(contractSignerTable).set({
+          status: 'VIEWED',
+          viewedAt: new Date().toISOString(),
+          ipAddress,
+          userAgent,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(contractSignerTable.id, dbSigner.id));
 
-        await prisma.contractAuditLog.create({
-          data: {
-            contractId: contract.id,
-            action: 'viewed',
-            performedBy: `${dbSigner.name} <${dbSigner.email}>`,
-            ipAddress,
-            userAgent,
-          },
+        await db.insert(contractAuditLogTable).values({
+          id: createId(),
+          contractId: contract.id,
+          action: 'viewed',
+          performedBy: `${dbSigner.name} <${dbSigner.email}>`,
+          ipAddress,
+          userAgent,
         });
       }
     }

@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task, shootDetail } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -26,27 +29,26 @@ export async function PATCH(
         const { notes } = await req.json();
 
         // Check if task exists and user is assigned (optional safety check)
-        const task = await (prisma.task as any).findUnique({
-            where: { id },
-            include: { shootDetail: true }
-        });
+        const [foundTask] = await db.select({ id: task.id }).from(task).where(eq(task.id, id)).limit(1);
 
-        if (!task)
+        if (!foundTask)
             return NextResponse.json({ message: "Task not found" }, { status: 404 });
 
         // Update or create shoot detail with notes
-        if (task.shootDetail) {
-            await (prisma as any).shootDetail.update({
-                where: { taskId: id },
-                data: { videographerNotes: notes }
-            });
+        const [existingShootDetail] = await db.select().from(shootDetail).where(eq(shootDetail.taskId, id)).limit(1);
+
+        if (existingShootDetail) {
+            await db.update(shootDetail).set({
+                videographerNotes: notes,
+                updatedAt: new Date().toISOString(),
+            }).where(eq(shootDetail.taskId, id));
         } else {
-            await (prisma as any).shootDetail.create({
-                data: {
-                    taskId: id,
-                    videographerNotes: notes,
-                    videographerId: Number(userId)
-                }
+            await db.insert(shootDetail).values({
+                id: createId(),
+                taskId: id,
+                videographerNotes: notes,
+                videographerId: Number(userId),
+                updatedAt: new Date().toISOString(),
             });
         }
 

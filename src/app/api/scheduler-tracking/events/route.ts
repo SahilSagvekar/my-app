@@ -8,7 +8,9 @@ export const dynamic = 'force-dynamic';
 // under a different user's name.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { schedulerActivityEvent } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
 import { getCurrentUser2 } from '@/lib/auth';
 import type { SchedulerActivityEventInput } from '@/lib/scheduler-activity-shared';
 
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
     const rows = events
       .filter((e) => e && VALID_EVENT_TYPES.has(e.eventType) && typeof e.sessionId === 'string')
       .map((e) => ({
+        id: createId(),
         userId: user.id,
         sessionId: e.sessionId,
         eventType: e.eventType,
@@ -56,15 +59,15 @@ export async function POST(req: NextRequest) {
         targetLabel: e.targetLabel?.slice(0, 200) || null,
         targetTag: e.targetTag?.slice(0, 50) || null,
         metadata: e.metadata ? (e.metadata as any) : undefined,
-        timestamp: e.timestamp ? new Date(e.timestamp) : new Date(),
+        timestamp: (e.timestamp ? new Date(e.timestamp) : new Date()).toISOString(),
       }));
 
     if (rows.length === 0) {
       return NextResponse.json({ ok: true, inserted: 0 });
     }
 
-    const result = await prisma.schedulerActivityEvent.createMany({ data: rows });
-    return NextResponse.json({ ok: true, inserted: result.count });
+    const inserted = await db.insert(schedulerActivityEvent).values(rows).returning({ id: schedulerActivityEvent.id });
+    return NextResponse.json({ ok: true, inserted: inserted.length });
   } catch (err: any) {
     console.error('[scheduler-tracking/events] error:', err.message);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

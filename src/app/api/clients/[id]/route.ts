@@ -1,5 +1,17 @@
 export const dynamic = 'force-dynamic';
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import {
+  client as clientTable,
+  task,
+  monthlyDeliverable,
+  oneOffDeliverable,
+  recurringTask,
+  monthlyRun,
+  file as fileTable,
+  brandAsset,
+} from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, inArray, gte, lte } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import jwt from "jsonwebtoken";
@@ -13,21 +25,16 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    const client = await prisma.client.findUnique({
-      where: { id: id },
-      include: {
+    const client = await db.query.client.findFirst({
+      where: eq(clientTable.id, id),
+      with: {
         monthlyDeliverables: true,
         oneOffDeliverables: true,
         brandAssets: true,
         recurringTasks: true,
         tasks: {
-          where: {
-            createdAt: {
-              gte: startOfMonth,
-              lte: endOfMonth,
-            },
-          },
-          select: {
+          where: (t, { and, gte, lte }) => and(gte(t.createdAt, startOfMonth.toISOString()), lte(t.createdAt, endOfMonth.toISOString())),
+          columns: {
             id: true,
             status: true,
           },
@@ -153,42 +160,38 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     const additionalPhones = (phones || []).filter((p: string) => p.trim() !== "");
 
     // Update client basic info
-    const updatedClient = await prisma.client.update({
-      where: { id },
-      data: {
-        name,
-        email,
-        emails: additionalEmails,
-        companyName,
-        address,
-        phone,
-        phones: additionalPhones,
-        status,
-        accountManagerId,
-        brandGuidelines,
-        projectSettings,
-        billing,
-        postingSchedule,
-        requiresClientReview: clientReview,
-        clientReviewDeliverableTypes: clientReviewDeliverableTypes ?? [],
-        requiresVideographer: videographer,
-        requiresCoverImage: coverImage,
-        hasPostingServices,
-        ...(slackWebhookUrl !== undefined && { slackWebhookUrl }),
-        ...(slackChannelName !== undefined && { slackChannelName }),
-        ...(slackEnabled !== undefined && { slackEnabled }),
-        ...(templateHashtags !== undefined && {
-          templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
-        }),
-      },
-    });
+    const [updatedClient] = await db.update(clientTable).set({
+      name,
+      email,
+      emails: additionalEmails,
+      companyName,
+      address,
+      phone,
+      phones: additionalPhones,
+      status,
+      accountManagerId,
+      brandGuidelines,
+      projectSettings,
+      billing,
+      postingSchedule,
+      requiresClientReview: clientReview,
+      clientReviewDeliverableTypes: clientReviewDeliverableTypes ?? [],
+      requiresVideographer: videographer,
+      requiresCoverImage: coverImage,
+      hasPostingServices,
+      ...(slackWebhookUrl !== undefined && { slackWebhookUrl }),
+      ...(slackChannelName !== undefined && { slackChannelName }),
+      ...(slackEnabled !== undefined && { slackEnabled }),
+      ...(templateHashtags !== undefined && {
+        templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
+      }),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(clientTable.id, id)).returning();
 
     // 🔥 Handle monthly deliverables
     console.log("📦 Processing monthlyDeliverables:", monthlyDeliverables.length, "items");
 
-    const existing = await prisma.monthlyDeliverable.findMany({
-      where: { clientId: id },
-    });
+    const existing = await db.select().from(monthlyDeliverable).where(eq(monthlyDeliverable.clientId, id));
 
     console.log("📦 Existing deliverables in DB:", existing.length, "items");
 
@@ -207,13 +210,8 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     console.log("🗑️ Deliverables to delete:", toDelete);
 
     if (toDelete.length > 0) {
-      await prisma.recurringTask.deleteMany({
-        where: { deliverableId: { in: toDelete } },
-      });
-
-      await prisma.monthlyDeliverable.deleteMany({
-        where: { id: { in: toDelete } },
-      });
+      await db.delete(recurringTask).where(inArray(recurringTask.deliverableId, toDelete));
+      await db.delete(monthlyDeliverable).where(inArray(monthlyDeliverable.id, toDelete));
     }
 
     // Update or create deliverables
@@ -223,36 +221,34 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       if (isExistingDbRecord) {
         // UPDATE existing deliverable
         console.log("✏️ Updating deliverable:", d.id);
-        await prisma.monthlyDeliverable.update({
-          where: { id: d.id },
-          data: {
-            type: d.type,
-            quantity: d.quantity,
-            videosPerDay: d.videosPerDay || 1,
-            postingSchedule: d.postingSchedule,
-            postingDays: d.postingDays || [],
-            postingTimes: d.postingTimes || [],
-            platforms: d.platforms || [],
-            description: d.description || "",
-            isTrial: d.isTrial ?? false,
-          },
-        });
+        await db.update(monthlyDeliverable).set({
+          type: d.type,
+          quantity: d.quantity,
+          videosPerDay: d.videosPerDay || 1,
+          postingSchedule: d.postingSchedule,
+          postingDays: d.postingDays || [],
+          postingTimes: d.postingTimes || [],
+          platforms: d.platforms || [],
+          description: d.description || "",
+          isTrial: d.isTrial ?? false,
+          updatedAt: new Date().toISOString(),
+        }).where(eq(monthlyDeliverable.id, d.id));
       } else {
         // CREATE new deliverable (ignore frontend-generated ID, let DB generate one)
         console.log("➕ Creating new deliverable:", d.type);
-        await prisma.monthlyDeliverable.create({
-          data: {
-            clientId: id,
-            type: d.type,
-            quantity: d.quantity,
-            videosPerDay: d.videosPerDay || 1,
-            postingSchedule: d.postingSchedule,
-            postingDays: d.postingDays || [],
-            postingTimes: d.postingTimes || [],
-            platforms: d.platforms || [],
-            description: d.description || "",
-            isTrial: d.isTrial ?? false,
-          },
+        await db.insert(monthlyDeliverable).values({
+          id: createId(),
+          clientId: id,
+          type: d.type,
+          quantity: d.quantity,
+          videosPerDay: d.videosPerDay || 1,
+          postingSchedule: d.postingSchedule,
+          postingDays: d.postingDays || [],
+          postingTimes: d.postingTimes || [],
+          platforms: d.platforms || [],
+          description: d.description || "",
+          isTrial: d.isTrial ?? false,
+          updatedAt: new Date().toISOString(),
         });
       }
     }
@@ -260,9 +256,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     // 🔥 Handle one-off deliverables
     console.log("📦 Processing oneOffDeliverables:", oneOffDeliverables.length, "items");
 
-    const existingOneOffs = await prisma.oneOffDeliverable.findMany({
-      where: { clientId: id },
-    });
+    const existingOneOffs = await db.select().from(oneOffDeliverable).where(eq(oneOffDeliverable.clientId, id));
 
     const existingOneOffIds = existingOneOffs.map((o) => o.id);
 
@@ -275,9 +269,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     const toDeleteOneOffs = existingOneOffIds.filter((oid) => !incomingOneOffDbIds.includes(oid));
 
     if (toDeleteOneOffs.length > 0) {
-      await prisma.oneOffDeliverable.deleteMany({
-        where: { id: { in: toDeleteOneOffs } },
-      });
+      await db.delete(oneOffDeliverable).where(inArray(oneOffDeliverable.id, toDeleteOneOffs));
     }
 
     // Update or create one-offs
@@ -285,42 +277,40 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       const isExisting = o.id && existingOneOffIds.includes(o.id);
 
       if (isExisting) {
-        await prisma.oneOffDeliverable.update({
-          where: { id: o.id },
-          data: {
-            type: o.type,
-            quantity: o.quantity,
-            videosPerDay: o.videosPerDay || 1,
-            postingSchedule: "one-off",
-            postingDays: o.postingDays || [],
-            postingTimes: o.postingTimes || [],
-            platforms: o.platforms || [],
-            description: o.description || "",
-            status: o.status || "PENDING",
-          }
-        });
+        await db.update(oneOffDeliverable).set({
+          type: o.type,
+          quantity: o.quantity,
+          videosPerDay: o.videosPerDay || 1,
+          postingSchedule: "one-off",
+          postingDays: o.postingDays || [],
+          postingTimes: o.postingTimes || [],
+          platforms: o.platforms || [],
+          description: o.description || "",
+          status: o.status || "PENDING",
+          updatedAt: new Date().toISOString(),
+        }).where(eq(oneOffDeliverable.id, o.id));
       } else {
-        await prisma.oneOffDeliverable.create({
-          data: {
-            clientId: id,
-            type: o.type,
-            quantity: o.quantity,
-            videosPerDay: o.videosPerDay || 1,
-            postingSchedule: "one-off",
-            postingDays: o.postingDays || [],
-            postingTimes: o.postingTimes || [],
-            platforms: o.platforms || [],
-            description: o.description || "",
-            status: "PENDING",
-          }
+        await db.insert(oneOffDeliverable).values({
+          id: createId(),
+          clientId: id,
+          type: o.type,
+          quantity: o.quantity,
+          videosPerDay: o.videosPerDay || 1,
+          postingSchedule: "one-off",
+          postingDays: o.postingDays || [],
+          postingTimes: o.postingTimes || [],
+          platforms: o.platforms || [],
+          description: o.description || "",
+          status: "PENDING",
+          updatedAt: new Date().toISOString(),
         });
       }
     }
 
     // 🔥 Fetch the updated client with all relations to return
-    const finalClient = await prisma.client.findUnique({
-      where: { id },
-      include: {
+    const finalClient = await db.query.client.findFirst({
+      where: eq(clientTable.id, id),
+      with: {
         monthlyDeliverables: true,
         oneOffDeliverables: true,
         brandAssets: true,
@@ -375,63 +365,35 @@ export async function DELETE(
   try {
     const { id } = params;
 
-    const tasksWithFiles = await prisma.task.findMany({
-      where: { clientId: id },
-      select: { id: true },
-    });
+    const tasksWithFiles = await db.select({ id: task.id }).from(task).where(eq(task.clientId, id));
 
     const taskIds = tasksWithFiles.map(t => t.id);
 
     if (taskIds.length > 0) {
-      await prisma.file.deleteMany({
-        where: { taskId: { in: taskIds } },
-      });
+      await db.delete(fileTable).where(inArray(fileTable.taskId, taskIds));
     }
 
-    await prisma.recurringTask.deleteMany({
-      where: { clientId: id },
-    });
+    await db.delete(recurringTask).where(eq(recurringTask.clientId, id));
 
-    await prisma.monthlyRun.deleteMany({
-      where: { clientId: id },
-    });
+    await db.delete(monthlyRun).where(eq(monthlyRun.clientId, id));
 
-    const deliverables = await prisma.monthlyDeliverable.findMany({
-      where: { clientId: id },
-      select: { id: true },
-    });
+    const deliverables = await db.select({ id: monthlyDeliverable.id }).from(monthlyDeliverable).where(eq(monthlyDeliverable.clientId, id));
 
     const deliverableIds = deliverables.map(d => d.id);
 
     if (deliverableIds.length > 0) {
-      await prisma.recurringTask.deleteMany({
-        where: { deliverableId: { in: deliverableIds } },
-      });
-
-      await prisma.task.deleteMany({
-        where: { monthlyDeliverableId: { in: deliverableIds } },
-      });
-
-      await prisma.monthlyDeliverable.deleteMany({
-        where: { id: { in: deliverableIds } },
-      });
+      await db.delete(recurringTask).where(inArray(recurringTask.deliverableId, deliverableIds));
+      await db.delete(task).where(inArray(task.monthlyDeliverableId, deliverableIds));
+      await db.delete(monthlyDeliverable).where(inArray(monthlyDeliverable.id, deliverableIds));
     }
 
-    await prisma.oneOffDeliverable.deleteMany({
-      where: { clientId: id },
-    });
+    await db.delete(oneOffDeliverable).where(eq(oneOffDeliverable.clientId, id));
 
-    await prisma.brandAsset.deleteMany({
-      where: { clientId: id },
-    });
+    await db.delete(brandAsset).where(eq(brandAsset.clientId, id));
 
-    await prisma.task.deleteMany({
-      where: { clientId: id },
-    });
+    await db.delete(task).where(eq(task.clientId, id));
 
-    const deletedClient = await prisma.client.delete({
-      where: { id },
-    });
+    const [deletedClient] = await db.delete(clientTable).where(eq(clientTable.id, id)).returning();
 
     // 🔥 Audit client deletion
     const token = req.headers.get("cookie")?.match(/authToken=([^;]+)/)?.[1];

@@ -1,5 +1,8 @@
 // src/lib/notify.ts
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { notification as notificationTable, task as taskTable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { inArray } from "drizzle-orm";
 // import { broadcastNotification } from "@/lib/notifications-bus";
 import { deliverSlackNotification } from "@/lib/slack";
 
@@ -20,19 +23,19 @@ export type NotifyOpts = {
 export async function notifyUser(opts: NotifyOpts) {
   const { userId, type, title, body, payload, channels = ["in-app"] } = opts;
 
-  // Normalise userId to Number (Prisma schema expects Int)
+  // Normalise userId to Number (schema expects Int)
   const userIdValue = userId === null ? null : Number(userId);
 
-  const notification = await prisma.notification.create({
-    data: {
-      userId: userIdValue,
-      type,
-      title,
-      body: body ?? null,
-      payload: (payload as any) ?? null,
-      channel: channels
-    },
-  });
+  const [notification] = await db.insert(notificationTable).values({
+    id: createId(),
+    userId: userIdValue,
+    type,
+    title,
+    body: body ?? null,
+    payload: (payload as any) ?? null,
+    channel: channels,
+    updatedAt: new Date().toISOString(),
+  }).returning();
 
   // Broadcast to SSE (per-user bus checks userId)
   // try {
@@ -69,10 +72,10 @@ export async function notifyEditorTaskAssignment(
 ) {
   if (!editorId || !taskIds || taskIds.length === 0) return null;
 
-  const tasks = await prisma.task.findMany({
-    where: { id: { in: taskIds } },
-    select: { id: true, title: true },
-  });
+  const tasks = await db
+    .select({ id: taskTable.id, title: taskTable.title })
+    .from(taskTable)
+    .where(inArray(taskTable.id, taskIds));
 
   if (tasks.length === 0) return null;
 
@@ -85,16 +88,16 @@ export async function notifyEditorTaskAssignment(
       ? `You have been assigned a new task: ${taskTitles[0]}`
       : `You have been assigned ${count} tasks: ${taskTitles.join(", ")}`;
 
-  const notification = await prisma.notification.create({
-    data: {
-      userId: editorId,
-      type: "task_assigned",
-      title,
-      body,
-      payload: { taskIds: tasks.map((t) => t.id), taskTitles } as any,
-      channel: ["in-app"],
-    },
-  });
+  const [notification] = await db.insert(notificationTable).values({
+    id: createId(),
+    userId: editorId,
+    type: "task_assigned",
+    title,
+    body,
+    payload: { taskIds: tasks.map((t) => t.id), taskTitles } as any,
+    channel: ["in-app"],
+    updatedAt: new Date().toISOString(),
+  }).returning();
 
   deliverSlackNotification({
     type: "task_assigned",

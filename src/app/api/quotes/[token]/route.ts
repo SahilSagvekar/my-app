@@ -1,26 +1,29 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { quote as quoteTable, preClient as preClientTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { notifyQuoteAccepted, notifyQuoteRejected } from '@/lib/pipeline-notifications';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params;
-    const quote = await prisma.quote.findUnique({
-      where: { shareToken: token },
-      include: {
-        preClient: { select: { name: true, email: true, companyName: true, address: true } },
+    const quote = await db.query.quote.findFirst({
+      where: (q, { eq }) => eq(q.shareToken, token),
+      with: {
+        preClient: { columns: { name: true, email: true, companyName: true, address: true } },
       },
     });
 
     if (!quote) return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
 
     if (!quote.viewedAt && quote.status === 'SENT') {
-      await prisma.quote.update({
-        where: { id: quote.id },
-        data: { status: 'VIEWED', viewedAt: new Date() },
-      });
+      await db.update(quoteTable).set({
+        status: 'VIEWED',
+        viewedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(quoteTable.id, quote.id));
     }
 
     return NextResponse.json({
@@ -55,7 +58,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
     }
 
     const { token } = await params;
-    const quote = await prisma.quote.findUnique({ where: { shareToken: token } });
+    const [quote] = await db.select().from(quoteTable).where(eq(quoteTable.shareToken, token)).limit(1);
     if (!quote) return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
 
     const body = await req.json();
@@ -82,10 +85,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
-    const updated = await prisma.quote.update({
-      where: { id: quote.id },
-      data: updateData,
-    });
+    const [updated] = await db.update(quoteTable).set({
+      ...updateData,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(quoteTable.id, quote.id)).returning();
 
     return NextResponse.json({ success: true, totalAmount: updated.totalAmount });
   } catch (err) {
@@ -104,9 +107,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    const quote = await prisma.quote.findUnique({
-      where: { shareToken: token },
-      include: { preClient: true },
+    const quote = await db.query.quote.findFirst({
+      where: (q, { eq }) => eq(q.shareToken, token),
+      with: { preClient: true },
     });
 
     if (!quote) return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
@@ -119,14 +122,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
 
     if (action === 'accept') {
-      await prisma.quote.update({
-        where: { id: quote.id },
-        data: { status: 'ACCEPTED', acceptedAt: new Date() },
-      });
-      await prisma.preClient.update({
-        where: { id: quote.preClientId },
-        data: { status: 'QUOTE_ACCEPTED' },
-      });
+      await db.update(quoteTable).set({
+        status: 'ACCEPTED',
+        acceptedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(quoteTable.id, quote.id));
+      await db.update(preClientTable).set({
+        status: 'QUOTE_ACCEPTED',
+        updatedAt: new Date().toISOString(),
+      }).where(eq(preClientTable.id, quote.preClientId));
       const acceptedAmount = `$${(quote.totalAmount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
       notifyQuoteAccepted(quote.preClient.name, acceptedAmount).catch((err) =>
         console.error('[quotes/[token]] notifyQuoteAccepted failed:', err)
@@ -141,19 +145,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
           { status: 400 }
         );
       }
-      await prisma.quote.update({
-        where: { id: quote.id },
-        data: {
-          status: 'REJECTED',
-          rejectedAt: new Date(),
-          rejectionReason: rejectionReason || null,
-          changeRequest: changeRequest || null,
-        },
-      });
-      await prisma.preClient.update({
-        where: { id: quote.preClientId },
-        data: { status: 'QUOTED' },
-      });
+      await db.update(quoteTable).set({
+        status: 'REJECTED',
+        rejectedAt: new Date().toISOString(),
+        rejectionReason: rejectionReason || null,
+        changeRequest: changeRequest || null,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(quoteTable.id, quote.id));
+      await db.update(preClientTable).set({
+        status: 'QUOTED',
+        updatedAt: new Date().toISOString(),
+      }).where(eq(preClientTable.id, quote.preClientId));
       notifyQuoteRejected(quote.preClient.name, rejectionReason || changeRequest).catch((err) =>
         console.error('[quotes/[token]] notifyQuoteRejected failed:', err)
       );

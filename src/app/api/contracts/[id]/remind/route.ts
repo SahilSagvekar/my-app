@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable, contractAuditLog as contractAuditLogTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { remindSignWellDocument } from '@/lib/signwell';
 
@@ -16,7 +19,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    const contract = await prisma.contract.findUnique({ where: { id } });
+    const [contract] = await db.select().from(contractTable).where(eq(contractTable.id, id)).limit(1);
 
     if (!contract) return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
     if (!contract.signwellDocumentId) {
@@ -29,13 +32,12 @@ export async function POST(
 
     await remindSignWellDocument(contract.signwellDocumentId);
 
-    await prisma.contractAuditLog.create({
-      data: {
-        contractId: id,
-        action: 'reminder_sent',
-        performedBy: user.name || user.email,
-        details: JSON.stringify({ via: 'signwell' }),
-      },
+    await db.insert(contractAuditLogTable).values({
+      id: createId(),
+      contractId: id,
+      action: 'reminder_sent',
+      performedBy: user.name || user.email,
+      details: JSON.stringify({ via: 'signwell' }),
     });
 
     return NextResponse.json({ success: true });

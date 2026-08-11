@@ -1,6 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import {
+    client as clientTable,
+    recurringTask as recurringTaskTable,
+    task as taskTable,
+    monthlyDeliverable as monthlyDeliverableTable,
+} from "@/lib/db/schema";
+import { and, eq, desc, exists, sql as drizzleSql } from "drizzle-orm";
+import { createId } from "@/lib/db/id";
 
 /**
  * MIGRATION SCRIPT: Set up RecurringTask entries for existing clients
@@ -22,14 +30,12 @@ export async function POST(req: Request) {
         console.log(`🔄 Starting RecurringTask migration${dryRun ? " (DRY RUN)" : ""}...`);
 
         // Step 1: Find all clients with monthly deliverables
-        const clients = await prisma.client.findMany({
-            where: {
-                status: "ACTIVE",
-                monthlyDeliverables: {
-                    some: {}, // Has at least one deliverable
-                },
-            },
-            include: {
+        const clients = await db.query.client.findMany({
+            where: and(
+                eq(clientTable.status, "ACTIVE"),
+                exists(db.select({ one: drizzleSql`1` }).from(monthlyDeliverableTable).where(eq(monthlyDeliverableTable.clientId, clientTable.id))),
+            ),
+            with: {
                 monthlyDeliverables: true,
             },
         });
@@ -49,12 +55,9 @@ export async function POST(req: Request) {
 
             for (const deliverable of client.monthlyDeliverables) {
                 // Check if RecurringTask already exists for this client+deliverable
-                const existingRecurring = await prisma.recurringTask.findFirst({
-                    where: {
-                        clientId: client.id,
-                        deliverableId: deliverable.id,
-                    },
-                });
+                const [existingRecurring] = await db.select().from(recurringTaskTable)
+                    .where(and(eq(recurringTaskTable.clientId, client.id), eq(recurringTaskTable.deliverableId, deliverable.id)))
+                    .limit(1);
 
                 if (existingRecurring) {
                     console.log(`   ⏭️  RecurringTask already exists for deliverable: ${deliverable.type}`);
@@ -69,13 +72,10 @@ export async function POST(req: Request) {
                 }
 
                 // Find the most recent task for this deliverable to use as template
-                const templateTask = await prisma.task.findFirst({
-                    where: {
-                        clientId: client.id,
-                        monthlyDeliverableId: deliverable.id,
-                    },
-                    orderBy: { createdAt: "desc" },
-                });
+                const [templateTask] = await db.select().from(taskTable)
+                    .where(and(eq(taskTable.clientId, client.id), eq(taskTable.monthlyDeliverableId, deliverable.id)))
+                    .orderBy(desc(taskTable.createdAt))
+                    .limit(1);
 
                 if (!templateTask) {
                     console.log(`   ⚠️  No existing task found for deliverable: ${deliverable.type}`);
@@ -93,15 +93,20 @@ export async function POST(req: Request) {
 
                 if (!dryRun) {
                     // Create the RecurringTask entry
-                    const newRecurring = await prisma.recurringTask.create({
-                        data: {
-                            clientId: client.id,
-                            deliverableId: deliverable.id,
-                            templateTaskId: templateTask.id,
-                            active: true,
-                            nextRunDate: getNextMonthFirstDay(),
-                        },
-                    });
+                    // NOTE(prisma-migration pre-existing bug): `scheduleType` is a
+                    // required column (no default, in both prisma/schema.prisma and
+                    // schema.ts) that the original Prisma `.create()` call never set.
+                    // That means this insert was already failing with a Prisma
+                    // "missing required value" error before this migration — preserved
+                    // as-is rather than inventing a value, per conversion rules.
+                    const [newRecurring] = await db.insert(recurringTaskTable).values({
+                        id: createId(),
+                        clientId: client.id,
+                        deliverableId: deliverable.id,
+                        templateTaskId: templateTask.id,
+                        active: true,
+                        nextRunDate: getNextMonthFirstDay().toISOString(),
+                    } as any).returning();
 
                     console.log(`   ✅ Created RecurringTask: ${newRecurring.id}`);
                     results.details.push({
@@ -169,18 +174,18 @@ function getNextMonthFirstDay(): Date {
 // GET: Show current RecurringTask status
 export async function GET() {
     try {
-        const recurringTasks = await prisma.recurringTask.findMany({
-            include: {
-                client: { select: { id: true, name: true, companyName: true } },
-                deliverable: { select: { id: true, type: true, quantity: true } },
-                templateTask: { select: { id: true, title: true } },
+        const recurringTasks = await db.query.recurringTask.findMany({
+            with: {
+                client: { columns: { id: true, name: true, companyName: true } },
+                monthlyDeliverable: { columns: { id: true, type: true, quantity: true } },
+                task: { columns: { id: true, title: true } },
             },
-            orderBy: { createdAt: "desc" },
+            orderBy: (rt, { desc }) => desc(rt.createdAt),
         });
 
-        const clients = await prisma.client.findMany({
-            where: { status: "ACTIVE" },
-            include: {
+        const clients = await db.query.client.findMany({
+            where: eq(clientTable.status, "ACTIVE"),
+            with: {
                 monthlyDeliverables: true,
             },
         });
@@ -201,8 +206,8 @@ export async function GET() {
             recurringTasks: recurringTasks.map((rt) => ({
                 id: rt.id,
                 client: rt.client.name || rt.client.companyName,
-                deliverable: rt.deliverable?.type,
-                templateTask: rt.templateTask?.title,
+                deliverable: rt.monthlyDeliverable?.type,
+                templateTask: rt.task?.title,
                 active: rt.active,
                 nextRunDate: rt.nextRunDate,
                 lastRunDate: rt.lastRunDate,

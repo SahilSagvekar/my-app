@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { file as fileTable } from '@/lib/db/schema';
+import { and, inArray, isNotNull } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -22,17 +24,10 @@ export async function POST(req: Request) {
     const limitedIds = fileIds.slice(0, 50);
 
     // Fetch files from database
-    const files = await prisma.file.findMany({
-      where: {
-        id: { in: limitedIds },
-        s3Key: { not: null },
-      },
-      select: {
-        id: true,
-        s3Key: true,
-        mimeType: true,
-      },
-    });
+    const files = await db
+      .select({ id: fileTable.id, s3Key: fileTable.s3Key, mimeType: fileTable.mimeType })
+      .from(fileTable)
+      .where(and(inArray(fileTable.id, limitedIds), isNotNull(fileTable.s3Key)));
 
     const s3Client = getS3();
     const urls: Record<string, string> = {};

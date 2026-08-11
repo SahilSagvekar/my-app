@@ -5,7 +5,9 @@
 // current state of any payout still sitting in SENT.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { commissionPayout, affiliateCommission } from '@/lib/db/schema';
+import { and, eq, isNull, isNotNull, lte, count as countFn } from 'drizzle-orm';
 import { stripe } from '@/lib/stripe';
 
 const STUCK_AFTER_MINUTES = 30;
@@ -19,10 +21,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const cutoff = new Date(Date.now() - STUCK_AFTER_MINUTES * 60 * 1000);
+    const cutoffIso = cutoff.toISOString();
 
-    const stuck = await prisma.commissionPayout.findMany({
-      where: { status: 'SENT', sentAt: { lte: cutoff }, stripeTransferId: { not: null } },
-    });
+    const stuck = await db.select().from(commissionPayout).where(and(
+      eq(commissionPayout.status, 'SENT'),
+      lte(commissionPayout.sentAt, cutoffIso),
+      isNotNull(commissionPayout.stripeTransferId),
+    ));
 
     let reconciledPaid = 0;
     let reconciledFailed = 0;
@@ -32,29 +37,26 @@ export async function POST(req: NextRequest) {
       const commissionId = transfer.metadata?.commissionId;
       if (!commissionId) continue;
 
+      const now = new Date().toISOString();
       if (transfer.reversed) {
-        await prisma.$transaction([
-          prisma.commissionPayout.update({
-            where: { id: payout.id },
-            data: { status: 'FAILED', failedAt: new Date(), failureReason: 'Transfer reversed (reconciled)' },
-          }),
-          prisma.affiliateCommission.update({
-            where: { id: commissionId },
-            data: { status: 'FAILED' },
-          }),
-        ]);
+        await db.batch([
+          db.update(commissionPayout).set({
+            status: 'FAILED', failedAt: now, failureReason: 'Transfer reversed (reconciled)', updatedAt: now,
+          }).where(eq(commissionPayout.id, payout.id)),
+          db.update(affiliateCommission).set({
+            status: 'FAILED', updatedAt: now,
+          }).where(eq(affiliateCommission.id, commissionId)),
+        ] as any);
         reconciledFailed++;
       } else {
-        await prisma.$transaction([
-          prisma.commissionPayout.update({
-            where: { id: payout.id },
-            data: { status: 'PAID', paidAt: new Date() },
-          }),
-          prisma.affiliateCommission.update({
-            where: { id: commissionId },
-            data: { status: 'PAID', paidAt: new Date() },
-          }),
-        ]);
+        await db.batch([
+          db.update(commissionPayout).set({
+            status: 'PAID', paidAt: now, updatedAt: now,
+          }).where(eq(commissionPayout.id, payout.id)),
+          db.update(affiliateCommission).set({
+            status: 'PAID', paidAt: now, updatedAt: now,
+          }).where(eq(affiliateCommission.id, commissionId)),
+        ] as any);
         reconciledPaid++;
       }
     }
@@ -62,9 +64,11 @@ export async function POST(req: NextRequest) {
     // Orphan check: commissions stuck in PAYOUT_PENDING with no linked payout
     // at all means the process crashed between the atomic status flip and the
     // Stripe call — flag for manual review rather than auto-resolving.
-    const orphaned = await prisma.affiliateCommission.count({
-      where: { status: 'PAYOUT_PENDING', payoutId: null, updatedAt: { lte: cutoff } },
-    });
+    const [{ value: orphaned }] = await db.select({ value: countFn() }).from(affiliateCommission).where(and(
+      eq(affiliateCommission.status, 'PAYOUT_PENDING'),
+      isNull(affiliateCommission.payoutId),
+      lte(affiliateCommission.updatedAt, cutoffIso),
+    ));
 
     console.log(
       `[Payout Reconcile] checked ${stuck.length}, resolved ${reconciledPaid} paid / ${reconciledFailed} failed, ${orphaned} orphaned`

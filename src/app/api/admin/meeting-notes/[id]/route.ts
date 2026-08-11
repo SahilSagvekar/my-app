@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/meeting-notes/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { meetingNote as meetingNoteTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { getUserFromToken, requireAdmin } from "@/lib/auth-helpers";
 
 // DELETE — admin deletes a meeting note (draft or already-sent).
@@ -18,12 +20,12 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const meetingNote = await prisma.meetingNote.findUnique({ where: { id } });
+    const [meetingNote] = await db.select().from(meetingNoteTable).where(eq(meetingNoteTable.id, id)).limit(1);
     if (!meetingNote) {
       return NextResponse.json({ message: "Meeting note not found" }, { status: 404 });
     }
 
-    await prisma.meetingNote.delete({ where: { id } });
+    await db.delete(meetingNoteTable).where(eq(meetingNoteTable.id, id));
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

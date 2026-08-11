@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 // app/api/youtube/admin/clients/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2 } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable, youTubeChannel } from '@/lib/db/schema';
+import { asc, eq } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
     try {
@@ -14,46 +16,44 @@ export async function GET(req: NextRequest) {
         }
 
         // Get all clients with their YouTube channels
-        const clients = await prisma.client.findMany({
-            select: {
-                id: true,
-                name: true,
-                companyName: true,
-                youtubeChannel: {
-                    select: {
-                        id: true,
-                        channelId: true,
-                        channelTitle: true,
-                        channelAvatar: true,
-                        subscriberCount: true,
-                        totalViews: true,
-                        totalVideos: true,
-                        lastSyncedAt: true,
-                        syncStatus: true,
-                        isActive: true,
-                    },
-                },
-            },
-            orderBy: { name: 'asc' },
-        });
+        // NOTE: YouTubeChannel has a unique index on clientId (1:1 with Client),
+        // even though relations.ts labels it `many()` — see schema.ts.
+        const rows = await db.select({
+            clientId: clientTable.id,
+            clientName: clientTable.name,
+            companyName: clientTable.companyName,
+            channelPk: youTubeChannel.id,
+            channelId: youTubeChannel.channelId,
+            channelTitle: youTubeChannel.channelTitle,
+            channelAvatar: youTubeChannel.channelAvatar,
+            subscriberCount: youTubeChannel.subscriberCount,
+            totalViews: youTubeChannel.totalViews,
+            totalVideos: youTubeChannel.totalVideos,
+            lastSyncedAt: youTubeChannel.lastSyncedAt,
+            syncStatus: youTubeChannel.syncStatus,
+            isActive: youTubeChannel.isActive,
+        })
+            .from(clientTable)
+            .leftJoin(youTubeChannel, eq(youTubeChannel.clientId, clientTable.id))
+            .orderBy(asc(clientTable.name));
 
         // Format response
-        const formattedClients = clients.map((client) => ({
-            clientId: client.id,
-            clientName: client.name,
-            companyName: client.companyName,
-            isConnected: !!client.youtubeChannel,
-            channel: client.youtubeChannel
+        const formattedClients = rows.map((row) => ({
+            clientId: row.clientId,
+            clientName: row.clientName,
+            companyName: row.companyName,
+            isConnected: !!row.channelPk,
+            channel: row.channelPk
                 ? {
-                    id: client.youtubeChannel.channelId,
-                    title: client.youtubeChannel.channelTitle,
-                    avatar: client.youtubeChannel.channelAvatar,
-                    subscribers: client.youtubeChannel.subscriberCount,
-                    totalViews: client.youtubeChannel.totalViews,
-                    totalVideos: client.youtubeChannel.totalVideos,
-                    lastSyncedAt: client.youtubeChannel.lastSyncedAt,
-                    syncStatus: client.youtubeChannel.syncStatus,
-                    isActive: client.youtubeChannel.isActive,
+                    id: row.channelId,
+                    title: row.channelTitle,
+                    avatar: row.channelAvatar,
+                    subscribers: row.subscriberCount,
+                    totalViews: row.totalViews,
+                    totalVideos: row.totalVideos,
+                    lastSyncedAt: row.lastSyncedAt,
+                    syncStatus: row.syncStatus,
+                    isActive: row.isActive,
                 }
                 : null,
         }));

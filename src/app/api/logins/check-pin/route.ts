@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/check-pin/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, userSecurityPin } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 // import { getServerSession } from "next-auth";
 // import { authOptions } from "@/lib/auth";
 import jwt from "jsonwebtoken";
@@ -49,31 +51,26 @@ export async function GET(req: NextRequest) {
    
            const { userId } = decoded;
            
-               const user = await prisma.user.findUnique({
-                 where: { id: userId },
-                 select: {
-                   id: true,
-                   name: true,
-                   email: true,
-                   image: true,
-                   phone: true,
-                   role: true,
-                 },
-               });
-           
+               const [user] = await db.select({
+                 id: userTable.id,
+                 name: userTable.name,
+                 email: userTable.email,
+                 image: userTable.image,
+                 phone: userTable.phone,
+                 role: userTable.role,
+               }).from(userTable).where(eq(userTable.id, userId)).limit(1);
+
                if (!user) {
                  return NextResponse.json(
                    { success: false, error: "User not found" },
                    { status: 404 }
                  );
                }
-       
+
 
     // const userId = parseInt((session.user as any).id);
 
-    const userPin = await prisma.userSecurityPin.findUnique({
-      where: { userId },
-    });
+    const [userPin] = await db.select().from(userSecurityPin).where(eq(userSecurityPin.userId, userId)).limit(1);
 
     return NextResponse.json({ hasPin: !!userPin });
   } catch (error) {

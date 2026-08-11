@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // Admin-only — presigned view URL for a directly-uploaded test submission.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { hiringTestTask } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { generateSignedUrl } from '@/lib/s3';
 
@@ -14,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { id } = await params;
-  const testTask = await prisma.hiringTestTask.findUnique({ where: { id } });
+  const [testTask] = await db.select().from(hiringTestTask).where(eq(hiringTestTask.id, id)).limit(1);
   if (!testTask?.submissionS3Key) {
     return NextResponse.json({ error: 'No uploaded submission for this task' }, { status: 404 });
   }

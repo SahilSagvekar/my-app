@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // admin: everyone. sales_manager: only their visible reps.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable } from '@/lib/db/schema';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 import { DEFAULT_COMMISSION_RATE } from '@/lib/payout-config';
@@ -25,49 +27,44 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const where =
+    const whereClause =
       decoded.role === 'sales_manager'
-        ? {
-            role: 'sales' as const,
-            id: {
-              in: (await getVisibleSalesRepIds(Number(decoded.userId))).filter(
+        ? and(
+            eq(userTable.role, 'sales'),
+            inArray(
+              userTable.id,
+              (await getVisibleSalesRepIds(Number(decoded.userId))).filter(
                 (id) => id !== Number(decoded.userId)
-              ),
-            },
-          }
-        : { role: 'sales' as const };
+              )
+            )
+          )
+        : eq(userTable.role, 'sales');
 
-    const reps = await prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        payoutProfile: {
-          select: {
-            taxFormType: true,
-            taxFormCollectedAt: true,
-            taxFormS3Key: true,
-            commissionRate: true,
-          },
-        },
-      },
-      orderBy: { name: 'asc' },
+    const reps = await db.query.user.findMany({
+      where: whereClause,
+      columns: { id: true, name: true, email: true },
+      with: { salesRepPayoutProfiles: true },
+      orderBy: asc(userTable.name),
     });
 
-    const data = reps.map((r) => ({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      taxFormSubmitted: !!r.payoutProfile?.taxFormCollectedAt,
-      taxFormType: r.payoutProfile?.taxFormType ?? null,
-      taxFormSubmittedAt: r.payoutProfile?.taxFormCollectedAt ?? null,
-      hasDocument: !!r.payoutProfile?.taxFormS3Key,
-      commissionRate:
-        r.payoutProfile?.commissionRate != null
-          ? Number(r.payoutProfile.commissionRate)
-          : DEFAULT_COMMISSION_RATE,
-    }));
+    const data = reps.map((r) => {
+      // salesRepPayoutProfile has a unique userId FK (1:1), but drizzle-kit
+      // introspection mislabels it many() — take the first (only) entry.
+      const payoutProfile = r.salesRepPayoutProfiles[0];
+      return {
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        taxFormSubmitted: !!payoutProfile?.taxFormCollectedAt,
+        taxFormType: payoutProfile?.taxFormType ?? null,
+        taxFormSubmittedAt: payoutProfile?.taxFormCollectedAt ?? null,
+        hasDocument: !!payoutProfile?.taxFormS3Key,
+        commissionRate:
+          payoutProfile?.commissionRate != null
+            ? Number(payoutProfile.commissionRate)
+            : DEFAULT_COMMISSION_RATE,
+      };
+    });
 
     return NextResponse.json({ ok: true, reps: data });
   } catch (err) {

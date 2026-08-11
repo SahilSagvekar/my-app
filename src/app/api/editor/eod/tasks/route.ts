@@ -2,7 +2,9 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task, editorEodReport } from "@/lib/db/schema";
+import { and, eq, inArray, desc } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import {
   getTodayReportDate,
@@ -24,43 +26,39 @@ export async function GET(req: NextRequest) {
     const todayDate = getTodayReportDate();
 
     // Get already submitted task IDs for today
-    const existingReport = await prisma.editorEodReport.findUnique({
-      where: {
-        editorId_reportDate: {
-          editorId: user.id,
-          reportDate: todayDate,
-        },
-      },
-      include: { items: { select: { taskId: true } } },
+    const existingReportRaw = await db.query.editorEodReport.findFirst({
+      where: and(eq(editorEodReport.editorId, user.id), eq(editorEodReport.reportDate, todayDate)),
+      with: { editorEodReportItems: { columns: { taskId: true } } },
     });
+    const existingReport = existingReportRaw
+      ? { ...existingReportRaw, items: existingReportRaw.editorEodReportItems }
+      : null;
 
     const alreadySubmittedIds = new Set(
       existingReport?.items.map((item) => item.taskId) || []
     );
 
     // Fetch tasks assigned to this editor that are in workable statuses
-    const tasks = await prisma.task.findMany({
-      where: {
-        assignedTo: user.id,
-        status: {
-          in: [
-            "IN_PROGRESS",
-            "READY_FOR_QC",
-            "QC_IN_PROGRESS",
-            "COMPLETED",
-            "SCHEDULED",
-            "POSTED",
-            "REJECTED",
-          ],
-        },
-      },
-      include: {
+    const tasks = await db.query.task.findMany({
+      where: and(
+        eq(task.assignedTo, user.id),
+        inArray(task.status, [
+          "IN_PROGRESS",
+          "READY_FOR_QC",
+          "QC_IN_PROGRESS",
+          "COMPLETED",
+          "SCHEDULED",
+          "POSTED",
+          "REJECTED",
+        ] as any),
+      ),
+      with: {
         client: {
-          select: { id: true, name: true, companyName: true },
+          columns: { id: true, name: true, companyName: true },
         },
         files: {
-          where: { isActive: true },
-          select: {
+          where: (f, { eq }) => eq(f.isActive, true),
+          columns: {
             id: true,
             name: true,
             url: true,
@@ -71,8 +69,8 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: { updatedAt: "desc" },
-      take: 100,
+      orderBy: desc(task.updatedAt),
+      limit: 100,
     });
 
     const payload = tasks.map((task) => {

@@ -12,7 +12,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import {
   ListObjectsV2Command,
@@ -179,11 +181,10 @@ export async function GET(req: NextRequest) {
 
     if (!clientId) {
       // No clientId — return client list for the selector
-      const clients = await prisma.client.findMany({
-        where: { status: 'active' },
-        select: { id: true, companyName: true, name: true },
-        orderBy: { companyName: 'asc' },
-      });
+      const clients = await db.select({ id: clientTable.id, companyName: clientTable.companyName, name: clientTable.name })
+        .from(clientTable)
+        .where(eq(clientTable.status, 'active'))
+        .orderBy(asc(clientTable.companyName));
       return NextResponse.json({
         clients: clients.map(c => ({
           id: c.id,
@@ -193,10 +194,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Resolve company name
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { companyName: true, name: true },
-    });
+    const [client] = await db.select({ companyName: clientTable.companyName, name: clientTable.name })
+      .from(clientTable)
+      .where(eq(clientTable.id, clientId))
+      .limit(1);
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }

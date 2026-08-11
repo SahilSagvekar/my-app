@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
 
 // GET /api/onboarding/[token]
 // Public — validates the one-time magic link token
@@ -11,11 +11,11 @@ export async function GET(
   try {
     const { token } = await params;
 
-    const record = await prisma.onboardingToken.findUnique({
-      where: { token },
-      include: {
+    const record = await db.query.onboardingToken.findFirst({
+      where: (t, { eq }) => eq(t.token, token),
+      with: {
         client: {
-          select: {
+          columns: {
             id: true,
             name: true,
             email: true,
@@ -35,7 +35,7 @@ export async function GET(
       return NextResponse.json({ error: 'This link has already been used' }, { status: 410 });
     }
 
-    if (new Date() > record.expiresAt) {
+    if (new Date() > new Date(record.expiresAt)) {
       return NextResponse.json({ error: 'This link has expired' }, { status: 410 });
     }
 

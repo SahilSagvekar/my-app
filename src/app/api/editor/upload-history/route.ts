@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { file as fileTable } from '@/lib/db/schema';
+import { and, eq, desc, sql } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -13,15 +15,28 @@ export async function GET(req: NextRequest) {
     const cursor = url.searchParams.get('cursor'); // last uploadedAt for pagination
     const limit = 50;
 
-    const files = await prisma.file.findMany({
-      where: {
-        uploadedBy: user.id,
-        isActive: undefined, // include all — active and replaced
-      },
-      orderBy: { uploadedAt: 'desc' },
-      take: limit + 1, // fetch one extra to detect if there's a next page
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: {
+    // Prisma's `cursor: { id: cursor }, skip: 1` with `orderBy: { uploadedAt: 'desc' }`
+    // pages by locating the anchor row and continuing strictly after it in
+    // (uploadedAt desc, id desc) order — id is the implicit tiebreaker Prisma
+    // adds for a non-unique orderBy field. Reproduced here with a row-value
+    // comparison once the anchor's uploadedAt is known.
+    let cursorCondition;
+    if (cursor) {
+      const [anchor] = await db.select({ uploadedAt: fileTable.uploadedAt })
+        .from(fileTable).where(eq(fileTable.id, cursor)).limit(1);
+      if (anchor) {
+        cursorCondition = sql`(${fileTable.uploadedAt}, ${fileTable.id}) < (${anchor.uploadedAt}, ${cursor})`;
+      }
+    }
+
+    const files = await db.query.file.findMany({
+      where: and(
+        eq(fileTable.uploadedBy, user.id),
+        cursorCondition
+      ),
+      orderBy: [desc(fileTable.uploadedAt), desc(fileTable.id)],
+      limit: limit + 1, // fetch one extra to detect if there's a next page
+      columns: {
         id: true,
         name: true,
         mimeType: true,
@@ -31,23 +46,14 @@ export async function GET(req: NextRequest) {
         version: true,
         isActive: true,
         taskId: true,
+      },
+      with: {
         task: {
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            client: {
-              select: {
-                name: true,
-                companyName: true,
-              },
-            },
-            monthlyDeliverable: {
-              select: { type: true },
-            },
-            oneOffDeliverable: {
-              select: { type: true },
-            },
+          columns: { id: true, title: true, status: true },
+          with: {
+            client: { columns: { name: true, companyName: true } },
+            monthlyDeliverable: { columns: { type: true } },
+            oneOffDeliverable: { columns: { type: true } },
           },
         },
       },
@@ -63,7 +69,7 @@ export async function GET(req: NextRequest) {
         name: f.name,
         mimeType: f.mimeType || '',
         size: Number(f.size),
-        uploadedAt: f.uploadedAt.toISOString(),
+        uploadedAt: new Date(f.uploadedAt).toISOString(),
         folderType: f.folderType || 'main',
         version: f.version,
         isActive: f.isActive,

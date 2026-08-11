@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
-import { prisma } from './prisma';
+import { db } from './db';
+import { client as clientTable, task as taskTable } from './db/schema';
+import { eq } from 'drizzle-orm';
 
 // Use environment variables for SMTP
 const SMTP_USER = process.env.SMTP_USER;
@@ -34,22 +36,23 @@ const addGlobalBcc = (mailOptions: any) => {
  * Helper to get all relevant client emails from various possible sources
  */
 async function getAllClientEmails(clientId: string): Promise<string[]> {
-    const client = await prisma.client.findUnique({
-        where: { id: clientId },
-        include: {
+    const client = await db.query.client.findFirst({
+        where: eq(clientTable.id, clientId),
+        with: {
             user: {
-                select: {
+                columns: {
                     email: true,
-                    emailNotifications: true
-                }
+                    emailNotifications: true,
+                },
             },
-            linkedUsers: {
-                select: {
+            // "linkedUsers" in the old Prisma schema — users linked via User.linkedClientId
+            users: {
+                columns: {
                     email: true,
-                    emailNotifications: true
-                }
-            }
-        }
+                    emailNotifications: true,
+                },
+            },
+        },
     });
 
     if (!client) {
@@ -63,7 +66,7 @@ async function getAllClientEmails(clientId: string): Promise<string[]> {
     // 1. Identify blocked emails from ALL associated users
     const allAssociatedUsers = [
         ...(client.user ? [client.user] : []),
-        ...(client.linkedUsers || [])
+        ...(client.users || [])
     ];
 
     allAssociatedUsers.forEach(u => {
@@ -117,13 +120,13 @@ async function getAllClientEmails(clientId: string): Promise<string[]> {
  */
 export async function sendTaskReadyForReviewEmail(taskId: string) {
     try {
-        const task = await prisma.task.findUnique({
-            where: { id: taskId },
-            include: {
+        const task = await db.query.task.findFirst({
+            where: eq(taskTable.id, taskId),
+            with: {
                 client: true,
-                monthlyDeliverable: { select: { type: true } },
-                oneOffDeliverable: { select: { type: true } },
-            }
+                monthlyDeliverable: { columns: { type: true } },
+                oneOffDeliverable: { columns: { type: true } },
+            },
         });
 
         console.log(`Task ID: ${taskId}`);

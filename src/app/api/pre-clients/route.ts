@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { preClient as preClientTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 // GET /api/pre-clients
@@ -11,15 +14,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const preClients = await (prisma as any).preClient.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        createdBy: { select: { id: true, name: true, email: true } },
+    const rows = await db.query.preClient.findMany({
+      orderBy: (pc, { desc }) => [desc(pc.createdAt)],
+      with: {
+        user: { columns: { id: true, name: true, email: true } },
         quotes: {
-          orderBy: { version: 'desc' },
+          orderBy: (q, { desc }) => [desc(q.version)],
         },
       },
     });
+
+    const preClients = rows.map(({ user: createdBy, ...rest }) => ({ ...rest, createdBy }));
 
     return NextResponse.json(preClients);
   } catch (err) {
@@ -45,25 +50,32 @@ export async function POST(req: NextRequest) {
     }
 
     // Check for duplicate email
-    const existing = await prisma.preClient.findFirst({ where: { email } });
+    const [existing] = await db.select().from(preClientTable).where(eq(preClientTable.email, email)).limit(1);
     if (existing) {
       return NextResponse.json({ error: 'A pre-client with this email already exists' }, { status: 409 });
     }
 
-    const preClient = await (prisma as any).preClient.create({
-      data: {
-        name,
-        email,
-        phone: phone || null,
-        companyName: companyName || null,
-        address: address || null,
-        createdById: user.id,
-      },
-      include: {
-        createdBy: { select: { id: true, name: true, email: true } },
+    const [created] = await db.insert(preClientTable).values({
+      id: createId(),
+      name,
+      email,
+      phone: phone || null,
+      companyName: companyName || null,
+      address: address || null,
+      createdById: user.id,
+      updatedAt: new Date().toISOString(),
+    }).returning();
+
+    const row = await db.query.preClient.findFirst({
+      where: (pc, { eq }) => eq(pc.id, created.id),
+      with: {
+        user: { columns: { id: true, name: true, email: true } },
         quotes: true,
       },
     });
+
+    const { user: createdBy, ...rest } = row!;
+    const preClient = { ...rest, createdBy };
 
     return NextResponse.json(preClient, { status: 201 });
   } catch (err) {

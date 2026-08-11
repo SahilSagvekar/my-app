@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { portfolioCategory, portfolioSubcategory } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { asc, eq } from 'drizzle-orm';
 
 interface SubcategoryPayload {
     key: string;
@@ -19,9 +22,9 @@ interface CategoryPayload {
 
 export async function GET() {
     try {
-        const categories = await prisma.portfolioCategory.findMany({
-            orderBy: { order: 'asc' },
-            include: { subcategories: { orderBy: { order: 'asc' } } },
+        const categories = await db.query.portfolioCategory.findMany({
+            orderBy: asc(portfolioCategory.order),
+            with: { portfolioSubcategories: { orderBy: (sub, { asc }) => asc(sub.order) } },
         });
 
         const sections = categories.map((cat) => ({
@@ -29,7 +32,7 @@ export async function GET() {
             label: cat.label,
             icon: cat.iconName,
             isActive: cat.isActive,
-            subcategories: cat.subcategories.map((sub) => ({
+            subcategories: cat.portfolioSubcategories.map((sub) => ({
                 key: sub.key,
                 label: sub.label,
                 icon: sub.iconName,
@@ -53,25 +56,43 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ ok: false, message: 'Invalid data format' }, { status: 400 });
         }
 
-        await prisma.$transaction(async (tx) => {
+        // NOTE: Prisma's transaction { timeout, maxWait } options have no
+        // direct Drizzle equivalent (interactive transactions here run over
+        // the neon-serverless WebSocket driver) — dropped, atomicity preserved.
+        await db.transaction(async (tx) => {
             for (let i = 0; i < sections.length; i++) {
                 const cat = sections[i];
-                const category = await tx.portfolioCategory.upsert({
-                    where: { key: cat.key },
-                    update: { label: cat.label, iconName: cat.icon, isActive: cat.isActive, order: i },
-                    create: { key: cat.key, label: cat.label, iconName: cat.icon, isActive: cat.isActive, order: i },
-                });
+                const [category] = await tx.insert(portfolioCategory).values({
+                    id: createId(),
+                    key: cat.key,
+                    label: cat.label,
+                    iconName: cat.icon,
+                    isActive: cat.isActive,
+                    order: i,
+                    updatedAt: new Date().toISOString(),
+                }).onConflictDoUpdate({
+                    target: portfolioCategory.key,
+                    set: { label: cat.label, iconName: cat.icon, isActive: cat.isActive, order: i, updatedAt: new Date().toISOString() },
+                }).returning();
 
                 for (let j = 0; j < cat.subcategories.length; j++) {
                     const sub = cat.subcategories[j];
-                    await tx.portfolioSubcategory.upsert({
-                        where: { key: sub.key },
-                        update: { label: sub.label, iconName: sub.icon, isActive: sub.isActive, order: j, categoryId: category.id },
-                        create: { key: sub.key, label: sub.label, iconName: sub.icon, isActive: sub.isActive, order: j, categoryId: category.id },
+                    await tx.insert(portfolioSubcategory).values({
+                        id: createId(),
+                        key: sub.key,
+                        label: sub.label,
+                        iconName: sub.icon,
+                        isActive: sub.isActive,
+                        order: j,
+                        categoryId: category.id,
+                        updatedAt: new Date().toISOString(),
+                    }).onConflictDoUpdate({
+                        target: portfolioSubcategory.key,
+                        set: { label: sub.label, iconName: sub.icon, isActive: sub.isActive, order: j, categoryId: category.id, updatedAt: new Date().toISOString() },
                     });
                 }
             }
-        }, { timeout: 20000, maxWait: 10000 });
+        });
 
         return NextResponse.json({ ok: true });
     } catch (err) {

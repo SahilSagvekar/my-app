@@ -9,7 +9,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { file as fileTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { drainDriveMirrorQueue, ackDriveMirrorJobs } from '@/lib/file-server';
 
 function isAuthorized(req: NextRequest): boolean {
@@ -47,10 +49,9 @@ export async function GET(req: NextRequest) {
 
     for (const job of jobs) {
       try {
-        await prisma.file.update({
-          where: { id: job.fileRecordId },
-          data: { reviewDriveUrl: job.reviewDriveUrl },
-        });
+        await db.update(fileTable)
+          .set({ reviewDriveUrl: job.reviewDriveUrl })
+          .where(eq(fileTable.id, job.fileRecordId));
         succeededIds.push(job.fileRecordId);
         console.log(`[check-drive-mirrors] ✅ File ${job.fileRecordId} — reviewDriveUrl set (${job.driveFileId})`);
       } catch (err: any) {

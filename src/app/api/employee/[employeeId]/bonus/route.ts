@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { bonus } from "@/lib/db/schema";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 
@@ -16,13 +17,11 @@ export async function POST(req: Request, context: { params: { employeeId: string
     const employeeId = Number(params.employeeId);
     const body = BonusSchema.parse(await req.json());
 
-    const bonus = await prisma.bonus.create({
-      data: {
-        employeeId,
-        amount: body.amount,
-        addedBy: body.addedBy ?? null,
-      },
-    });
+    const [createdBonus] = await db.insert(bonus).values({
+      employeeId,
+      amount: String(body.amount),
+      addedBy: body.addedBy ?? null,
+    }).returning();
 
     // 🔥 Audit bonus creation
     const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
@@ -30,7 +29,7 @@ export async function POST(req: Request, context: { params: { employeeId: string
       userId: employeeId,
       action: AuditAction.USER_UPDATED,
       entity: 'Bonus',
-      entityId: bonus.id,
+      entityId: createdBonus.id,
       details: `Admin added bonus of $${body.amount} to employee ${employeeId}`,
       metadata: {
         employeeId,
@@ -39,7 +38,7 @@ export async function POST(req: Request, context: { params: { employeeId: string
       }
     });
 
-    return NextResponse.json({ ok: true, bonus });
+    return NextResponse.json({ ok: true, bonus: createdBonus });
   } catch (err: any) {
     console.error(err);
     return NextResponse.json(

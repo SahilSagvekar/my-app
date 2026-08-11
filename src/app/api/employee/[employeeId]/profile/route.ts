@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/employee/[id]/profile/route.ts
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable, bonus, deduction } from '@/lib/db/schema';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { parseISO } from 'date-fns';
 import { requireAdmin, getRequestingUser, isEmployee } from '@/lib/auth';
 
@@ -38,31 +40,27 @@ export async function GET(req: Request, { params }: { params: { employeeId: stri
     const periodStart = new Date(Date.UTC(year, month, 1));
     const periodEnd = new Date(Date.UTC(year, month + 1, 0));
 
-    const user = await prisma.user.findUnique({ where: { id }, select: {
-      id: true, name: true, email: true, hourlyRate: true, monthlyBaseHours: true, employeeStatus: true, joinedAt: true
-    } });
+    const [user] = await db.select({
+      id: userTable.id, name: userTable.name, email: userTable.email, hourlyRate: userTable.hourlyRate,
+      monthlyBaseHours: userTable.monthlyBaseHours, employeeStatus: userTable.employeeStatus, joinedAt: userTable.joinedAt,
+    }).from(userTable).where(eq(userTable.id, id)).limit(1);
 
     if (!user) return NextResponse.json({ ok: false, message: 'User not found' }, { status: 404 });
 
     // bonuses in month
-    const bonuses = await prisma.bonus.findMany({
-      where: {
-        employeeId: id,
-        createdAt: { gte: periodStart, lte: periodEnd }
-      }
-    });
+    const bonuses = await db.select().from(bonus).where(and(
+      eq(bonus.employeeId, id),
+      gte(bonus.createdAt, periodStart.toISOString()),
+      lte(bonus.createdAt, periodEnd.toISOString()),
+    ));
     const totalBonuses = bonuses.reduce((s, b) => s + Number(b.amount), 0);
 
     // deductions in month
-    const deductions = await prisma.deduction.findMany({
-      where: {
-        employeeId: id,
-        month: {
-          gte: periodStart,
-          lte: periodEnd
-        }
-      }
-    });
+    const deductions = await db.select().from(deduction).where(and(
+      eq(deduction.employeeId, id),
+      gte(deduction.month, periodStart.toISOString()),
+      lte(deduction.month, periodEnd.toISOString()),
+    ));
     const totalDeductions = deductions.reduce((s, d) => s + Number(d.amount), 0);
 
     // working days — default Mon-Fri between periodStart and periodEnd, also respect join date

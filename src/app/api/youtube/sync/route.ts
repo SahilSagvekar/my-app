@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { syncYouTubeChannel } from "@/lib/youtube-sync-service";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { youTubeChannel } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -35,9 +37,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const channel = await prisma.youTubeChannel.findUnique({
-      where: { clientId },
-    });
+    const [channel] = await db.select().from(youTubeChannel)
+      .where(eq(youTubeChannel.clientId, clientId)).limit(1);
 
     if (!channel) {
       return NextResponse.json(

@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client } from '@/lib/db/schema';
+import { eq, asc } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
@@ -15,14 +17,16 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch all active clients with their monthly deliverables
-    const clients = await prisma.client.findMany({
-      where: { status: 'active' },
-      select: {
+    const clients = await db.query.client.findMany({
+      where: eq(client.status, 'active'),
+      columns: {
         id: true,
         name: true,
         companyName: true,
+      },
+      with: {
         monthlyDeliverables: {
-          select: {
+          columns: {
             id: true,
             type: true,
             quantity: true,
@@ -32,7 +36,7 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: asc(client.name),
     });
 
     // Get current month's days

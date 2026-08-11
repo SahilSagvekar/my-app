@@ -1,6 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import jwt from "jsonwebtoken";
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function authMiddleware(
   req: NextApiRequest,
@@ -26,8 +28,12 @@ export async function authMiddleware(
     return res.status(401).json({ error: "Invalid token" });
   }
 
-  const user = await prisma.user.findFirst({ where: { id: decoded.userId } });
-  if (!user || !allowedRoles.includes(user.role)) {
+  const [user] = await db
+    .select()
+    .from(userTable)
+    .where(eq(userTable.id, decoded.userId))
+    .limit(1);
+  if (!user || !allowedRoles.includes(user.role as string)) {
     return res.status(403).json({ error: "Forbidden" });
   }
 

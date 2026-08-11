@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { and, gte, lte, desc } from 'drizzle-orm';
+import { affiliateCommission } from '@/lib/db/schema';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -29,21 +31,21 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const monthParam = searchParams.get('month'); // e.g. "2026-07"
 
-        const where: any = {};
+        let monthFilter;
         if (monthParam) {
             const [year, month] = monthParam.split('-').map(Number);
-            where.month = {
-                gte: new Date(year, month - 1, 1),
-                lte: new Date(year, month, 0, 23, 59, 59, 999),
-            };
+            monthFilter = and(
+                gte(affiliateCommission.month, new Date(year, month - 1, 1).toISOString()),
+                lte(affiliateCommission.month, new Date(year, month, 0, 23, 59, 59, 999).toISOString()),
+            );
         }
 
-        const commissions = await prisma.affiliateCommission.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            include: {
-                user: { select: { name: true, email: true } },
-                payout: { select: { stripeTransferId: true, status: true, sentAt: true, paidAt: true, failedAt: true, failureReason: true } },
+        const commissions = await db.query.affiliateCommission.findMany({
+            where: monthFilter,
+            orderBy: desc(affiliateCommission.createdAt),
+            with: {
+                user: { columns: { name: true, email: true } },
+                commissionPayout: { columns: { stripeTransferId: true, status: true, sentAt: true, paidAt: true, failedAt: true, failureReason: true } },
             },
         });
 
@@ -61,11 +63,11 @@ export async function GET(req: NextRequest) {
             c.commissionAmt.toString(),
             c.currency,
             c.status,
-            c.approvedAt?.toISOString() ?? '',
-            c.paidAt?.toISOString() ?? '',
-            c.payout?.stripeTransferId ?? '',
-            c.payout?.status ?? '',
-            c.payout?.failureReason ?? '',
+            c.approvedAt ? new Date(c.approvedAt).toISOString() : '',
+            c.paidAt ? new Date(c.paidAt).toISOString() : '',
+            c.commissionPayout?.stripeTransferId ?? '',
+            c.commissionPayout?.status ?? '',
+            c.commissionPayout?.failureReason ?? '',
         ]);
 
         const csv = [headers, ...rows].map((row) => row.map((v) => csvEscape(String(v))).join(',')).join('\n');

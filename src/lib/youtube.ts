@@ -1,7 +1,10 @@
 // src/lib/youtube.ts
 // YouTube API Service - handles Data API v3 + Analytics API
 
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { youTubeChannel, youTubeSnapshot, youTubeVideoStat } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { createId } from "@/lib/db/id";
 
 const YOUTUBE_DATA_API = "https://www.googleapis.com/youtube/v3";
 const YOUTUBE_ANALYTICS_API = "https://youtubeanalytics.googleapis.com/v2";
@@ -17,14 +20,13 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export async function refreshAccessToken(
   channelDbId: string
 ): Promise<string> {
-  const channel = await prisma.youTubeChannel.findUnique({
-    where: { id: channelDbId },
-  });
+  const [channel] = await db.select().from(youTubeChannel)
+    .where(eq(youTubeChannel.id, channelDbId)).limit(1);
 
   if (!channel) throw new Error("Channel not found");
 
   // If token is still valid (with 5 min buffer), return it
-  if (channel.tokenExpiry > new Date(Date.now() + 5 * 60 * 1000)) {
+  if (new Date(channel.tokenExpiry) > new Date(Date.now() + 5 * 60 * 1000)) {
     return channel.accessToken;
   }
 
@@ -45,10 +47,9 @@ export async function refreshAccessToken(
     console.error("Token refresh failed:", err);
 
     // Mark channel as failed
-    await prisma.youTubeChannel.update({
-      where: { id: channelDbId },
-      data: { syncStatus: "FAILED", syncError: "Token refresh failed" },
-    });
+    await db.update(youTubeChannel)
+      .set({ syncStatus: "FAILED", syncError: "Token refresh failed", updatedAt: new Date().toISOString() })
+      .where(eq(youTubeChannel.id, channelDbId));
 
     throw new Error("Failed to refresh YouTube token");
   }
@@ -56,15 +57,15 @@ export async function refreshAccessToken(
   const tokens = await res.json();
 
   // Update stored tokens
-  await prisma.youTubeChannel.update({
-    where: { id: channelDbId },
-    data: {
+  await db.update(youTubeChannel)
+    .set({
       accessToken: tokens.access_token,
-      tokenExpiry: new Date(Date.now() + tokens.expires_in * 1000),
+      tokenExpiry: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
       // refresh_token is only returned on first auth, not on refresh
       ...(tokens.refresh_token && { refreshToken: tokens.refresh_token }),
-    },
-  });
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(youTubeChannel.id, channelDbId));
 
   return tokens.access_token;
 }
@@ -225,14 +226,12 @@ export async function fetchChannelAnalytics(
 export async function syncChannel(channelDbId: string) {
   try {
     // Mark as syncing
-    await prisma.youTubeChannel.update({
-      where: { id: channelDbId },
-      data: { syncStatus: "SYNCING", syncError: null },
-    });
+    await db.update(youTubeChannel)
+      .set({ syncStatus: "SYNCING", syncError: null, updatedAt: new Date().toISOString() })
+      .where(eq(youTubeChannel.id, channelDbId));
 
-    const channel = await prisma.youTubeChannel.findUnique({
-      where: { id: channelDbId },
-    });
+    const [channel] = await db.select().from(youTubeChannel)
+      .where(eq(youTubeChannel.id, channelDbId)).limit(1);
 
     if (!channel || !channel.isActive) return;
 
@@ -262,19 +261,19 @@ export async function syncChannel(channelDbId: string) {
     );
 
     // 4. Update channel info
-    await prisma.youTubeChannel.update({
-      where: { id: channelDbId },
-      data: {
+    await db.update(youTubeChannel)
+      .set({
         channelTitle: channelInfo.title,
         channelAvatar: channelInfo.thumbnail,
         subscriberCount: channelInfo.subscriberCount,
-        totalViews: BigInt(channelInfo.viewCount),
+        totalViews: Number(channelInfo.viewCount),
         totalVideos: channelInfo.videoCount,
-        lastSyncedAt: new Date(),
+        lastSyncedAt: new Date().toISOString(),
         syncStatus: "COMPLETED",
         syncError: null,
-      },
-    });
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(youTubeChannel.id, channelDbId));
 
     // 5. Sync all date ranges (7d, 28d, 90d, 365d) for caching
     const dateRanges = ['7d', '28d', '90d', '365d'];
@@ -326,16 +325,29 @@ export async function syncChannel(channelDbId: string) {
           : null;
 
         // Upsert the snapshot for this date range
-        await prisma.youTubeSnapshot.upsert({
-          where: {
-            channelId_dateRange: {
-              channelId: channel.id,
-              dateRange: range,
-            },
-          },
-          update: {
+        await db.insert(youTubeSnapshot).values({
+          id: createId(),
+          channelId: channel.id,
+          clientId: channel.clientId,
+          dateRange: range,
+          subscriberCount: channelInfo.subscriberCount,
+          views: Number(aggregated.views),
+          watchTimeHours: aggregated.watchTimeMinutes / 60,
+          likes: aggregated.likes,
+          comments: aggregated.comments,
+          shares: aggregated.shares,
+          subscribersGained: aggregated.subscribersGained,
+          subscribersLost: aggregated.subscribersLost,
+          estimatedRevenue: aggregated.revenue > 0 ? aggregated.revenue : null,
+          avgViewDuration: avgViewDuration,
+          periodStart: rangeStartDate.toISOString(),
+          periodEnd: rangeEndDate.toISOString(),
+          periodType: "DAILY",
+        }).onConflictDoUpdate({
+          target: [youTubeSnapshot.channelId, youTubeSnapshot.dateRange],
+          set: {
             subscriberCount: channelInfo.subscriberCount,
-            views: BigInt(aggregated.views),
+            views: Number(aggregated.views),
             watchTimeHours: aggregated.watchTimeMinutes / 60,
             likes: aggregated.likes,
             comments: aggregated.comments,
@@ -344,27 +356,9 @@ export async function syncChannel(channelDbId: string) {
             subscribersLost: aggregated.subscribersLost,
             estimatedRevenue: aggregated.revenue > 0 ? aggregated.revenue : null,
             avgViewDuration: avgViewDuration,
-            periodStart: rangeStartDate,
-            periodEnd: rangeEndDate,
-            snapshotDate: new Date(),
-          },
-          create: {
-            channelId: channel.id,
-            clientId: channel.clientId,
-            dateRange: range,
-            subscriberCount: channelInfo.subscriberCount,
-            views: BigInt(aggregated.views),
-            watchTimeHours: aggregated.watchTimeMinutes / 60,
-            likes: aggregated.likes,
-            comments: aggregated.comments,
-            shares: aggregated.shares,
-            subscribersGained: aggregated.subscribersGained,
-            subscribersLost: aggregated.subscribersLost,
-            estimatedRevenue: aggregated.revenue > 0 ? aggregated.revenue : null,
-            avgViewDuration: avgViewDuration,
-            periodStart: rangeStartDate,
-            periodEnd: rangeEndDate,
-            periodType: "DAILY",
+            periodStart: rangeStartDate.toISOString(),
+            periodEnd: rangeEndDate.toISOString(),
+            snapshotDate: new Date().toISOString(),
           },
         });
 
@@ -379,31 +373,26 @@ export async function syncChannel(channelDbId: string) {
 
     // 6. Upsert video stats
     for (const video of videos) {
-      await prisma.youTubeVideoStat.upsert({
-        where: {
-          channelId_videoId: {
-            channelId: channel.id,
-            videoId: video.id,
-          },
-        },
-        update: {
+      await db.insert(youTubeVideoStat).values({
+        id: createId(),
+        channelId: channel.id,
+        videoId: video.id,
+        title: video.title,
+        publishedAt: new Date(video.publishedAt).toISOString(),
+        thumbnailUrl: video.thumbnailUrl,
+        duration: video.duration,
+        views: Number(video.views),
+        likes: video.likes,
+        comments: video.comments,
+      }).onConflictDoUpdate({
+        target: [youTubeVideoStat.channelId, youTubeVideoStat.videoId],
+        set: {
           title: video.title,
           thumbnailUrl: video.thumbnailUrl,
-          views: BigInt(video.views),
+          views: Number(video.views),
           likes: video.likes,
           comments: video.comments,
-          lastUpdated: new Date(),
-        },
-        create: {
-          channelId: channel.id,
-          videoId: video.id,
-          title: video.title,
-          publishedAt: new Date(video.publishedAt),
-          thumbnailUrl: video.thumbnailUrl,
-          duration: video.duration,
-          views: BigInt(video.views),
-          likes: video.likes,
-          comments: video.comments,
+          lastUpdated: new Date().toISOString(),
         },
       });
     }
@@ -413,13 +402,13 @@ export async function syncChannel(channelDbId: string) {
   } catch (error: any) {
     console.error(`[YouTube Sync] Failed for channel ${channelDbId}:`, error);
 
-    await prisma.youTubeChannel.update({
-      where: { id: channelDbId },
-      data: {
+    await db.update(youTubeChannel)
+      .set({
         syncStatus: "FAILED",
         syncError: error.message?.slice(0, 500),
-      },
-    });
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(youTubeChannel.id, channelDbId));
 
     return { success: false, error: error.message };
   }
@@ -429,9 +418,8 @@ export async function syncChannel(channelDbId: string) {
  * Sync ALL active channels - called by cron
  */
 export async function syncAllChannels() {
-  const channels = await prisma.youTubeChannel.findMany({
-    where: { isActive: true },
-  });
+  const channels = await db.select().from(youTubeChannel)
+    .where(eq(youTubeChannel.isActive, true));
 
   console.log(`[YouTube Sync] Starting sync for ${channels.length} channels`);
 

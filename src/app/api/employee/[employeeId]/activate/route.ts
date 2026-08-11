@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/employee/[id]/activate/route.ts
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 
 export async function PATCH(req: Request, context: { params: { employeeId: string } }) {
@@ -9,10 +11,10 @@ export async function PATCH(req: Request, context: { params: { employeeId: strin
     await requireAdmin(req as any);
     const { params } = await Promise.resolve(context);
     const id = Number(params.employeeId);
-    const user = await prisma.user.update({
-      where: { id },
-      data: { employeeStatus: 'ACTIVE' }
-    });
+    const [user] = await db.update(userTable).set({
+      employeeStatus: 'ACTIVE',
+      updatedAt: new Date().toISOString(),
+    }).where(eq(userTable.id, id)).returning();
 
     const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
     await createAuditLog({

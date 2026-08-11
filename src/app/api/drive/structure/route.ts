@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 // src/app/api/drive/structure/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable, user as userTable, editorClientPermission, task as taskTable } from '@/lib/db/schema';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import { getStructure } from '@/lib/file-server';
 
 export async function GET(request: NextRequest) {
@@ -20,32 +22,35 @@ export async function GET(request: NextRequest) {
       let clientRecord = null;
 
       if (clientId) {
-        clientRecord = await prisma.client.findUnique({
-          where: { id: clientId },
-          select: { companyName: true, name: true },
-        });
+        const [row] = await db
+          .select({ companyName: clientTable.companyName, name: clientTable.name })
+          .from(clientTable)
+          .where(eq(clientTable.id, clientId))
+          .limit(1);
+        clientRecord = row ?? null;
       } else if (userId) {
-        const user = await prisma.user.findUnique({
-          where: { id: parseInt(userId) },
-          select: {
-            email: true,
-            linkedClientId: true,
-            linkedClient: { select: { companyName: true, name: true } },
-          },
+        const foundUser = await db.query.user.findFirst({
+          where: eq(userTable.id, parseInt(userId)),
+          columns: { email: true, linkedClientId: true },
+          with: { client: { columns: { companyName: true, name: true } } },
         });
-        if (user?.linkedClient) {
-          clientRecord = user.linkedClient;
-        } else if (user?.email) {
-          clientRecord = await prisma.client.findFirst({
-            where: { email: user.email },
-            select: { companyName: true, name: true },
-          });
+        if (foundUser?.client) {
+          clientRecord = foundUser.client;
+        } else if (foundUser?.email) {
+          const [row] = await db
+            .select({ companyName: clientTable.companyName, name: clientTable.name })
+            .from(clientTable)
+            .where(eq(clientTable.email, foundUser.email))
+            .limit(1);
+          clientRecord = row ?? null;
         }
         if (!clientRecord) {
-          clientRecord = await prisma.client.findFirst({
-            where: { userId: parseInt(userId) },
-            select: { companyName: true, name: true },
-          });
+          const [row] = await db
+            .select({ companyName: clientTable.companyName, name: clientTable.name })
+            .from(clientTable)
+            .where(eq(clientTable.userId, parseInt(userId)))
+            .limit(1);
+          clientRecord = row ?? null;
         }
       }
 
@@ -58,10 +63,11 @@ export async function GET(request: NextRequest) {
     } else if (role === 'admin' || role === 'manager' || role === 'scheduler') {
       // Admin/manager must pass a clientId — file server blocks empty-prefix scans
       if (clientId) {
-        const clientRecord = await prisma.client.findUnique({
-          where: { id: clientId },
-          select: { companyName: true, name: true },
-        });
+        const [clientRecord] = await db
+          .select({ companyName: clientTable.companyName, name: clientTable.name })
+          .from(clientTable)
+          .where(eq(clientTable.id, clientId))
+          .limit(1);
         if (clientRecord) {
           prefix = `${clientRecord.companyName || clientRecord.name}/`;
         }
@@ -73,24 +79,24 @@ export async function GET(request: NextRequest) {
 
       // If a specific clientId is passed (editor selected a client), use it directly
       if (clientId) {
-        const clientRecord = await prisma.client.findUnique({
-          where: { id: clientId },
-          select: { companyName: true, name: true },
-        });
+        const [clientRecord] = await db
+          .select({ companyName: clientTable.companyName, name: clientTable.name })
+          .from(clientTable)
+          .where(eq(clientTable.id, clientId))
+          .limit(1);
         if (clientRecord) {
           prefix = `${clientRecord.companyName || clientRecord.name}/`;
         }
       } else {
         // Derive from assigned tasks/permissions
-        const permissions = await prisma.editorClientPermission.findMany({
-          where: { editorId },
-          include: { client: { select: { companyName: true, name: true } } },
+        const permissions = await db.query.editorClientPermission.findMany({
+          where: eq(editorClientPermission.editorId, editorId),
+          with: { client: { columns: { companyName: true, name: true } } },
         });
         const permNames = permissions.map(p => p.client.companyName || p.client.name).filter(Boolean);
-        const taskClients = await prisma.task.findMany({
-          where: { assignedTo: editorId, clientId: { not: null } },
-          select: { client: { select: { companyName: true, name: true } } },
-          distinct: ['clientId'],
+        const taskClients = await db.query.task.findMany({
+          where: and(eq(taskTable.assignedTo, editorId), isNotNull(taskTable.clientId)),
+          with: { client: { columns: { companyName: true, name: true } } },
         });
         const taskNames = taskClients.map(t => t.client?.companyName || t.client?.name || '').filter(Boolean);
         const assigned = [...new Set([...permNames, ...taskNames])];

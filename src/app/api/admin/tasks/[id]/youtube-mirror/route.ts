@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task as taskTable, file as fileTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import { uploadVideoToYoutube, QuotaExceededError } from "@/lib/youtube-mirror";
 import { triggerDriveMirror } from "@/lib/drive-mirror";
@@ -31,20 +33,15 @@ export async function POST(
 
     const { id: taskId } = await params;
 
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        title: true,
-        driveFolderId: true,
-        client: { select: { name: true, companyName: true } },
+    const task = await db.query.task.findFirst({
+      where: eq(taskTable.id, taskId),
+      columns: { id: true, title: true, driveFolderId: true },
+      with: {
+        client: { columns: { name: true, companyName: true } },
         files: {
-          where: {
-            isActive: true,
-            mimeType: { startsWith: "video/" },
-            youtubeVideoId: null,
-          },
-          select: { id: true, name: true, mimeType: true, s3Key: true },
+          where: (f, { eq: eqOp, and: andOp, like: likeOp, isNull: isNullOp }) =>
+            andOp(eqOp(f.isActive, true), likeOp(f.mimeType, "video/%"), isNullOp(f.youtubeVideoId)),
+          columns: { id: true, name: true, mimeType: true, s3Key: true },
         },
       },
     });
@@ -73,10 +70,9 @@ export async function POST(
           title: `${task.title} — ${file.name}`.slice(0, 100),
         });
 
-        await prisma.file.update({
-          where: { id: file.id },
-          data: { youtubeVideoId: videoId, youtubeUploadedAt: new Date() },
-        });
+        await db.update(fileTable)
+          .set({ youtubeVideoId: videoId, youtubeUploadedAt: new Date().toISOString() })
+          .where(eq(fileTable.id, file.id));
 
         results.push({ fileId: file.id, fileName: file.name, dispatched: true, youtubeVideoId: videoId });
       } catch (err: any) {

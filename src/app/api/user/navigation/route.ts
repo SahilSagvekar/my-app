@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable, rolePermission, socialLogin } from '@/lib/db/schema';
+import { eq, or, arrayContains } from 'drizzle-orm';
 import { NAVIGATION_ITEMS, type NavigationRole } from '@/components/constants/navigation';
 import jwt from 'jsonwebtoken';
 
@@ -44,20 +46,24 @@ export async function GET(req: NextRequest) {
             return NextResponse.json([], { status: 200 }); // No items for this role
         }
 
-        // Get permissions from DB manually to bypass Prisma client generation issues
-        const permissionsList: any[] = await prisma.$queryRaw`SELECT "navigationItems" FROM "RolePermission" WHERE "role"::text = ${role} LIMIT 1`;
-        const permissions = permissionsList[0];
+        const [permissions] = await db.select({ navigationItems: rolePermission.navigationItems })
+            .from(rolePermission).where(eq(rolePermission.role, role as any)).limit(1);
         const allItems = NAVIGATION_ITEMS[role];
 
         // 🔥 Additional filtering for client role based on hasPostingServices
         let finalItems = [...allItems];
         if (role === 'client') {
-            const user = await prisma.user.findFirst({
-                where: { id: Number(decoded.userId) },
-                include: { client: { select: { hasPostingServices: true } } }
+            // NOTE: Prisma's `include: { client: true }` here is the reverse
+            // relation of Client.userId (1:1, unique-indexed) — drizzle-kit
+            // mislabeled that reverse relation `clients: many(client, ...)`
+            // on userRelations (unique FK mislabeled many()), so fetch it
+            // via `with: { clients: true }` and take [0].
+            const userRow = await db.query.user.findFirst({
+                where: eq(userTable.id, Number(decoded.userId)),
+                with: { clients: { columns: { hasPostingServices: true } } }
             });
 
-            const hasPosting = (user as any)?.client?.hasPostingServices ?? true;
+            const hasPosting = userRow?.clients?.[0]?.hasPostingServices ?? true;
             if (!hasPosting) {
                 const forbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
                 finalItems = finalItems.filter(item => !forbiddenIds.includes(item.id));
@@ -71,15 +77,10 @@ export async function GET(req: NextRequest) {
             const userId = Number(decoded.userId);
             const userRole = (decoded.role as string).toLowerCase();
             
-            const hasLoginAccess = await prisma.socialLogin.findFirst({
-                where: {
-                    OR: [
-                        { allowedRoles: { has: userRole } },
-                        { allowedUserIds: { has: userId } },
-                    ],
-                },
-                select: { id: true },
-            });
+            const [hasLoginAccess] = await db.select({ id: socialLogin.id }).from(socialLogin).where(or(
+                arrayContains(socialLogin.allowedRoles, [userRole]),
+                arrayContains(socialLogin.allowedUserIds, [userId]),
+            )).limit(1);
 
             if (hasLoginAccess) {
                 // Insert 'logins' before 'feedback' if it exists, otherwise at the end

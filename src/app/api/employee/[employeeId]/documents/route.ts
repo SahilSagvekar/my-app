@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { employeeDocument, user as userTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, desc } from 'drizzle-orm';
 import { getCurrentUser2, requireAdmin } from '@/lib/auth';
 import { uploadBufferToS3 } from '@/lib/s3';
 
@@ -29,18 +32,14 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const documents = await prisma.employeeDocument.findMany({
-    where: { employeeId: id },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      title: true,
-      fileName: true,
-      fileSize: true,
-      createdAt: true,
-      uploadedById: true,
-    },
-  });
+  const documents = await db.select({
+    id: employeeDocument.id,
+    title: employeeDocument.title,
+    fileName: employeeDocument.fileName,
+    fileSize: employeeDocument.fileSize,
+    createdAt: employeeDocument.createdAt,
+    uploadedById: employeeDocument.uploadedById,
+  }).from(employeeDocument).where(eq(employeeDocument.employeeId, id)).orderBy(desc(employeeDocument.createdAt));
 
   return NextResponse.json({ documents });
 }
@@ -62,7 +61,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid employee id' }, { status: 400 });
     }
 
-    const employee = await prisma.user.findUnique({ where: { id } });
+    const [employee] = await db.select().from(userTable).where(eq(userTable.id, id)).limit(1);
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
@@ -112,16 +111,15 @@ export async function POST(
       mimeType: file.type,
     });
 
-    const document = await prisma.employeeDocument.create({
-      data: {
-        employeeId: id,
-        title,
-        s3Key: upload.key,
-        fileName: file.name,
-        fileSize: file.size,
-        uploadedById: admin.id,
-      },
-    });
+    const [document] = await db.insert(employeeDocument).values({
+      id: createId(),
+      employeeId: id,
+      title,
+      s3Key: upload.key,
+      fileName: file.name,
+      fileSize: file.size,
+      uploadedById: admin.id,
+    }).returning();
 
     return NextResponse.json({ document });
   } catch (err: any) {

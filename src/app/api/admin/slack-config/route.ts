@@ -1,6 +1,9 @@
 // src/app/api/admin/slack-config/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { slackConfig as slackConfigTable } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
+import { createId } from "@/lib/db/id";
 import { getCurrentUser2 } from "@/lib/auth";
 import { sendSlackTestMessage } from "@/lib/slack";
 
@@ -14,9 +17,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const config = await prisma.slackConfig.findFirst({
-      orderBy: { updatedAt: "desc" },
-    });
+    const [configRow] = await db.select().from(slackConfigTable)
+      .orderBy(desc(slackConfigTable.updatedAt))
+      .limit(1);
+    const config = configRow ?? null;
 
     return NextResponse.json({ success: true, config });
   } catch (error) {
@@ -47,26 +51,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Upsert — find existing config or create new one
-    const existing = await prisma.slackConfig.findFirst();
+    const [existing] = await db.select().from(slackConfigTable).limit(1);
 
     let config;
     if (existing) {
-      config = await prisma.slackConfig.update({
-        where: { id: existing.id },
-        data: {
-          webhookUrl,
-          channelName: channelName || null,
-          isActive: isActive ?? true,
-        },
-      });
+      [config] = await db.update(slackConfigTable).set({
+        webhookUrl,
+        channelName: channelName || null,
+        isActive: isActive ?? true,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(slackConfigTable.id, existing.id)).returning();
     } else {
-      config = await prisma.slackConfig.create({
-        data: {
-          webhookUrl,
-          channelName: channelName || null,
-          isActive: isActive ?? true,
-        },
-      });
+      [config] = await db.insert(slackConfigTable).values({
+        id: createId(),
+        webhookUrl,
+        channelName: channelName || null,
+        isActive: isActive ?? true,
+        updatedAt: new Date().toISOString(),
+      }).returning();
     }
 
     return NextResponse.json({ success: true, config });

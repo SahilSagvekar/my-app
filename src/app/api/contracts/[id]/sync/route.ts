@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable, contractSigner as contractSignerTable, client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getSignWellDocument, downloadSignWellPdf, mapSignWellStatus, mapSignWellSignerStatus } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
@@ -15,26 +17,26 @@ export async function POST(
 
     const { id: contractId } = await params;
 
-    const contract = await prisma.contract.findUnique({
-      where: { id: contractId },
-      include: {
-        signers: true,
+    const contractRow = await db.query.contract.findFirst({
+      where: eq(contractTable.id, contractId),
+      with: {
+        contractSigners: true,
       },
     });
 
-    if (!contract) {
+    if (!contractRow) {
       return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
     }
 
+    const contract: any = { ...contractRow, signers: contractRow.contractSigners };
+
     if (contract.clientId) {
-      const client = await prisma.client.findUnique({
-        where: { id: contract.clientId },
-        include: { portalAccess: true }
+      const clientRow = await db.query.client.findFirst({
+        where: eq(clientTable.id, contract.clientId),
+        with: { clientPortalAccesses: true },
       });
-      if (client) {
-        (client as any).portalAccess = client.portalAccess;
-      }
-      (contract as any).client = client;
+      const client = clientRow ? { ...clientRow, portalAccess: clientRow.clientPortalAccesses?.[0] ?? null } : null;
+      contract.client = client;
     }
 
     // Access check
@@ -69,14 +71,12 @@ export async function POST(
       if (dbSigner) {
         const newSignerStatus = mapSignWellSignerStatus(swSigner.status);
         if (dbSigner.status !== newSignerStatus) {
-          await prisma.contractSigner.update({
-            where: { id: dbSigner.id },
-            data: { 
-              status: newSignerStatus, 
-              signedAt: newSignerStatus === 'SIGNED' ? new Date() : dbSigner.signedAt,
-              viewedAt: newSignerStatus === 'VIEWED' ? new Date() : dbSigner.viewedAt,
-            },
-          });
+          await db.update(contractSignerTable).set({
+            status: newSignerStatus,
+            signedAt: newSignerStatus === 'SIGNED' ? new Date().toISOString() : dbSigner.signedAt,
+            viewedAt: newSignerStatus === 'VIEWED' ? new Date().toISOString() : dbSigner.viewedAt,
+            updatedAt: new Date().toISOString(),
+          }).where(eq(contractSignerTable.id, dbSigner.id));
           anySignerUpdated = true;
         }
       }
@@ -98,33 +98,31 @@ export async function POST(
         mimeType: 'application/pdf',
       });
 
-      await prisma.contract.update({
-        where: { id: contract.id },
-        data: {
-          status: 'COMPLETED',
-          completedAt: new Date(),
-          signedS3Key: key,
-        },
-      });
-      
+      await db.update(contractTable).set({
+        status: 'COMPLETED',
+        completedAt: new Date().toISOString(),
+        signedS3Key: key,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(contractTable.id, contract.id));
+
       // Advance portal if pipeline client
       const client = (contract as any).client;
       if (client?.portalAccess) {
         const currentStatus = client.portalAccess.status;
         if (currentStatus === 'CONTRACT_PENDING' || currentStatus === 'ONBOARDING') {
-          await prisma.clientPortalAccess.update({
-            where: { clientId: client.id },
-            data: { status: 'PAYMENT_PENDING' },
-          });
+          await db.update(clientPortalAccessTable).set({
+            status: 'PAYMENT_PENDING',
+            updatedAt: new Date().toISOString(),
+          }).where(eq(clientPortalAccessTable.clientId, client.id));
         }
       }
-      
+
     } else if (newStatus !== contract.status || anySignerUpdated) {
       // Just update the main status if it changed
-      await prisma.contract.update({
-        where: { id: contract.id },
-        data: { status: newStatus as any },
-      });
+      await db.update(contractTable).set({
+        status: newStatus as any,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(contractTable.id, contract.id));
     }
 
     return NextResponse.json({ success: true, newStatus });

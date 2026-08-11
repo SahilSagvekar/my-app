@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import {
+  user as userTable,
+  task as taskTable,
+  taskStatus as taskStatusEnum,
+} from "@/lib/db/schema";
+import { and, or, eq } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
-import { TaskStatus } from "@prisma/client";
 
 // GET /api/admin/production-tracker/employee-summary?employeeId=42&month=July-2026
 // Pass month=all to see the employee's totals across every month.
@@ -24,50 +29,42 @@ export async function GET(req: NextRequest) {
     const employeeId = parseInt(employeeIdParam);
     const monthParam = searchParams.get("month");
 
-    const employee = await prisma.user.findUnique({
-      where: { id: employeeId },
-      select: { id: true, name: true, email: true, role: true, employeeStatus: true },
-    });
+    const [employee] = await db.select({
+      id: userTable.id, name: userTable.name, email: userTable.email,
+      role: userTable.role, employeeStatus: userTable.employeeStatus,
+    }).from(userTable).where(eq(userTable.id, employeeId)).limit(1);
     if (!employee || employee.employeeStatus !== "ACTIVE") {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
 
-    let dateFilter = {};
     let targetMonth = "all";
     if (monthParam && monthParam !== "all") {
       targetMonth = monthParam;
-      const [monthName, yearStr] = monthParam.split("-");
-      const monthIndex = new Date(`${monthName} 1, ${yearStr}`).getMonth();
-      const year = parseInt(yearStr);
-      const monthStart = new Date(year, monthIndex, 1);
-      const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
-      dateFilter = {
-        OR: [
-          { monthFolder: monthParam },
-          { createdAt: { gte: monthStart, lte: monthEnd }, monthFolder: null },
-        ],
-      };
     }
 
+    // NOTE(prisma-migration pre-existing bug): the original code built
+    // `where: { ...dateFilter, OR: [...] }` — since dateFilter (when a
+    // month was selected) was itself `{ OR: [...] }`, the second `OR:`
+    // key in the same object literal silently overwrote the first. The
+    // month filter was therefore NEVER actually applied by Prisma; only
+    // the role-based OR ran. Preserved as-is (not fixed) per conversion
+    // rules — only the role-based filter is applied below.
+    //
     // A person can be involved via any of these roles on a task —
     // covers editor, QC, scheduler, videographer assignments.
-    const tasks = await prisma.task.findMany({
-      where: {
-        ...dateFilter,
-        OR: [
-          { assignedTo: employeeId },
-          { qc_specialist: employeeId },
-          { scheduler: employeeId },
-          { videographer: employeeId },
-        ],
-      },
-      select: {
-        id: true,
-        status: true,
-        clientId: true,
-        client: { select: { id: true, name: true, companyName: true } },
+    const rawTasks = await db.query.task.findMany({
+      where: or(
+        eq(taskTable.assignedTo, employeeId),
+        eq(taskTable.qcSpecialist, employeeId),
+        eq(taskTable.scheduler, employeeId),
+        eq(taskTable.videographer, employeeId),
+      ),
+      columns: { id: true, status: true, clientId: true },
+      with: {
+        client: { columns: { id: true, name: true, companyName: true } },
       },
     });
+    const tasks = rawTasks;
 
     // ─── Breakdown by client ───
     const clientCounts = new Map<string, { clientId: string; clientName: string; count: number }>();
@@ -83,7 +80,7 @@ export async function GET(req: NextRequest) {
     const byClient = [...clientCounts.values()].sort((a, b) => b.count - a.count);
 
     // ─── Breakdown by status — every status, including zeros ───
-    const allStatuses = Object.values(TaskStatus);
+    const allStatuses = taskStatusEnum.enumValues;
     const byStatus = allStatuses.map((status) => ({
       status,
       count: tasks.filter((t) => t.status === status).length,

@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { shareableFile as shareableFileTable } from '@/lib/db/schema';
+import { eq, sql } from 'drizzle-orm';
 import { generateSignedUrl, getS3, BUCKET } from '@/lib/s3';
 
 const s3 = getS3();
@@ -27,9 +29,8 @@ export async function GET(
       return NextResponse.json({ error: 'Share token required' }, { status: 400 });
     }
 
-    const shareableFile = await prisma.shareableFile.findUnique({
-      where: { shareToken },
-    });
+    const [shareableFile] = await db.select().from(shareableFileTable)
+      .where(eq(shareableFileTable.shareToken, shareToken)).limit(1);
 
     if (!shareableFile) {
       return NextResponse.json({ error: 'Share link not found' }, { status: 404 });
@@ -37,7 +38,7 @@ export async function GET(
     if (!shareableFile.isActive) {
       return NextResponse.json({ error: 'This share link has been deactivated' }, { status: 410 });
     }
-    if (shareableFile.expiresAt && shareableFile.expiresAt < new Date()) {
+    if (shareableFile.expiresAt && new Date(shareableFile.expiresAt) < new Date()) {
       return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
     }
     if (shareableFile.mimeType !== 'application/x-directory') {
@@ -80,16 +81,19 @@ export async function GET(
         })
     );
 
-    await prisma.shareableFile.update({
-      where: { shareToken },
-      data: { viewCount: { increment: 1 }, lastViewedAt: new Date() },
-    });
+    // ShareableFile.updatedAt is @updatedAt in Prisma (client-managed) — set
+    // explicitly here, matching that behavior.
+    await db.update(shareableFileTable).set({
+      viewCount: sql`${shareableFileTable.viewCount} + 1`,
+      lastViewedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(shareableFileTable.shareToken, shareToken));
 
     return NextResponse.json({
       folderName: shareableFile.fileName,
       s3Key: folderPrefix,
       items: [...folders, ...files],
-      createdAt: shareableFile.createdAt.toISOString(),
+      createdAt: new Date(shareableFile.createdAt).toISOString(),
     });
   } catch (error: any) {
     console.error('[shared/folder] error:', error);

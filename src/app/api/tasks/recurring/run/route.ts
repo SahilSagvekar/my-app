@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, task, recurringTask, user } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, inArray, gte, lte, isNull, asc, count } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3, BUCKET } from "@/lib/s3";
 
@@ -233,10 +236,12 @@ export async function POST(req: Request) {
 
     console.log(`📂month folders: ${monthLabel}  ${monthYearFolder} `);
 
-    const activeClients = await prisma.client.findMany({
-      where: { status: "active" },
-      select: { id: true, companyName: true, name: true, rawFootageFolderId: true },
-    });
+    const activeClients = await db.select({
+      id: clientTable.id,
+      companyName: clientTable.companyName,
+      name: clientTable.name,
+      rawFootageFolderId: clientTable.rawFootageFolderId,
+    }).from(clientTable).where(eq(clientTable.status, "active"));
 
     console.log(`📂 Ensuring month folders for ${activeClients.length} clients for ${monthYearFolder}`);
 
@@ -264,28 +269,32 @@ export async function POST(req: Request) {
     console.log(`🔄 Running recurring tasks for ${targetYear}-${targetMonth + 1}${dryRun ? " (DRY RUN)" : ""}`);
 
     // Find active recurring tasks
-    const where: any = { active: true };
-    if (clientId) where.clientId = clientId;
-    if (deliverableId) where.deliverableId = deliverableId;
+    const rtConditions = [eq(recurringTask.active, true)];
+    if (clientId) rtConditions.push(eq(recurringTask.clientId, clientId));
+    if (deliverableId) rtConditions.push(eq(recurringTask.deliverableId, deliverableId));
 
     console.log(`🔍 clientId, deliverableId:`, clientId, deliverableId);
 
-    const recurringTasks = await prisma.recurringTask.findMany({
-      where,
-      include: {
+    const rawRecurringTasks = await db.query.recurringTask.findMany({
+      where: and(...rtConditions),
+      with: {
         client: true,
-        deliverable: true,
-        templateTask: true,
+        monthlyDeliverable: true,
+        task: true,
       },
     });
+    const recurringTasks = rawRecurringTasks.map(({ monthlyDeliverable, task: templateTask, ...rt }: any) => ({
+      ...rt,
+      deliverable: monthlyDeliverable,
+      templateTask,
+    }));
 
     console.log(`📋 Found ${recurringTasks.length} active recurring tasks`);
 
     // Get a default admin/manager user for fallback assignment
-    const defaultUser = await prisma.user.findFirst({
-      where: { role: { in: ["admin", "manager"] }, employeeStatus: "ACTIVE" },
-      select: { id: true },
-    });
+    const [defaultUser] = await db.select({ id: user.id }).from(user)
+      .where(and(inArray(user.role, ["admin", "manager"] as any), eq(user.employeeStatus, "ACTIVE")))
+      .limit(1);
 
     if (!defaultUser) {
       return NextResponse.json(
@@ -320,42 +329,32 @@ export async function POST(req: Request) {
         const recurringMonthLabel = `${targetYear}-${String(targetMonth + 1).padStart(2, "0")}`;
 
         // Primary: count tasks tagged with this recurringMonth
-        const taggedTasks = await prisma.task.count({
-          where: {
-            clientId: rt.clientId,
-            monthlyDeliverableId: deliverable.id,
-            recurringMonth: recurringMonthLabel,
-          },
-        });
+        const [{ value: taggedTasks }] = await db.select({ value: count() }).from(task).where(and(
+          eq(task.clientId, rt.clientId),
+          eq(task.monthlyDeliverableId, deliverable.id),
+          eq(task.recurringMonth, recurringMonthLabel),
+        ));
 
         // Fallback: count tasks with dueDate in this month but WITHOUT recurringMonth
         // (catches legacy tasks created before the recurringMonth fix)
         const monthStart = new Date(targetYear, targetMonth, 1);
         const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
 
-        const untaggedTasks = await prisma.task.count({
-          where: {
-            clientId: rt.clientId,
-            monthlyDeliverableId: deliverable.id,
-            recurringMonth: null,
-            dueDate: { gte: monthStart, lte: monthEnd },
-          },
-        });
+        const untaggedCondition = and(
+          eq(task.clientId, rt.clientId),
+          eq(task.monthlyDeliverableId, deliverable.id),
+          isNull(task.recurringMonth),
+          gte(task.dueDate, monthStart.toISOString()),
+          lte(task.dueDate, monthEnd.toISOString()),
+        );
+        const [{ value: untaggedTasks }] = await db.select({ value: count() }).from(task).where(untaggedCondition);
 
         const existingTasksForMonth = taggedTasks + untaggedTasks;
 
         // 🔥 FIX: Also backfill recurringMonth on untagged tasks so future runs are clean
         if (untaggedTasks > 0) {
           console.log(`🏷️ Backfilling recurringMonth="${recurringMonthLabel}" on ${untaggedTasks} untagged tasks for ${client.name}`);
-          await prisma.task.updateMany({
-            where: {
-              clientId: rt.clientId,
-              monthlyDeliverableId: deliverable.id,
-              recurringMonth: null,
-              dueDate: { gte: monthStart, lte: monthEnd },
-            },
-            data: { recurringMonth: recurringMonthLabel },
-          });
+          await db.update(task).set({ recurringMonth: recurringMonthLabel, updatedAt: new Date().toISOString() }).where(untaggedCondition);
         }
 
         if (existingTasksForMonth >= deliverable.quantity) {
@@ -447,37 +446,37 @@ export async function POST(req: Request) {
           }
 
           // Create the task - copy ALL fields from master template
-          const newTask = await prisma.task.create({
-            data: {
-              title,
-              // Copy everything from master template
-              description: masterTemplate.description || "",
-              taskType: masterTemplate.taskType || deliverable.type,
-              status: "PENDING",
-              dueDate,
-              assignedTo: masterTemplate.assignedTo || defaultUser.id,
-              createdBy: masterTemplate.createdBy,
-              clientId: rt.clientId,
-              clientUserId: client.userId,
-              monthlyDeliverableId: deliverable.id,
-              outputFolderId,
-              monthFolder: monthYearFolder,
-              // Tag which monthly cycle this task belongs to
-              recurringMonth: recurringMonthLabel,
-              // Copy all role assignments from master template
-              qc_specialist: masterTemplate.qc_specialist,
-              scheduler: masterTemplate.scheduler,
-              videographer: masterTemplate.videographer,
-              // Copy other fields from master template
-              folderType: masterTemplate.folderType,
-              driveLinks: masterTemplate.driveLinks ?? [],
-              priority: masterTemplate.priority,
-              taskCategory: masterTemplate.taskCategory,
-              deliverableType: masterTemplate.deliverableType,
-              requiresClientReview: client.requiresClientReview ?? false,
-              isTrial: deliverable.isTrial ?? client.isTrial ?? false,
-            },
-          });
+          const [newTask] = await db.insert(task).values({
+            id: createId(),
+            title,
+            // Copy everything from master template
+            description: masterTemplate.description || "",
+            taskType: masterTemplate.taskType || deliverable.type,
+            status: "PENDING",
+            dueDate: dueDate.toISOString(),
+            assignedTo: masterTemplate.assignedTo || defaultUser.id,
+            createdBy: masterTemplate.createdBy,
+            clientId: rt.clientId,
+            clientUserId: client.userId,
+            monthlyDeliverableId: deliverable.id,
+            outputFolderId,
+            monthFolder: monthYearFolder,
+            // Tag which monthly cycle this task belongs to
+            recurringMonth: recurringMonthLabel,
+            // Copy all role assignments from master template
+            qcSpecialist: masterTemplate.qcSpecialist,
+            scheduler: masterTemplate.scheduler,
+            videographer: masterTemplate.videographer,
+            // Copy other fields from master template
+            folderType: masterTemplate.folderType,
+            driveLinks: masterTemplate.driveLinks ?? [],
+            priority: masterTemplate.priority,
+            taskCategory: masterTemplate.taskCategory,
+            deliverableType: masterTemplate.deliverableType,
+            requiresClientReview: client.requiresClientReview ?? false,
+            isTrial: deliverable.isTrial ?? client.isTrial ?? false,
+            updatedAt: new Date().toISOString(),
+          }).returning();
 
           createdTasks.push(newTask);
         }
@@ -487,13 +486,10 @@ export async function POST(req: Request) {
           const nextMonth = targetMonth === 11 ? 0 : targetMonth + 1;
           const nextYear = targetMonth === 11 ? targetYear + 1 : targetYear;
 
-          await prisma.recurringTask.update({
-            where: { id: rt.id },
-            data: {
-              lastRunDate: now,
-              nextRunDate: new Date(nextYear, nextMonth, 1),
-            },
-          });
+          await db.update(recurringTask).set({
+            lastRunDate: now.toISOString(),
+            nextRunDate: new Date(nextYear, nextMonth, 1).toISOString(),
+          }).where(eq(recurringTask.id, rt.id));
         }
 
         console.log(`✅ ${client.name}: ${dryRun ? "Would create" : "Created"} ${dueDates.length} tasks`);
@@ -556,18 +552,23 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");
 
-    const where: any = { active: true };
-    if (clientId) where.clientId = clientId;
+    const rtConditions = [eq(recurringTask.active, true)];
+    if (clientId) rtConditions.push(eq(recurringTask.clientId, clientId));
 
-    const recurringTasks = await prisma.recurringTask.findMany({
-      where,
-      include: {
-        client: { select: { id: true, name: true } },
-        deliverable: { select: { id: true, type: true, quantity: true } },
-        templateTask: { select: { id: true, title: true, assignedTo: true } },
+    const rawRecurringTasks = await db.query.recurringTask.findMany({
+      where: and(...rtConditions),
+      with: {
+        client: { columns: { id: true, name: true } },
+        monthlyDeliverable: { columns: { id: true, type: true, quantity: true } },
+        task: { columns: { id: true, title: true, assignedTo: true } },
       },
-      orderBy: { nextRunDate: "asc" },
+      orderBy: asc(recurringTask.nextRunDate),
     });
+    const recurringTasks = rawRecurringTasks.map(({ monthlyDeliverable, task: templateTask, ...rt }: any) => ({
+      ...rt,
+      deliverable: monthlyDeliverable,
+      templateTask,
+    }));
 
     return NextResponse.json({
       success: true,

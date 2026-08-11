@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesRepPayoutProfile } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { syncAccountStatus } from '@/lib/stripe-payouts';
 
@@ -14,14 +16,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const profile = await prisma.salesRepPayoutProfile.findUnique({ where: { userId: user.id } });
+  const [profile] = await db.select().from(salesRepPayoutProfile).where(eq(salesRepPayoutProfile.userId, user.id)).limit(1);
   if (!profile?.stripeConnectAccountId) {
     return NextResponse.json({ success: false, error: 'No payout account found' }, { status: 404 });
   }
 
   await syncAccountStatus(profile.stripeConnectAccountId);
 
-  const updated = await prisma.salesRepPayoutProfile.findUnique({ where: { userId: user.id } });
+  const [updated] = await db.select().from(salesRepPayoutProfile).where(eq(salesRepPayoutProfile.userId, user.id)).limit(1);
 
   return NextResponse.json({
     success: true,

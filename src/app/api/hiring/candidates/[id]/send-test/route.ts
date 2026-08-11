@@ -5,7 +5,10 @@ export const dynamic = 'force-dynamic';
 // if a provider is ever wired in (see src/lib/whatsapp.ts).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { hiringCandidate, hiringTestTask } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendTestTaskInviteEmail } from '@/lib/hiring-email';
 import { sendWhatsAppMessage, isWhatsAppConfigured } from '@/lib/whatsapp';
@@ -30,23 +33,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'title and instructions are required' }, { status: 400 });
     }
 
-    const candidate = await prisma.hiringCandidate.findUnique({ where: { id: candidateId } });
+    const [candidate] = await db.select().from(hiringCandidate).where(eq(hiringCandidate.id, candidateId)).limit(1);
     if (!candidate) return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (Number(expiresInDays) > 0 ? Number(expiresInDays) : 14));
 
-    const testTask = await prisma.hiringTestTask.create({
-      data: {
-        candidateId,
-        title,
-        instructions,
-        rawFootageUrl: rawFootageUrl || null,
-        status: 'SENT',
-        sentAt: new Date(),
-        expiresAt,
-      },
-    });
+    const [testTask] = await db.insert(hiringTestTask).values({
+      id: createId(),
+      candidateId,
+      title,
+      instructions,
+      rawFootageUrl: rawFootageUrl || null,
+      submissionToken: createId(),
+      status: 'SENT',
+      sentAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     const submissionUrl = new URL(`/hiring-test/${testTask.submissionToken}`, APP_URL).toString();
 
@@ -69,10 +73,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       whatsapp.success = waResult.success;
     }
 
-    await prisma.hiringCandidate.update({
-      where: { id: candidateId },
-      data: { status: 'TEST_SENT' },
-    });
+    await db.update(hiringCandidate)
+      .set({ status: 'TEST_SENT', updatedAt: new Date().toISOString() })
+      .where(eq(hiringCandidate.id, candidateId));
 
     return NextResponse.json({
       ok: true,

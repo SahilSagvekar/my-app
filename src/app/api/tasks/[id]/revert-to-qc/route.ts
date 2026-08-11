@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(
     request: NextRequest,
@@ -17,17 +19,14 @@ export async function POST(
         }
 
         // Update task status back to IN_QC
-        const updatedTask = await prisma.task.update({
-            where: { id: taskId },
-            data: {
-                status: 'READY_FOR_QC',
-                qcResult: null,
-                // Clear routing info
-                nextDestination: null,
-                // Keep qcNotes and feedback for reference, but mark as reverted
-                updatedAt: new Date(),
-            },
-        });
+        const [updatedTask] = await db.update(task).set({
+            status: 'READY_FOR_QC',
+            qcResult: null,
+            // Clear routing info
+            nextDestination: null,
+            // Keep qcNotes and feedback for reference, but mark as reverted
+            updatedAt: new Date().toISOString(),
+        }).where(eq(task.id, taskId)).returning();
 
         return NextResponse.json({
             success: true,

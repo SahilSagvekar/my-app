@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task as taskTable } from "@/lib/db/schema";
+import { eq, and, like } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import { triggerDriveMirror } from "@/lib/drive-mirror";
 
@@ -23,16 +25,14 @@ export async function POST(
 
     const { id: taskId } = await params;
 
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: {
-        id: true,
-        title: true,
-        driveFolderId: true,
-        client: { select: { name: true, companyName: true } },
+    const task = await db.query.task.findFirst({
+      where: eq(taskTable.id, taskId),
+      columns: { id: true, title: true, driveFolderId: true },
+      with: {
+        client: { columns: { name: true, companyName: true } },
         files: {
-          where: { isActive: true, mimeType: { startsWith: "video/" } },
-          select: { id: true, name: true, mimeType: true, s3Key: true },
+          where: (f, { eq: eqOp, and: andOp, like: likeOp }) => andOp(eqOp(f.isActive, true), likeOp(f.mimeType, "video/%")),
+          columns: { id: true, name: true, mimeType: true, s3Key: true },
         },
       },
     });

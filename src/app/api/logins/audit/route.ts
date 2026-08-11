@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/audit/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, socialLogin, loginAuditLog } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq, desc } from "drizzle-orm";
 // import { getServerSession } from "next-auth";
 // import { authOptions } from "@/lib/auth";
 import jwt from "jsonwebtoken";
@@ -51,18 +54,15 @@ export async function POST(req: NextRequest) {
    
            const { userId } = decoded;
            
-               const user = await prisma.user.findUnique({
-                 where: { id: userId },
-                 select: {
-                   id: true,
-                   name: true,
-                   email: true,
-                   image: true,
-                   phone: true,
-                   role: true,
-                 },
-               });
-           
+               const [user] = await db.select({
+                 id: userTable.id,
+                 name: userTable.name,
+                 email: userTable.email,
+                 image: userTable.image,
+                 phone: userTable.phone,
+                 role: userTable.role,
+               }).from(userTable).where(eq(userTable.id, userId)).limit(1);
+
                if (!user) {
                  return NextResponse.json(
                    { success: false, error: "User not found" },
@@ -70,24 +70,22 @@ export async function POST(req: NextRequest) {
                  );
                }
 
-   
+
     const { action, loginId } = await req.json();
 
     // Get IP address from headers
-    const ip = req.headers.get("x-forwarded-for") || 
-               req.headers.get("x-real-ip") || 
+    const ip = req.headers.get("x-forwarded-for") ||
+               req.headers.get("x-real-ip") ||
                "unknown";
 
     // Get login details if loginId provided
     let details: Record<string, any> = { ip };
 
     if (loginId) {
-      const login = await prisma.socialLogin.findUnique({
-        where: { id: loginId },
-        include: {
-          client: {
-            select: { companyName: true },
-          },
+      const login = await db.query.socialLogin.findFirst({
+        where: eq(socialLogin.id, loginId),
+        with: {
+          client: { columns: { companyName: true } },
         },
       });
 
@@ -101,14 +99,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await prisma.loginAuditLog.create({
-      data: {
-        action,
-        loginId: loginId || null,
-        userId,
-        details: JSON.stringify(details),
-        ipAddress: ip,
-      },
+    await db.insert(loginAuditLog).values({
+      id: createId(),
+      action,
+      loginId: loginId || null,
+      userId,
+      details: JSON.stringify(details),
+      ipAddress: ip,
     });
 
     return NextResponse.json({ success: true });
@@ -142,18 +139,15 @@ export async function GET(req: NextRequest) {
     
             const { userId } = decoded;
             
-                const user = await prisma.user.findUnique({
-                  where: { id: userId },
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                    phone: true,
-                    role: true,
-                  },
-                });
-            
+                const [user] = await db.select({
+                  id: userTable.id,
+                  name: userTable.name,
+                  email: userTable.email,
+                  image: userTable.image,
+                  phone: userTable.phone,
+                  role: userTable.role,
+                }).from(userTable).where(eq(userTable.id, userId)).limit(1);
+
                 if (!user) {
                   return NextResponse.json(
                     { success: false, error: "User not found" },
@@ -171,20 +165,18 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "100");
     const loginId = searchParams.get("loginId");
 
-    const whereClause = loginId ? { loginId } : {};
-
-    const logs = await prisma.loginAuditLog.findMany({
-      where: whereClause,
-      include: {
+    const logs = await db.query.loginAuditLog.findMany({
+      where: loginId ? eq(loginAuditLog.loginId, loginId) : undefined,
+      with: {
         user: {
-          select: {
+          columns: {
             name: true,
             email: true,
           },
         },
       },
-      orderBy: { createdAt: "desc" },
-      take: limit,
+      orderBy: desc(loginAuditLog.createdAt),
+      limit,
     });
 
     const formattedLogs = logs.map((log) => ({
@@ -196,7 +188,7 @@ export async function GET(req: NextRequest) {
       userEmail: log.user.email,
       details: log.details ? JSON.parse(log.details) : {},
       ipAddress: log.ipAddress,
-      timestamp: log.createdAt.toISOString(),
+      timestamp: new Date(log.createdAt).toISOString(),
     }));
 
     return NextResponse.json({ logs: formattedLogs });

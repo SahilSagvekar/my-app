@@ -1,8 +1,16 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { and, eq, gte, lte, lt, inArray, count } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
-import { TaskStatus } from '@prisma/client';
+
+const TaskStatus = {
+  COMPLETED: 'COMPLETED',
+  QC_IN_PROGRESS: 'QC_IN_PROGRESS',
+  READY_FOR_QC: 'READY_FOR_QC',
+  SCHEDULED: 'SCHEDULED',
+} as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,7 +28,7 @@ export async function GET(req: NextRequest) {
     const startDate = url.searchParams.get("startDate");
     const endDate = url.searchParams.get("endDate");
 
-    let dateFilter: any = {};
+    let dateFilter: { gte: Date; lte?: Date };
     if (startDate && endDate) {
       dateFilter = {
         gte: new Date(startDate),
@@ -33,34 +41,30 @@ export async function GET(req: NextRequest) {
         gte: thirtyDaysAgo,
       };
     }
+    const dateRange = (col: typeof task.createdAt, filter: { gte: Date; lte?: Date; lt?: Date }) => {
+      const conditions = [gte(col, filter.gte.toISOString())];
+      if (filter.lte) conditions.push(lte(col, filter.lte.toISOString()));
+      if (filter.lt) conditions.push(lt(col, filter.lt.toISOString()));
+      return and(...conditions);
+    };
 
     // Calculate current period metrics
     const [tasksUploaded, tasksApproved, qcChecks, schedulingTasks] =
       await Promise.all([
-        prisma.task.count({
-          where: { createdAt: dateFilter },
-        }),
-        prisma.task.count({
-          where: {
-            status: TaskStatus.COMPLETED,
-            updatedAt: dateFilter,
-          },
-        }),
-        prisma.task.count({
-          where: {
-            status: {
-              in: [TaskStatus.QC_IN_PROGRESS, TaskStatus.READY_FOR_QC],
-            },
-            updatedAt: dateFilter,
-          },
-        }),
-        prisma.task.count({
-          where: {
-            status: TaskStatus.SCHEDULED,
-            updatedAt: dateFilter,
-          },
-        }),
-      ]);
+        db.select({ value: count() }).from(task).where(dateRange(task.createdAt, dateFilter)),
+        db.select({ value: count() }).from(task).where(and(
+          eq(task.status, TaskStatus.COMPLETED),
+          dateRange(task.updatedAt, dateFilter),
+        )),
+        db.select({ value: count() }).from(task).where(and(
+          inArray(task.status, [TaskStatus.QC_IN_PROGRESS, TaskStatus.READY_FOR_QC]),
+          dateRange(task.updatedAt, dateFilter),
+        )),
+        db.select({ value: count() }).from(task).where(and(
+          eq(task.status, TaskStatus.SCHEDULED),
+          dateRange(task.updatedAt, dateFilter),
+        )),
+      ]).then(rows => rows.map(r => r[0].value));
 
     // Calculate previous period for comparison
     const start = new Date(dateFilter.gte);
@@ -83,30 +87,20 @@ export async function GET(req: NextRequest) {
       prevQcChecks,
       prevSchedulingTasks,
     ] = await Promise.all([
-      prisma.task.count({
-        where: { createdAt: previousDateFilter },
-      }),
-      prisma.task.count({
-        where: {
-          status: TaskStatus.COMPLETED,
-          updatedAt: previousDateFilter,
-        },
-      }),
-      prisma.task.count({
-        where: {
-          status: {
-            in: [TaskStatus.QC_IN_PROGRESS, TaskStatus.READY_FOR_QC],
-          },
-          updatedAt: previousDateFilter,
-        },
-      }),
-      prisma.task.count({
-        where: {
-          status: TaskStatus.SCHEDULED,
-          updatedAt: previousDateFilter,
-        },
-      }),
-    ]);
+      db.select({ value: count() }).from(task).where(dateRange(task.createdAt, previousDateFilter)),
+      db.select({ value: count() }).from(task).where(and(
+        eq(task.status, TaskStatus.COMPLETED),
+        dateRange(task.updatedAt, previousDateFilter),
+      )),
+      db.select({ value: count() }).from(task).where(and(
+        inArray(task.status, [TaskStatus.QC_IN_PROGRESS, TaskStatus.READY_FOR_QC]),
+        dateRange(task.updatedAt, previousDateFilter),
+      )),
+      db.select({ value: count() }).from(task).where(and(
+        eq(task.status, TaskStatus.SCHEDULED),
+        dateRange(task.updatedAt, previousDateFilter),
+      )),
+    ]).then(rows => rows.map(r => r[0].value));
 
     // Calculate percentage changes
     const calculateChange = (current: number, previous: number): string => {

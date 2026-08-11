@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { postingTarget } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, asc } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
 
 // GET - Fetch all posting targets (optionally by clientId)
@@ -14,15 +17,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get('clientId');
 
-    const where: any = {};
-    if (clientId) where.clientId = clientId;
-
-    const targets = await prisma.postingTarget.findMany({
-      where,
-      include: {
-        client: { select: { id: true, name: true, companyName: true } },
+    const targets = await db.query.postingTarget.findMany({
+      where: clientId ? eq(postingTarget.clientId, clientId) : undefined,
+      with: {
+        client: { columns: { id: true, name: true, companyName: true } },
       },
-      orderBy: [{ clientId: 'asc' }, { platform: 'asc' }, { deliverableType: 'asc' }],
+      orderBy: [asc(postingTarget.clientId), asc(postingTarget.platform), asc(postingTarget.deliverableType)],
     });
 
     return NextResponse.json({ ok: true, targets });
@@ -66,28 +66,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Delete existing targets for this client then recreate (simpler than individual upserts)
-    await prisma.$transaction(async (tx) => {
-      await tx.postingTarget.deleteMany({ where: { clientId } });
+    await db.transaction(async (tx) => {
+      await tx.delete(postingTarget).where(eq(postingTarget.clientId, clientId));
 
       if (targets.length > 0) {
-        await tx.postingTarget.createMany({
-          data: targets.map((t: any) => ({
+        await tx.insert(postingTarget).values(
+          targets.map((t: any) => ({
+            id: createId(),
             clientId,
             platform: t.platform,
             deliverableType: t.deliverableType,
             count: t.count,
             frequency: t.frequency || 'daily',
             extras: t.extras || null,
-          })),
-        });
+            updatedAt: new Date().toISOString(),
+          }))
+        );
       }
     });
 
     // Fetch the created targets
-    const created = await prisma.postingTarget.findMany({
-      where: { clientId },
-      orderBy: [{ platform: 'asc' }, { deliverableType: 'asc' }],
-    });
+    const created = await db.select().from(postingTarget)
+      .where(eq(postingTarget.clientId, clientId))
+      .orderBy(asc(postingTarget.platform), asc(postingTarget.deliverableType));
 
     return NextResponse.json({ ok: true, targets: created });
   } catch (error) {

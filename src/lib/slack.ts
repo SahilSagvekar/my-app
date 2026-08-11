@@ -1,6 +1,13 @@
 // src/lib/slack.ts
 import { WebClient } from "@slack/web-api";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import {
+  user as userTable,
+  client as clientTable,
+  slackConfig as slackConfigTable,
+  task as taskTable,
+} from "@/lib/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // Lazy-initialised Slack WebClient (for bot DMs)
@@ -110,10 +117,10 @@ function emojiForType(type: string): string {
 async function getSlackMentions(userIds: number[]): Promise<string> {
   if (!userIds || userIds.length === 0) return "";
 
-  const users = await prisma.user.findMany({
-    where: { id: { in: userIds } },
-    select: { id: true, name: true, slackUserId: true },
-  });
+  const users = await db
+    .select({ id: userTable.id, name: userTable.name, slackUserId: userTable.slackUserId })
+    .from(userTable)
+    .where(inArray(userTable.id, userIds));
 
   const mentions = users
     .map((u) => {
@@ -183,9 +190,11 @@ export async function sendSlackWebhook(
 
     // If no override, use global config (DB → env fallback)
     if (!webhookUrl) {
-      const config = await prisma.slackConfig.findFirst({
-        where: { isActive: true },
-      });
+      const [config] = await db
+        .select()
+        .from(slackConfigTable)
+        .where(eq(slackConfigTable.isActive, true))
+        .limit(1);
       webhookUrl = config?.webhookUrl || process.env.SLACK_WEBHOOK_URL;
     }
 
@@ -226,10 +235,11 @@ async function sendClientSlackWebhook(
   notification: SlackNotification
 ): Promise<boolean> {
   try {
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { slackWebhookUrl: true, slackEnabled: true, name: true },
-    });
+    const [client] = await db
+      .select({ slackWebhookUrl: clientTable.slackWebhookUrl, slackEnabled: clientTable.slackEnabled, name: clientTable.name })
+      .from(clientTable)
+      .where(eq(clientTable.id, clientId))
+      .limit(1);
 
     if (!client) {
       console.log(`[Slack Client] Client ${clientId} not found in DB`);
@@ -396,10 +406,11 @@ export async function deliverSlackNotification(
     let editorMention = "";
     const editorId = notification.payload?.editorId || notification.userId;
     if (editorId) {
-      const editor = await prisma.user.findUnique({
-        where: { id: editorId },
-        select: { slackUserId: true, name: true },
-      });
+      const [editor] = await db
+        .select({ slackUserId: userTable.slackUserId, name: userTable.name })
+        .from(userTable)
+        .where(eq(userTable.id, editorId))
+        .limit(1);
       if (editor?.slackUserId) {
         editorMention = `<@${editor.slackUserId}> `;
         console.log(
@@ -418,10 +429,11 @@ export async function deliverSlackNotification(
 
     let schedulerMention = "";
     if (isClientRejection && notification.payload?.schedulerId) {
-      const scheduler = await prisma.user.findUnique({
-        where: { id: notification.payload.schedulerId },
-        select: { slackUserId: true, name: true },
-      });
+      const [scheduler] = await db
+        .select({ slackUserId: userTable.slackUserId, name: userTable.name })
+        .from(userTable)
+        .where(eq(userTable.id, notification.payload.schedulerId))
+        .limit(1);
       if (scheduler?.slackUserId) {
         schedulerMention = ` <@${scheduler.slackUserId}>`;
         console.log(
@@ -473,10 +485,11 @@ export async function deliverSlackNotification(
     if (schedulerId) {
       try {
         const schedulerIdNum = Number(schedulerId);
-        const scheduler = await prisma.user.findUnique({
-          where: { id: schedulerIdNum },
-          select: { slackUserId: true, name: true },
-        });
+        const [scheduler] = await db
+          .select({ slackUserId: userTable.slackUserId, name: userTable.name })
+          .from(userTable)
+          .where(eq(userTable.id, schedulerIdNum))
+          .limit(1);
         if (scheduler?.slackUserId) {
           schedulerMention = `<@${scheduler.slackUserId}> `;
         } else {
@@ -494,9 +507,9 @@ export async function deliverSlackNotification(
       let approvedBy = "QC";
       if (notification.payload?.taskId) {
         try {
-          const t = await prisma.task.findUnique({
-            where: { id: notification.payload.taskId },
-            include: { client: true }
+          const t = await db.query.task.findFirst({
+            where: eq(taskTable.id, notification.payload.taskId),
+            with: { client: true },
           });
           if (t?.client?.requiresClientReview) approvedBy = "Client";
         } catch (e) {}
@@ -520,14 +533,19 @@ export async function deliverSlackNotification(
 
     if (notification.payload?.taskId) {
       try {
-        const t = await prisma.task.findUnique({
-          where: { id: notification.payload.taskId },
-          select: { title: true, scheduler: true }
-        });
+        const [t] = await db
+          .select({ title: taskTable.title, scheduler: taskTable.scheduler })
+          .from(taskTable)
+          .where(eq(taskTable.id, notification.payload.taskId))
+          .limit(1);
         if (t) {
           taskTitle = t.title || taskTitle;
           if (t.scheduler) {
-            const schedUser = await prisma.user.findUnique({ where: { id: Number(t.scheduler) } });
+            const [schedUser] = await db
+              .select()
+              .from(userTable)
+              .where(eq(userTable.id, Number(t.scheduler)))
+              .limit(1);
             if (schedUser?.slackUserId) {
               schedulerMention = `<@${schedUser.slackUserId}> `;
             } else {
@@ -559,10 +577,11 @@ export async function deliverSlackNotification(
     }
 
     let editorMention = "";
-    const editor = await prisma.user.findUnique({
-      where: { id: editorId },
-      select: { slackUserId: true, name: true },
-    });
+    const [editor] = await db
+      .select({ slackUserId: userTable.slackUserId, name: userTable.name })
+      .from(userTable)
+      .where(eq(userTable.id, editorId))
+      .limit(1);
     if (editor?.slackUserId) {
       editorMention = `<@${editor.slackUserId}> `;
     } else if (editor?.name) {

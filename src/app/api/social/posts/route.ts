@@ -1,7 +1,9 @@
 // src/app/api/social/posts/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { socialPost, socialAccount, task } from '@/lib/db/schema';
+import { and, asc, desc, eq, count, type SQL } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -24,11 +26,11 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'publishedAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
-    // Build where clause
-    const where: any = {};
+    // Build where conditions
+    const conditions: SQL[] = [];
 
     if (accountId) {
-      where.socialAccountId = accountId;
+      conditions.push(eq(socialPost.socialAccountId, accountId));
     } else if (clientId) {
       // Verify access
       const isAdmin = user.role === 'admin' || user.role === 'manager';
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Access denied' }, { status: 403 });
       }
 
-      where.socialAccount = { clientId };
+      conditions.push(eq(socialAccount.clientId, clientId));
     } else {
       return NextResponse.json(
         { error: 'Either clientId or accountId is required' },
@@ -47,55 +49,71 @@ export async function GET(req: NextRequest) {
     }
 
     if (platform) {
-      where.socialAccount = { ...where.socialAccount, platform };
+      conditions.push(eq(socialAccount.platform, platform));
     }
 
     if (taskId) {
-      where.taskId = taskId;
+      conditions.push(eq(socialPost.taskId, taskId));
     }
 
+    const whereExpr = conditions.length > 0 ? and(...conditions) : undefined;
+    const sortColumn = (socialPost as any)[sortBy] ?? socialPost.publishedAt;
+    const orderExpr = sortOrder === 'asc' ? asc(sortColumn) : desc(sortColumn);
+
     // Get posts
-    const [posts, total] = await Promise.all([
-      prisma.socialPost.findMany({
-        where,
-        include: {
-          socialAccount: {
-            select: {
-              id: true,
-              platform: true,
-              platformName: true,
-              profileImage: true,
-            },
-          },
-          task: {
-            select: {
-              id: true,
-              title: true,
-              status: true,
-            },
-          },
-        },
-        orderBy: { [sortBy]: sortOrder },
-        take: limit,
-        skip: offset,
-      }),
-      prisma.socialPost.count({ where }),
+    const [postsRaw, totalRows] = await Promise.all([
+      db.select({
+        id: socialPost.id,
+        platformPostId: socialPost.platformPostId,
+        postType: socialPost.postType,
+        title: socialPost.title,
+        description: socialPost.description,
+        thumbnailUrl: socialPost.thumbnailUrl,
+        postUrl: socialPost.postUrl,
+        publishedAt: socialPost.publishedAt,
+        views: socialPost.views,
+        likes: socialPost.likes,
+        comments: socialPost.comments,
+        shares: socialPost.shares,
+        saves: socialPost.saves,
+        watchTime: socialPost.watchTime,
+        engagementRate: socialPost.engagementRate,
+        taskId: socialPost.taskId,
+        accountPlatform: socialAccount.platform,
+        accountPlatformName: socialAccount.platformName,
+        accountProfileImage: socialAccount.profileImage,
+        taskTitle: task.title,
+        taskStatus: task.status,
+      })
+        .from(socialPost)
+        .innerJoin(socialAccount, eq(socialPost.socialAccountId, socialAccount.id))
+        .leftJoin(task, eq(socialPost.taskId, task.id))
+        .where(whereExpr)
+        .orderBy(orderExpr)
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() })
+        .from(socialPost)
+        .innerJoin(socialAccount, eq(socialPost.socialAccountId, socialAccount.id))
+        .where(whereExpr),
     ]);
+
+    const total = Number(totalRows[0]?.count ?? 0);
 
     return NextResponse.json({
       ok: true,
-      posts: posts.map(post => ({
+      posts: postsRaw.map(post => ({
         id: post.id,
-        platform: post.socialAccount.platform,
-        platformName: post.socialAccount.platformName,
-        accountImage: post.socialAccount.profileImage,
+        platform: post.accountPlatform,
+        platformName: post.accountPlatformName,
+        accountImage: post.accountProfileImage,
         platformPostId: post.platformPostId,
         postType: post.postType,
         title: post.title,
         description: post.description,
         thumbnailUrl: post.thumbnailUrl,
         postUrl: post.postUrl,
-        publishedAt: post.publishedAt.toISOString(),
+        publishedAt: new Date(post.publishedAt).toISOString(),
         views: post.views,
         likes: post.likes,
         comments: post.comments,
@@ -103,7 +121,7 @@ export async function GET(req: NextRequest) {
         saves: post.saves,
         watchTime: post.watchTime,
         engagementRate: post.engagementRate,
-        task: post.task,
+        task: post.taskId ? { id: post.taskId, title: post.taskTitle, status: post.taskStatus } : null,
       })),
       pagination: {
         total,
@@ -140,31 +158,26 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify access to post
-    const post = await prisma.socialPost.findUnique({
-      where: { id: postId },
-      include: {
-        socialAccount: {
-          select: { clientId: true },
-        },
-      },
-    });
+    const [postRow] = await db.select({ id: socialPost.id, clientId: socialAccount.clientId })
+      .from(socialPost)
+      .innerJoin(socialAccount, eq(socialPost.socialAccountId, socialAccount.id))
+      .where(eq(socialPost.id, postId))
+      .limit(1);
 
-    if (!post) {
+    if (!postRow) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
     // Verify access to task
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      select: { clientId: true },
-    });
+    const [taskRow] = await db.select({ clientId: task.clientId }).from(task)
+      .where(eq(task.id, taskId)).limit(1);
 
-    if (!task) {
+    if (!taskRow) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
     // Verify same client
-    if (post.socialAccount.clientId !== task.clientId) {
+    if (postRow.clientId !== taskRow.clientId) {
       return NextResponse.json(
         { error: 'Post and task must belong to the same client' },
         { status: 400 }
@@ -173,29 +186,27 @@ export async function POST(req: NextRequest) {
 
     // Verify user access
     const isAdmin = user.role === 'admin' || user.role === 'manager';
-    const isLinkedClient = user.linkedClientId === task.clientId;
+    const isLinkedClient = user.linkedClientId === taskRow.clientId;
 
     if (!isAdmin && !isLinkedClient) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     // Link post to task
-    const updated = await prisma.socialPost.update({
-      where: { id: postId },
-      data: { taskId },
-      include: {
-        task: {
-          select: { id: true, title: true },
-        },
-      },
-    });
+    const [updated] = await db.update(socialPost)
+      .set({ taskId, updatedAt: new Date().toISOString() })
+      .where(eq(socialPost.id, postId))
+      .returning({ id: socialPost.id, taskId: socialPost.taskId });
+
+    const [taskInfo] = await db.select({ id: task.id, title: task.title }).from(task)
+      .where(eq(task.id, taskId)).limit(1);
 
     return NextResponse.json({
       ok: true,
       post: {
         id: updated.id,
         taskId: updated.taskId,
-        task: updated.task,
+        task: taskInfo ?? null,
       },
     });
   } catch (error: any) {
@@ -223,31 +234,27 @@ export async function DELETE(req: NextRequest) {
     }
 
     // Verify access
-    const post = await prisma.socialPost.findUnique({
-      where: { id: postId },
-      include: {
-        socialAccount: {
-          select: { clientId: true },
-        },
-      },
-    });
+    const [post] = await db.select({ id: socialPost.id, clientId: socialAccount.clientId })
+      .from(socialPost)
+      .innerJoin(socialAccount, eq(socialPost.socialAccountId, socialAccount.id))
+      .where(eq(socialPost.id, postId))
+      .limit(1);
 
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
     const isAdmin = user.role === 'admin' || user.role === 'manager';
-    const isLinkedClient = user.linkedClientId === post.socialAccount.clientId;
+    const isLinkedClient = user.linkedClientId === post.clientId;
 
     if (!isAdmin && !isLinkedClient) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
     // Unlink
-    await prisma.socialPost.update({
-      where: { id: postId },
-      data: { taskId: null },
-    });
+    await db.update(socialPost)
+      .set({ taskId: null, updatedAt: new Date().toISOString() })
+      .where(eq(socialPost.id, postId));
 
     return NextResponse.json({
       ok: true,

@@ -5,7 +5,9 @@ export const dynamic = 'force-dynamic';
 // This is the "Option 1" flow — no OAuth app verification needed.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { socialAccount } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
 import { getCurrentUser2 } from '@/lib/auth';
 import { encrypt } from '@/lib/encryption';
 
@@ -160,44 +162,43 @@ export async function POST(req: NextRequest) {
     }
 
     // Save to DB — same upsert as the OAuth callback
-    const account = await prisma.socialAccount.upsert({
-      where: {
-        clientId_platform_platformId: {
-          clientId,
-          platform,
-          platformId: accountInfo.id,
-        },
-      },
-      create: {
-        clientId,
-        platform,
-        platformId: accountInfo.id,
+    const encryptedAccessToken = encrypt(accessToken);
+    const encryptedRefreshToken = storedRefreshToken ? encrypt(storedRefreshToken) : null;
+    const tokenExpiryIso = tokenExpiry ? tokenExpiry.toISOString() : null;
+
+    const [account] = await db.insert(socialAccount).values({
+      id: createId(),
+      clientId,
+      platform,
+      platformId: accountInfo.id,
+      platformName: accountInfo.name,
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
+      tokenExpiry: tokenExpiryIso,
+      profileUrl: accountInfo.url || null,
+      profileImage: accountInfo.image || null,
+      followerCount: accountInfo.followers || 0,
+      isActive: true,
+      updatedAt: new Date().toISOString(),
+    }).onConflictDoUpdate({
+      target: [socialAccount.clientId, socialAccount.platform, socialAccount.platformId],
+      set: {
         platformName: accountInfo.name,
-        accessToken: encrypt(accessToken),
-        refreshToken: storedRefreshToken ? encrypt(storedRefreshToken) : null,
-        tokenExpiry,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
+        tokenExpiry: tokenExpiryIso,
         profileUrl: accountInfo.url || null,
         profileImage: accountInfo.image || null,
         followerCount: accountInfo.followers || 0,
         isActive: true,
+        updatedAt: new Date().toISOString(),
       },
-      update: {
-        platformName: accountInfo.name,
-        accessToken: encrypt(accessToken),
-        refreshToken: storedRefreshToken ? encrypt(storedRefreshToken) : null,
-        tokenExpiry,
-        profileUrl: accountInfo.url || null,
-        profileImage: accountInfo.image || null,
-        followerCount: accountInfo.followers || 0,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        platform: true,
-        platformName: true,
-        followerCount: true,
-        profileImage: true,
-      },
+    }).returning({
+      id: socialAccount.id,
+      platform: socialAccount.platform,
+      platformName: socialAccount.platformName,
+      followerCount: socialAccount.followerCount,
+      profileImage: socialAccount.profileImage,
     });
 
     return NextResponse.json({

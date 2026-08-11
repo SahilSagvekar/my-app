@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/activity-records/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { auditLog as auditLogTable, user as userTable } from '@/lib/db/schema';
+import { and, eq, gte, lte, notInArray, ilike, desc } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { startOfDay, endOfDay, parseISO } from 'date-fns';
 
@@ -30,33 +32,22 @@ export async function GET(req: NextRequest) {
         const targetDate = dateStr ? parseISO(dateStr) : new Date();
 
         // Activity Records are specifically for non-admin/non-client
-        const activityLogs = await prisma.auditLog.findMany({
-            where: {
-                timestamp: {
-                    gte: startOfDay(targetDate),
-                    lte: endOfDay(targetDate),
-                },
-                User: {
-                    role: {
-                        notIn: ['admin', 'client'],
-                        ...(role && role !== 'all' ? { equals: role as any } : {})
-                    },
-                    ...(search ? {
-                        name: { contains: search, mode: 'insensitive' }
-                    } : {})
-                }
-            },
-            include: {
-                User: {
-                    select: {
-                        name: true,
-                        role: true,
-                        email: true
-                    }
-                }
-            },
-            orderBy: { timestamp: 'desc' }
-        });
+        const rows = await db.select({
+            log: auditLogTable,
+            User: { name: userTable.name, role: userTable.role, email: userTable.email },
+        })
+            .from(auditLogTable)
+            .innerJoin(userTable, eq(auditLogTable.userId, userTable.id))
+            .where(and(
+                gte(auditLogTable.timestamp, startOfDay(targetDate).toISOString()),
+                lte(auditLogTable.timestamp, endOfDay(targetDate).toISOString()),
+                notInArray(userTable.role, ['admin', 'client'] as any),
+                role && role !== 'all' ? eq(userTable.role, role as any) : undefined,
+                search ? ilike(userTable.name, `%${search}%`) : undefined,
+            ))
+            .orderBy(desc(auditLogTable.timestamp));
+
+        const activityLogs = rows.map(r => ({ ...r.log, User: r.User }));
 
         // Format logs for the UI
         const formattedLogs = activityLogs.map(log => {

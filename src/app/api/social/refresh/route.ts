@@ -2,7 +2,9 @@
 // Refresh OAuth tokens for social accounts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { socialAccount } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { encrypt, decrypt } from '@/lib/encryption';
 
@@ -44,18 +46,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Get account
-    const account = await prisma.socialAccount.findUnique({
-      where: { id: accountId },
-      select: {
-        id: true,
-        clientId: true,
-        platform: true,
-        platformName: true,
-        refreshToken: true,
-        accessToken: true,
-        tokenExpiry: true,
-      },
-    });
+    const [account] = await db.select({
+      id: socialAccount.id,
+      clientId: socialAccount.clientId,
+      platform: socialAccount.platform,
+      platformName: socialAccount.platformName,
+      refreshToken: socialAccount.refreshToken,
+      accessToken: socialAccount.accessToken,
+      tokenExpiry: socialAccount.tokenExpiry,
+    }).from(socialAccount).where(eq(socialAccount.id, accountId)).limit(1);
 
     if (!account) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
@@ -111,13 +110,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await prisma.socialAccount.update({
-        where: { id: accountId },
-        data: {
+      await db.update(socialAccount)
+        .set({
           accessToken: encrypt(data.access_token),
-          tokenExpiry: new Date(Date.now() + data.expires_in * 1000),
-        },
-      });
+          tokenExpiry: new Date(Date.now() + data.expires_in * 1000).toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(socialAccount.id, accountId));
 
       return NextResponse.json({
         ok: true,
@@ -168,18 +167,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Update tokens
-    await prisma.socialAccount.update({
-      where: { id: accountId },
-      data: {
+    await db.update(socialAccount)
+      .set({
         accessToken: encrypt(data.access_token),
-        refreshToken: data.refresh_token 
-          ? encrypt(data.refresh_token) 
+        refreshToken: data.refresh_token
+          ? encrypt(data.refresh_token)
           : account.refreshToken,
         tokenExpiry: data.expires_in
-          ? new Date(Date.now() + data.expires_in * 1000)
+          ? new Date(Date.now() + data.expires_in * 1000).toISOString()
           : null,
-      },
-    });
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(socialAccount.id, accountId));
 
     console.log(`[TOKEN REFRESH] Successfully refreshed ${account.platform}: ${account.platformName}`);
 
@@ -220,17 +219,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const accounts = await prisma.socialAccount.findMany({
-      where: { clientId },
-      select: {
-        id: true,
-        platform: true,
-        platformName: true,
-        tokenExpiry: true,
-        isActive: true,
-        refreshToken: true,
-      },
-    });
+    const accounts = await db.select({
+      id: socialAccount.id,
+      platform: socialAccount.platform,
+      platformName: socialAccount.platformName,
+      tokenExpiry: socialAccount.tokenExpiry,
+      isActive: socialAccount.isActive,
+      refreshToken: socialAccount.refreshToken,
+    }).from(socialAccount).where(eq(socialAccount.clientId, clientId));
 
     const now = Date.now();
     const oneHour = 60 * 60 * 1000;
@@ -239,11 +235,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       accounts: accounts.map(a => {
-        const expiry = a.tokenExpiry?.getTime() || 0;
+        const expiry = a.tokenExpiry ? new Date(a.tokenExpiry).getTime() : 0;
         const hasRefreshToken = !!a.refreshToken;
-        
+
         let status: 'valid' | 'expiring_soon' | 'expired' | 'unknown' = 'unknown';
-        
+
         if (!a.tokenExpiry) {
           status = 'unknown';
         } else if (expiry < now) {
@@ -261,7 +257,7 @@ export async function GET(req: NextRequest) {
           isActive: a.isActive,
           tokenStatus: status,
           canRefresh: hasRefreshToken,
-          expiresAt: a.tokenExpiry?.toISOString(),
+          expiresAt: a.tokenExpiry ? new Date(a.tokenExpiry).toISOString() : undefined,
         };
       }),
     });

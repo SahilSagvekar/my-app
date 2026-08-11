@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // Toggle isTrial on client and bulk update all tasks for that client
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client, monthlyDeliverable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function PATCH(
   request: NextRequest,
@@ -22,26 +24,27 @@ export async function PATCH(
     }
 
     // Update client
-    const updatedClient = await prisma.client.update({
-      where: { id: clientId },
-      data: { isTrial },
-      select: { id: true, isTrial: true, companyName: true, name: true },
+    const [updatedClient] = await db.update(client).set({
+      isTrial,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(client.id, clientId)).returning({
+      id: client.id, isTrial: client.isTrial, companyName: client.companyName, name: client.name,
     });
 
     // Bulk update all monthly deliverables for this client
-    const updateResult = await prisma.monthlyDeliverable.updateMany({
-      where: { clientId },
-      data: { isTrial },
-    });
+    const updateResult = await db.update(monthlyDeliverable).set({
+      isTrial,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(monthlyDeliverable.clientId, clientId)).returning({ id: monthlyDeliverable.id });
 
     console.log(
-      `✅ Client ${updatedClient.companyName || updatedClient.name} trial=${isTrial}, ${updateResult.count} deliverables updated`
+      `✅ Client ${updatedClient.companyName || updatedClient.name} trial=${isTrial}, ${updateResult.length} deliverables updated`
     );
 
     return NextResponse.json({
       success: true,
       client: updatedClient,
-      deliverablesUpdated: updateResult.count,
+      deliverablesUpdated: updateResult.length,
     });
   } catch (error: any) {
     console.error('Toggle client trial error:', error);

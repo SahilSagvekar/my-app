@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { leave } from "@/lib/db/schema";
+import { and, eq, gte, lte, desc } from "drizzle-orm";
 import { z } from "zod";
 import { isEmployee } from "@/lib/auth";
 import { countWorkingDaysBetween } from "@/lib/workdays";
@@ -72,26 +74,25 @@ export async function GET(
     const year = url.searchParams.get("year");
     const month = url.searchParams.get("month");
 
-    let where: any = { employeeId };
+    const conditions = [eq(leave.employeeId, employeeId)];
 
     if (year && month) {
       const y = Number(year);
       const m = Number(month);
       const start = new Date(Date.UTC(y, m - 1, 1));
       const end = new Date(Date.UTC(y, m, 0));
-      where.startDate = {
-        gte: start,
-        lte: end,
-      };
+      conditions.push(gte(leave.startDate, start.toISOString()));
+      conditions.push(lte(leave.startDate, end.toISOString()));
     }
 
-    const leaves = await prisma.leave.findMany({
-      where,
-      orderBy: { startDate: "desc" },
-      include: {
-        deduction: true,
+    const rawLeaves = await db.query.leave.findMany({
+      where: and(...conditions),
+      orderBy: desc(leave.startDate),
+      with: {
+        deductions: true,
       },
     });
+    const leaves = rawLeaves.map(({ deductions, ...l }: any) => ({ ...l, deduction: deductions?.[0] ?? null }));
 
     return NextResponse.json({ ok: true, leaves });
   } catch (err: any) {

@@ -1,5 +1,7 @@
 // src/lib/storage-service.ts
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getS3, BUCKET } from '@/lib/s3';
 import { sendStorageAlertEmail } from '@/lib/email';
@@ -48,10 +50,11 @@ export function formatBytes(bytes: number): string {
  */
 export async function calculateClientRawFootageStorage(clientId: string): Promise<number> {
   try {
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { companyName: true, name: true }
-    });
+    const [client] = await db
+      .select({ companyName: clientTable.companyName, name: clientTable.name })
+      .from(clientTable)
+      .where(eq(clientTable.id, clientId))
+      .limit(1);
 
     if (!client) {
       console.error(`Client not found: ${clientId}`);
@@ -94,10 +97,11 @@ export async function calculateClientRawFootageStorage(clientId: string): Promis
  */
 export async function getClientStorageInfo(clientId: string): Promise<StorageInfo> {
   try {
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { rawFootageStorageLimit: true },
-    });
+    const [client] = await db
+      .select({ rawFootageStorageLimit: clientTable.rawFootageStorageLimit })
+      .from(clientTable)
+      .where(eq(clientTable.id, clientId))
+      .limit(1);
 
     // Always calculate actual storage from S3
     const actualUsed = await calculateClientRawFootageStorage(clientId);
@@ -137,20 +141,21 @@ export async function updateClientStorageAfterUpload(
   fileSize: number
 ): Promise<{ allowed: boolean; storageInfo: StorageInfo; message?: string }> {
   
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: {
-      id: true,
-      name: true,
-      companyName: true,
-      email: true,
-      emails: true,
-      rawFootageStorageUsed: true,
-      rawFootageStorageLimit: true,
-      storageAlert90Sent: true,
-      storageAlert95Sent: true,
-    }
-  });
+  const [client] = await db
+    .select({
+      id: clientTable.id,
+      name: clientTable.name,
+      companyName: clientTable.companyName,
+      email: clientTable.email,
+      emails: clientTable.emails,
+      rawFootageStorageUsed: clientTable.rawFootageStorageUsed,
+      rawFootageStorageLimit: clientTable.rawFootageStorageLimit,
+      storageAlert90Sent: clientTable.storageAlert90Sent,
+      storageAlert95Sent: clientTable.storageAlert95Sent,
+    })
+    .from(clientTable)
+    .where(eq(clientTable.id, clientId))
+    .limit(1);
 
   if (!client) {
     return {
@@ -193,12 +198,13 @@ export async function updateClientStorageAfterUpload(
   }
 
   // Update storage used
-  await prisma.client.update({
-    where: { id: clientId },
-    data: {
+  await db
+    .update(clientTable)
+    .set({
       rawFootageStorageUsed: newUsed,
-    }
-  });
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(clientTable.id, clientId));
 
   // Check and send alerts
   const emails = [client.email, ...(client.emails || [])].filter(Boolean);
@@ -206,10 +212,10 @@ export async function updateClientStorageAfterUpload(
 
   // 95% alert
   if (newPercentage >= 95 && !client.storageAlert95Sent) {
-    await prisma.client.update({
-      where: { id: clientId },
-      data: { storageAlert95Sent: true }
-    });
+    await db
+      .update(clientTable)
+      .set({ storageAlert95Sent: true, updatedAt: new Date().toISOString() })
+      .where(eq(clientTable.id, clientId));
     
     // Send 95% alert email
     await sendStorageAlertEmail({
@@ -224,10 +230,10 @@ export async function updateClientStorageAfterUpload(
   }
   // 90% alert
   else if (newPercentage >= 90 && !client.storageAlert90Sent) {
-    await prisma.client.update({
-      where: { id: clientId },
-      data: { storageAlert90Sent: true }
-    });
+    await db
+      .update(clientTable)
+      .set({ storageAlert90Sent: true, updatedAt: new Date().toISOString() })
+      .where(eq(clientTable.id, clientId));
     
     // Send 90% alert email
     await sendStorageAlertEmail({
@@ -263,23 +269,25 @@ export async function updateClientStorageAfterDelete(
   clientId: string, 
   fileSize: number
 ): Promise<void> {
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: { rawFootageStorageUsed: true }
-  });
+  const [client] = await db
+    .select({ rawFootageStorageUsed: clientTable.rawFootageStorageUsed })
+    .from(clientTable)
+    .where(eq(clientTable.id, clientId))
+    .limit(1);
 
   const currentUsed = Number(client?.rawFootageStorageUsed || 0);
   const newUsed = Math.max(0, currentUsed - fileSize);
 
-  await prisma.client.update({
-    where: { id: clientId },
-    data: {
+  await db
+    .update(clientTable)
+    .set({
       rawFootageStorageUsed: newUsed,
       // Reset alerts if storage drops below thresholds
       storageAlert90Sent: newUsed >= (DEFAULT_STORAGE_LIMIT * 0.90),
       storageAlert95Sent: newUsed >= (DEFAULT_STORAGE_LIMIT * 0.95),
-    }
-  });
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(clientTable.id, clientId));
 }
 
 /**
@@ -289,11 +297,12 @@ export async function recalculateClientStorage(clientId: string): Promise<Storag
   try {
     const actualUsed = await calculateClientRawFootageStorage(clientId);
     
-    const client = await prisma.client.findUnique({
-      where: { id: clientId },
-      select: { id: true }
-    });
-    
+    const [client] = await db
+      .select({ id: clientTable.id })
+      .from(clientTable)
+      .where(eq(clientTable.id, clientId))
+      .limit(1);
+
     if (!client) {
       return {
         used: 0,
@@ -312,15 +321,16 @@ export async function recalculateClientStorage(clientId: string): Promise<Storag
 
     // Try to update storage fields if they exist
     try {
-      await prisma.client.update({
-        where: { id: clientId },
-        data: {
+      await db
+        .update(clientTable)
+        .set({
           rawFootageStorageUsed: actualUsed,
-          storageLastCalculated: new Date(),
+          storageLastCalculated: new Date().toISOString(),
           storageAlert90Sent: percentage >= 90,
           storageAlert95Sent: percentage >= 95,
-        }
-      });
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(clientTable.id, clientId));
     } catch {
       // Fields don't exist yet - that's okay, just return the calculated values
       console.warn('Could not update storage fields (they may not exist yet)');

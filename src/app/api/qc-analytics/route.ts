@@ -1,13 +1,18 @@
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
-import { prisma } from "@/lib/prisma";
-import { TaskStatus } from "@prisma/client";
-import { Decimal } from "@prisma/client/runtime/library";
+import { db } from "@/lib/db";
+import { task, qcMonthlyTrend, qcRejectionReason, qcAchievement } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, gte, lte, inArray, isNull, isNotNull, count, desc } from "drizzle-orm";
 import { cached } from "@/lib/redis";
+
+const TaskStatus = {
+  COMPLETED: "COMPLETED",
+  REJECTED: "REJECTED",
+} as const;
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -96,93 +101,84 @@ async function getAnalytics(
   // -------------------------------------------------------------------------
   // BATCH 1: Get all task stats grouped by status and category
   // -------------------------------------------------------------------------
-  const taskStatsByStatusAndCategory = await prisma.task.groupBy({
-    by: ["status", "taskCategory"],
-    where: {
-      qc_specialist: qcSpecialistId,
-      status: { in: [TaskStatus.COMPLETED, TaskStatus.REJECTED] },
-      updatedAt: { gte: startDate, lte: endDate },
-    },
-    _count: {
-      _all: true,
-    },
-  });
+  const taskStatsByStatusAndCategory = await db
+    .select({ status: task.status, taskCategory: task.taskCategory, _count: count() })
+    .from(task)
+    .where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      gte(task.updatedAt, startDate.toISOString()),
+      lte(task.updatedAt, endDate.toISOString()),
+    ))
+    .groupBy(task.status, task.taskCategory);
 
   // -------------------------------------------------------------------------
   // BATCH 2: Get weekly stats separately (different date range)
   // -------------------------------------------------------------------------
-  const weeklyStats = await prisma.task.groupBy({
-    by: ["status"],
-    where: {
-      qc_specialist: qcSpecialistId,
-      status: { in: [TaskStatus.COMPLETED, TaskStatus.REJECTED] },
-      updatedAt: { gte: weekRange.startDate, lte: weekRange.endDate },
-    },
-    _count: {
-      _all: true,
-    },
-  });
+  const weeklyStats = await db
+    .select({ status: task.status, _count: count() })
+    .from(task)
+    .where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      gte(task.updatedAt, weekRange.startDate.toISOString()),
+      lte(task.updatedAt, weekRange.endDate.toISOString()),
+    ))
+    .groupBy(task.status);
 
   // -------------------------------------------------------------------------
   // BATCH 3: Get first-pass count (approved without QC notes = no revisions)
   // -------------------------------------------------------------------------
-  const [firstPassCount, weeklyFirstPassCount] = await Promise.all([
-    prisma.task.count({
-      where: {
-        qc_specialist: qcSpecialistId,
-        status: TaskStatus.COMPLETED,
-        qcNotes: null, // No QC notes means approved on first pass
-        updatedAt: { gte: startDate, lte: endDate },
-      },
-    }),
-    prisma.task.count({
-      where: {
-        qc_specialist: qcSpecialistId,
-        status: TaskStatus.COMPLETED,
-        qcNotes: null,
-        updatedAt: { gte: weekRange.startDate, lte: weekRange.endDate },
-      },
-    }),
+  const [[firstPassCountRow], [weeklyFirstPassCountRow]] = await Promise.all([
+    db.select({ value: count() }).from(task).where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      eq(task.status, TaskStatus.COMPLETED),
+      isNull(task.qcNotes), // No QC notes means approved on first pass
+      gte(task.updatedAt, startDate.toISOString()),
+      lte(task.updatedAt, endDate.toISOString()),
+    )),
+    db.select({ value: count() }).from(task).where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      eq(task.status, TaskStatus.COMPLETED),
+      isNull(task.qcNotes),
+      gte(task.updatedAt, weekRange.startDate.toISOString()),
+      lte(task.updatedAt, weekRange.endDate.toISOString()),
+    )),
   ]);
+  const firstPassCount = firstPassCountRow.value;
+  const weeklyFirstPassCount = weeklyFirstPassCountRow.value;
 
   // -------------------------------------------------------------------------
   // BATCH 4: Get sample of completed tasks for average review time calculation
   // NOTE: This calculates total task lifetime (createdAt to updatedAt).
   // For accurate QC review time, consider adding qcStartedAt field to Task.
   // -------------------------------------------------------------------------
-  const recentCompletedTasks = await prisma.task.findMany({
-    where: {
-      qc_specialist: qcSpecialistId,
-      status: { in: [TaskStatus.COMPLETED, TaskStatus.REJECTED] },
-      updatedAt: { gte: startDate, lte: endDate },
-    },
-    select: {
-      createdAt: true,
-      updatedAt: true,
-    },
-    take: 100, // Sample for performance
-    orderBy: { updatedAt: "desc" },
-  });
+  const recentCompletedTasks = await db
+    .select({ createdAt: task.createdAt, updatedAt: task.updatedAt })
+    .from(task)
+    .where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      gte(task.updatedAt, startDate.toISOString()),
+      lte(task.updatedAt, endDate.toISOString()),
+    ))
+    .orderBy(desc(task.updatedAt))
+    .limit(100); // Sample for performance
 
   // -------------------------------------------------------------------------
   // BATCH 5: Get monthly trends, rejection reasons, and achievements in parallel
   // -------------------------------------------------------------------------
   const [monthlyTrends, rejectionReasons, achievements] = await Promise.all([
-    prisma.qCMonthlyTrend.findMany({
-      where: {
-        qcSpecialistId,
-      },
-      orderBy: [{ year: "desc" }, { month: "desc" }],
-      take: 6,
-    }),
-    prisma.qCRejectionReason.findMany({
-      where: { qcSpecialistId },
-      orderBy: { caseCount: "desc" },
-      take: 5,
-    }),
-    prisma.qCAchievement.findMany({
-      where: { qcSpecialistId },
-    }),
+    db.select().from(qcMonthlyTrend)
+      .where(eq(qcMonthlyTrend.qcSpecialistId, qcSpecialistId))
+      .orderBy(desc(qcMonthlyTrend.year), desc(qcMonthlyTrend.month))
+      .limit(6),
+    db.select().from(qcRejectionReason)
+      .where(eq(qcRejectionReason.qcSpecialistId, qcSpecialistId))
+      .orderBy(desc(qcRejectionReason.caseCount))
+      .limit(5),
+    db.select().from(qcAchievement)
+      .where(eq(qcAchievement.qcSpecialistId, qcSpecialistId)),
   ]);
 
   // -------------------------------------------------------------------------
@@ -201,18 +197,18 @@ async function getAnalytics(
     };
 
   for (const stat of taskStatsByStatusAndCategory) {
-    const count = stat._count._all;
+    const statCount = stat._count;
     const category = stat.taskCategory?.toLowerCase() || "other";
 
     if (stat.status === TaskStatus.COMPLETED) {
-      totalApproved += count;
+      totalApproved += statCount;
       if (categoryStats[category]) {
-        categoryStats[category].approved += count;
+        categoryStats[category].approved += statCount;
       }
     } else if (stat.status === TaskStatus.REJECTED) {
-      totalRejected += count;
+      totalRejected += statCount;
       if (categoryStats[category]) {
-        categoryStats[category].rejected += count;
+        categoryStats[category].rejected += statCount;
       }
     }
   }
@@ -249,9 +245,9 @@ async function getAnalytics(
 
   for (const stat of weeklyStats) {
     if (stat.status === TaskStatus.COMPLETED) {
-      weeklyApproved += stat._count._all;
+      weeklyApproved += stat._count;
     } else if (stat.status === TaskStatus.REJECTED) {
-      weeklyRejected += stat._count._all;
+      weeklyRejected += stat._count;
     }
   }
 
@@ -464,19 +460,16 @@ async function refreshAnalytics(qcSpecialistId: number): Promise<void> {
 
 // Extract and track rejection reasons
 async function updateRejectionReasons(qcSpecialistId: number): Promise<void> {
-  const rejectedTasks = await prisma.task.findMany({
-    where: {
-      qc_specialist: qcSpecialistId,
-      status: TaskStatus.REJECTED,
-      qcNotes: { not: null },
-    },
-    select: {
-      id: true,
-      qcNotes: true,
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 100,
-  });
+  const rejectedTasks = await db
+    .select({ id: task.id, qcNotes: task.qcNotes })
+    .from(task)
+    .where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      eq(task.status, TaskStatus.REJECTED),
+      isNotNull(task.qcNotes),
+    ))
+    .orderBy(desc(task.updatedAt))
+    .limit(100);
 
   // Keywords to track
   const keywords: Record<string, string[]> = {
@@ -510,22 +503,19 @@ async function updateRejectionReasons(qcSpecialistId: number): Promise<void> {
 
     if (matchCount > 0) {
       upsertOps.push(
-        prisma.qCRejectionReason.upsert({
-          where: {
-            qcSpecialistId_reason: {
-              qcSpecialistId,
-              reason: reasonName,
-            },
-          },
-          create: {
-            qcSpecialistId,
-            reason: reasonName,
+        db.insert(qcRejectionReason).values({
+          id: createId(),
+          qcSpecialistId,
+          reason: reasonName,
+          caseCount: matchCount,
+          taskIds: matchedTaskIds,
+          lastOccurrence: new Date().toISOString(),
+        }).onConflictDoUpdate({
+          target: [qcRejectionReason.qcSpecialistId, qcRejectionReason.reason],
+          set: {
             caseCount: matchCount,
             taskIds: matchedTaskIds,
-          },
-          update: {
-            caseCount: matchCount,
-            taskIds: matchedTaskIds,
+            lastOccurrence: new Date().toISOString(),
           },
         })
       );
@@ -548,44 +538,41 @@ async function updateMonthlyTrend(
   const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
 
   // Get all stats in one query
-  const stats = await prisma.task.groupBy({
-    by: ["status"],
-    where: {
-      qc_specialist: qcSpecialistId,
-      status: { in: [TaskStatus.COMPLETED, TaskStatus.REJECTED] },
-      updatedAt: { gte: monthStart, lte: monthEnd },
-    },
-    _count: {
-      _all: true,
-    },
-  });
+  const stats = await db
+    .select({ status: task.status, _count: count() })
+    .from(task)
+    .where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      gte(task.updatedAt, monthStart.toISOString()),
+      lte(task.updatedAt, monthEnd.toISOString()),
+    ))
+    .groupBy(task.status);
 
   let approvedCount = 0;
   let rejectedCount = 0;
 
   for (const stat of stats) {
     if (stat.status === TaskStatus.COMPLETED) {
-      approvedCount = stat._count._all;
+      approvedCount = stat._count;
     } else if (stat.status === TaskStatus.REJECTED) {
-      rejectedCount = stat._count._all;
+      rejectedCount = stat._count;
     }
   }
 
   const totalReviews = approvedCount + rejectedCount;
 
   // Get average review time from sample
-  const sampleTasks = await prisma.task.findMany({
-    where: {
-      qc_specialist: qcSpecialistId,
-      status: { in: [TaskStatus.COMPLETED, TaskStatus.REJECTED] },
-      updatedAt: { gte: monthStart, lte: monthEnd },
-    },
-    select: {
-      createdAt: true,
-      updatedAt: true,
-    },
-    take: 50,
-  });
+  const sampleTasks = await db
+    .select({ createdAt: task.createdAt, updatedAt: task.updatedAt })
+    .from(task)
+    .where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      gte(task.updatedAt, monthStart.toISOString()),
+      lte(task.updatedAt, monthEnd.toISOString()),
+    ))
+    .limit(50);
 
   let avgTime = 0;
   if (sampleTasks.length > 0) {
@@ -604,30 +591,25 @@ async function updateMonthlyTrend(
       ? parseFloat(((approvedCount / totalReviews) * 100).toFixed(1))
       : 0;
 
-  await prisma.qCMonthlyTrend.upsert({
-    where: {
-      qcSpecialistId_year_month: {
-        qcSpecialistId,
-        year,
-        month,
-      },
-    },
-    create: {
-      qcSpecialistId,
-      year,
-      month,
+  // numeric() columns are typed `string` in drizzle — wrap values in String().
+  await db.insert(qcMonthlyTrend).values({
+    id: createId(),
+    qcSpecialistId,
+    year,
+    month,
+    reviewCount: totalReviews,
+    approvedCount,
+    rejectedCount,
+    avgReviewTime: String(avgTime),
+    approvalRate: String(approvalRate),
+  }).onConflictDoUpdate({
+    target: [qcMonthlyTrend.qcSpecialistId, qcMonthlyTrend.year, qcMonthlyTrend.month],
+    set: {
       reviewCount: totalReviews,
       approvedCount,
       rejectedCount,
-      avgReviewTime: new Decimal(avgTime.toString()),
-      approvalRate: new Decimal(approvalRate.toString()),
-    },
-    update: {
-      reviewCount: totalReviews,
-      approvedCount,
-      rejectedCount,
-      avgReviewTime: new Decimal(avgTime.toString()),
-      approvalRate: new Decimal(approvalRate.toString()),
+      avgReviewTime: String(avgTime),
+      approvalRate: String(approvalRate),
     },
   });
 }
@@ -638,34 +620,32 @@ async function updateAchievements(qcSpecialistId: number): Promise<void> {
   const { startDate: weekStart, endDate: weekEnd } = getDateRange("week");
 
   // Get monthly and weekly stats in parallel
-  const [monthlyStats, weeklyCount] = await Promise.all([
-    prisma.task.groupBy({
-      by: ["status"],
-      where: {
-        qc_specialist: qcSpecialistId,
-        status: { in: [TaskStatus.COMPLETED, TaskStatus.REJECTED] },
-        updatedAt: { gte: monthStart, lte: monthEnd },
-      },
-      _count: {
-        _all: true,
-      },
-    }),
-    prisma.task.count({
-      where: {
-        qc_specialist: qcSpecialistId,
-        status: { in: [TaskStatus.COMPLETED, TaskStatus.REJECTED] },
-        updatedAt: { gte: weekStart, lte: weekEnd },
-      },
-    }),
+  const [monthlyStats, [weeklyCountRow]] = await Promise.all([
+    db.select({ status: task.status, _count: count() })
+      .from(task)
+      .where(and(
+        eq(task.qcSpecialist, qcSpecialistId),
+        inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+        gte(task.updatedAt, monthStart.toISOString()),
+        lte(task.updatedAt, monthEnd.toISOString()),
+      ))
+      .groupBy(task.status),
+    db.select({ value: count() }).from(task).where(and(
+      eq(task.qcSpecialist, qcSpecialistId),
+      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      gte(task.updatedAt, weekStart.toISOString()),
+      lte(task.updatedAt, weekEnd.toISOString()),
+    )),
   ]);
+  const weeklyCount = weeklyCountRow.value;
 
   let monthlyApproved = 0;
   let monthlyTotal = 0;
 
   for (const stat of monthlyStats) {
-    monthlyTotal += stat._count._all;
+    monthlyTotal += stat._count;
     if (stat.status === TaskStatus.COMPLETED) {
-      monthlyApproved = stat._count._all;
+      monthlyApproved = stat._count;
     }
   }
 
@@ -678,62 +658,44 @@ async function updateAchievements(qcSpecialistId: number): Promise<void> {
   // Quality Champion: 90%+ approval rate for the month
   if (approvalRate >= 90) {
     operations.push(
-      prisma.qCAchievement.upsert({
-        where: {
-          qcSpecialistId_achievementType: {
-            qcSpecialistId,
-            achievementType: "QUALITY_CHAMPION",
-          },
-        },
-        create: {
-          qcSpecialistId,
-          achievementType: "QUALITY_CHAMPION",
-          achievementData: { approvalRate },
-        },
-        update: {
-          achievementData: { approvalRate },
-        },
+      db.insert(qcAchievement).values({
+        id: createId(),
+        qcSpecialistId,
+        achievementType: "QUALITY_CHAMPION",
+        achievementData: { approvalRate },
+      }).onConflictDoUpdate({
+        target: [qcAchievement.qcSpecialistId, qcAchievement.achievementType],
+        set: { achievementData: { approvalRate } },
       })
     );
   } else {
     operations.push(
-      prisma.qCAchievement.deleteMany({
-        where: {
-          qcSpecialistId,
-          achievementType: "QUALITY_CHAMPION",
-        },
-      })
+      db.delete(qcAchievement).where(and(
+        eq(qcAchievement.qcSpecialistId, qcSpecialistId),
+        eq(qcAchievement.achievementType, "QUALITY_CHAMPION"),
+      ))
     );
   }
 
   // Speed Reviewer: 50+ reviews in a week
   if (weeklyCount >= 50) {
     operations.push(
-      prisma.qCAchievement.upsert({
-        where: {
-          qcSpecialistId_achievementType: {
-            qcSpecialistId,
-            achievementType: "SPEED_REVIEWER",
-          },
-        },
-        create: {
-          qcSpecialistId,
-          achievementType: "SPEED_REVIEWER",
-          achievementData: { reviewCount: weeklyCount },
-        },
-        update: {
-          achievementData: { reviewCount: weeklyCount },
-        },
+      db.insert(qcAchievement).values({
+        id: createId(),
+        qcSpecialistId,
+        achievementType: "SPEED_REVIEWER",
+        achievementData: { reviewCount: weeklyCount },
+      }).onConflictDoUpdate({
+        target: [qcAchievement.qcSpecialistId, qcAchievement.achievementType],
+        set: { achievementData: { reviewCount: weeklyCount } },
       })
     );
   } else {
     operations.push(
-      prisma.qCAchievement.deleteMany({
-        where: {
-          qcSpecialistId,
-          achievementType: "SPEED_REVIEWER",
-        },
-      })
+      db.delete(qcAchievement).where(and(
+        eq(qcAchievement.qcSpecialistId, qcSpecialistId),
+        eq(qcAchievement.achievementType, "SPEED_REVIEWER"),
+      ))
     );
   }
 

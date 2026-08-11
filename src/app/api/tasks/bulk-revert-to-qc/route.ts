@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { inArray } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
     try {
@@ -15,22 +17,17 @@ export async function POST(request: NextRequest) {
         }
 
         // Update all selected tasks back to IN_QC status
-        const updatedTasks = await prisma.task.updateMany({
-            where: {
-                id: { in: taskIds },
-            },
-            data: {
-                status: 'READY_FOR_QC',
-                qcResult: null,
-                nextDestination: null,
-                updatedAt: new Date(),
-            },
-        });
+        const updatedTasks = await db.update(task).set({
+            status: 'READY_FOR_QC',
+            qcResult: null,
+            nextDestination: null,
+            updatedAt: new Date().toISOString(),
+        }).where(inArray(task.id, taskIds)).returning({ id: task.id });
 
         return NextResponse.json({
             success: true,
-            count: updatedTasks.count,
-            message: `${updatedTasks.count} task(s) reverted to QC review`,
+            count: updatedTasks.length,
+            message: `${updatedTasks.length} task(s) reverted to QC review`,
         });
     } catch (error) {
         console.error('[BULK REVERT TO QC] Error:', error);

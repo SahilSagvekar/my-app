@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { notifyUser } from "@/lib/notify";
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 
@@ -31,27 +33,24 @@ export async function PATCH(
 
         const { id } = await context.params;
 
-        const task = await prisma.task.findUnique({
-            where: { id },
-            include: { client: true }
+        const foundTask = await db.query.task.findFirst({
+            where: eq(task.id, id),
+            with: { client: true }
         });
 
-        if (!task) {
+        if (!foundTask) {
             return NextResponse.json({ message: "Task not found" }, { status: 404 });
         }
 
-        // Determine what the "Pending" status should be. 
+        // Determine what the "Pending" status should be.
         // If client review was required, it might have been in CLIENT_REVIEW.
         // However, usually for scheduler, COMPLETED means ready to schedule.
-        const newStatus = task.client?.requiresClientReview ? "CLIENT_REVIEW" : "COMPLETED";
+        const newStatus = foundTask.client?.requiresClientReview ? "CLIENT_REVIEW" : "COMPLETED";
 
-        const updated = await prisma.task.update({
-            where: { id },
-            data: {
-                status: newStatus,
-                updatedAt: new Date(),
-            },
-        });
+        const [updated] = await db.update(task).set({
+            status: newStatus,
+            updatedAt: new Date().toISOString(),
+        }).where(eq(task.id, id)).returning();
 
         // 📝 Audit log for un-scheduling
         await createAuditLog({
@@ -62,8 +61,8 @@ export async function PATCH(
             details: `Task unscheduled by ${role}, moved back to ${newStatus}`,
             metadata: {
                 taskId: id,
-                taskTitle: task.title || task.description,
-                previousStatus: task.status,
+                taskTitle: foundTask.title || foundTask.description,
+                previousStatus: foundTask.status,
                 newStatus: newStatus,
                 role: role,
             },

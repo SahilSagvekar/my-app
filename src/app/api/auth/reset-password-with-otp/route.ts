@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { isOTPExpired } from '@/lib/otp';
 
@@ -22,15 +24,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find user with matching OTP - CHANGED to findFirst
-    const user = await prisma.user.findFirst({
-      where: {
-        email,
-        resetOTP: otp,
-      },
-    });
+    // Find user with matching OTP
+    const [foundUser] = await db.select().from(user).where(and(eq(user.email, email), eq(user.resetOtp, otp))).limit(1);
 
-    if (!user || !user.resetOTPExpiry) {
+    if (!foundUser || !foundUser.resetOtpExpiry) {
       return NextResponse.json(
         { ok: false, message: 'Invalid OTP' },
         { status: 400 }
@@ -38,7 +35,7 @@ export async function POST(req: Request) {
     }
 
     // Check if OTP is expired
-    if (isOTPExpired(user.resetOTPExpiry)) {
+    if (isOTPExpired(new Date(foundUser.resetOtpExpiry))) {
       return NextResponse.json(
         { ok: false, message: 'OTP has expired. Please request a new one.' },
         { status: 400 }
@@ -49,14 +46,12 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update password and clear OTP
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        password: hashedPassword,
-        resetOTP: null,
-        resetOTPExpiry: null,
-      },
-    });
+    await db.update(user).set({
+      password: hashedPassword,
+      resetOtp: null,
+      resetOtpExpiry: null,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(user.id, foundUser.id));
 
     return NextResponse.json({
       ok: true,

@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable, client as clientTable } from '@/lib/db/schema';
+import { eq, or } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { updateClientStorageAfterDelete } from '@/lib/storage-service';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -33,11 +35,11 @@ export async function DELETE(request: NextRequest) {
       if (depth < 3) {
         return NextResponse.json({ error: 'You can only delete items inside your deliverable folders' }, { status: 403 });
       }
-      const u = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { linkedClient: { select: { companyName: true, name: true } } },
+      const u = await db.query.user.findFirst({
+        where: eq(userTable.id, user.id),
+        with: { client: { columns: { companyName: true, name: true } } },
       });
-      const company = u?.linkedClient?.companyName || u?.linkedClient?.name;
+      const company = u?.client?.companyName || u?.client?.name;
       if (company && !s3Key.startsWith(company)) {
         return NextResponse.json({ error: 'You can only delete items in your own folder' }, { status: 403 });
       }
@@ -47,11 +49,12 @@ export async function DELETE(request: NextRequest) {
 
     if (s3Key.includes('raw-footage') && result.deletedSize > 0) {
       const companyName = s3Key.split('/')[0];
-      const client = await prisma.client.findFirst({
-        where: { OR: [{ companyName }, { name: companyName }] },
-        select: { id: true },
-      });
-      if (client) await updateClientStorageAfterDelete(client.id, result.deletedSize);
+      const [foundClient] = await db
+        .select({ id: clientTable.id })
+        .from(clientTable)
+        .where(or(eq(clientTable.companyName, companyName), eq(clientTable.name, companyName)))
+        .limit(1);
+      if (foundClient) await updateClientStorageAfterDelete(foundClient.id, result.deletedSize);
     }
 
     return NextResponse.json({ success: true, ...result });

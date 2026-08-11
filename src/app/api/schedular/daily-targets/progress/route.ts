@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { postingTarget, postedContent, client } from '@/lib/db/schema';
+import { and, not, eq, ilike, inArray, gte, lte, desc } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
 import { getESTDate, getESTDayOfWeek, getESTWeekBounds, getESTMonthBounds } from '@/lib/est-date';
 import {
@@ -27,13 +29,13 @@ export async function GET(req: NextRequest) {
     const isSunday = dayOfWeek === 0;
 
     // Fetch all posting targets — Snapchat is no longer tracked, exclude it entirely
-    const targetWhere: any = { NOT: { platform: { equals: 'snapchat', mode: 'insensitive' } } };
-    if (clientIdFilter) targetWhere.clientId = clientIdFilter;
+    const targetConditions = [not(ilike(postingTarget.platform, 'snapchat'))];
+    if (clientIdFilter) targetConditions.push(eq(postingTarget.clientId, clientIdFilter));
 
-    const allTargets = await prisma.postingTarget.findMany({
-      where: targetWhere,
-      include: {
-        client: { select: { id: true, name: true, companyName: true } },
+    const allTargets = await db.query.postingTarget.findMany({
+      where: and(...targetConditions),
+      with: {
+        client: { columns: { id: true, name: true, companyName: true } },
       },
     });
 
@@ -51,37 +53,37 @@ export async function GET(req: NextRequest) {
     const clientIds = [...new Set(allTargets.map(t => t.clientId))];
 
     // Fetch today's posted content for these clients
-    const todayPosts = await prisma.postedContent.findMany({
-      where: {
-        clientId: { in: clientIds },
-        postedAt: { gte: dayStart, lte: dayEnd },
-      },
-      orderBy: { postedAt: 'desc' },
-    });
+    const todayPosts = await db.select().from(postedContent).where(and(
+      inArray(postedContent.clientId, clientIds),
+      gte(postedContent.postedAt, dayStart.toISOString()),
+      lte(postedContent.postedAt, dayEnd.toISOString()),
+    )).orderBy(desc(postedContent.postedAt));
 
     // Fetch this week's posted content (for weekly targets)
-    const weekPosts = await prisma.postedContent.findMany({
-      where: {
-        clientId: { in: clientIds },
-        postedAt: { gte: weekStart, lte: weekEnd },
-      },
-      orderBy: { postedAt: 'desc' },
-    });
+    const weekPosts = await db.select().from(postedContent).where(and(
+      inArray(postedContent.clientId, clientIds),
+      gte(postedContent.postedAt, weekStart.toISOString()),
+      lte(postedContent.postedAt, weekEnd.toISOString()),
+    )).orderBy(desc(postedContent.postedAt));
 
     // Monthly quotas (from MonthlyDeliverable.quantity) + this month's distinct posted videos,
     // so a deliverable can be marked "monthly target accomplished" and stop demanding more daily posts.
     const [clientsWithDeliverables, monthPosts] = await Promise.all([
-      prisma.client.findMany({
-        where: { id: { in: clientIds } },
-        select: { id: true, monthlyDeliverables: { select: { type: true, quantity: true } } },
+      db.query.client.findMany({
+        where: inArray(client.id, clientIds),
+        columns: { id: true },
+        with: { monthlyDeliverables: { columns: { type: true, quantity: true } } },
       }),
-      prisma.postedContent.findMany({
-        where: {
-          clientId: { in: clientIds },
-          postedAt: { gte: monthStart, lte: monthEnd },
-        },
-        select: { clientId: true, deliverableType: true, taskId: true, id: true },
-      }),
+      db.select({
+        clientId: postedContent.clientId,
+        deliverableType: postedContent.deliverableType,
+        taskId: postedContent.taskId,
+        id: postedContent.id,
+      }).from(postedContent).where(and(
+        inArray(postedContent.clientId, clientIds),
+        gte(postedContent.postedAt, monthStart.toISOString()),
+        lte(postedContent.postedAt, monthEnd.toISOString()),
+      )),
     ]);
 
     const monthlyQuotaMap = new Map<string, Map<string, number>>();

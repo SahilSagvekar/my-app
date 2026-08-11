@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema";
+import { and, or, eq, ne, isNull, notInArray, desc } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 
 export async function GET(req: Request) {
@@ -12,16 +14,13 @@ export async function GET(req: Request) {
     const status = url.searchParams.get('status');
 
     // 🔥 OPTIMIZED: Only select fields needed for the list view
-    const employees = await prisma.user.findMany({
-      where: {
-        OR: [
-          { role: null },
-          { role: { notIn: ["admin", "client"] } }
-        ],
+    const employees = await db.query.user.findMany({
+      where: and(
+        or(isNull(user.role), notInArray(user.role, ["admin", "client"] as any)),
         // Filter by status if provided
-        ...(status && { employeeStatus: status as any }),
-      },
-      select: {
+        status ? eq(user.employeeStatus, status as any) : undefined,
+      ),
+      columns: {
         id: true,
         name: true,
         email: true,
@@ -34,25 +33,22 @@ export async function GET(req: Request) {
         joinedAt: true,
         createdAt: true,
         updatedAt: true,
+      },
+      with: {
         // Get the most recent session for last active
         sessions: {
-          select: {
-            expires: true,
-          },
-          orderBy: { expires: 'desc' },
-          take: 1,
+          columns: { expires: true },
+          orderBy: (s, { desc }) => desc(s.expires),
+          limit: 1,
         },
         // Get the most recent login audit log as fallback
         loginAuditLogs: {
-          select: {
-            createdAt: true,
-            action: true,
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
+          columns: { createdAt: true, action: true },
+          orderBy: (l, { desc }) => desc(l.createdAt),
+          limit: 1,
         },
       },
-      orderBy: { createdAt: "desc" }
+      orderBy: desc(user.createdAt),
     });
 
     // Process employees to include lastActive
@@ -69,12 +65,12 @@ export async function GET(req: Request) {
 
       // Check login audit logs as fallback
       if (!lastActive && emp.loginAuditLogs.length > 0) {
-        lastActive = emp.loginAuditLogs[0].createdAt;
+        lastActive = new Date(emp.loginAuditLogs[0].createdAt);
       }
 
       // Fallback to updatedAt
       if (!lastActive) {
-        lastActive = emp.updatedAt;
+        lastActive = new Date(emp.updatedAt);
       }
 
       // Remove the nested relations from response

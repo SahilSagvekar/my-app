@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/reports/activity/download/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { activityReport } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { generateSignedUrl, extractS3KeyFromUrl } from '@/lib/s3';
 import jwt from 'jsonwebtoken';
 
@@ -30,9 +32,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ message: "Report ID required" }, { status: 400 });
         }
 
-        const report = await prisma.activityReport.findUnique({
-            where: { id: reportId }
-        });
+        const [report] = await db.select().from(activityReport).where(eq(activityReport.id, reportId)).limit(1);
 
         if (!report) {
             return NextResponse.json({ message: "Report not found" }, { status: 404 });

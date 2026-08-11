@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "../../../../lib/prisma";
+import { db } from "@/lib/db";
+import { task, file as fileTable } from "@/lib/db/schema";
+import { and, or, eq, isNull, inArray, desc } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -22,63 +24,57 @@ export async function GET(req: any) {
     const userId = user.id;
     const role = user.role || "";
 
-    let tasks;
+    let rawTasks;
 
     switch (role.toLowerCase()) {
       case "editor":
-        tasks = await prisma.task.findMany({
-          where: { assignedTo: userId },
-          include: { client: true },
-          orderBy: { updatedAt: "desc" },
+        rawTasks = await db.query.task.findMany({
+          where: eq(task.assignedTo, userId),
+          with: { client: true },
+          orderBy: desc(task.updatedAt),
         });
         break;
 
       case "qc_specialist":
-        tasks = await prisma.task.findMany({
-          where: { status: "READY_FOR_QC" },
-          include: { client: true, user: true },
-          orderBy: { updatedAt: "desc" },
+        rawTasks = await db.query.task.findMany({
+          where: eq(task.status, "READY_FOR_QC"),
+          with: { client: true, user_assignedTo: true },
+          orderBy: desc(task.updatedAt),
         });
         break;
 
       case "videographer":
-        tasks = await prisma.task.findMany({
-          where: { taskType: "INGEST", assignedTo: userId },
-          include: { client: true },
-          orderBy: { updatedAt: "desc" },
+        rawTasks = await db.query.task.findMany({
+          where: and(eq(task.taskType, "INGEST"), eq(task.assignedTo, userId)),
+          with: { client: true },
+          orderBy: desc(task.updatedAt),
         });
         break;
 
       case "scheduler":
-        tasks = await prisma.task.findMany({
-          where: { 
-            OR: [
-              { scheduler: userId },
-              { scheduler: null }
-            ],
-            status: { in: ["COMPLETED", "SCHEDULED"] }
-          },
-          include: { client: true },
-          orderBy: { updatedAt: "desc" },
+        rawTasks = await db.query.task.findMany({
+          where: and(
+            or(eq(task.scheduler, userId), isNull(task.scheduler)),
+            inArray(task.status, ["COMPLETED", "SCHEDULED"])
+          ),
+          with: { client: true },
+          orderBy: desc(task.updatedAt),
         });
         break;
 
       case "client":
-        tasks = await prisma.task.findMany({
-          where: {
-            status: 'CLIENT_REVIEW',
-            // clientId: userId 
-          },
-          include: { user: true },
-          orderBy: { updatedAt: "desc" },
+        rawTasks = await db.query.task.findMany({
+          where: eq(task.status, 'CLIENT_REVIEW'),
+          with: { user_assignedTo: true },
+          orderBy: desc(task.updatedAt),
         });
         break;
 
       case "manager":
       case "admin":
-        tasks = await prisma.task.findMany({
-          include: { client: true, user: true },
-          orderBy: { createdAt: "desc" },
+        rawTasks = await db.query.task.findMany({
+          with: { client: true, user_assignedTo: true },
+          orderBy: desc(task.createdAt),
         });
         break;
 
@@ -89,18 +85,22 @@ export async function GET(req: any) {
         );
     }
 
+    const tasks = (rawTasks ?? []).map((t: any) => {
+      const { user_assignedTo, ...rest } = t;
+      return "user_assignedTo" in t ? { ...rest, user: user_assignedTo } : rest;
+    });
+
     // ✅ Add signed URLs to files
     const tasksWithSignedUrls = tasks ? await Promise.all(
-      tasks.map(async (task) => {
-        const files = await prisma.file.findMany({
-          where: { taskId: task.id, isActive: true },
-        });
+      tasks.map(async (t: any) => {
+        const taskFiles = await db.select().from(fileTable)
+          .where(and(eq(fileTable.taskId, t.id), eq(fileTable.isActive, true)));
 
-        if (files && files.length > 0) {
-          const signedFiles = await addSignedUrlsToFiles(files);
-          return { ...task, files: signedFiles };
+        if (taskFiles && taskFiles.length > 0) {
+          const signedFiles = await addSignedUrlsToFiles(taskFiles);
+          return { ...t, files: signedFiles };
         }
-        return { ...task, files: [] };
+        return { ...t, files: [] };
       })
     ) : [];
 

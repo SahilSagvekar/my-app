@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 // app/api/tasks/[taskId]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task, file as fileTable } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { addSignedUrlsToFiles, deleteFromS3 } from "@/lib/s3";
 import { getCurrentUser2 } from "@/lib/auth";
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
@@ -24,11 +26,11 @@ export async function GET(
       );
     }
 
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
+    const found = await db.query.task.findFirst({
+      where: eq(task.id, taskId),
+      with: {
         files: {
-          select: {
+          columns: {
             id: true,
             name: true,
             url: true,
@@ -42,40 +44,41 @@ export async function GET(
             reviewDriveUrl: true,
             youtubeVideoId: true,
           },
-          orderBy: {
-            uploadedAt: "desc",
-          },
+          orderBy: desc(fileTable.uploadedAt),
         },
-        assignedToUser: {
-          select: {
+        user_assignedTo: {
+          columns: {
             id: true,
             name: true,
             role: true,
           },
         },
         client: {
-          select: {
+          columns: {
             id: true,
             name: true,
             requiresCoverImage: true,
           },
         },
-        tags: true,
+        tagToTasks: { with: { tag: true } },
       },
     });
 
-    if (!task) {
+    if (!found) {
       return NextResponse.json(
         { error: "Task not found" },
         { status: 404 }
       );
     }
 
+    const { user_assignedTo, tagToTasks, ...rest } = found as any;
+    const foundTask = { ...rest, assignedToUser: user_assignedTo, tags: (tagToTasks ?? []).map((tt: any) => tt.tag) };
+
     // Add signed URLs to files for secure access
-    const filesWithSignedUrls = await addSignedUrlsToFiles(task.files);
+    const filesWithSignedUrls = await addSignedUrlsToFiles(foundTask.files);
 
     return NextResponse.json({
-      ...task,
+      ...foundTask,
       files: filesWithSignedUrls,
     });
   } catch (error: any) {
@@ -110,11 +113,11 @@ export async function DELETE(
     }
 
     // Fetch task with files to delete from S3
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
+    const foundTask = await db.query.task.findFirst({
+      where: eq(task.id, taskId),
+      with: {
         files: {
-          select: {
+          columns: {
             id: true,
             s3Key: true,
             name: true,
@@ -123,12 +126,12 @@ export async function DELETE(
       },
     });
 
-    if (!task) {
+    if (!foundTask) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
     // Delete files from S3
-    for (const file of task.files) {
+    for (const file of foundTask.files) {
       if (file.s3Key) {
         try {
           await deleteFromS3(file.s3Key);
@@ -141,9 +144,7 @@ export async function DELETE(
     }
 
     // Delete task (cascade will handle files, feedback, etc.)
-    await prisma.task.delete({
-      where: { id: taskId },
-    });
+    await db.delete(task).where(eq(task.id, taskId));
 
     // Audit log
     await createAuditLog({
@@ -151,12 +152,12 @@ export async function DELETE(
       action: AuditAction.TASK_DELETED,
       entity: "Task",
       entityId: taskId,
-      details: `Deleted task: ${task.title || taskId}`,
+      details: `Deleted task: ${foundTask.title || taskId}`,
       metadata: {
         taskId,
-        taskTitle: task.title,
+        taskTitle: foundTask.title,
         deletedBy: user.email,
-        fileCount: task.files.length,
+        fileCount: foundTask.files.length,
       },
     });
 

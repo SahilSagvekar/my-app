@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, task, client as clientTable } from "@/lib/db/schema";
+import { and, eq, or, gte, lte, isNull, isNotNull, inArray } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 // GET /api/editor/production-tracker?month=April-2026&editorId=42
@@ -43,26 +45,28 @@ export async function GET(req: NextRequest) {
     const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
 
     // Get editor info
-    const editor = await prisma.user.findUnique({
-      where: { id: targetEditorId },
-      select: { id: true, name: true, email: true, role: true },
-    });
+    const [editor] = await db
+      .select({ id: userTable.id, name: userTable.name, email: userTable.email, role: userTable.role })
+      .from(userTable)
+      .where(eq(userTable.id, targetEditorId))
+      .limit(1);
     if (!editor) return NextResponse.json({ error: "Editor not found" }, { status: 404 });
 
     // Get all tasks assigned to this editor for the month
-    const tasks = await prisma.task.findMany({
-      where: {
-        assignedTo: targetEditorId,
-        OR: [
-          { monthFolder: targetMonth },
-          {
-            createdAt: { gte: monthStart, lte: monthEnd },
-            monthFolder: null,
-          },
-        ],
-        clientId: { not: null },
-      },
-      select: {
+    const tasks = await db.query.task.findMany({
+      where: and(
+        eq(task.assignedTo, targetEditorId),
+        or(
+          eq(task.monthFolder, targetMonth),
+          and(
+            gte(task.createdAt, monthStart.toISOString()),
+            lte(task.createdAt, monthEnd.toISOString()),
+            isNull(task.monthFolder)
+          )
+        ),
+        isNotNull(task.clientId)
+      ),
+      columns: {
         id: true,
         status: true,
         clientId: true,
@@ -72,8 +76,10 @@ export async function GET(req: NextRequest) {
         monthFolder: true,
         createdAt: true,
         updatedAt: true,
+      },
+      with: {
         monthlyDeliverable: {
-          select: { id: true, type: true, quantity: true },
+          columns: { id: true, type: true, quantity: true },
         },
       },
     });
@@ -82,25 +88,21 @@ export async function GET(req: NextRequest) {
     const clientIds = [...new Set(tasks.map((t) => t.clientId).filter(Boolean))] as string[];
 
     // Get client + their monthly deliverables
-    const clients = await prisma.client.findMany({
-      where: { id: { in: clientIds } },
-      select: {
-        id: true,
-        name: true,
-        companyName: true,
+    const clients = clientIds.length === 0 ? [] : await db.query.client.findMany({
+      where: inArray(clientTable.id, clientIds),
+      columns: { id: true, name: true, companyName: true },
+      with: {
         monthlyDeliverables: {
-          select: { id: true, type: true, quantity: true },
+          columns: { id: true, type: true, quantity: true },
         },
       },
-      orderBy: { companyName: "asc" },
+      orderBy: (c, { asc }) => [asc(c.companyName)],
     });
 
     // Available months for dropdown
-    const monthFolders = await prisma.task.findMany({
-      where: { assignedTo: targetEditorId, monthFolder: { not: null } },
-      select: { monthFolder: true },
-      distinct: ["monthFolder"],
-    });
+    const monthFolders = await db.selectDistinct({ monthFolder: task.monthFolder })
+      .from(task)
+      .where(and(eq(task.assignedTo, targetEditorId), isNotNull(task.monthFolder)));
     const availableMonths = [
       ...new Set(monthFolders.map((t) => t.monthFolder).filter(Boolean) as string[]),
     ].sort((a, b) => {

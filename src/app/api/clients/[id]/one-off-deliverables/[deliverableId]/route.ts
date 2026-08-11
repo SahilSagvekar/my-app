@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { oneOffDeliverable } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 // GET - Get a single one-off deliverable
@@ -10,12 +12,9 @@ export async function GET(
     try {
         const { id: clientId, deliverableId } = await params;
 
-        const deliverable = await prisma.oneOffDeliverable.findFirst({
-            where: {
-                id: deliverableId,
-                clientId: clientId,
-            },
-            include: {
+        const deliverable = await db.query.oneOffDeliverable.findFirst({
+            where: and(eq(oneOffDeliverable.id, deliverableId), eq(oneOffDeliverable.clientId, clientId)),
+            with: {
                 tasks: true
             }
         });
@@ -42,31 +41,26 @@ export async function PUT(
         const data = await req.json();
 
         // Verify exists
-        const existing = await prisma.oneOffDeliverable.findFirst({
-            where: {
-                id: deliverableId,
-                clientId: clientId,
-            },
-        });
+        const [existing] = await db.select().from(oneOffDeliverable)
+            .where(and(eq(oneOffDeliverable.id, deliverableId), eq(oneOffDeliverable.clientId, clientId)))
+            .limit(1);
 
         if (!existing) {
             return NextResponse.json({ message: "One-off deliverable not found" }, { status: 404 });
         }
 
-        const deliverable = await prisma.oneOffDeliverable.update({
-            where: { id: deliverableId },
-            data: {
-                type: data.type,
-                quantity: data.quantity,
-                videosPerDay: data.videosPerDay,
-                postingSchedule: data.postingSchedule,
-                postingDays: data.postingDays,
-                postingTimes: data.postingTimes,
-                platforms: data.platforms,
-                description: data.description,
-                status: data.status,
-            },
-        });
+        const [deliverable] = await db.update(oneOffDeliverable).set({
+            type: data.type,
+            quantity: data.quantity,
+            videosPerDay: data.videosPerDay,
+            postingSchedule: data.postingSchedule,
+            postingDays: data.postingDays,
+            postingTimes: data.postingTimes,
+            platforms: data.platforms,
+            description: data.description,
+            status: data.status,
+            updatedAt: new Date().toISOString(),
+        }).where(eq(oneOffDeliverable.id, deliverableId)).returning();
 
         return NextResponse.json({ success: true, deliverable });
 
@@ -84,20 +78,15 @@ export async function DELETE(
     try {
         const { id: clientId, deliverableId } = await params;
 
-        const existing = await prisma.oneOffDeliverable.findFirst({
-            where: {
-                id: deliverableId,
-                clientId: clientId,
-            },
-        });
+        const [existing] = await db.select().from(oneOffDeliverable)
+            .where(and(eq(oneOffDeliverable.id, deliverableId), eq(oneOffDeliverable.clientId, clientId)))
+            .limit(1);
 
         if (!existing) {
             return NextResponse.json({ message: "One-off deliverable not found" }, { status: 404 });
         }
 
-        await prisma.oneOffDeliverable.delete({
-            where: { id: deliverableId },
-        });
+        await db.delete(oneOffDeliverable).where(eq(oneOffDeliverable.id, deliverableId));
 
         return NextResponse.json({ success: true, message: "Deleted successfully" });
 

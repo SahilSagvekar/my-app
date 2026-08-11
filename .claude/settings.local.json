@@ -6,7 +6,31 @@
       "Bash(wc -l \"D:/E8 Productions/my-app/src/app\"/api/**/route.ts)",
       "Bash(xargs ls -lh)",
       "Bash(xargs grep -l \"generateMonthlyTasksFromTemplate\")",
-      "Bash(npx tsc --noEmit --pretty src/app/api/admin/tasks/route.ts src/components/admin/TaskManagementTab.tsx)"
+      "Bash(npx tsc --noEmit --pretty src/app/api/admin/tasks/route.ts src/components/admin/TaskManagementTab.tsx)",
+      "Bash(npx opennextjs-cloudflare *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//tmp/**)",
+      "Bash(xargs -I{} sh -c 'echo \"=== {} ===\"; grep -c \"prisma\\\\.\" \"{}\"')",
+      "Bash(awk '/^export const userRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(awk '/^export const titlingJob = pgTable/,/^\\\\]\\\\\\);/' src/lib/db/schema.ts)",
+      "Bash(awk '/^export const jobRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(awk '/^export const bidRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(awk '/^export const stripeCustomerRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(awk '/^export const subscriptionRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(awk '/^export const paymentMethodRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(awk '/^export const invoiceRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(awk '/^export const clientPortalAccessRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(awk '/^export const paymentRelations/,/^}\\\\\\)\\\\\\);/' src/lib/db/relations.ts)",
+      "Bash(tee /tmp/tsc_out.txt)",
+      "Bash(node -e \"const d = require\\('drizzle-orm'\\); console.log\\(Object.keys\\(d\\).filter\\(k => /array|exists|ilike|like|notInArray|isNull|isNotNull|inArray|between|not\\\\b/i.test\\(k\\)\\)\\)\")",
+      "Bash(rm -f tsconfig.tsbuildinfo)",
+      "Bash(grep -v \"drizzle\\\\\\\\\\\\\\\\schema.ts\")",
+      "Bash(echo \"diff exit: $?\")",
+      "PowerShell(cd \"D:\\\\E8 Productions\\\\my-app\"; npx tsc --noEmit -p tsconfig.json > tsc_out.txt 2>&1; Write-Output \"EXIT:$LASTEXITCODE\"; \\(Get-Content tsc_out.txt | Measure-Object -Line\\).Lines)",
+      "PowerShell(cd \"D:\\\\E8 Productions\\\\my-app\"; Select-String -Path tsc_out.txt -Pattern \"^[^\\\\\\(]+\\\\.ts\" | ForEach-Object { \\($_ -split \"\\\\\\(\"\\)[0] } | Sort-Object -Unique)",
+      "Bash(echo \"EXIT: $?\")"
     ]
   }
 }

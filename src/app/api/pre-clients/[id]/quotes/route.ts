@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { preClient as preClientTable, quote as quoteTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -10,10 +13,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
-    const quotes = await prisma.quote.findMany({
-      where: { preClientId: id },
-      orderBy: { version: 'desc' },
-    });
+    const quotes = await db.select().from(quoteTable)
+      .where(eq(quoteTable.preClientId, id))
+      .orderBy(desc(quoteTable.version));
     return NextResponse.json(quotes);
   } catch (err) {
     console.error('GET quotes error:', err);
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id: preClientId } = await params;
-    const preClient = await prisma.preClient.findUnique({ where: { id: preClientId } });
+    const [preClient] = await db.select().from(preClientTable).where(eq(preClientTable.id, preClientId)).limit(1);
     if (!preClient) return NextResponse.json({ error: 'Pre-client not found' }, { status: 404 });
 
     const body = await req.json();
@@ -40,38 +42,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const totalAmount = services.reduce((sum: number, s: any) => sum + (s.total || 0), 0);
 
-    const latest = await prisma.quote.findFirst({
-      where: { preClientId },
-      orderBy: { version: 'desc' },
-      select: { version: true },
-    });
+    const [latest] = await db.select({ version: quoteTable.version }).from(quoteTable)
+      .where(eq(quoteTable.preClientId, preClientId))
+      .orderBy(desc(quoteTable.version))
+      .limit(1);
 
     const version = (latest?.version ?? 0) + 1;
 
-    const quote = await prisma.quote.create({
-      data: {
-        preClientId,
-        version,
-        services,
-        totalAmount,
-        notes: notes || null,
-        validDays: validDays || 30,
-        status: 'DRAFT',
-        preparedBy: preparedBy || null,
-        inclusions: inclusions || [],
-        terms: terms || [],
-        acceptanceText: acceptanceText || null,
-      },
-    });
+    const [quote] = await db.insert(quoteTable).values({
+      id: createId(),
+      preClientId,
+      version,
+      services,
+      totalAmount,
+      notes: notes || null,
+      validDays: validDays || 30,
+      status: 'DRAFT',
+      preparedBy: preparedBy || null,
+      inclusions: inclusions || [],
+      terms: terms || [],
+      acceptanceText: acceptanceText || null,
+      shareToken: createId(),
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     if (['QUALIFIED'].includes(preClient.status) || address !== undefined) {
-      await (prisma as any).preClient.update({
-        where: { id: preClientId },
-        data: {
-          ...(['QUALIFIED'].includes(preClient.status) ? { status: 'QUOTED' } : {}),
-          ...(address !== undefined ? { address: address || null } : {}),
-        },
-      });
+      await db.update(preClientTable).set({
+        ...(['QUALIFIED'].includes(preClient.status) ? { status: 'QUOTED' as const } : {}),
+        ...(address !== undefined ? { address: address || null } : {}),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(preClientTable.id, preClientId));
     }
 
     return NextResponse.json(quote, { status: 201 });
@@ -79,4 +79,4 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('POST quote error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
-}
+}

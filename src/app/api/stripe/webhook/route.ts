@@ -2,7 +2,19 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, constructWebhookEvent, STRIPE_WEBHOOK_EVENTS, generateInvoiceNumber, captureTechFeeFromCharge, getChargeIdFromPaymentIntent } from '@/lib/stripe';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import {
+  invoice,
+  payment,
+  subscription as subscriptionTable,
+  stripeCustomer as stripeCustomerTable,
+  paymentMethod as paymentMethodTable,
+  clientPortalAccess,
+  client as clientTable,
+  stripeWebhookEvent,
+} from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, sql as drizzleSql } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { sendPaymentNotificationEmail } from '@/lib/email';
 
@@ -33,11 +45,10 @@ export async function POST(req: NextRequest) {
     // front — if another delivery already claimed it, skip processing so we
     // never double-create Payments or double-credit an invoice.
     try {
-      await prisma.stripeWebhookEvent.create({
-        data: { id: event.id, type: event.type },
-      });
+      await db.insert(stripeWebhookEvent).values({ id: event.id, type: event.type });
     } catch (err: any) {
-      if (err.code === 'P2002') {
+      // Postgres unique_violation SQLSTATE (was Prisma's P2002)
+      if (err.code === '23505') {
         console.log(`⏭️ Duplicate Stripe webhook event, skipping: ${event.id} (${event.type})`);
         return NextResponse.json({ received: true, duplicate: true });
       }
@@ -112,40 +123,38 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
   if (!invoiceId) return;
 
   // Update invoice and create payment record
-  await prisma.$transaction(async (tx) => {
-    const invoice = await tx.invoice.findUnique({ where: { id: invoiceId } });
-    if (!invoice) return;
+  await db.transaction(async (tx) => {
+    const [foundInvoice] = await tx.select().from(invoice).where(eq(invoice.id, invoiceId)).limit(1);
+    if (!foundInvoice) return;
 
     // Create payment record
-    await tx.payment.create({
-      data: {
-        invoiceId,
-        stripePaymentIntentId: paymentIntent.id,
-        stripeChargeId: paymentIntent.latest_charge as string,
-        amount: paymentIntent.amount,
-        currency: paymentIntent.currency,
-        status: 'SUCCEEDED',
-        paymentMethod: paymentIntent.payment_method_types[0],
-        receiptUrl: null, // Will be updated from charge
-      },
+    await tx.insert(payment).values({
+      id: createId(),
+      invoiceId,
+      stripePaymentIntentId: paymentIntent.id,
+      stripeChargeId: paymentIntent.latest_charge as string,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+      status: 'SUCCEEDED',
+      paymentMethod: paymentIntent.payment_method_types[0],
+      receiptUrl: null, // Will be updated from charge
+      updatedAt: new Date().toISOString(),
     });
 
     // Atomic increment — avoids a lost update if two payments for this
     // invoice land concurrently (a plain read-then-write here would let one
     // overwrite the other's amountPaid).
-    const updated = await tx.invoice.update({
-      where: { id: invoiceId },
-      data: { amountPaid: { increment: paymentIntent.amount } },
-    });
+    const [updated] = await tx.update(invoice).set({
+      amountPaid: drizzleSql`${invoice.amountPaid} + ${paymentIntent.amount}`,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(invoice.id, invoiceId)).returning();
 
     const isPaid = updated.amountPaid >= updated.amount;
-    await tx.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        status: isPaid ? 'PAID' : 'PARTIALLY_PAID',
-        paidAt: isPaid ? new Date() : null,
-      },
-    });
+    await tx.update(invoice).set({
+      status: isPaid ? 'PAID' : 'PARTIALLY_PAID',
+      paidAt: isPaid ? new Date().toISOString() : null,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(invoice.id, invoiceId));
   });
 
   // Tech Fees: pass Stripe's real processing fee on to the client's next invoice
@@ -164,16 +173,16 @@ async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
   const invoiceId = paymentIntent.metadata?.invoiceId;
   if (!invoiceId) return;
 
-  await prisma.payment.create({
-    data: {
-      invoiceId,
-      stripePaymentIntentId: paymentIntent.id,
-      amount: paymentIntent.amount,
-      currency: paymentIntent.currency,
-      status: 'FAILED',
-      paymentMethod: paymentIntent.payment_method_types[0],
-      failureReason: paymentIntent.last_payment_error?.message || 'Payment failed',
-    },
+  await db.insert(payment).values({
+    id: createId(),
+    invoiceId,
+    stripePaymentIntentId: paymentIntent.id,
+    amount: paymentIntent.amount,
+    currency: paymentIntent.currency,
+    status: 'FAILED',
+    paymentMethod: paymentIntent.payment_method_types[0],
+    failureReason: paymentIntent.last_payment_error?.message || 'Payment failed',
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -201,27 +210,28 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
   }
 
   // Find our invoice by Stripe invoice ID
-  const invoice = await prisma.invoice.findUnique({
-    where: { stripeInvoiceId: stripeInvoice.id },
-    include: {
+  const rawInvoice = await db.query.invoice.findFirst({
+    where: eq(invoice.stripeInvoiceId, stripeInvoice.id),
+    with: {
       stripeCustomer: {
-        include: { client: { include: { portalAccess: true } } },
+        with: { client: { with: { clientPortalAccesses: true } } },
       },
     },
   });
+  const foundInvoice = rawInvoice
+    ? { ...rawInvoice, stripeCustomer: rawInvoice.stripeCustomer ? { ...rawInvoice.stripeCustomer, client: rawInvoice.stripeCustomer.client ? { ...rawInvoice.stripeCustomer.client, portalAccess: (rawInvoice.stripeCustomer.client as any).clientPortalAccesses?.[0] ?? null } : null } : null }
+    : null;
 
-  if (invoice) {
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        status: 'PAID',
-        amountPaid: stripeInvoice.amount_paid,
-        paidAt: new Date(),
-      },
-    });
+  if (foundInvoice) {
+    await db.update(invoice).set({
+      status: 'PAID',
+      amountPaid: stripeInvoice.amount_paid,
+      paidAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(invoice.id, foundInvoice.id));
 
     // ── Portal unlock logic ────────────────────────────────────────────────
-    const client = (invoice.stripeCustomer as any)?.client;
+    const client = (foundInvoice.stripeCustomer as any)?.client;
     if (client?.portalAccess) {
       const portalAccess = client.portalAccess;
       const now = new Date();
@@ -235,18 +245,16 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
         lockedAt: null,
         adminUnlockedById: null,
         adminUnlockedAt: null,
-        nextBillingDate: nextBilling,
+        nextBillingDate: nextBilling.toISOString(),
+        updatedAt: now.toISOString(),
       };
 
       // Set billing anchor on first payment
       if (!portalAccess.billingAnchorDate) {
-        updateData.billingAnchorDate = now;
+        updateData.billingAnchorDate = now.toISOString();
       }
 
-      await prisma.clientPortalAccess.update({
-        where: { clientId: client.id },
-        data: updateData,
-      });
+      await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, client.id));
 
       console.log(`🔓 [Portal] Unlocked for client: ${client.name} | next billing: ${nextBilling.toISOString()}`);
     }
@@ -254,14 +262,14 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
 
     // Also handle invoice paid for checkout session (first payment via Stripe Checkout)
     // The stripeCustomer may be resolved via Stripe metadata if no invoice record exists yet
-    const clientName = (invoice.stripeCustomer as any)?.client?.companyName || 
-                       (invoice.stripeCustomer as any)?.client?.name || 
+    const clientName = (foundInvoice.stripeCustomer as any)?.client?.companyName ||
+                       (foundInvoice.stripeCustomer as any)?.client?.name ||
                        'Client';
-    const clientEmail = (invoice.stripeCustomer as any)?.client?.email || stripeInvoice.customer_email;
+    const clientEmail = (foundInvoice.stripeCustomer as any)?.client?.email || stripeInvoice.customer_email;
 
     await sendPaymentNotificationEmail({
       type: 'invoice_paid',
-      invoiceNumber: invoice.invoiceNumber,
+      invoiceNumber: foundInvoice.invoiceNumber,
       clientName,
       clientEmail: clientEmail || 'N/A',
       amount: stripeInvoice.amount_paid / 100,
@@ -278,33 +286,32 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
 async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
   console.log(`❌ Stripe Invoice payment failed: ${stripeInvoice.id}`);
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { stripeInvoiceId: stripeInvoice.id },
-    include: {
+  const rawInvoice = await db.query.invoice.findFirst({
+    where: eq(invoice.stripeInvoiceId, stripeInvoice.id),
+    with: {
       stripeCustomer: {
-        include: { client: { include: { portalAccess: true } } },
+        with: { client: { with: { clientPortalAccesses: true } } },
       },
     },
   });
+  const foundInvoice = rawInvoice
+    ? { ...rawInvoice, stripeCustomer: rawInvoice.stripeCustomer ? { ...rawInvoice.stripeCustomer, client: rawInvoice.stripeCustomer.client ? { ...rawInvoice.stripeCustomer.client, portalAccess: (rawInvoice.stripeCustomer.client as any).clientPortalAccesses?.[0] ?? null } : null } : null }
+    : null;
 
-  if (invoice) {
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        status: invoice.dueDate && new Date() > invoice.dueDate ? 'OVERDUE' : 'PENDING',
-      },
-    });
+  if (foundInvoice) {
+    await db.update(invoice).set({
+      status: foundInvoice.dueDate && new Date() > new Date(foundInvoice.dueDate) ? 'OVERDUE' : 'PENDING',
+      updatedAt: new Date().toISOString(),
+    }).where(eq(invoice.id, foundInvoice.id));
 
     // ── Portal lock logic ──────────────────────────────────────────────────
-    const client = (invoice.stripeCustomer as any)?.client;
+    const client = (foundInvoice.stripeCustomer as any)?.client;
     if (client?.portalAccess && client.portalAccess.status === 'ACTIVE') {
-      await prisma.clientPortalAccess.update({
-        where: { clientId: client.id },
-        data: {
-          status: 'LOCKED',
-          lockedAt: new Date(),
-        },
-      });
+      await db.update(clientPortalAccess).set({
+        status: 'LOCKED',
+        lockedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(clientPortalAccess.clientId, client.id));
       console.log(`🔒 [Portal] Locked for client: ${client.name} — payment failed`);
 
       // Send lock notification to client
@@ -312,14 +319,14 @@ async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
     }
     // ──────────────────────────────────────────────────────────────────────
 
-    const clientName = (invoice.stripeCustomer as any)?.client?.companyName || 
-                       (invoice.stripeCustomer as any)?.client?.name || 
+    const clientName = (foundInvoice.stripeCustomer as any)?.client?.companyName ||
+                       (foundInvoice.stripeCustomer as any)?.client?.name ||
                        'Client';
-    const clientEmail = (invoice.stripeCustomer as any)?.client?.email || stripeInvoice.customer_email;
+    const clientEmail = (foundInvoice.stripeCustomer as any)?.client?.email || stripeInvoice.customer_email;
 
     await sendPaymentNotificationEmail({
       type: 'payment_failed',
-      invoiceNumber: invoice.invoiceNumber,
+      invoiceNumber: foundInvoice.invoiceNumber,
       clientName,
       clientEmail: clientEmail || 'N/A',
       amount: stripeInvoice.amount_due / 100,
@@ -332,27 +339,25 @@ async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
 async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
   console.log(`📄 Stripe Invoice finalized: ${stripeInvoice.id}`);
 
-  const invoice = await prisma.invoice.findUnique({
-    where: { stripeInvoiceId: stripeInvoice.id },
-    include: {
+  const invoiceRow = await db.query.invoice.findFirst({
+    where: eq(invoice.stripeInvoiceId, stripeInvoice.id),
+    with: {
       stripeCustomer: {
-        include: {
+        with: {
           client: true,
         },
       },
     },
   });
 
-  if (invoice) {
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: {
-        stripeHostedInvoiceUrl: stripeInvoice.hosted_invoice_url,
-        stripePdfUrl: stripeInvoice.invoice_pdf,
-        status: 'SENT',
-        sentAt: new Date(),
-      },
-    });
+  if (invoiceRow) {
+    await db.update(invoice).set({
+      stripeHostedInvoiceUrl: stripeInvoice.hosted_invoice_url,
+      stripePdfUrl: stripeInvoice.invoice_pdf,
+      status: 'SENT',
+      sentAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(invoice.id, invoiceRow.id));
 
     // Instant lock: any invoice being sent locks that client's portal right
     // away, rather than waiting for a grace period / due date to pass. This
@@ -384,17 +389,17 @@ async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
     // }
 
     // Send CC notification to payments@e8productions.com
-    const clientName = invoice.stripeCustomer?.client?.companyName || 
-                       invoice.stripeCustomer?.client?.name || 
+    const clientName = invoiceRow.stripeCustomer?.client?.companyName ||
+                       invoiceRow.stripeCustomer?.client?.name ||
                        'Client';
-    const clientEmail = invoice.stripeCustomer?.client?.email || stripeInvoice.customer_email;
-    
-    console.log(`📧 Invoice ${invoice.invoiceNumber} sent to ${clientEmail}`);
-    
+    const clientEmail = invoiceRow.stripeCustomer?.client?.email || stripeInvoice.customer_email;
+
+    console.log(`📧 Invoice ${invoiceRow.invoiceNumber} sent to ${clientEmail}`);
+
     // Send notification email to payments@e8productions.com
     await sendPaymentNotificationEmail({
       type: 'invoice_sent',
-      invoiceNumber: invoice.invoiceNumber,
+      invoiceNumber: invoiceRow.invoiceNumber,
       clientName,
       clientEmail: clientEmail || 'N/A',
       amount: stripeInvoice.amount_due / 100,
@@ -407,9 +412,7 @@ async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
 async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   console.log(`🔄 Subscription created: ${subscription.id}`);
 
-  const stripeCustomer = await prisma.stripeCustomer.findUnique({
-    where: { stripeCustomerId: subscription.customer as string },
-  });
+  const [stripeCustomer] = await db.select().from(stripeCustomerTable).where(eq(stripeCustomerTable.stripeCustomerId, subscription.customer as string)).limit(1);
 
   if (!stripeCustomer) {
     console.error('No StripeCustomer found for:', subscription.customer);
@@ -419,19 +422,19 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   const priceId = subscription.items.data[0]?.price.id;
   const amount = subscription.items.data[0]?.price.unit_amount || 0;
 
-  await prisma.subscription.create({
-    data: {
-      stripeCustomerId: stripeCustomer.id,
-      stripeSubscriptionId: subscription.id,
-      stripePriceId: priceId,
-      status: mapSubscriptionStatus(subscription.status),
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      amount,
-      currency: subscription.currency,
-      interval: subscription.items.data[0]?.price.recurring?.interval || 'month',
-    },
+  await db.insert(subscriptionTable).values({
+    id: createId(),
+    stripeCustomerId: stripeCustomer.id,
+    stripeSubscriptionId: subscription.id,
+    stripePriceId: priceId,
+    status: mapSubscriptionStatus(subscription.status),
+    currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
+    currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    amount,
+    currency: subscription.currency,
+    interval: subscription.items.data[0]?.price.recurring?.interval || 'month',
+    updatedAt: new Date().toISOString(),
   });
 
   if (subscription.metadata?.type === 'storage_upgrade') {
@@ -442,9 +445,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log(`🔄 Subscription updated: ${subscription.id}`);
 
-  const existing = await prisma.subscription.findUnique({
-    where: { stripeSubscriptionId: subscription.id },
-  });
+  const [existing] = await db.select().from(subscriptionTable).where(eq(subscriptionTable.stripeSubscriptionId, subscription.id)).limit(1);
 
   if (!existing) {
     // If doesn't exist, create it
@@ -452,28 +453,24 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     return;
   }
 
-  await prisma.subscription.update({
-    where: { stripeSubscriptionId: subscription.id },
-    data: {
-      status: mapSubscriptionStatus(subscription.status),
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000) : null,
-    },
-  });
+  await db.update(subscriptionTable).set({
+    status: mapSubscriptionStatus(subscription.status),
+    currentPeriodStart: new Date(subscription.current_period_start * 1000).toISOString(),
+    currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(subscriptionTable.stripeSubscriptionId, subscription.id));
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   console.log(`🗑️ Subscription deleted: ${subscription.id}`);
 
-  await prisma.subscription.update({
-    where: { stripeSubscriptionId: subscription.id },
-    data: {
-      status: 'CANCELED',
-      canceledAt: new Date(),
-    },
-  });
+  await db.update(subscriptionTable).set({
+    status: 'CANCELED',
+    canceledAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }).where(eq(subscriptionTable.stripeSubscriptionId, subscription.id));
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
@@ -483,14 +480,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   if (type === 'invoice_payment' && invoiceId) {
     // Update invoice status
-    await prisma.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        status: 'PAID',
-        paidAt: new Date(),
-        stripePaymentIntentId: session.payment_intent as string,
-      },
-    });
+    await db.update(invoice).set({
+      status: 'PAID',
+      paidAt: new Date().toISOString(),
+      stripePaymentIntentId: session.payment_intent as string,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(invoice.id, invoiceId));
 
     // Tech Fees: pass Stripe's real processing fee on to the client's next invoice
     const stripeCustomerId = typeof session.customer === 'string'
@@ -509,33 +504,27 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 async function applyStorageUpgrade(clientId?: string, addBytes?: string) {
   if (!clientId || !addBytes) return;
 
-  const client = await prisma.client.findUnique({
-    where: { id: clientId },
-    select: { rawFootageStorageLimit: true },
-  });
+  const [client] = await db.select({ rawFootageStorageLimit: clientTable.rawFootageStorageLimit })
+    .from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
 
   if (!client) return;
 
   const currentLimit = BigInt(client.rawFootageStorageLimit?.toString() || '3298534883328');
   const addedStorage = BigInt(addBytes);
 
-  await prisma.client.update({
-    where: { id: clientId },
-    data: {
-      rawFootageStorageLimit: currentLimit + addedStorage,
-      storageAlert90Sent: false,
-      storageAlert95Sent: false,
-    },
-  });
+  await db.update(clientTable).set({
+    rawFootageStorageLimit: Number(currentLimit + addedStorage),
+    storageAlert90Sent: false,
+    storageAlert95Sent: false,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(clientTable.id, clientId));
 }
 
 async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) {
   console.log(`💳 Payment method attached: ${paymentMethod.id}`);
 
   const customerId = paymentMethod.customer as string;
-  const stripeCustomer = await prisma.stripeCustomer.findUnique({
-    where: { stripeCustomerId: customerId },
-  });
+  const [stripeCustomer] = await db.select().from(stripeCustomerTable).where(eq(stripeCustomerTable.stripeCustomerId, customerId)).limit(1);
 
   if (!stripeCustomer) return;
 
@@ -559,19 +548,20 @@ async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) 
     data.bankAccountType = paymentMethod.us_bank_account.account_type;
   }
 
-  await prisma.paymentMethod.upsert({
-    where: { stripePaymentMethodId: paymentMethod.id },
-    create: data,
-    update: data,
+  await db.insert(paymentMethodTable).values({
+    id: createId(),
+    ...data,
+    updatedAt: new Date().toISOString(),
+  }).onConflictDoUpdate({
+    target: paymentMethodTable.stripePaymentMethodId,
+    set: { ...data, updatedAt: new Date().toISOString() },
   });
 }
 
 async function handlePaymentMethodDetached(paymentMethod: Stripe.PaymentMethod) {
   console.log(`💳 Payment method detached: ${paymentMethod.id}`);
 
-  await prisma.paymentMethod.delete({
-    where: { stripePaymentMethodId: paymentMethod.id },
-  }).catch(() => {
+  await db.delete(paymentMethodTable).where(eq(paymentMethodTable.stripePaymentMethodId, paymentMethod.id)).catch(() => {
     // Ignore if doesn't exist
   });
 }
@@ -598,58 +588,61 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
   const stripeCustomerId = stripeInvoice.customer as string;
   if (!stripeCustomerId) return;
 
-  const stripeCustomer = await prisma.stripeCustomer.findUnique({
-    where: { stripeCustomerId },
-    include: { client: { include: { portalAccess: true } } },
+  const rawStripeCustomer = await db.query.stripeCustomer.findFirst({
+    where: eq(stripeCustomerTable.stripeCustomerId, stripeCustomerId),
+    with: { client: { with: { clientPortalAccesses: true } } },
   });
 
-  if (!stripeCustomer) return;
-  const client = (stripeCustomer as any)?.client;
+  if (!rawStripeCustomer) return;
+  const client = rawStripeCustomer.client
+    ? { ...rawStripeCustomer.client, portalAccess: (rawStripeCustomer.client as any).clientPortalAccesses?.[0] ?? null }
+    : null;
   if (!client?.portalAccess) return;
+  const stripeCustomer = rawStripeCustomer;
 
   const now = new Date();
   const nextBilling = new Date(now);
   nextBilling.setMonth(nextBilling.getMonth() + 1);
 
   // Create Invoice record so it shows in admin + client billing pages
-  const invoice = await prisma.invoice.create({
-    data: {
-      stripeCustomerId: stripeCustomer.id,
-      stripeInvoiceId: stripeInvoice.id,
-      invoiceNumber: stripeInvoice.number || generateInvoiceNumber(),
-      status: 'PAID',
-      amount: stripeInvoice.amount_due,
-      amountPaid: stripeInvoice.amount_paid,
-      currency: stripeInvoice.currency || 'usd',
-      paidAt: now,
-      isRecurring: true,
-      stripeHostedInvoiceUrl: stripeInvoice.hosted_invoice_url || null,
-      stripePdfUrl: stripeInvoice.invoice_pdf || null,
-      stripePaymentIntentId: stripeInvoice.payment_intent as string | null,
-      lineItems: [
-        {
-          description: `Monthly Service — ${client.companyName || client.name}`,
-          quantity: 1,
-          unitPrice: stripeInvoice.amount_due,
-          total: stripeInvoice.amount_due,
-        },
-      ],
-      description: `Monthly retainer — ${client.companyName || client.name}`,
-      sentAt: now,
-    },
-  });
+  const [createdInvoice] = await db.insert(invoice).values({
+    id: createId(),
+    stripeCustomerId: stripeCustomer.id,
+    stripeInvoiceId: stripeInvoice.id,
+    invoiceNumber: stripeInvoice.number || generateInvoiceNumber(),
+    status: 'PAID',
+    amount: stripeInvoice.amount_due,
+    amountPaid: stripeInvoice.amount_paid,
+    currency: stripeInvoice.currency || 'usd',
+    paidAt: now.toISOString(),
+    isRecurring: true,
+    stripeHostedInvoiceUrl: stripeInvoice.hosted_invoice_url || null,
+    stripePdfUrl: stripeInvoice.invoice_pdf || null,
+    stripePaymentIntentId: stripeInvoice.payment_intent as string | null,
+    lineItems: [
+      {
+        description: `Monthly Service — ${client.companyName || client.name}`,
+        quantity: 1,
+        unitPrice: stripeInvoice.amount_due,
+        total: stripeInvoice.amount_due,
+      },
+    ],
+    description: `Monthly retainer — ${client.companyName || client.name}`,
+    sentAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  }).returning();
 
   // Create Payment record
   if (stripeInvoice.payment_intent) {
-    await prisma.payment.create({
-      data: {
-        invoiceId: invoice.id,
-        stripePaymentIntentId: stripeInvoice.payment_intent as string,
-        amount: stripeInvoice.amount_paid,
-        currency: stripeInvoice.currency || 'usd',
-        status: 'SUCCEEDED',
-        paymentMethod: 'card',
-      },
+    await db.insert(payment).values({
+      id: createId(),
+      invoiceId: createdInvoice.id,
+      stripePaymentIntentId: stripeInvoice.payment_intent as string,
+      amount: stripeInvoice.amount_paid,
+      currency: stripeInvoice.currency || 'usd',
+      status: 'SUCCEEDED',
+      paymentMethod: 'card',
+      updatedAt: now.toISOString(),
     });
   }
 
@@ -657,19 +650,17 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
   const updateData: any = {
     status: 'ACTIVE',
     lockedAt: null,
-    nextBillingDate: nextBilling,
+    nextBillingDate: nextBilling.toISOString(),
+    updatedAt: now.toISOString(),
   };
 
   if (!client.portalAccess.billingAnchorDate) {
-    updateData.billingAnchorDate = now;
+    updateData.billingAnchorDate = now.toISOString();
   }
 
-  await prisma.clientPortalAccess.update({
-    where: { clientId: client.id },
-    data: updateData,
-  });
+  await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, client.id));
 
-  console.log(`🔓 [Portal] First payment — unlocked for: ${client.name}, invoice: ${invoice.invoiceNumber}`);
+  console.log(`🔓 [Portal] First payment — unlocked for: ${client.name}, invoice: ${createdInvoice.invoiceNumber}`);
 }
 
 // Send billing warning email 3 days before billing date

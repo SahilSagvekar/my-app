@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/clients/[id]/meeting-notes/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { meetingNote as meetingNoteTable } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { getUserFromToken, requireAdmin } from "@/lib/auth-helpers";
 import { createMeetingNotesDoc } from "@/lib/meeting-notes";
 
@@ -13,10 +15,9 @@ export async function GET(
   try {
     const { id: clientId } = await params;
 
-    const meetingNotes = await prisma.meetingNote.findMany({
-      where: { clientId },
-      orderBy: { meetingDate: "desc" },
-    });
+    const meetingNotes = await db.select().from(meetingNoteTable)
+      .where(eq(meetingNoteTable.clientId, clientId))
+      .orderBy(desc(meetingNoteTable.meetingDate));
 
     return NextResponse.json({ meetingNotes });
   } catch (err) {

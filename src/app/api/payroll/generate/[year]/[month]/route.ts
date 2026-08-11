@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user, bonus, deduction, payroll as payrollTable } from "@/lib/db/schema";
+import { and, eq, gte, lte, notInArray } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import { countWorkingDaysBetween } from "@/lib/workdays";
 import type { NextRequest } from "next/server";
@@ -30,19 +32,16 @@ export async function POST(
     const periodEnd = new Date(Date.UTC(year, month + 1, 0));
 
     // 1) Fetch eligible employees
-    const employees = await prisma.user.findMany({
-      where: {
-        employeeStatus: "ACTIVE",
-        role: { notIn: ["admin", "client"] }
-      },
-      select: {
-        id: true,
-        hourlyRate: true,
-        hoursPerWeek: true,
-        worksOnSaturday: true,
-        joinedAt: true
-      }
-    });
+    const employees = await db.select({
+      id: user.id,
+      hourlyRate: user.hourlyRate,
+      hoursPerWeek: user.hoursPerWeek,
+      worksOnSaturday: user.worksOnSaturday,
+      joinedAt: user.joinedAt,
+    }).from(user).where(and(
+      eq(user.employeeStatus, "ACTIVE"),
+      notInArray(user.role, ["admin", "client"] as any),
+    ));
 
     const payrolls = [];
 
@@ -73,27 +72,22 @@ export async function POST(
       const baseSalary = hourly * hoursPerWeek * 4;
 
       // 3) Total Bonuses for this period
-      const bonuses = await prisma.bonus.findMany({
-        where: {
-          employeeId: emp.id,
-          createdAt: { gte: periodStart, lte: periodEnd }
-        }
-      });
+      const bonuses = await db.select().from(bonus).where(and(
+        eq(bonus.employeeId, emp.id),
+        gte(bonus.createdAt, periodStart.toISOString()),
+        lte(bonus.createdAt, periodEnd.toISOString()),
+      ));
       const totalBonuses = bonuses.reduce(
         (s, b) => s + Number(b.amount),
         0
       );
 
       // 4) Total Deductions for this period
-      const deductions = await prisma.deduction.findMany({
-        where: {
-          employeeId: emp.id,
-          month: {
-            gte: periodStart,
-            lte: periodEnd
-          }
-        }
-      });
+      const deductions = await db.select().from(deduction).where(and(
+        eq(deduction.employeeId, emp.id),
+        gte(deduction.month, periodStart.toISOString()),
+        lte(deduction.month, periodEnd.toISOString()),
+      ));
       const totalDeductions = deductions.reduce(
         (s, d) => s + Number(d.amount),
         0
@@ -102,41 +96,34 @@ export async function POST(
       const netPay = Math.round((baseSalary + totalBonuses - totalDeductions) * 100) / 100;
 
       // Check if payroll already exists for this employee & month
-      const existing = await prisma.payroll.findFirst({
-        where: {
-          employeeId: emp.id,
-          periodStart,
-          periodEnd
-        }
-      });
+      const [existing] = await db.select().from(payrollTable).where(and(
+        eq(payrollTable.employeeId, emp.id),
+        eq(payrollTable.periodStart, periodStart.toISOString()),
+        eq(payrollTable.periodEnd, periodEnd.toISOString()),
+      )).limit(1);
 
-      let payroll;
+      let payrollRow;
 
       if (existing) {
-        payroll = await prisma.payroll.update({
-          where: { id: existing.id },
-          data: {
-            baseSalary,
-            totalBonuses,
-            totalDeductions,
-            netPay
-          }
-        });
+        [payrollRow] = await db.update(payrollTable).set({
+          baseSalary: String(baseSalary),
+          totalBonuses: String(totalBonuses),
+          totalDeductions: String(totalDeductions),
+          netPay: String(netPay),
+        }).where(eq(payrollTable.id, existing.id)).returning();
       } else {
-        payroll = await prisma.payroll.create({
-          data: {
-            employeeId: emp.id,
-            periodStart,
-            periodEnd,
-            baseSalary,
-            totalBonuses,
-            totalDeductions,
-            netPay
-          }
-        });
+        [payrollRow] = await db.insert(payrollTable).values({
+          employeeId: emp.id,
+          periodStart: periodStart.toISOString(),
+          periodEnd: periodEnd.toISOString(),
+          baseSalary: String(baseSalary),
+          totalBonuses: String(totalBonuses),
+          totalDeductions: String(totalDeductions),
+          netPay: String(netPay),
+        }).returning();
       }
 
-      payrolls.push(payroll);
+      payrolls.push(payrollRow);
     }
 
     return NextResponse.json({

@@ -1,7 +1,9 @@
 // src/app/api/social/sync/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { socialAccount } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { syncSocialAccount, syncClientAccounts } from '@/lib/social/sync';
 
@@ -21,10 +23,8 @@ export async function POST(req: NextRequest) {
 
     // If specific account requested
     if (accountId) {
-      const account = await prisma.socialAccount.findUnique({
-        where: { id: accountId },
-        select: { clientId: true },
-      });
+      const [account] = await db.select({ clientId: socialAccount.clientId })
+        .from(socialAccount).where(eq(socialAccount.id, accountId)).limit(1);
 
       if (!account) {
         return NextResponse.json({ error: 'Account not found' }, { status: 404 });
@@ -92,25 +92,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const accounts = await prisma.socialAccount.findMany({
-      where: { clientId },
-      select: {
-        id: true,
-        platform: true,
-        platformName: true,
-        isActive: true,
-        lastSyncAt: true,
-        followerCount: true,
-      },
-    });
+    const accounts = await db.select({
+      id: socialAccount.id,
+      platform: socialAccount.platform,
+      platformName: socialAccount.platformName,
+      isActive: socialAccount.isActive,
+      lastSyncAt: socialAccount.lastSyncAt,
+      followerCount: socialAccount.followerCount,
+    }).from(socialAccount).where(eq(socialAccount.clientId, clientId));
 
     return NextResponse.json({
       ok: true,
       accounts: accounts.map(a => ({
         ...a,
-        lastSyncAt: a.lastSyncAt?.toISOString(),
-        needsSync: !a.lastSyncAt || 
-          (Date.now() - a.lastSyncAt.getTime()) > 6 * 60 * 60 * 1000, // 6 hours
+        lastSyncAt: a.lastSyncAt ? new Date(a.lastSyncAt).toISOString() : a.lastSyncAt,
+        needsSync: !a.lastSyncAt ||
+          (Date.now() - new Date(a.lastSyncAt).getTime()) > 6 * 60 * 60 * 1000, // 6 hours
       })),
     });
   } catch (error: any) {

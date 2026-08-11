@@ -2,7 +2,10 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task, editorEodReport, editorEodReportItem } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, inArray } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import {
   getTodayReportDate,
@@ -40,30 +43,28 @@ export async function POST(req: NextRequest) {
     const todayDate = getTodayReportDate();
 
     // Check for existing report
-    const existingReport = await prisma.editorEodReport.findUnique({
-      where: {
-        editorId_reportDate: {
-          editorId: user.id,
-          reportDate: todayDate,
-        },
-      },
-      include: { items: { select: { taskId: true } } },
+    const existingReportRaw = await db.query.editorEodReport.findFirst({
+      where: and(eq(editorEodReport.editorId, user.id), eq(editorEodReport.reportDate, todayDate)),
+      with: { editorEodReportItems: { columns: { taskId: true } } },
     });
+    const existingReport = existingReportRaw
+      ? { ...existingReportRaw, items: existingReportRaw.editorEodReportItems }
+      : null;
 
     const alreadySubmittedIds = new Set(
       existingReport?.items.map((i) => i.taskId) || []
     );
 
     // Fetch tasks from DB — do NOT trust frontend
-    const tasks = await prisma.task.findMany({
-      where: { id: { in: uniqueTaskIds } },
-      include: {
+    const tasks = await db.query.task.findMany({
+      where: inArray(task.id, uniqueTaskIds),
+      with: {
         client: {
-          select: { name: true, companyName: true },
+          columns: { name: true, companyName: true },
         },
         files: {
-          where: { isActive: true },
-          select: {
+          where: (f, { eq }) => eq(f.isActive, true),
+          columns: {
             id: true,
             name: true,
             url: true,
@@ -130,38 +131,37 @@ export async function POST(req: NextRequest) {
     });
 
     // Create or update report in transaction
-    const report = await prisma.$transaction(async (tx) => {
+    const report = await db.transaction(async (tx) => {
       let reportRecord;
 
       if (existingReport) {
         // Append to existing report
-        reportRecord = await tx.editorEodReport.update({
-          where: { id: existingReport.id },
-          data: {
-            notes: notes || existingReport.notes,
-            status: "DRAFT",
-          },
-        });
+        [reportRecord] = await tx.update(editorEodReport).set({
+          notes: notes || existingReport.notes,
+          status: "DRAFT",
+          updatedAt: new Date().toISOString(),
+        }).where(eq(editorEodReport.id, existingReport.id)).returning();
       } else {
         // Create new report
-        reportRecord = await tx.editorEodReport.create({
-          data: {
-            editorId: user.id,
-            reportDate: todayDate,
-            slackChannel: process.env.EDITOR_EOD_SLACK_CHANNEL || "reports",
-            status: "DRAFT",
-            notes: notes || null,
-          },
-        });
+        [reportRecord] = await tx.insert(editorEodReport).values({
+          id: createId(),
+          editorId: user.id,
+          reportDate: todayDate,
+          slackChannel: process.env.EDITOR_EOD_SLACK_CHANNEL || "reports",
+          status: "DRAFT",
+          notes: notes || null,
+          updatedAt: new Date().toISOString(),
+        }).returning();
       }
 
       // Create report items
-      await tx.editorEodReportItem.createMany({
-        data: reportItems.map((item) => ({
+      await tx.insert(editorEodReportItem).values(
+        reportItems.map((item) => ({
+          id: createId(),
           reportId: reportRecord.id,
           ...item,
-        })),
-      });
+        }))
+      );
 
       return reportRecord;
     });
@@ -208,13 +208,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Update report status
-    await prisma.editorEodReport.update({
-      where: { id: report.id },
-      data: {
-        status: slackFailed ? "FAILED" : "SENT",
-        slackTs: slackTs,
-      },
-    });
+    await db.update(editorEodReport).set({
+      status: slackFailed ? "FAILED" : "SENT",
+      slackTs: slackTs,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(editorEodReport.id, report.id));
 
     return NextResponse.json({
       success: true,

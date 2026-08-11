@@ -77,24 +77,25 @@ export async function getOrCreateStripeCustomer(
   name: string,
   metadata?: Record<string, string>
 ): Promise<Stripe.Customer> {
-  const { prisma } = await import('@/lib/prisma');
-  
+  const { db } = await import('@/lib/db');
+  const { stripeCustomer } = await import('@/lib/db/schema');
+  const { createId } = await import('@/lib/db/id');
+  const { eq } = await import('drizzle-orm');
+
   // Check if customer already exists
-  const existingCustomer = await prisma.stripeCustomer.findUnique({
-    where: { clientId },
-  });
-  
+  const [existingCustomer] = await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, clientId)).limit(1);
+
   if (existingCustomer) {
     // Return existing Stripe customer
     const customer = await stripe.customers.retrieve(existingCustomer.stripeCustomerId);
     if (customer.deleted) {
       // Customer was deleted in Stripe, create a new one
-      await prisma.stripeCustomer.delete({ where: { clientId } });
+      await db.delete(stripeCustomer).where(eq(stripeCustomer.clientId, clientId));
     } else {
       return customer as Stripe.Customer;
     }
   }
-  
+
   // Create new Stripe customer
   const customer = await stripe.customers.create({
     email,
@@ -104,16 +105,16 @@ export async function getOrCreateStripeCustomer(
       ...metadata,
     },
   });
-  
+
   // Save to database
-  await prisma.stripeCustomer.create({
-    data: {
-      clientId,
-      stripeCustomerId: customer.id,
-      currency: 'usd',
-    },
+  await db.insert(stripeCustomer).values({
+    id: createId(),
+    clientId,
+    stripeCustomerId: customer.id,
+    currency: 'usd',
+    updatedAt: new Date().toISOString(),
   });
-  
+
   return customer;
 }
 

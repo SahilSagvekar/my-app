@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/meta/analytics/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { metaAccount, metaSnapshot, clientRevenue } from "@/lib/db/schema";
+import { and, eq, desc } from "drizzle-orm";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 import { MetaAnalyticsData } from "@/types/meta";
 
@@ -26,13 +28,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "clientId is required" }, { status: 400 });
         }
 
-        const account = await prisma.metaAccount.findUnique({
-            where: { clientId },
-            include: {
-                snapshots: {
-                    where: { dateRange: range },
-                    orderBy: { snapshotDate: 'desc' },
-                    take: 1
+        const account = await db.query.metaAccount.findFirst({
+            where: eq(metaAccount.clientId, clientId),
+            with: {
+                metaSnapshots: {
+                    where: eq(metaSnapshot.dateRange, range),
+                    orderBy: desc(metaSnapshot.snapshotDate),
+                    limit: 1
                 }
             }
         });
@@ -41,17 +43,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ connected: false });
         }
 
-        const snapshot = account.snapshots[0];
+        const snapshot = account.metaSnapshots[0];
 
         // Get latest manual revenue entry for Instagram
-        const revenueEntries = await prisma.clientRevenue.findMany({
-            where: {
-                clientId,
-                platform: 'instagram'
-            },
-            orderBy: { period: 'desc' },
-            take: 1
-        });
+        const revenueEntries = await db.select().from(clientRevenue)
+            .where(and(eq(clientRevenue.clientId, clientId), eq(clientRevenue.platform, 'instagram')))
+            .orderBy(desc(clientRevenue.period))
+            .limit(1);
 
         // Calculate engagement rate based on 28d snapshot
         const engagementRate = account.followerCount > 0
@@ -70,13 +68,13 @@ export async function GET(req: NextRequest) {
             engagementRate: Math.round(engagementRate * 100) / 100,
             profileViews: snapshot?.profileViews || 0,
             websiteClicks: snapshot?.websiteClicks || 0,
-            lastSyncedAt: account.lastSyncedAt?.toISOString() || null,
+            lastSyncedAt: account.lastSyncedAt ? new Date(account.lastSyncedAt).toISOString() : null,
             syncStatus: account.syncStatus,
             topPosts: (snapshot?.topPosts as any) || [],
             demographics: (snapshot?.demographics as any) || null,
             revenue: revenueEntries[0] ? {
                 total: Number(revenueEntries[0].amount),
-                period: revenueEntries[0].period.toISOString().substring(0, 7)
+                period: new Date(revenueEntries[0].period).toISOString().substring(0, 7)
             } : undefined
         };
 

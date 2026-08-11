@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 // src/app/api/hiring/candidates/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { hiringCandidate, hiringTestTask, user as userTable } from '@/lib/db/schema';
+import { desc, eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 async function requireAdmin(req: NextRequest) {
@@ -16,18 +18,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const candidate = await prisma.hiringCandidate.findUnique({
-    where: { id },
-    include: {
-      testTasks: {
-        orderBy: { createdAt: 'desc' },
-        include: { reviewedBy: { select: { id: true, name: true } } },
-      },
-      createdBy: { select: { id: true, name: true } },
-    },
-  });
+  const [candidateRow] = await db.select().from(hiringCandidate).where(eq(hiringCandidate.id, id)).limit(1);
+  if (!candidateRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  if (!candidate) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const createdBy = candidateRow.createdById
+    ? (await db.select({ id: userTable.id, name: userTable.name }).from(userTable).where(eq(userTable.id, candidateRow.createdById)).limit(1))[0] ?? null
+    : null;
+
+  const testTaskRows = await db.select({
+    task: hiringTestTask,
+    reviewedBy: { id: userTable.id, name: userTable.name },
+  })
+    .from(hiringTestTask)
+    .leftJoin(userTable, eq(hiringTestTask.reviewedById, userTable.id))
+    .where(eq(hiringTestTask.candidateId, id))
+    .orderBy(desc(hiringTestTask.createdAt));
+
+  const testTasks = testTaskRows.map(r => ({ ...r.task, reviewedBy: r.reviewedBy.id !== null ? r.reviewedBy : null }));
+
+  const candidate = { ...candidateRow, testTasks, createdBy };
+
   return NextResponse.json({ candidate });
 }
 
@@ -40,9 +50,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { name, email, phone, portfolioUrl, resumeUrl, source, notes, status } = body;
 
   try {
-    const candidate = await prisma.hiringCandidate.update({
-      where: { id },
-      data: {
+    const [candidate] = await db.update(hiringCandidate)
+      .set({
         ...(name !== undefined ? { name } : {}),
         ...(email !== undefined ? { email } : {}),
         ...(phone !== undefined ? { phone } : {}),
@@ -51,8 +60,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(source !== undefined ? { source } : {}),
         ...(notes !== undefined ? { notes } : {}),
         ...(status !== undefined ? { status } : {}),
-      },
-    });
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(hiringCandidate.id, id))
+      .returning();
     return NextResponse.json({ candidate });
   } catch (err: any) {
     console.error('[Hiring] Update candidate error:', err.message);
@@ -66,7 +77,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const { id } = await params;
   try {
-    await prisma.hiringCandidate.delete({ where: { id } });
+    await db.delete(hiringCandidate).where(eq(hiringCandidate.id, id));
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('[Hiring] Delete candidate error:', err.message);

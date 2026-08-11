@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/audit-logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { auditLog as auditLogTable, user as userTable } from '@/lib/db/schema';
+import { and, or, eq, gte, lte, ilike, desc, count } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
@@ -28,59 +30,56 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(url.searchParams.get('limit') || '100');
 
     // Build where clause
-    let where: any = {};
+    const conditions = [];
 
     // Search filter
     if (search) {
-      where.OR = [
-        { action: { contains: search, mode: 'insensitive' } },
-        { details: { contains: search, mode: 'insensitive' } },
-        { entity: { contains: search, mode: 'insensitive' } },
-        { user: { name: { contains: search, mode: 'insensitive' } } }
-      ];
+      conditions.push(or(
+        ilike(auditLogTable.action, `%${search}%`),
+        ilike(auditLogTable.details, `%${search}%`),
+        ilike(auditLogTable.entity, `%${search}%`),
+        ilike(userTable.name, `%${search}%`)
+      ));
     }
 
     // Action type filter (map to your action naming convention)
     if (actionType && actionType !== 'all') {
       // You can map frontend action types to your backend action types
-      where.action = { contains: actionType.toUpperCase() };
+      conditions.push(ilike(auditLogTable.action, `%${actionType.toUpperCase()}%`));
     }
 
     // User filter
     if (userId && userId !== 'all') {
-      where.userId = parseInt(userId);
+      conditions.push(eq(auditLogTable.userId, parseInt(userId)));
     }
 
     // Date range filter
     if (startDate && endDate) {
-      where.timestamp = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      };
+      conditions.push(gte(auditLogTable.timestamp, new Date(startDate).toISOString()));
+      conditions.push(lte(auditLogTable.timestamp, new Date(endDate).toISOString()));
     }
 
+    const where = conditions.length ? and(...conditions) : undefined;
+
     // Get total count for pagination
-    const total = await prisma.auditLog.count({ where });
+    const [{ value: total }] = await db.select({ value: count() })
+      .from(auditLogTable)
+      .leftJoin(userTable, eq(auditLogTable.userId, userTable.id))
+      .where(where);
 
     // Fetch audit logs with pagination
-    const logs = await prisma.auditLog.findMany({
-      where,
-      include: {
-        User: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true
-          }
-        }
-      },
-      orderBy: {
-        timestamp: 'desc'
-      },
-      skip: (page - 1) * limit,
-      take: limit
-    });
+    const rows = await db.select({
+      log: auditLogTable,
+      User: { id: userTable.id, name: userTable.name, email: userTable.email, role: userTable.role },
+    })
+      .from(auditLogTable)
+      .leftJoin(userTable, eq(auditLogTable.userId, userTable.id))
+      .where(where)
+      .orderBy(desc(auditLogTable.timestamp))
+      .offset((page - 1) * limit)
+      .limit(limit);
+
+    const logs = rows.map(r => ({ ...r.log, User: r.User }));
 
     // Format logs for frontend
     const formattedLogs = logs.map(log => {
@@ -105,7 +104,7 @@ export async function GET(req: NextRequest) {
 
       return {
         id: log.id,
-        timestamp: log.timestamp.toISOString(),
+        timestamp: new Date(log.timestamp).toISOString(),
         action: log.action,
         actionType,
         user: log.User?.name || 'System',

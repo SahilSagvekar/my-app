@@ -7,14 +7,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getS3, BUCKET } from '@/lib/s3';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { hiringTestTask } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const testTask = await prisma.hiringTestTask.findUnique({ where: { submissionToken: token } });
+  const [testTask] = await db.select().from(hiringTestTask).where(eq(hiringTestTask.submissionToken, token)).limit(1);
   if (!testTask) return NextResponse.json({ error: 'Invalid link' }, { status: 404 });
-  if (testTask.expiresAt && testTask.expiresAt.getTime() < Date.now()) {
+  if (testTask.expiresAt && new Date(testTask.expiresAt).getTime() < Date.now()) {
     return NextResponse.json({ error: 'This link has expired' }, { status: 410 });
   }
 

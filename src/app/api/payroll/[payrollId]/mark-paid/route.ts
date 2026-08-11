@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { payroll } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import type { NextRequest } from "next/server";
 
@@ -12,13 +14,10 @@ export async function PATCH(
     await requireAdmin  (req);
     const { payrollId } = await Promise.resolve(context.params);
 
-    const updated = await prisma.payroll.update({
-      where: { id: Number(payrollId) },
-      data: {
-        status: "PAID",
-        paidAt: new Date()
-      }
-    });
+    const [updated] = await db.update(payroll).set({
+      status: "PAID",
+      paidAt: new Date().toISOString(),
+    }).where(eq(payroll.id, Number(payrollId))).returning();
 
     return NextResponse.json({ ok: true, payroll: updated });
   } catch (err: any) {

@@ -1,7 +1,10 @@
 import Stripe from 'stripe';
 import { randomUUID } from 'crypto';
 import { stripe } from '@/lib/stripe';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesRepPayoutProfile, affiliateCommission, commissionPayout } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq } from 'drizzle-orm';
 
 // Sales rep commission payouts — built on Stripe Connect Express + Transfers.
 // See E8_App_Stripe_Commission_Payouts_Dev_Doc for the original spec; Connect was
@@ -25,7 +28,7 @@ export async function getOrCreateConnectAccount(
   country: string,
   email: string
 ): Promise<{ accountId: string; profileId: string }> {
-  const existing = await prisma.salesRepPayoutProfile.findUnique({ where: { userId } });
+  const [existing] = await db.select().from(salesRepPayoutProfile).where(eq(salesRepPayoutProfile.userId, userId)).limit(1);
 
   if (existing?.stripeConnectAccountId) {
     return { accountId: existing.stripeConnectAccountId, profileId: existing.id };
@@ -42,21 +45,24 @@ export async function getOrCreateConnectAccount(
     metadata: { userId: String(userId) },
   });
 
-  const profile = await prisma.salesRepPayoutProfile.upsert({
-    where: { userId },
-    create: {
-      userId,
+  const now = new Date().toISOString();
+  const [profile] = await db.insert(salesRepPayoutProfile).values({
+    id: createId(),
+    userId,
+    stripeConnectAccountId: account.id,
+    onboardingStatus: 'IN_PROGRESS',
+    country,
+    currency: account.default_currency ?? 'usd',
+    updatedAt: now,
+  }).onConflictDoUpdate({
+    target: salesRepPayoutProfile.userId,
+    set: {
       stripeConnectAccountId: account.id,
       onboardingStatus: 'IN_PROGRESS',
       country,
-      currency: account.default_currency ?? 'usd',
+      updatedAt: now,
     },
-    update: {
-      stripeConnectAccountId: account.id,
-      onboardingStatus: 'IN_PROGRESS',
-      country,
-    },
-  });
+  }).returning();
 
   return { accountId: account.id, profileId: profile.id };
 }
@@ -88,16 +94,16 @@ export async function syncAccountStatus(accountId: string): Promise<void> {
   const account = await stripe.accounts.retrieve(accountId);
   const payoutsEnabled = !!account.payouts_enabled;
 
-  await prisma.salesRepPayoutProfile.updateMany({
-    where: { stripeConnectAccountId: accountId },
-    data: {
-      payoutsEnabled,
-      onboardingStatus: payoutsEnabled ? 'COMPLETE' : 'IN_PROGRESS',
-      currency: account.default_currency ?? undefined,
-      taxFormCollectedAt: payoutsEnabled ? new Date() : undefined,
-      taxFormType: account.country === 'US' ? 'W9' : 'W8BEN',
-    },
-  });
+  const updateData: any = {
+    payoutsEnabled,
+    onboardingStatus: payoutsEnabled ? 'COMPLETE' : 'IN_PROGRESS',
+    taxFormType: account.country === 'US' ? 'W9' : 'W8BEN',
+    updatedAt: new Date().toISOString(),
+  };
+  if (account.default_currency) updateData.currency = account.default_currency;
+  if (payoutsEnabled) updateData.taxFormCollectedAt = new Date().toISOString();
+
+  await db.update(salesRepPayoutProfile).set(updateData).where(eq(salesRepPayoutProfile.stripeConnectAccountId, accountId));
 }
 
 // Uniqueness here only needs to satisfy CommissionPayout.idempotencyKey's DB
@@ -116,10 +122,14 @@ export async function sendCommissionTransfer(
   commissionId: string,
   batchId?: string
 ): Promise<CommissionPayoutResult> {
-  const commission = await prisma.affiliateCommission.findUniqueOrThrow({
-    where: { id: commissionId },
-    include: { user: { include: { payoutProfile: true } } },
+  const commissionRow = await db.query.affiliateCommission.findFirst({
+    where: eq(affiliateCommission.id, commissionId),
+    with: { user: { with: { salesRepPayoutProfiles: true } } },
   });
+  if (!commissionRow) {
+    throw new Error(`Commission ${commissionId} not found`);
+  }
+  const commission = commissionRow;
 
   if (commission.status !== 'APPROVED') {
     throw new PayoutError(
@@ -128,7 +138,9 @@ export async function sendCommissionTransfer(
     );
   }
 
-  const profile = commission.user.payoutProfile;
+  // salesRepPayoutProfile has a unique userId FK (1:1), but drizzle-kit
+  // introspection mislabels it many() — take the first (only) entry.
+  const profile = commission.user.salesRepPayoutProfiles[0];
   if (!profile?.stripeConnectAccountId || !profile.payoutsEnabled) {
     throw new PayoutError(
       `Sales rep ${commission.salesUserId} has no payout-enabled Connect account`,
@@ -145,27 +157,30 @@ export async function sendCommissionTransfer(
   // retry racing the weekly batch, an admin double-click) hit this at once,
   // only one UPDATE ... WHERE status = 'APPROVED' can succeed. The loser sees
   // count 0 and bails before ever calling Stripe.
-  const flip = await prisma.affiliateCommission.updateMany({
-    where: { id: commissionId, status: 'APPROVED' },
-    data: { status: 'PAYOUT_PENDING' },
-  });
-  if (flip.count === 0) {
+  const flip = await db.update(affiliateCommission).set({
+    status: 'PAYOUT_PENDING',
+    updatedAt: new Date().toISOString(),
+  }).where(and(
+    eq(affiliateCommission.id, commissionId),
+    eq(affiliateCommission.status, 'APPROVED'),
+  )).returning();
+  if (flip.length === 0) {
     throw new PayoutError(
       `Commission ${commissionId} was claimed by another payout attempt`,
       'ALREADY_CLAIMED'
     );
   }
 
-  const payout = await prisma.commissionPayout.create({
-    data: {
-      salesUserId: commission.salesUserId,
-      amount: commission.commissionAmt,
-      currency: commission.currency,
-      status: 'PENDING',
-      idempotencyKey: payoutIdempotencyKey(commissionId, batchId),
-      batchId,
-    },
-  });
+  const [payout] = await db.insert(commissionPayout).values({
+    id: createId(),
+    salesUserId: commission.salesUserId,
+    amount: commission.commissionAmt,
+    currency: commission.currency,
+    status: 'PENDING',
+    idempotencyKey: payoutIdempotencyKey(commissionId, batchId),
+    batchId,
+    updatedAt: new Date().toISOString(),
+  }).returning();
 
   try {
     const transfer = await stripe.transfers.create(
@@ -182,29 +197,27 @@ export async function sendCommissionTransfer(
       { idempotencyKey: payout.idempotencyKey }
     );
 
-    await prisma.$transaction([
-      prisma.commissionPayout.update({
-        where: { id: payout.id },
-        data: { stripeTransferId: transfer.id, status: 'SENT', sentAt: new Date() },
-      }),
-      prisma.affiliateCommission.update({
-        where: { id: commissionId },
-        data: { payoutId: payout.id },
-      }),
-    ]);
+    const sentNow = new Date().toISOString();
+    await db.batch([
+      db.update(commissionPayout).set({
+        stripeTransferId: transfer.id, status: 'SENT', sentAt: sentNow, updatedAt: sentNow,
+      }).where(eq(commissionPayout.id, payout.id)),
+      db.update(affiliateCommission).set({
+        payoutId: payout.id, updatedAt: sentNow,
+      }).where(eq(affiliateCommission.id, commissionId)),
+    ] as any);
 
     return { payoutId: payout.id, transferId: transfer.id, status: 'SENT' };
   } catch (err: any) {
-    await prisma.$transaction([
-      prisma.commissionPayout.update({
-        where: { id: payout.id },
-        data: { status: 'FAILED', failedAt: new Date(), failureReason: err.message ?? 'Unknown Stripe error' },
-      }),
-      prisma.affiliateCommission.update({
-        where: { id: commissionId },
-        data: { status: 'FAILED', payoutId: payout.id },
-      }),
-    ]);
+    const failedNow = new Date().toISOString();
+    await db.batch([
+      db.update(commissionPayout).set({
+        status: 'FAILED', failedAt: failedNow, failureReason: err.message ?? 'Unknown Stripe error', updatedAt: failedNow,
+      }).where(eq(commissionPayout.id, payout.id)),
+      db.update(affiliateCommission).set({
+        status: 'FAILED', payoutId: payout.id, updatedAt: failedNow,
+      }).where(eq(affiliateCommission.id, commissionId)),
+    ] as any);
     throw err;
   }
 }

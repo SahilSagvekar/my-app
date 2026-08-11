@@ -1,14 +1,16 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { invoice as invoiceTable, stripeCustomer } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import { resolveClientIdForUser } from '@/lib/auth';
-import { 
-  stripe, 
-  sendStripeInvoice, 
+import {
+  stripe,
+  sendStripeInvoice,
   createInvoiceCheckoutSession,
-  formatAmount 
+  formatAmount
 } from '@/lib/stripe';
 
 // GET - Get single invoice
@@ -24,41 +26,43 @@ export async function GET(
       return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
     }
 
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
-      include: {
+    const rawInvoice = await db.query.invoice.findFirst({
+      where: eq(invoiceTable.id, id),
+      with: {
         stripeCustomer: {
-          include: {
+          with: {
             client: {
-              select: { id: true, name: true, companyName: true, email: true },
+              columns: { id: true, name: true, companyName: true, email: true },
             },
           },
         },
-        creator: {
-          select: { id: true, name: true },
+        user: {
+          columns: { id: true, name: true },
         },
         payments: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: (p, { desc }) => desc(p.createdAt),
         },
       },
     });
 
-    if (!invoice) {
+    if (!rawInvoice) {
       return NextResponse.json({ ok: false, message: 'Invoice not found' }, { status: 404 });
     }
+    const { user: creator, ...invoice } = rawInvoice as any;
+    const invoiceWithCreator = { ...invoice, creator };
 
     // Check access for client users
     if (currentUser.role === 'client') {
       const resolvedClientId = await resolveClientIdForUser(currentUser.userId || currentUser.id);
-      const clientStripeCustomer = resolvedClientId
-        ? await prisma.stripeCustomer.findUnique({ where: { clientId: resolvedClientId } })
-        : null;
+      const [clientStripeCustomer] = resolvedClientId
+        ? await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, resolvedClientId)).limit(1)
+        : [null];
       if (!clientStripeCustomer || clientStripeCustomer.id !== invoice.stripeCustomerId) {
         return NextResponse.json({ ok: false, message: 'Access denied' }, { status: 403 });
       }
     }
 
-    return NextResponse.json({ ok: true, invoice });
+    return NextResponse.json({ ok: true, invoice: invoiceWithCreator });
   } catch (error: any) {
     console.error('Error fetching invoice:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
@@ -81,11 +85,11 @@ export async function PATCH(
     const body = await req.json();
     const { action, ...updateData } = body;
 
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
-      include: {
+    const invoice = await db.query.invoice.findFirst({
+      where: eq(invoiceTable.id, id),
+      with: {
         stripeCustomer: {
-          include: {
+          with: {
             client: true,
           },
         },
@@ -118,19 +122,17 @@ export async function PATCH(
         stripePdfUrl = sentInvoice.invoice_pdf;
       }
 
-      const updatedInvoice = await prisma.invoice.update({
-        where: { id },
-        data: {
-          status: 'SENT',
-          sentAt: new Date(),
-          stripeHostedInvoiceUrl,
-          stripePdfUrl,
-        },
-        include: {
-          stripeCustomer: {
-            include: { client: true },
-          },
-        },
+      await db.update(invoiceTable).set({
+        status: 'SENT',
+        sentAt: new Date().toISOString(),
+        stripeHostedInvoiceUrl,
+        stripePdfUrl,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(invoiceTable.id, id));
+
+      const updatedInvoice = await db.query.invoice.findFirst({
+        where: eq(invoiceTable.id, id),
+        with: { stripeCustomer: { with: { client: true } } },
       });
 
       // TODO: Send email notification to client
@@ -158,10 +160,10 @@ export async function PATCH(
         }
       }
 
-      const updatedInvoice = await prisma.invoice.update({
-        where: { id },
-        data: { status: 'CANCELED' },
-      });
+      const [updatedInvoice] = await db.update(invoiceTable).set({
+        status: 'CANCELED',
+        updatedAt: new Date().toISOString(),
+      }).where(eq(invoiceTable.id, id)).returning();
 
       return NextResponse.json({ ok: true, invoice: updatedInvoice });
     }
@@ -209,14 +211,15 @@ export async function PATCH(
       );
     }
 
-    const updatedInvoice = await prisma.invoice.update({
-      where: { id },
-      data: filteredUpdate,
-      include: {
-        stripeCustomer: {
-          include: { client: true },
-        },
-      },
+    await db.update(invoiceTable).set({
+      ...filteredUpdate,
+      ...(filteredUpdate.dueDate && { dueDate: new Date(filteredUpdate.dueDate).toISOString() }),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(invoiceTable.id, id));
+
+    const updatedInvoice = await db.query.invoice.findFirst({
+      where: eq(invoiceTable.id, id),
+      with: { stripeCustomer: { with: { client: true } } },
     });
 
     return NextResponse.json({ ok: true, invoice: updatedInvoice });
@@ -240,7 +243,7 @@ export async function DELETE(
       return NextResponse.json({ ok: false, message: authError.error }, { status: authError.status });
     }
 
-    const invoice = await prisma.invoice.findUnique({ where: { id } });
+    const [invoice] = await db.select().from(invoiceTable).where(eq(invoiceTable.id, id)).limit(1);
 
     if (!invoice) {
       return NextResponse.json({ ok: false, message: 'Invoice not found' }, { status: 404 });
@@ -259,7 +262,7 @@ export async function DELETE(
       }
     }
 
-    await prisma.invoice.delete({ where: { id } });
+    await db.delete(invoiceTable).where(eq(invoiceTable.id, id));
 
     return NextResponse.json({ ok: true, message: 'Invoice deleted' });
   } catch (error: any) {

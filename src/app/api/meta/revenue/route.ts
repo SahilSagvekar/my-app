@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/meta/revenue/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { clientRevenue } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
+import { createId } from "@/lib/db/id";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -22,31 +25,26 @@ export async function POST(req: NextRequest) {
         const date = new Date(period);
         const normalizedPeriod = new Date(date.getFullYear(), date.getMonth(), 1);
 
-        const revenue = await prisma.clientRevenue.upsert({
-            where: {
-                clientId_platform_period_source: {
-                    clientId,
-                    platform,
-                    period: normalizedPeriod,
-                    source
-                }
-            },
-            update: {
-                amount,
+        const now = new Date().toISOString();
+        const [revenue] = await db.insert(clientRevenue).values({
+            id: createId(),
+            clientId,
+            platform,
+            amount: String(amount),
+            source,
+            notes,
+            period: normalizedPeriod.toISOString(),
+            isAutomatic: false,
+            updatedAt: now,
+        }).onConflictDoUpdate({
+            target: [clientRevenue.clientId, clientRevenue.platform, clientRevenue.period, clientRevenue.source],
+            set: {
+                amount: String(amount),
                 notes,
                 isAutomatic: false,
-                updatedAt: new Date(),
-            },
-            create: {
-                clientId,
-                platform,
-                amount,
-                source,
-                notes,
-                period: normalizedPeriod,
-                isAutomatic: false
+                updatedAt: now,
             }
-        });
+        }).returning();
 
         return NextResponse.json({ success: true, data: revenue });
     } catch (error: any) {
@@ -71,10 +69,9 @@ export async function GET(req: NextRequest) {
 
         if (!clientId) return NextResponse.json({ error: "clientId is required" }, { status: 400 });
 
-        const revenues = await prisma.clientRevenue.findMany({
-            where: { clientId },
-            orderBy: { period: 'desc' }
-        });
+        const revenues = await db.select().from(clientRevenue)
+            .where(eq(clientRevenue.clientId, clientId))
+            .orderBy(desc(clientRevenue.period));
 
         return NextResponse.json(revenues);
     } catch (error: any) {

@@ -1,6 +1,8 @@
 // src/app/api/tasks/[id]/toggle-trial/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
@@ -40,16 +42,12 @@ export async function PATCH(
       return NextResponse.json({ error: "isTrial must be boolean" }, { status: 400 });
     }
 
-    const task = await prisma.task.update({
-      where: { id },
-      data: { isTrial },
-      select: {
-        id: true,
-        isTrial: true,
-      },
-    });
+    const [updatedTask] = await db.update(task).set({
+      isTrial,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id)).returning({ id: task.id, isTrial: task.isTrial });
 
-    return NextResponse.json({ success: true, task });
+    return NextResponse.json({ success: true, task: updatedTask });
   } catch (error) {
     console.error("Toggle trial error:", error);
     return NextResponse.json({ error: "Failed to update" }, { status: 500 });

@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/feedback/[feedbackId]/response/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { feedbackResponse, feedback as feedbackTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -31,15 +34,21 @@ export async function POST(
     // senderId comes from the authenticated session, not the request body —
     // a client-supplied senderId would let anyone attribute a reply to
     // someone else in the thread.
-    const response = await prisma.feedbackResponse.create({
-      data: {
-        message: message.trim(),
-        feedbackId: params.feedbackId,
-        senderId: Number(decoded.userId),
-      },
-      include: {
-        sender: {
-          select: {
+    const [createdResponse] = await db.insert(feedbackResponse).values({
+      id: createId(),
+      message: message.trim(),
+      feedbackId: params.feedbackId,
+      senderId: Number(decoded.userId),
+    }).returning();
+
+    const responseRow = await db.query.feedbackResponse.findFirst({
+      where: eq(feedbackResponse.id, createdResponse.id),
+      with: {
+        // drizzle relation key is "user" (see relations.ts); renamed to
+        // "sender" below to keep the response shape identical to Prisma's
+        // `include: { sender: {...} }`.
+        user: {
+          columns: {
             id: true,
             name: true,
             role: true,
@@ -47,16 +56,16 @@ export async function POST(
         },
       },
     });
+    const { user: sender, ...responseFields } = responseRow!;
+    const response = { ...responseFields, sender };
 
-    // Update feedback status to acknowledged if it was pending
-    await prisma.feedback.update({
-      where: { id: params.feedbackId },
-      data: {
-        status: {
-          set: "acknowledged",
-        },
-      },
-    });
+    // Update feedback status to acknowledged if it was pending.
+    // Feedback.updatedAt is @updatedAt in Prisma (client-managed) — set
+    // explicitly here, matching that behavior.
+    await db.update(feedbackTable).set({
+      status: "acknowledged",
+      updatedAt: new Date().toISOString(),
+    }).where(eq(feedbackTable.id, params.feedbackId));
 
     return NextResponse.json({ response });
   } catch (error) {

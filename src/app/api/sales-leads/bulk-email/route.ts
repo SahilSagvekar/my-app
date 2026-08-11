@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesLead } from '@/lib/db/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { sendRawEmail } from '@/lib/email';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
@@ -25,16 +27,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, message: 'No leads selected' }, { status: 400 });
         }
 
-        const leads = await prisma.salesLead.findMany({
-            where: {
-                id: { in: leadIds },
-                ...(decoded.role === 'admin'
-                    ? {}
-                    : decoded.role === 'sales_manager'
-                        ? { userId: { in: await getVisibleSalesRepIds(Number(decoded.userId)) } }
-                        : { userId: decoded.userId }),
-            }
-        });
+        const ownershipCondition =
+            decoded.role === 'admin'
+                ? undefined
+                : decoded.role === 'sales_manager'
+                    ? inArray(salesLead.userId, await getVisibleSalesRepIds(Number(decoded.userId)))
+                    : eq(salesLead.userId, decoded.userId);
+
+        const leads = await db.select().from(salesLead)
+            .where(ownershipCondition ? and(inArray(salesLead.id, leadIds), ownershipCondition) : inArray(salesLead.id, leadIds));
 
         if (leads.length === 0) {
             return NextResponse.json({ ok: false, message: 'Leads not found' }, { status: 404 });
@@ -78,14 +79,12 @@ export async function POST(req: NextRequest) {
             if (res.success) {
                 results.success++;
                 // Log activity or update lead status
-                await prisma.salesLead.update({
-                    where: { id: lead.id },
-                    data: {
-                        emailed: true,
-                        emailedAt: new Date().toISOString(),
-                        notes: (lead.notes || '') + `\n[${new Date().toLocaleDateString()}] Bulk email sent: ${subject}`
-                    }
-                });
+                await db.update(salesLead).set({
+                    emailed: true,
+                    emailedAt: new Date().toISOString(),
+                    notes: (lead.notes || '') + `\n[${new Date().toLocaleDateString()}] Bulk email sent: ${subject}`,
+                    updatedAt: new Date().toISOString(),
+                }).where(eq(salesLead.id, lead.id));
             } else {
                 results.failed++;
                 results.errors.push(`Failed to send to ${lead.email}: ${res.error}`);

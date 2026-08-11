@@ -1,9 +1,17 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/reports/daily/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user, task } from '@/lib/db/schema';
+import { and, eq, ne, gte, lte, inArray, count } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
-import { TaskStatus } from '@prisma/client';
+
+const TaskStatus = {
+  COMPLETED: 'COMPLETED',
+  QC_IN_PROGRESS: 'QC_IN_PROGRESS',
+  READY_FOR_QC: 'READY_FOR_QC',
+  SCHEDULED: 'SCHEDULED',
+} as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,7 +31,7 @@ export async function GET(req: NextRequest) {
     const endDate = url.searchParams.get('endDate');
 
     // Build date filter
-    let dateFilter: any = {};
+    let dateFilter: { gte: Date; lte?: Date };
     if (startDate && endDate) {
       dateFilter = {
         gte: new Date(startDate),
@@ -37,82 +45,57 @@ export async function GET(req: NextRequest) {
         gte: thirtyDaysAgo
       };
     }
+    const dateRange = (col: typeof task.createdAt) =>
+      dateFilter.lte
+        ? and(gte(col, dateFilter.gte.toISOString()), lte(col, dateFilter.lte.toISOString()))
+        : gte(col, dateFilter.gte.toISOString());
 
     // Build employee filter
-    let employeeFilter: any = {
-      role: { not: 'client' }
-    };
-    
+    const employeeConditions = [ne(user.role, 'client')];
     if (employeeId && employeeId !== 'all') {
-      employeeFilter.id = parseInt(employeeId);
+      employeeConditions.push(eq(user.id, parseInt(employeeId)));
     }
 
     // Get all employees matching filter
-    const employees = await prisma.user.findMany({
-      where: employeeFilter,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true
-      }
-    });
+    const employees = await db
+      .select({ id: user.id, name: user.name, email: user.email, role: user.role })
+      .from(user)
+      .where(and(...employeeConditions));
 
     // Get daily task activity for each employee
     const dailyReports = await Promise.all(
       employees.map(async (employee) => {
         // Get tasks created by this employee (uploaded)
-        const tasksCreated = await prisma.task.groupBy({
-          by: ['createdAt'],
-          where: {
-            createdBy: employee.id,
-            createdAt: dateFilter
-          },
-          _count: {
-            id: true
-          }
-        });
+        const tasksCreated = await db
+          .select({ createdAt: task.createdAt, _count: count() })
+          .from(task)
+          .where(and(eq(task.createdBy, employee.id), dateRange(task.createdAt)))
+          .groupBy(task.createdAt);
 
         // Get tasks completed/approved by this employee
-        const tasksCompleted = await prisma.task.groupBy({
-          by: ['updatedAt'],
-          where: {
-            assignedTo: employee.id,
-            status: TaskStatus.COMPLETED,
-            updatedAt: dateFilter
-          },
-          _count: {
-            id: true
-          }
-        });
+        const tasksCompleted = await db
+          .select({ updatedAt: task.updatedAt, _count: count() })
+          .from(task)
+          .where(and(eq(task.assignedTo, employee.id), eq(task.status, TaskStatus.COMPLETED), dateRange(task.updatedAt)))
+          .groupBy(task.updatedAt);
 
         // Get QC tasks (for QC specialists)
-        const qcTasks = employee.role === 'qc' ? await prisma.task.groupBy({
-          by: ['updatedAt'],
-          where: {
-            qc_specialist: employee.id,
-            status: {
-              in: [TaskStatus.QC_IN_PROGRESS, TaskStatus.READY_FOR_QC]
-            },
-            updatedAt: dateFilter
-          },
-          _count: {
-            id: true
-          }
-        }) : [];
+        const qcTasks = employee.role === 'qc' ? await db
+          .select({ updatedAt: task.updatedAt, _count: count() })
+          .from(task)
+          .where(and(
+            eq(task.qcSpecialist, employee.id),
+            inArray(task.status, [TaskStatus.QC_IN_PROGRESS, TaskStatus.READY_FOR_QC]),
+            dateRange(task.updatedAt)
+          ))
+          .groupBy(task.updatedAt) : [];
 
         // Get scheduled tasks (for schedulers)
-        const scheduledTasks = employee.role === 'scheduler' ? await prisma.task.groupBy({
-          by: ['updatedAt'],
-          where: {
-            scheduler: employee.id,
-            status: TaskStatus.SCHEDULED,
-            updatedAt: dateFilter
-          },
-          _count: {
-            id: true
-          }
-        }) : [];
+        const scheduledTasks = employee.role === 'scheduler' ? await db
+          .select({ updatedAt: task.updatedAt, _count: count() })
+          .from(task)
+          .where(and(eq(task.scheduler, employee.id), eq(task.status, TaskStatus.SCHEDULED), dateRange(task.updatedAt)))
+          .groupBy(task.updatedAt) : [];
 
         // Aggregate by date
         const dailyData = new Map();
@@ -132,7 +115,7 @@ export async function GET(req: NextRequest) {
               totalOutput: 0
             });
           }
-          dailyData.get(date).tasksUploaded += item._count.id;
+          dailyData.get(date).tasksUploaded += item._count;
         });
 
         // Process completed tasks
@@ -150,7 +133,7 @@ export async function GET(req: NextRequest) {
               totalOutput: 0
             });
           }
-          dailyData.get(date).tasksApproved += item._count.id;
+          dailyData.get(date).tasksApproved += item._count;
         });
 
         // Process QC tasks
@@ -168,7 +151,7 @@ export async function GET(req: NextRequest) {
               totalOutput: 0
             });
           }
-          dailyData.get(date).qcChecks += item._count.id;
+          dailyData.get(date).qcChecks += item._count;
         });
 
         // Process scheduled tasks
@@ -186,7 +169,7 @@ export async function GET(req: NextRequest) {
               totalOutput: 0
             });
           }
-          dailyData.get(date).schedulingTasks += item._count.id;
+          dailyData.get(date).schedulingTasks += item._count;
         });
 
         // Calculate total output for each day

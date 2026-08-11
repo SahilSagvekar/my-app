@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import {
+  client as clientTable,
+  task as taskTable,
+  user as userTable,
+} from "@/lib/db/schema";
+import { and, or, eq, gte, lte, isNull, isNotNull, ne } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 // GET /api/admin/production-tracker?month=April-2026
@@ -25,36 +31,27 @@ export async function GET(req: NextRequest) {
     const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
 
     // 1. Get all active clients with their monthly deliverables
-    const clients = await prisma.client.findMany({
-      where: { status: "active" },
-      select: {
-        id: true,
-        name: true,
-        companyName: true,
+    const clients = await db.query.client.findMany({
+      where: eq(clientTable.status, "active"),
+      columns: { id: true, name: true, companyName: true },
+      with: {
         monthlyDeliverables: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-          },
+          columns: { id: true, type: true, quantity: true },
         },
       },
-      orderBy: { companyName: "asc" },
+      orderBy: (c, { asc }) => asc(c.companyName),
     });
 
     // 2. Get all tasks for the target month
-    const tasks = await prisma.task.findMany({
-      where: {
-        OR: [
-          { monthFolder: targetMonth },
-          {
-            createdAt: { gte: monthStart, lte: monthEnd },
-            monthFolder: null,
-          },
-        ],
-        clientId: { not: null },
-      },
-      select: {
+    const tasks = await db.query.task.findMany({
+      where: and(
+        or(
+          eq(taskTable.monthFolder, targetMonth),
+          and(gte(taskTable.createdAt, monthStart.toISOString()), lte(taskTable.createdAt, monthEnd.toISOString()), isNull(taskTable.monthFolder)),
+        ),
+        isNotNull(taskTable.clientId),
+      ),
+      columns: {
         id: true,
         title: true,
         status: true,
@@ -73,36 +70,20 @@ export async function GET(req: NextRequest) {
         monthFolder: true,
         isExtra: true,
         extraSequence: true,
-        monthlyDeliverable: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-          },
-        },
-        oneOffDeliverable: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-          },
-        },
+      },
+      with: {
+        monthlyDeliverable: { columns: { id: true, type: true, quantity: true } },
+        oneOffDeliverable: { columns: { id: true, type: true, quantity: true } },
       },
     });
 
     // 3. Get all editors, QC, schedulers
-    const employees = await prisma.user.findMany({
-      where: {
-        role: { in: ["editor", "qc", "scheduler", "admin"] },
-        employeeStatus: "ACTIVE",
-      },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-        email: true,
-      },
-    });
+    const employees = await db.select({ id: userTable.id, name: userTable.name, role: userTable.role, email: userTable.email })
+      .from(userTable)
+      .where(and(
+        or(eq(userTable.role, "editor" as any), eq(userTable.role, "qc" as any), eq(userTable.role, "scheduler" as any), eq(userTable.role, "admin" as any)),
+        eq(userTable.employeeStatus, "ACTIVE"),
+      ));
 
     // ─── Build Client Deliverable Progress ───
     const clientProgress = clients.map((client) => {
@@ -246,11 +227,9 @@ export async function GET(req: NextRequest) {
           : 0,
     };
 
-    const monthFolders = await prisma.task.findMany({
-      where: { monthFolder: { not: null } },
-      select: { monthFolder: true },
-      distinct: ["monthFolder"],
-    });
+    const monthFolders = await db.selectDistinct({ monthFolder: taskTable.monthFolder })
+      .from(taskTable)
+      .where(isNotNull(taskTable.monthFolder));
     const availableMonths = [
       ...new Set(
         monthFolders.map((t) => t.monthFolder).filter(Boolean) as string[]

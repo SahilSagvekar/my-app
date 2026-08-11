@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { HeadObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable, task as taskTable } from '@/lib/db/schema';
+import { eq, isNotNull, desc } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { requireAdmin } from '@/lib/auth';
 
@@ -79,24 +81,20 @@ interface ExpectedFolder {
 }
 
 async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
-  const clients = await prisma.client.findMany({
-    where: { status: 'active' },
-    select: {
-      id: true,
-      name: true,
-      companyName: true,
-      monthlyDeliverables: { select: { type: true } },
+  const clients = await db.query.client.findMany({
+    where: eq(clientTable.status, 'active'),
+    columns: { id: true, name: true, companyName: true },
+    with: {
+      monthlyDeliverables: { columns: { type: true } },
     },
-    orderBy: { name: 'asc' },
+    orderBy: (c, { asc }) => asc(c.name),
   });
 
   // Get all distinct monthFolders that have tasks (tells us which months existed)
-  const monthRows = await prisma.task.findMany({
-    where: { monthFolder: { not: null } },
-    select: { monthFolder: true, clientId: true },
-    distinct: ['monthFolder', 'clientId'],
-    orderBy: { monthFolder: 'desc' },
-  });
+  const monthRows = await db.selectDistinct({ monthFolder: taskTable.monthFolder, clientId: taskTable.clientId })
+    .from(taskTable)
+    .where(isNotNull(taskTable.monthFolder))
+    .orderBy(desc(taskTable.monthFolder));
 
   // Build a map: clientId → Set<monthFolder>
   const clientMonths = new Map<string, Set<string>>();

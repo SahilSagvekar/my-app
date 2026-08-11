@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from '@/lib/db';
+import { trainingCourse } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, asc } from 'drizzle-orm';
 import { getCurrentUser2 } from "@/lib/auth";
 
 const ROLES_WITH_TRAINING = ["editor", "qc", "scheduler", "manager", "videographer", "sales", "sales_manager", "admin"] as const;
@@ -32,13 +35,9 @@ export async function GET(req: NextRequest) {
           ? (user.role as TrainingRole)
           : null;
 
-    const where: any = {};
-    if (filterRole) where.role = filterRole;
-
-    const courses = await prisma.trainingCourse.findMany({
-      where,
-      orderBy: [{ role: "asc" }, { order: "asc" }],
-    });
+    const courses = await db.select().from(trainingCourse)
+      .where(filterRole ? eq(trainingCourse.role, filterRole) : undefined)
+      .orderBy(asc(trainingCourse.role), asc(trainingCourse.order));
 
     return NextResponse.json({ courses });
   } catch (err) {
@@ -75,14 +74,14 @@ export async function POST(req: NextRequest) {
 
     const safeOrder = typeof order === "number" && !isNaN(order) ? order : 0;
 
-    const course = await prisma.trainingCourse.create({
-      data: {
-        title: title.trim(),
-        description: (description || "").trim(),
-        role: role as TrainingRole,
-        order: safeOrder,
-      },
-    });
+    const [course] = await db.insert(trainingCourse).values({
+      id: createId(),
+      title: title.trim(),
+      description: (description || "").trim(),
+      role: role as TrainingRole,
+      order: safeOrder,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     return NextResponse.json({ course }, { status: 201 });
   } catch (err) {

@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 // cover-image checkmark on that client's Short Form tasks.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 export async function PATCH(
@@ -29,15 +31,14 @@ export async function PATCH(
       );
     }
 
-    const updatedClient = await prisma.client.update({
-      where: { id: clientId },
-      data: { requiresCoverImage },
-      select: {
-        id: true,
-        requiresCoverImage: true,
-        companyName: true,
-        name: true,
-      },
+    const [updatedClient] = await db.update(client).set({
+      requiresCoverImage,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(client.id, clientId)).returning({
+      id: client.id,
+      requiresCoverImage: client.requiresCoverImage,
+      companyName: client.companyName,
+      name: client.name,
     });
 
     console.log(

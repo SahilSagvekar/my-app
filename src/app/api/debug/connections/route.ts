@@ -1,23 +1,25 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { sql } from 'drizzle-orm';
 
 export async function GET() {
   try {
     // Check active connections
-    const connections = await prisma.$queryRaw<Array<{
+    const result = await db.execute<{
       total: number,
       active: number,
       idle: number
-    }>>`
-      SELECT 
+    }>(sql`
+      SELECT
         COUNT(*) as total,
         COUNT(*) FILTER (WHERE state = 'active') as active,
         COUNT(*) FILTER (WHERE state = 'idle') as idle
       FROM pg_stat_activity
       WHERE datname = current_database()
-    `;
-    
+    `);
+    const connections = result.rows;
+
     // Check memory
     const memory = {
       heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),

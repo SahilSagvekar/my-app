@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse, NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { guideline } from "@/lib/db/schema";
+import { and, eq, or, isNull, desc } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -15,46 +17,46 @@ export async function GET(req: NextRequest) {
         const role = searchParams.get("role"); // Filter by role (qc, editor)
         const clientId = searchParams.get("clientId");
 
-        const where: any = {};
+        const conditions = [];
 
         // If a specific category is requested
         if (category) {
-            where.category = category;
+            conditions.push(eq(guideline.category, category));
         }
 
-        // Role filtering: 
+        // Role filtering:
         // - Admin sees everything.
         // - Teams see general rules + rules targeted at their role + rules for their assigned clients.
         if (user.role !== 'admin' && user.role !== 'manager') {
-            where.OR = [
-                { role: null }, // General rules for everyone
-                { role: user.role } // Rules for their specific role
-            ];
+            conditions.push(or(
+                isNull(guideline.role), // General rules for everyone
+                eq(guideline.role, user.role as any) // Rules for their specific role
+            ));
 
-            // If we are looking for client specific rules, we might need more logic, 
+            // If we are looking for client specific rules, we might need more logic,
             // but for now let's allow filtering by role.
         } else {
             // Admins can filter by role via query param if they want
             if (role && role !== 'all') {
-                where.role = role;
+                conditions.push(eq(guideline.role, role as any));
             }
         }
 
         if (clientId && clientId !== 'all') {
-            where.clientId = clientId;
+            conditions.push(eq(guideline.clientId, clientId));
         }
 
-        const guidelines = await prisma.guideline.findMany({
-            where,
-            include: {
+        const guidelines = await db.query.guideline.findMany({
+            where: conditions.length ? and(...conditions) : undefined,
+            with: {
                 client: {
-                    select: {
+                    columns: {
                         name: true,
                         companyName: true,
                     }
                 }
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: desc(guideline.createdAt)
         });
 
         return NextResponse.json({ ok: true, guidelines });

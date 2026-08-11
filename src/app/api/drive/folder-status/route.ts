@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { folderStatus } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 
@@ -40,17 +43,17 @@ export async function GET(req: Request) {
     const clientId = searchParams.get("clientId");
     if (!clientId) return NextResponse.json({ message: "clientId is required" }, { status: 400 });
 
-    const rows = await prisma.folderStatus.findMany({
-      where: { clientId },
-      include: { updatedBy: { select: { name: true } } },
+    const rows = await db.query.folderStatus.findMany({
+      where: eq(folderStatus.clientId, clientId),
+      with: { user: { columns: { name: true } } },
     });
 
     const statuses: Record<string, { status: string; updatedByName: string | null; updatedAt: string }> = {};
     for (const row of rows) {
       statuses[row.s3KeyPrefix] = {
         status: row.status,
-        updatedByName: row.updatedBy?.name ?? null,
-        updatedAt: row.updatedAt.toISOString(),
+        updatedByName: row.user?.name ?? null,
+        updatedAt: new Date(row.updatedAt).toISOString(),
       };
     }
 
@@ -80,17 +83,25 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ message: "Folder status can only be set on folders inside raw-footage" }, { status: 400 });
     }
 
-    const existing = await prisma.folderStatus.findUnique({
-      where: { clientId_s3KeyPrefix: { clientId, s3KeyPrefix } },
+    const existing = await db.query.folderStatus.findFirst({
+      where: and(eq(folderStatus.clientId, clientId), eq(folderStatus.s3KeyPrefix, s3KeyPrefix)),
     });
 
     if (status === null) {
-      if (existing) await prisma.folderStatus.delete({ where: { id: existing.id } });
+      if (existing) await db.delete(folderStatus).where(eq(folderStatus.id, existing.id));
+    } else if (existing) {
+      await db
+        .update(folderStatus)
+        .set({ status, updatedById: userId, updatedAt: new Date().toISOString() })
+        .where(eq(folderStatus.id, existing.id));
     } else {
-      await prisma.folderStatus.upsert({
-        where: { clientId_s3KeyPrefix: { clientId, s3KeyPrefix } },
-        update: { status, updatedById: userId },
-        create: { clientId, s3KeyPrefix, status, updatedById: userId },
+      await db.insert(folderStatus).values({
+        id: createId(),
+        clientId,
+        s3KeyPrefix,
+        status,
+        updatedById: userId,
+        updatedAt: new Date().toISOString(),
       });
     }
 

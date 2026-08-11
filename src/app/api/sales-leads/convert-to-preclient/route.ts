@@ -5,7 +5,10 @@ export const dynamic = 'force-dynamic';
 // Converted leads are removed from the sales rep's sheet.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesLead, preClient as preClientTable, affiliateCommission } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, inArray } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -31,9 +34,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Ownership: reps only convert their own leads; admin can convert any
-    const leads = await prisma.salesLead.findMany({
-      where: decoded.role === 'admin' ? { id: { in: leadIds } } : { id: { in: leadIds }, userId: decoded.userId },
-    });
+    const leads = await db.select().from(salesLead)
+      .where(decoded.role === 'admin'
+        ? inArray(salesLead.id, leadIds)
+        : and(inArray(salesLead.id, leadIds), eq(salesLead.userId, decoded.userId)));
 
     let converted = 0;
     const skipped: { name: string; reason: string }[] = [];
@@ -50,20 +54,20 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const existing = await prisma.preClient.findFirst({ where: { email: lead.email } });
+      const [existing] = await db.select().from(preClientTable).where(eq(preClientTable.email, lead.email)).limit(1);
       if (existing) {
         skipped.push({ name: lead.name, reason: 'Already a pre-client' });
         continue;
       }
 
-      await prisma.preClient.create({
-        data: {
-          name: lead.name,
-          email: lead.email,
-          phone: lead.phone || null,
-          companyName: lead.company || null,
-          createdById: decoded.userId,
-        },
+      await db.insert(preClientTable).values({
+        id: createId(),
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone || null,
+        companyName: lead.company || null,
+        createdById: decoded.userId,
+        updatedAt: new Date().toISOString(),
       });
 
       convertedIds.push(lead.id);
@@ -71,8 +75,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (convertedIds.length > 0) {
-      await prisma.affiliateCommission.deleteMany({ where: { leadId: { in: convertedIds } } });
-      await prisma.salesLead.deleteMany({ where: { id: { in: convertedIds } } });
+      await db.delete(affiliateCommission).where(inArray(affiliateCommission.leadId, convertedIds));
+      await db.delete(salesLead).where(inArray(salesLead.id, convertedIds));
     }
 
     return NextResponse.json({ ok: true, converted, skipped, convertedIds });

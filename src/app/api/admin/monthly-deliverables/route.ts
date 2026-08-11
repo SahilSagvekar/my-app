@@ -1,6 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import {
+  client as clientTable,
+  task as taskTable,
+  user as userTable,
+} from '@/lib/db/schema';
+import { and, eq, gte, inArray, asc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 // Helper to get month key (YYYY-MM format)
@@ -36,81 +42,57 @@ export async function GET(req: NextRequest) {
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
     // Fetch all active clients with their deliverables
-    const clients = await prisma.client.findMany({
-      where: { status: 'active' },
-      select: {
-        id: true,
-        name: true,
-        companyName: true,
+    const clients = await db.query.client.findMany({
+      where: eq(clientTable.status, 'active'),
+      columns: { id: true, name: true, companyName: true },
+      with: {
         monthlyDeliverables: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-            platforms: true,
-          },
+          columns: { id: true, type: true, quantity: true, platforms: true },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: (c, { asc }) => asc(c.name),
     });
 
     // Fetch all completed/posted tasks grouped by client and month
-    const tasks = await prisma.task.findMany({
-      where: {
-        createdAt: { gte: twelveMonthsAgo },
-        status: {
-          in: ['COMPLETED', 'POSTED', 'SCHEDULED'],
-        },
-      },
-      select: {
+    const rawTasks = await db.query.task.findMany({
+      where: and(
+        gte(taskTable.createdAt, twelveMonthsAgo.toISOString()),
+        inArray(taskTable.status, ['COMPLETED', 'POSTED', 'SCHEDULED'] as any),
+      ),
+      columns: {
         id: true,
         clientId: true,
         assignedTo: true,
-        qc_specialist: true,
+        qcSpecialist: true,
         scheduler: true,
         status: true,
         createdAt: true,
         updatedAt: true,
         deliverableType: true,
         monthlyDeliverableId: true,
-        monthlyDeliverable: {
-          select: {
-            id: true,
-            type: true,
-          },
-        },
-        user: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-          },
-        },
-        client: {
-          select: {
-            id: true,
-            name: true,
-            companyName: true,
-          },
-        },
+      },
+      with: {
+        monthlyDeliverable: { columns: { id: true, type: true } },
+        user_assignedTo: { columns: { id: true, name: true, role: true } },
+        client: { columns: { id: true, name: true, companyName: true } },
       },
     });
 
-    // Fetch all employees
-    const employees = await prisma.user.findMany({
-      where: {
-        role: {
-          in: ['editor', 'qc', 'scheduler', 'videographer', 'manager', 'admin'],
-        },
-        employeeStatus: 'ACTIVE',
-      },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-      },
-      orderBy: { name: 'asc' },
+    // Rename Drizzle relation keys back to the Prisma field names this
+    // handler was written against (qc_specialist raw FK, user relation).
+    const tasks = rawTasks.map((t: any) => {
+      const { qcSpecialist, user_assignedTo, ...rest } = t;
+      return { ...rest, qc_specialist: qcSpecialist, user: user_assignedTo };
     });
+
+    // Fetch all employees
+    const employees = await db.select({ id: userTable.id, name: userTable.name, role: userTable.role })
+      .from(userTable)
+      .where(and(
+        inArray(userTable.role, ['editor', 'qc', 'scheduler', 'videographer', 'manager', 'admin'] as any),
+        eq(userTable.employeeStatus, 'ACTIVE'),
+      ))
+      .orderBy(asc(userTable.name));
 
     // Process client deliverables data
     const clientDeliverables: Record<string, {

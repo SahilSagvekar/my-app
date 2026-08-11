@@ -14,7 +14,9 @@
 //   - Mark old version inactive
 //   - driveLinks push
 
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { eq, or } from 'drizzle-orm';
 import { generateFileServerToken } from '@/lib/file-server';
 import { updateClientStorageAfterUpload } from '@/lib/storage-service';
 import { sendUploadNotification } from '@/lib/upload-notifications';
@@ -81,12 +83,13 @@ async function processJob(job: UploadJob): Promise<void> {
     if (isRawFootageUpload && fileSize) {
       const pathParts = key.split('/');
       const companyName = pathParts[0];
-      const client = await prisma.client.findFirst({
-        where: { OR: [{ companyName }, { name: companyName }] },
-        select: { id: true },
-      });
-      if (client) {
-        const storageResult = await updateClientStorageAfterUpload(client.id, fileSize);
+      const [foundClient] = await db
+        .select({ id: clientTable.id })
+        .from(clientTable)
+        .where(or(eq(clientTable.companyName, companyName), eq(clientTable.name, companyName)))
+        .limit(1);
+      if (foundClient) {
+        const storageResult = await updateClientStorageAfterUpload(foundClient.id, fileSize);
         console.log(`[UploadWorker] Storage: ${storageResult.storageInfo.usedFormatted} / ${storageResult.storageInfo.limitFormatted}`);
       }
     }

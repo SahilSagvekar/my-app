@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { employeeDocument } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { generateDownloadUrl } from '@/lib/s3';
 
@@ -24,7 +26,7 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const document = await prisma.employeeDocument.findUnique({ where: { id: docId } });
+  const [document] = await db.select().from(employeeDocument).where(eq(employeeDocument.id, docId)).limit(1);
   if (!document || document.employeeId !== id) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
@@ -47,12 +49,12 @@ export async function DELETE(
   const { employeeId, docId } = await context.params;
   const id = Number(employeeId);
 
-  const document = await prisma.employeeDocument.findUnique({ where: { id: docId } });
+  const [document] = await db.select().from(employeeDocument).where(eq(employeeDocument.id, docId)).limit(1);
   if (!document || document.employeeId !== id) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  await prisma.employeeDocument.delete({ where: { id: docId } });
+  await db.delete(employeeDocument).where(eq(employeeDocument.id, docId));
   // Note: this only removes the DB record, not the underlying R2 object —
   // consistent with how other "soft" deletes in this app work. Add an
   // explicit deleteFromS3(document.s3Key) call here if you'd rather

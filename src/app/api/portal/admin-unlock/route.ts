@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 function requireAdminOrManager(user: { role?: string | null } | null) {
@@ -20,15 +22,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
     }
 
-    const portalAccess = await prisma.clientPortalAccess.update({
-      where: { clientId },
-      data: {
-        status: 'ADMIN_UNLOCKED',
-        adminUnlockedById: user!.id,
-        adminUnlockedAt: new Date(),
-        lockedAt: null,
-      },
-    });
+    const [portalAccess] = await db.update(clientPortalAccessTable).set({
+      status: 'ADMIN_UNLOCKED',
+      adminUnlockedById: user!.id,
+      adminUnlockedAt: new Date().toISOString(),
+      lockedAt: null,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(clientPortalAccessTable.clientId, clientId)).returning();
 
     return NextResponse.json({ success: true, portalAccess });
   } catch (err: any) {
@@ -50,15 +50,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
     }
 
-    const portalAccess = await prisma.clientPortalAccess.update({
-      where: { clientId },
-      data: {
-        status: 'LOCKED',
-        lockedAt: new Date(),
-        adminUnlockedById: null,
-        adminUnlockedAt: null,
-      },
-    });
+    const [portalAccess] = await db.update(clientPortalAccessTable).set({
+      status: 'LOCKED',
+      lockedAt: new Date().toISOString(),
+      adminUnlockedById: null,
+      adminUnlockedAt: null,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(clientPortalAccessTable.clientId, clientId)).returning();
 
     return NextResponse.json({ success: true, portalAccess });
   } catch (err: any) {

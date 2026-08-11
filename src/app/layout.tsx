@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./../components/auth/AuthContext";
 import { SchedulerActivityTracker } from "@/components/tracking/SchedulerActivityTracker";
@@ -9,17 +8,6 @@ import CookieConsent from "@/components/CookieConsent";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 const GA_MEASUREMENT_ID = "G-E7HJLKVEPQ";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: 'swap',
-});
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
-  display: 'swap',
-});
 
 export const metadata: Metadata = buildMetadata({
   title: "E8 Productions",
@@ -35,9 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${inter.variable} ${jetbrainsMono.variable} ${inter.className} antialiased`}
-      >
+      <body className="antialiased">
         <ThemeProvider attribute="class" forcedTheme="light" disableTransitionOnChange>
           <AuthProvider>
             {children}

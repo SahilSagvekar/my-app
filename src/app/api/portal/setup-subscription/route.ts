@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable, preClient as preClientTable, quote as quoteTable } from '@/lib/db/schema';
+import { desc, eq, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
 
@@ -15,23 +17,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Find the client for this user
-    const client = await prisma.client.findFirst({
-      where: {
-        OR: [
-          { userId: user.id },
-          { email: user.email },
-        ],
-      },
-      include: {
-        portalAccess: true,
-      },
+    const client = await db.query.client.findFirst({
+      where: or(eq(clientTable.userId, user.id), eq(clientTable.email, user.email)),
+      with: { clientPortalAccesses: true },
     });
 
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    if (!client.portalAccess || client.portalAccess.status !== 'PAYMENT_PENDING') {
+    // clientPortalAccess has a unique clientId FK (1:1), but drizzle-kit
+    // introspection mislabels it many() — take the first (only) entry.
+    const portalAccess = client.clientPortalAccesses[0];
+
+    if (!portalAccess || portalAccess.status !== 'PAYMENT_PENDING') {
       return NextResponse.json(
         { error: 'Payment setup not available yet — contract must be signed first' },
         { status: 400 }
@@ -40,12 +39,12 @@ export async function POST(req: NextRequest) {
 
     // Get the accepted (or latest) quote to know the amount
     const preClient = client.preClientId
-      ? await prisma.preClient.findUnique({
-          where: { id: client.preClientId },
-          include: {
+      ? await db.query.preClient.findFirst({
+          where: eq(preClientTable.id, client.preClientId),
+          with: {
             quotes: {
-              orderBy: { version: 'desc' },
-              take: 1,
+              orderBy: desc(quoteTable.version),
+              limit: 1,
             },
           },
         })

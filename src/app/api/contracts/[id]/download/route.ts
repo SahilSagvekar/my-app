@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getS3, BUCKET } from '@/lib/s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
@@ -20,9 +22,9 @@ export async function GET(
     const { id: contractId } = await params;
     const type = req.nextUrl.searchParams.get('type') || 'signed';
 
-    const contract = await prisma.contract.findUnique({
-      where: { id: contractId },
-      include: { signers: true },
+    const contract = await db.query.contract.findFirst({
+      where: eq(contractTable.id, contractId),
+      with: { contractSigners: true },
     });
 
     if (!contract) {
@@ -31,7 +33,7 @@ export async function GET(
 
     // Access check
     if (user.role === 'client') {
-      const isSigner = (contract as any).signers.some((s: any) => s.email === user.email);
+      const isSigner = contract.contractSigners.some((s: any) => s.email === user.email);
       const isClient = contract.clientId === user.linkedClientId;
       if (!isSigner && !isClient) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

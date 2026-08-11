@@ -7,7 +7,9 @@ export const dynamic = 'force-dynamic';
 // every editor with an open task for that client.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user, task } from '@/lib/db/schema';
+import { and, or, eq, exists, notInArray, arrayContains, asc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 type Params = { params: Promise<{ id: string }> };
@@ -24,25 +26,19 @@ export async function GET(req: NextRequest, { params }: Params) {
 
     const { id: clientId } = await params;
 
-    const editors = await prisma.user.findMany({
-      where: {
-        OR: [{ role: 'editor' }, { roles: { has: 'editor' } }],
-        assignedTasks: {
-          some: {
-            clientId,
-            status: { notIn: ['COMPLETED', 'POSTED'] },
-          },
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        slackUserId: true,
-      },
-      distinct: ['id'],
-      orderBy: { name: 'asc' },
-    });
+    const editors = await db.select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      slackUserId: user.slackUserId,
+    }).from(user).where(and(
+      or(eq(user.role, 'editor'), arrayContains(user.roles, ['editor'])),
+      exists(db.select().from(task).where(and(
+        eq(task.assignedTo, user.id),
+        eq(task.clientId, clientId),
+        notInArray(task.status, ['COMPLETED', 'POSTED'] as any),
+      ))),
+    )).orderBy(asc(user.name));
 
     return NextResponse.json({ editors });
   } catch (err: any) {

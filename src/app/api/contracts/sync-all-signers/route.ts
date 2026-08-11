@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable, contractSigner as contractSignerTable, client as clientTable } from '@/lib/db/schema';
+import { and, eq, isNotNull, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getSignWellDocument, mapSignWellStatus, mapSignWellSignerStatus, downloadSignWellPdf } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
@@ -21,16 +23,42 @@ export async function POST(req: NextRequest) {
     }
 
     // Find ALL contracts with at least one PENDING signer and a SignWell doc ID
-    const contracts = await prisma.contract.findMany({
-      where: {
-        signwellDocumentId: { not: null },
-        signers: { some: { status: 'PENDING' } },
-      },
-      include: {
-        signers: true,
-        client: { include: { portalAccess: true } },
-      },
-    });
+    //
+    // NOTE(prisma-migration): the original Prisma query here included a
+    // `client: { include: { portalAccess: true } }` relation on Contract that
+    // does not exist on the Contract model in prisma/schema.prisma (no `client`
+    // field is defined there, and the live-DB-introspected src/lib/db/schema.ts
+    // confirms Contract.clientId has no FK/relation to Client). That include
+    // was schema drift and would have made this endpoint always throw a
+    // PrismaClientValidationError before ever reaching the sync loop below.
+    // Converted to the same manual clientId -> Client lookup pattern used by
+    // the sibling contracts/sync and contracts/[id]/sync routes, which is the
+    // pattern that actually works elsewhere in this feature.
+    const pendingSignerRows = await db
+      .selectDistinct({ contractId: contractSignerTable.contractId })
+      .from(contractSignerTable)
+      .where(eq(contractSignerTable.status, 'PENDING'));
+    const pendingSignerContractIds = pendingSignerRows.map((r) => r.contractId);
+
+    const rows = pendingSignerContractIds.length > 0
+      ? await db.query.contract.findMany({
+          where: and(isNotNull(contractTable.signwellDocumentId), inArray(contractTable.id, pendingSignerContractIds)),
+          with: { contractSigners: true },
+        })
+      : [];
+
+    const contracts: any[] = [];
+    for (const c of rows) {
+      let client: any = null;
+      if (c.clientId) {
+        const clientRow = await db.query.client.findFirst({
+          where: eq(clientTable.id, c.clientId),
+          with: { clientPortalAccesses: true },
+        });
+        client = clientRow ? { ...clientRow, portalAccess: clientRow.clientPortalAccesses?.[0] ?? null } : null;
+      }
+      contracts.push({ ...c, signers: c.contractSigners, client });
+    }
 
     console.log(`[sync-all-signers] Found ${contracts.length} contract(s) with pending signers`);
 
@@ -52,14 +80,12 @@ export async function POST(req: NextRequest) {
 
           const newStatus = mapSignWellSignerStatus(swSigner.status);
           if (dbSigner.status !== newStatus) {
-            await prisma.contractSigner.update({
-              where: { id: dbSigner.id },
-              data: {
-                status: newStatus,
-                signedAt: newStatus === 'SIGNED' ? new Date() : dbSigner.signedAt ?? undefined,
-                viewedAt: newStatus === 'VIEWED' ? new Date() : dbSigner.viewedAt ?? undefined,
-              },
-            });
+            await db.update(contractSignerTable).set({
+              status: newStatus,
+              signedAt: newStatus === 'SIGNED' ? new Date().toISOString() : dbSigner.signedAt ?? undefined,
+              viewedAt: newStatus === 'VIEWED' ? new Date().toISOString() : dbSigner.viewedAt ?? undefined,
+              updatedAt: new Date().toISOString(),
+            }).where(eq(contractSignerTable.id, dbSigner.id));
             signersFixed++;
             anyUpdated = true;
             console.log(`  ✔ ${contract.title}: signer ${swSigner.email} ${dbSigner.status} → ${newStatus}`);
@@ -82,21 +108,24 @@ export async function POST(req: NextRequest) {
                 filename: `signed-${contract.fileName || 'contract.pdf'}`,
                 mimeType: 'application/pdf',
               });
-              await prisma.contract.update({
-                where: { id: contract.id },
-                data: { status: 'COMPLETED', completedAt: new Date(), signedS3Key: key },
-              });
+              await db.update(contractTable).set({
+                status: 'COMPLETED',
+                completedAt: new Date().toISOString(),
+                signedS3Key: key,
+                updatedAt: new Date().toISOString(),
+              }).where(eq(contractTable.id, contract.id));
             } catch {
-              await prisma.contract.update({
-                where: { id: contract.id },
-                data: { status: 'COMPLETED', completedAt: new Date() },
-              });
+              await db.update(contractTable).set({
+                status: 'COMPLETED',
+                completedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }).where(eq(contractTable.id, contract.id));
             }
           } else {
-            await prisma.contract.update({
-              where: { id: contract.id },
-              data: { status: newContractStatus as any },
-            });
+            await db.update(contractTable).set({
+              status: newContractStatus as any,
+              updatedAt: new Date().toISOString(),
+            }).where(eq(contractTable.id, contract.id));
           }
           anyUpdated = true;
         }

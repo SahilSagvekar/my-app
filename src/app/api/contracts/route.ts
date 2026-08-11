@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { contract as contractTable, contractSigner as contractSignerTable } from '@/lib/db/schema';
+import { and, or, eq, ilike, desc, inArray, isNull } from 'drizzle-orm';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { sendContractViaSignWell } from '@/lib/contracts';
 
@@ -15,54 +17,65 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search');
     const clientId = searchParams.get('clientId');
 
-    let where: any = {};
+    const conditions: any[] = [];
 
     if (user.role === 'admin' || user.role === 'manager') {
-      if (status && status !== 'all') where.status = status;
-      if (clientId) where.clientId = clientId;
+      if (status && status !== 'all') conditions.push(eq(contractTable.status, status as any));
+      if (clientId) conditions.push(eq(contractTable.clientId, clientId));
     } else if (user.role === 'client') {
-      const clientId = await resolveClientIdForUser(user.id);
-      where.OR = [
-        { clientId },
-        { signers: { some: { email: user.email } } },
+      const linkedClientId = await resolveClientIdForUser(user.id);
+
+      const signerContractIdRows = await db
+        .select({ contractId: contractSignerTable.contractId })
+        .from(contractSignerTable)
+        .where(eq(contractSignerTable.email, user.email));
+      const signerContractIds = signerContractIdRows.map((r) => r.contractId);
+
+      const orParts: any[] = [
+        linkedClientId === null ? isNull(contractTable.clientId) : eq(contractTable.clientId, linkedClientId),
       ];
-      if (status && status !== 'all') where.status = status;
+      if (signerContractIds.length > 0) orParts.push(inArray(contractTable.id, signerContractIds));
+      conditions.push(or(...orParts));
+
+      if (status && status !== 'all') conditions.push(eq(contractTable.status, status as any));
     } else {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     if (search) {
-      const searchFilter = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ];
-      if (where.OR) {
-        where.AND = [{ OR: where.OR }, { OR: searchFilter }];
-        delete where.OR;
-      } else {
-        where.OR = searchFilter;
-      }
+      conditions.push(
+        or(ilike(contractTable.title, `%${search}%`), ilike(contractTable.description, `%${search}%`))
+      );
     }
 
-    const contracts = await prisma.contract.findMany({
-      where,
-      include: {
-        signers: {
-          select: {
+    const rows = await db.query.contract.findMany({
+      where: conditions.length > 0 ? and(...conditions) : undefined,
+      orderBy: desc(contractTable.createdAt),
+      with: {
+        contractSigners: {
+          columns: {
             id: true, name: true, email: true, status: true, role: true,
             signedAt: true, viewedAt: true, declinedAt: true, declineReason: true,
             ipAddress: true, userAgent: true,
           },
         },
-        createdBy: { select: { id: true, name: true, email: true } },
-        auditLogs: { orderBy: { createdAt: 'asc' } },
+        user: { columns: { id: true, name: true, email: true } },
+        contractAuditLogs: { orderBy: (t: any, { asc }: any) => asc(t.createdAt) },
       },
-      orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(
-      contracts.map((c: any) => ({ ...c, fileSize: c.fileSize?.toString() || '0' }))
-    );
+    const contracts = rows.map((c: any) => {
+      const { contractSigners, contractAuditLogs, user: createdBy, ...rest } = c;
+      return {
+        ...rest,
+        signers: contractSigners,
+        createdBy,
+        auditLogs: contractAuditLogs,
+        fileSize: c.fileSize?.toString() || '0',
+      };
+    });
+
+    return NextResponse.json(contracts);
   } catch (err: any) {
     console.error('GET /api/contracts error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -116,17 +129,21 @@ export async function POST(req: NextRequest) {
       performedBy: user.name || user.email,
     });
 
-    const full = await prisma.contract.findUnique({
-      where: { id: contract.id },
-      include: {
-        signers: true,
-        createdBy: { select: { id: true, name: true, email: true } },
+    const full = await db.query.contract.findFirst({
+      where: eq(contractTable.id, contract.id),
+      with: {
+        contractSigners: true,
+        user: { columns: { id: true, name: true, email: true } },
       },
     });
 
+    const { contractSigners, user: createdBy, ...rest } = full!;
+
     return NextResponse.json({
-      ...full,
-      fileSize: full!.fileSize.toString(),
+      ...rest,
+      signers: contractSigners,
+      createdBy,
+      fileSize: String(full!.fileSize),
     }, { status: 201 });
   } catch (err: any) {
     console.error('POST /api/contracts error:', err);

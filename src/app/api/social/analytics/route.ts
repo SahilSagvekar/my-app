@@ -1,7 +1,9 @@
 // src/app/api/social/analytics/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { socialAccount, socialAnalytics, socialPost } from '@/lib/db/schema';
+import { and, asc, desc, eq, gte, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -39,46 +41,44 @@ export async function GET(req: NextRequest) {
     startDate.setHours(0, 0, 0, 0);
 
     // Get connected accounts
-    const accounts = await prisma.socialAccount.findMany({
-      where: { clientId },
-      select: {
-        id: true,
-        platform: true,
-        platformId: true,
-        platformName: true,
-        profileUrl: true,
-        profileImage: true,
-        followerCount: true,
-        isActive: true,
-        lastSyncAt: true,
-      },
-    });
+    const accounts = await db.select({
+      id: socialAccount.id,
+      platform: socialAccount.platform,
+      platformId: socialAccount.platformId,
+      platformName: socialAccount.platformName,
+      profileUrl: socialAccount.profileUrl,
+      profileImage: socialAccount.profileImage,
+      followerCount: socialAccount.followerCount,
+      isActive: socialAccount.isActive,
+      lastSyncAt: socialAccount.lastSyncAt,
+    }).from(socialAccount).where(eq(socialAccount.clientId, clientId));
 
     // Get daily analytics for all accounts
     const accountIds = accounts.map(a => a.id);
-    
-    const dailyAnalytics = await prisma.socialAnalytics.findMany({
-      where: {
-        socialAccountId: { in: accountIds },
-        date: { gte: startDate },
-      },
-      orderBy: { date: 'asc' },
-    });
+
+    const dailyAnalytics = accountIds.length > 0
+      ? await db.select().from(socialAnalytics)
+          .where(and(
+            inArray(socialAnalytics.socialAccountId, accountIds),
+            gte(socialAnalytics.date, startDate.toISOString().split('T')[0]),
+          ))
+          .orderBy(asc(socialAnalytics.date))
+      : [];
 
     // Get top posts
-    const topPosts = await prisma.socialPost.findMany({
-      where: {
-        socialAccountId: { in: accountIds },
-        publishedAt: { gte: startDate },
-      },
-      orderBy: { views: 'desc' },
-      take: 10,
-      include: {
-        socialAccount: {
-          select: { platform: true, platformName: true },
-        },
-      },
-    });
+    const topPosts = accountIds.length > 0
+      ? await db.query.socialPost.findMany({
+          where: and(
+            inArray(socialPost.socialAccountId, accountIds),
+            gte(socialPost.publishedAt, startDate.toISOString()),
+          ),
+          orderBy: desc(socialPost.views),
+          limit: 10,
+          with: {
+            socialAccount: { columns: { platform: true, platformName: true } },
+          },
+        })
+      : [];
 
     // Calculate overview stats
     const latestByAccount = new Map<string, typeof dailyAnalytics[0]>();
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
         description: post.description,
         thumbnailUrl: post.thumbnailUrl,
         postUrl: post.postUrl,
-        publishedAt: post.publishedAt.toISOString(),
+        publishedAt: new Date(post.publishedAt).toISOString(),
         views: post.views,
         likes: post.likes,
         comments: post.comments,
@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
 
 function formatChartData(
   analytics: Array<{
-    date: Date;
+    date: string;
     followers: number;
     followersGained: number;
     followersLost: number;
@@ -204,7 +204,7 @@ function formatChartData(
   }>();
 
   analytics.forEach(record => {
-    const dateStr = record.date.toISOString().split('T')[0];
+    const dateStr = String(record.date).split('T')[0];
     const existing = byDate.get(dateStr) || {
       views: 0,
       likes: 0,

@@ -1,9 +1,10 @@
 import type { NextAuthConfig } from "next-auth";
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
 import SlackProvider from "next-auth/providers/slack";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthConfig = {
@@ -38,9 +39,11 @@ export const authOptions: NextAuthConfig = {
                     throw new Error("Email and password are required");
                 }
 
-                const user: any = await prisma.user.findFirst({
-                    where: { email: credentials.email },
-                });
+                const [user] = await db
+                    .select()
+                    .from(userTable)
+                    .where(eq(userTable.email, credentials.email))
+                    .limit(1);
 
                 if (!user || !user.password) {
                     throw new Error("Invalid credentials");
@@ -55,7 +58,7 @@ export const authOptions: NextAuthConfig = {
                     throw new Error("Invalid credentials");
                 }
 
-                // ✅ Convert Prisma user to NextAuth-compatible shape
+                // ✅ Convert DB user to NextAuth-compatible shape
                 return {
                     id: user.id.toString(), // NextAuth expects string
                     name: user.name,
@@ -72,10 +75,11 @@ export const authOptions: NextAuthConfig = {
         async signIn({ user, account }: any) {
             if (!user.email) return false;
 
-            const dbUser = await prisma.user.findFirst({
-                where: { email: user.email },
-                select: { employeeStatus: true }
-            });
+            const [dbUser] = await db
+                .select({ employeeStatus: userTable.employeeStatus })
+                .from(userTable)
+                .where(eq(userTable.email, user.email))
+                .limit(1);
 
             if (dbUser && dbUser.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
                 return false; // Block sign-in if not active
@@ -90,21 +94,23 @@ export const authOptions: NextAuthConfig = {
             if (user) {
                 // Handle OAuth (Google/Slack) sign-ins manually since we removed the adapter
                 if (account?.provider === "google" || account?.provider === "slack") {
-                    let dbUser = await prisma.user.findFirst({
-                        where: { email: user.email as string },
-                    });
+                    let [dbUser] = await db
+                        .select()
+                        .from(userTable)
+                        .where(eq(userTable.email, user.email as string))
+                        .limit(1);
 
                     // If user doesn't exist, create them with no role (pending)
                     if (!dbUser) {
-                        dbUser = await prisma.user.create({
-                            data: {
-                                email: user.email as string,
-                                name: user.name,
-                                image: user.image,
-                                role: null, // Initial state is pending
-                                employeeStatus: 'ACTIVE', // OAuth users are active by default if they were allowed to sign in
-                            }
-                        });
+                        const [createdUser] = await db.insert(userTable).values({
+                            email: user.email as string,
+                            name: user.name,
+                            image: user.image,
+                            role: null, // Initial state is pending
+                            employeeStatus: 'ACTIVE', // OAuth users are active by default if they were allowed to sign in
+                            updatedAt: new Date().toISOString(),
+                        }).returning();
+                        dbUser = createdUser;
                     }
 
                     if (dbUser.employeeStatus !== 'ACTIVE' && dbUser.email !== 'sahilsagvekar230@gmail.com') {
@@ -123,10 +129,11 @@ export const authOptions: NextAuthConfig = {
                 }
             } else if (token.id) {
                 // Periodically verify user status for existing JWTs
-                const dbUser = await prisma.user.findUnique({
-                    where: { id: Number(token.id) },
-                    select: { employeeStatus: true, email: true }
-                });
+                const [dbUser] = await db
+                    .select({ employeeStatus: userTable.employeeStatus, email: userTable.email })
+                    .from(userTable)
+                    .where(eq(userTable.id, Number(token.id)))
+                    .limit(1);
 
                 if (dbUser && dbUser.employeeStatus !== 'ACTIVE' && dbUser.email !== 'sahilsagvekar230@gmail.com') {
                     return null; // Force session expiration

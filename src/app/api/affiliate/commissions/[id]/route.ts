@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { affiliateCommission, commissionAdjustment, salesLead, invoice, stripeCustomer } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 
@@ -34,9 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             return NextResponse.json({ ok: false, message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
         }
 
-        const existing = await (prisma as any).affiliateCommission.findUnique({
-            where: { id },
-        });
+        const [existing] = await db.select().from(affiliateCommission).where(eq(affiliateCommission.id, id)).limit(1);
 
         if (!existing) {
             return NextResponse.json({ ok: false, message: 'Commission not found' }, { status: 404 });
@@ -58,19 +59,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         // Never approve a payout for a deal the client hasn't actually paid on.
         if (status === 'APPROVED') {
-            const lead = await prisma.salesLead.findUnique({
-                where: { id: existing.leadId },
-                select: { convertedToClientId: true },
-            });
+            const [lead] = await db.select({ convertedToClientId: salesLead.convertedToClientId })
+                .from(salesLead).where(eq(salesLead.id, existing.leadId)).limit(1);
             if (!lead?.convertedToClientId) {
                 return NextResponse.json({
                     ok: false,
                     message: 'This lead has not been converted to a client yet — no invoice to confirm payment against',
                 }, { status: 400 });
             }
-            const paidInvoice = await prisma.invoice.findFirst({
-                where: { status: 'PAID', stripeCustomer: { clientId: lead.convertedToClientId } },
-            });
+            const [paidInvoice] = await db.select({ id: invoice.id })
+                .from(invoice)
+                .innerJoin(stripeCustomer, eq(invoice.stripeCustomerId, stripeCustomer.id))
+                .where(and(
+                    eq(invoice.status, 'PAID'),
+                    eq(stripeCustomer.clientId, lead.convertedToClientId),
+                ))
+                .limit(1);
             if (!paidInvoice) {
                 return NextResponse.json({
                     ok: false,
@@ -118,11 +122,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             newCommissionAmt = withBonus;
         }
 
-        const updateData: any = {};
+        const updateData: any = { updatedAt: new Date().toISOString() };
         if (status) {
             updateData.status = status;
             if (status === 'APPROVED') {
-                updateData.approvedAt = new Date();
+                updateData.approvedAt = new Date().toISOString();
                 updateData.approvedBy = decoded.userId;
             }
         }
@@ -130,20 +134,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             updateData.notes = notes;
         }
         if (newCommissionAmt !== undefined) {
-            updateData.commissionAmt = newCommissionAmt;
+            updateData.commissionAmt = String(newCommissionAmt);
         }
 
-        const [commission] = await prisma.$transaction([
-            (prisma as any).affiliateCommission.update({
-                where: { id },
-                data: updateData,
-                include: {
-                    user: { select: { id: true, name: true, email: true, image: true } },
-                    lead: { select: { id: true, name: true, company: true, status: true, value: true } },
-                },
+        const batchOps: any[] = [
+            db.update(affiliateCommission).set(updateData).where(eq(affiliateCommission.id, id)).returning(),
+            ...adjustments.map(a => db.insert(commissionAdjustment).values({
+                id: createId(),
+                commissionId: a.commissionId,
+                editedById: a.editedById,
+                adjustmentType: a.adjustmentType,
+                previousAmount: String(a.previousAmount),
+                newAmount: String(a.newAmount),
+                reason: a.reason,
+            })),
+        ];
+        const [[updatedCommission]] = await db.batch(batchOps as any);
+
+        const [user, lead] = await Promise.all([
+            db.query.user.findFirst({
+                where: (u, { eq }) => eq(u.id, updatedCommission.salesUserId),
+                columns: { id: true, name: true, email: true, image: true },
             }),
-            ...adjustments.map(a => (prisma as any).commissionAdjustment.create({ data: a })),
+            db.query.salesLead.findFirst({
+                where: (l, { eq }) => eq(l.id, updatedCommission.leadId),
+                columns: { id: true, name: true, company: true, status: true, value: true },
+            }),
         ]);
+        const commission = { ...updatedCommission, user, lead };
 
         return NextResponse.json({ ok: true, commission });
     } catch (err) {
@@ -166,9 +184,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         const { id } = await params;
 
         // Only allow deleting PENDING commissions (not approved/paid ones)
-        const existing = await (prisma as any).affiliateCommission.findUnique({
-            where: { id },
-        });
+        const [existing] = await db.select().from(affiliateCommission).where(eq(affiliateCommission.id, id)).limit(1);
 
         if (!existing) {
             return NextResponse.json({ ok: true, message: 'Already deleted' });
@@ -178,7 +194,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
             return NextResponse.json({ ok: false, message: 'Cannot delete non-pending commission' }, { status: 400 });
         }
 
-        await (prisma as any).affiliateCommission.delete({ where: { id } });
+        await db.delete(affiliateCommission).where(eq(affiliateCommission.id, id));
 
         return NextResponse.json({ ok: true });
     } catch (err) {

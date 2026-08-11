@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task as taskTable } from "@/lib/db/schema";
+import { and, eq, ne, isNotNull, gte } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
-import { TaskStatus } from "@prisma/client";
+
+const TaskStatus = {
+  REJECTED: "REJECTED",
+} as const;
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,22 +20,23 @@ export async function GET(req: NextRequest) {
     since.setMonth(since.getMonth() - 3);
 
     // 1) QC rejections: same editor + same qcNotes reason rejected >= 3 times
-    const qcRejectedTasks = await prisma.task.findMany({
-      where: {
-        status: TaskStatus.REJECTED,
-        qcNotes: { not: null },
-        updatedAt: { gte: since },
-      },
-      select: {
-        id: true,
-        title: true,
-        qcNotes: true,
-        assignedTo: true,
-        user: {
-          select: { name: true },
-        },
+    const rawQcRejectedTasks = await db.query.task.findMany({
+      where: and(
+        eq(taskTable.status, TaskStatus.REJECTED),
+        isNotNull(taskTable.qcNotes),
+        gte(taskTable.updatedAt, since.toISOString())
+      ),
+      columns: { id: true, title: true, qcNotes: true, assignedTo: true },
+      with: {
+        // taskRelations names the assignedTo-FK relation "user_assignedTo"
+        user_assignedTo: { columns: { name: true } },
       },
     });
+    // Renamed to `user` below to match the original Prisma include shape.
+    const qcRejectedTasks = rawQcRejectedTasks.map(({ user_assignedTo, ...t }) => ({
+      ...t,
+      user: user_assignedTo,
+    }));
 
     const qcMap = new Map<
       string,
@@ -64,21 +70,16 @@ export async function GET(req: NextRequest) {
       }));
 
     // 2) Client rejections: same client + same feedback reason rejected >= 3 times
-    const clientRejectedTasks = await prisma.task.findMany({
-      where: {
-        status: TaskStatus.REJECTED,
-        clientReview: true,
-        feedback: { not: null },
-        updatedAt: { gte: since },
-      },
-      select: {
-        id: true,
-        title: true,
-        feedback: true,
-        clientId: true,
-        client: {
-          select: { name: true, companyName: true },
-        },
+    const clientRejectedTasks = await db.query.task.findMany({
+      where: and(
+        eq(taskTable.status, TaskStatus.REJECTED),
+        eq(taskTable.clientReview, true),
+        isNotNull(taskTable.feedback),
+        gte(taskTable.updatedAt, since.toISOString())
+      ),
+      columns: { id: true, title: true, feedback: true, clientId: true },
+      with: {
+        client: { columns: { name: true, companyName: true } },
       },
     });
 

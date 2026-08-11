@@ -3,11 +3,15 @@ export const dynamic = 'force-dynamic';
 // Converts a HIRED candidate into a real employee (User) account.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { hiringCandidate, user as userTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendWelcomeEmail } from '@/lib/email';
 import { generateTempPassword, hashPassword } from '@/lib/password';
-import { Role } from '@prisma/client';
+
+type Role = 'admin' | 'manager' | 'editor' | 'videographer' | 'scheduler' | 'client' | 'qc' | 'sales' | 'sales_manager';
 
 const VALID_ROLES: Role[] = ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager'];
 
@@ -27,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const body = await req.json().catch(() => ({}));
     const role: Role = VALID_ROLES.includes(body.role) ? body.role : 'editor';
 
-    const candidate = await prisma.hiringCandidate.findUnique({ where: { id } });
+    const [candidate] = await db.select().from(hiringCandidate).where(eq(hiringCandidate.id, id)).limit(1);
     if (!candidate) return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
     if (candidate.status !== 'HIRED') {
       return NextResponse.json({ error: 'Only hired candidates (approved test task) can be converted' }, { status: 400 });
@@ -36,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Candidate already converted to an employee' }, { status: 409 });
     }
 
-    const existing = await prisma.user.findFirst({ where: { email: candidate.email } });
+    const [existing] = await db.select().from(userTable).where(eq(userTable.email, candidate.email)).limit(1);
     if (existing) {
       return NextResponse.json({ error: `A user with email ${candidate.email} already exists` }, { status: 409 });
     }
@@ -44,23 +48,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const tempPassword = generateTempPassword();
     const hashedPassword = await hashPassword(tempPassword);
 
-    const user = await prisma.user.create({
-      data: {
-        name: candidate.name,
-        email: candidate.email,
-        phone: candidate.phone || undefined,
-        password: hashedPassword,
-        role,
-        employeeStatus: 'ACTIVE',
-        hoursPerWeek: 40,
-        joinedAt: new Date(),
-      },
-    });
+    const [user] = await db.insert(userTable).values({
+      name: candidate.name,
+      email: candidate.email,
+      phone: candidate.phone || undefined,
+      password: hashedPassword,
+      role,
+      employeeStatus: 'ACTIVE',
+      hoursPerWeek: String(40),
+      joinedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
-    await prisma.hiringCandidate.update({
-      where: { id: candidate.id },
-      data: { convertedUserId: user.id, convertedAt: new Date() },
-    });
+    await db.update(hiringCandidate)
+      .set({ convertedUserId: user.id, convertedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+      .where(eq(hiringCandidate.id, candidate.id));
 
     const emailResult = await sendWelcomeEmail({
       email: candidate.email,

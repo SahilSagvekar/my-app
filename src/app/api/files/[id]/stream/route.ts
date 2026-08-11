@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { file as fileTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -20,9 +22,7 @@ export async function GET(
         }
 
         // 2. Get file details
-        const file = await prisma.file.findUnique({
-            where: { id: fileId },
-        });
+        const [file] = await db.select().from(fileTable).where(eq(fileTable.id, fileId)).limit(1);
 
         if (!file || !file.s3Key) {
             return new NextResponse('File not found', { status: 404 });

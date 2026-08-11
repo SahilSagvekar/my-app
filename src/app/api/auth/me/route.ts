@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "../../../../lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, client as clientTable } from "@/lib/db/schema";
+import { and, eq, or, arrayContains } from "drizzle-orm";
 import { auth } from "@/auth";
 
 function getTokenFromCookies(req: Request) {
@@ -42,18 +44,10 @@ async function getClientLink(user: AuthMeUser) {
     };
   }
 
-  const client = await prisma.client.findFirst({
-    where: {
-      OR: [
-        { email: user.email },
-        { emails: { has: user.email } },
-      ],
-    },
-    select: {
-      id: true,
-      hasPostingServices: true,
-    },
-  });
+  const [client] = await db.select({ id: clientTable.id, hasPostingServices: clientTable.hasPostingServices })
+    .from(clientTable)
+    .where(or(eq(clientTable.email, user.email), arrayContains(clientTable.emails, [user.email])))
+    .limit(1);
 
   return {
     linkedClientId: client?.id || null,
@@ -69,9 +63,9 @@ export async function GET(req: Request) {
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload;
-        const user = await prisma.user.findFirst({
-          where: { id: Number(decoded.userId) },
-          select: {
+        const user = await db.query.user.findFirst({
+          where: eq(userTable.id, Number(decoded.userId)),
+          columns: {
             id: true,
             email: true,
             name: true,
@@ -80,8 +74,10 @@ export async function GET(req: Request) {
             image: true,
             linkedClientId: true,
             employeeStatus: true,
+          },
+          with: {
             client: {
-              select: { id: true, hasPostingServices: true }
+              columns: { id: true, hasPostingServices: true }
             }
           },
         });
@@ -109,9 +105,9 @@ export async function GET(req: Request) {
     // 2. Try NextAuth Session (for Google/Slack)
     const session = await auth();
     if (session?.user?.email) {
-      const user = await prisma.user.findFirst({
-        where: { email: session.user.email },
-        select: {
+      const user = await db.query.user.findFirst({
+        where: eq(userTable.email, session.user.email),
+        columns: {
           id: true,
           email: true,
           name: true,
@@ -120,8 +116,10 @@ export async function GET(req: Request) {
           image: true,
           linkedClientId: true,
           employeeStatus: true,
+        },
+        with: {
           client: {
-            select: { id: true, hasPostingServices: true }
+            columns: { id: true, hasPostingServices: true }
           }
         },
       });

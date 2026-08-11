@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { postedContent } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, gte, lte, ilike, or, count as countFn, desc } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
 import { getCurrentUser2 } from "@/lib/auth";
 import { cached, invalidatePostedContentCache } from "@/lib/redis";
@@ -32,32 +35,31 @@ export async function GET(req: NextRequest) {
     }
 
     // Build where clause
-    const where: any = {};
+    const conditions: any[] = [];
 
     if (clientId) {
-      where.clientId = clientId;
+      conditions.push(eq(postedContent.clientId, clientId));
     }
 
     if (platform && platform !== "all") {
-      where.platform = platform.toLowerCase();
+      conditions.push(eq(postedContent.platform, platform.toLowerCase()));
     }
 
-    if (dateFrom || dateTo) {
-      where.postedAt = {};
-      if (dateFrom) {
-        const d = new Date(dateFrom + 'T00:00:00');
-        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false, timeZoneName: 'shortOffset' }).formatToParts(d);
-        const offsetStr = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT-5';
-        const offsetHours = parseInt((offsetStr.match(/GMT([+-]\d+)/) || ['', '-5'])[1], 10);
-        where.postedAt.gte = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0 - offsetHours, 0, 0, 0));
-      }
-      if (dateTo) {
-        const d = new Date(dateTo + 'T00:00:00');
-        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false, timeZoneName: 'shortOffset' }).formatToParts(d);
-        const offsetStr = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT-5';
-        const offsetHours = parseInt((offsetStr.match(/GMT([+-]\d+)/) || ['', '-5'])[1], 10);
-        where.postedAt.lte = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23 - offsetHours, 59, 59, 999));
-      }
+    if (dateFrom) {
+      const d = new Date(dateFrom + 'T00:00:00');
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false, timeZoneName: 'shortOffset' }).formatToParts(d);
+      const offsetStr = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT-5';
+      const offsetHours = parseInt((offsetStr.match(/GMT([+-]\d+)/) || ['', '-5'])[1], 10);
+      const gteDate = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 0 - offsetHours, 0, 0, 0));
+      conditions.push(gte(postedContent.postedAt, gteDate.toISOString()));
+    }
+    if (dateTo) {
+      const d = new Date(dateTo + 'T00:00:00');
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false, timeZoneName: 'shortOffset' }).formatToParts(d);
+      const offsetStr = parts.find(p => p.type === 'timeZoneName')?.value ?? 'GMT-5';
+      const offsetHours = parseInt((offsetStr.match(/GMT([+-]\d+)/) || ['', '-5'])[1], 10);
+      const lteDate = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 23 - offsetHours, 59, 59, 999));
+      conditions.push(lte(postedContent.postedAt, lteDate.toISOString()));
     }
 
     // Only return content linked to tasks that are SCHEDULED or POSTED
@@ -90,26 +92,28 @@ export async function GET(req: NextRequest) {
     // }
 
     if (search) {
-      where.OR = [
-        { title: { contains: search, mode: "insensitive" } },
-        { url: { contains: search, mode: "insensitive" } },
-      ];
+      conditions.push(or(
+        ilike(postedContent.title, `%${search}%`),
+        ilike(postedContent.url, `%${search}%`),
+      ));
     }
+
+    const where = conditions.length ? and(...conditions) : undefined;
 
     // Cache simple clientId-only reads for 60s
     const isSimpleRead = !!(clientId && !search && !dateFrom && !dateTo && !platform);
     const cacheKey = `posted-content:${clientId}:${offset}:${limit}`;
 
     const fetchData = async () => {
-      const [contents, total] = await Promise.all([
-        prisma.postedContent.findMany({
+      const [rows, [{ value: total }]] = await Promise.all([
+        db.query.postedContent.findMany({
           where,
-          orderBy: { postedAt: "desc" },
-          take: limit,
-          skip: offset,
-          include: {
+          orderBy: desc(postedContent.postedAt),
+          limit,
+          offset,
+          with: {
             client: {
-              select: {
+              columns: {
                 id: true,
                 name: true,
                 companyName: true,
@@ -117,9 +121,9 @@ export async function GET(req: NextRequest) {
             },
           },
         }),
-        prisma.postedContent.count({ where }),
+        db.select({ value: countFn() }).from(postedContent).where(where),
       ]);
-      return { contents, total };
+      return { contents: rows, total };
     };
 
     const { contents, total } = isSimpleRead
@@ -160,17 +164,16 @@ export async function POST(req: NextRequest) {
 
     const normalizedUrl = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
 
-    const content = await prisma.postedContent.create({
-      data: {
-        clientId,
-        title,
-        platform: platform.toLowerCase(),
-        url: normalizedUrl,
-        postedAt: postedAt ? new Date(postedAt) : new Date(),
-        deliverableType,
-        taskId,
-      },
-    });
+    const [content] = await db.insert(postedContent).values({
+      id: createId(),
+      clientId,
+      title,
+      platform: platform.toLowerCase(),
+      url: normalizedUrl,
+      postedAt: (postedAt ? new Date(postedAt) : new Date()).toISOString(),
+      deliverableType,
+      taskId,
+    }).returning();
 
     await invalidatePostedContentCache(clientId);
 

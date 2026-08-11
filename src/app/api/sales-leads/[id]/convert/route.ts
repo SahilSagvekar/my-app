@@ -4,7 +4,10 @@ export const dynamic = 'force-dynamic';
 // Runs the exact same logic as POST /api/clients (folders, deliverables, recurring tasks, onboarding).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesLead, user as userTable, client as clientTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { createClientFolders } from '@/lib/s3';
 import { createRecurringTasksForClient } from '@/app/api/clients/recurring';
@@ -33,9 +36,9 @@ export async function POST(
     }
 
     // ── Load the lead ──────────────────────────────────────────────────────
-    const lead = await prisma.salesLead.findUnique({ where: { id: leadId } });
+    const [lead] = await db.select().from(salesLead).where(eq(salesLead.id, leadId)).limit(1);
     if (!lead) return NextResponse.json({ ok: false, message: 'Lead not found' }, { status: 404 });
-    if ((lead as any).convertedToClientId) {
+    if (lead.convertedToClientId) {
       return NextResponse.json({ ok: false, message: 'This lead has already been converted to a client' }, { status: 409 });
     }
 
@@ -61,7 +64,7 @@ export async function POST(
     }
 
     // ── Check for duplicate email ──────────────────────────────────────────
-    const existingUser = await prisma.user.findFirst({ where: { email } });
+    const [existingUser] = await db.select().from(userTable).where(eq(userTable.email, email)).limit(1);
     if (existingUser) {
       return NextResponse.json({
         ok: false,
@@ -73,49 +76,48 @@ export async function POST(
     const folders = await createClientFolders(companyName);
 
     // ── DB transaction: user + client + mark lead as converted ────────────
-    const { client } = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: { name, email, password: null, role: 'client' },
-      });
+    const { client } = await db.transaction(async (tx) => {
+      const [user] = await tx.insert(userTable).values({
+        name, email, password: null, role: 'client', updatedAt: new Date().toISOString(),
+      }).returning();
 
-      const client = await tx.client.create({
-        data: {
-          name,
-          email,
-          emails: [],
-          companyName: companyName || null,
-          phone,
-          phones: [],
-          createdBy: decoded.userId.toString(),
-          user: { connect: { id: user.id } },
-          accountManagerId,
-          status: 'active',
-          startDate: new Date(),
-          renewalDate: null,
-          lastActivity: new Date(),
-          driveFolderId:       folders.mainFolderId,
-          rawFootageFolderId:  folders.rawFolderId,
-          essentialsFolderId:  folders.elementsFolderId,
-          outputsFolderId:     folders.outputsFolderId,
-          requiresClientReview: false,
-          clientReviewDeliverableTypes: [],
-          requiresVideographer: false,
-          hasPostingServices,
-          currentProgress: { completed: 0, total: 0 },
-        },
-      });
+      const [client] = await tx.insert(clientTable).values({
+        id: createId(),
+        name,
+        email,
+        emails: [],
+        companyName: companyName || null,
+        phone,
+        phones: [],
+        createdBy: decoded.userId.toString(),
+        userId: user.id,
+        accountManagerId,
+        status: 'active',
+        startDate: new Date().toISOString(),
+        renewalDate: null,
+        lastActivity: new Date().toISOString(),
+        driveFolderId:       folders.mainFolderId,
+        rawFootageFolderId:  folders.rawFolderId,
+        essentialsFolderId:  folders.elementsFolderId,
+        outputsFolderId:     folders.outputsFolderId,
+        requiresClientReview: false,
+        clientReviewDeliverableTypes: [],
+        requiresVideographer: false,
+        hasPostingServices,
+        currentProgress: { completed: 0, total: 0 },
+        updatedAt: new Date().toISOString(),
+      }).returning();
 
       // No deliverables on conversion — admin can add them after
       await createRecurringTasksForClient(client.id, tx);
 
       // Mark the lead as converted
-      await tx.$executeRaw`
-        UPDATE "SalesLead"
-        SET status = 'WON',
-            "convertedToClientId" = ${client.id},
-            "convertedAt" = NOW()
-        WHERE id = ${leadId}
-      `;
+      await tx.update(salesLead).set({
+        status: 'WON',
+        convertedToClientId: client.id,
+        convertedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(salesLead.id, leadId));
 
       return { client };
     });

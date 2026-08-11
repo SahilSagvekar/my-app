@@ -1,7 +1,10 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, client as clientTable, socialLogin, loginAuditLog } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, or, eq, arrayContains, asc } from "drizzle-orm";
 import { encrypt, decrypt } from "@/lib/encryption";
 import { notifyLoginAdded } from "@/lib/login-notifications";
 import jwt from "jsonwebtoken";
@@ -50,17 +53,14 @@ export async function GET(req: NextRequest) {
 
     const { userId } = decoded;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        phone: true,
-        role: true,
-      },
-    });
+    const [user] = await db.select({
+      id: userTable.id,
+      name: userTable.name,
+      email: userTable.email,
+      image: userTable.image,
+      phone: userTable.phone,
+      role: userTable.role,
+    }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
     if (!user) {
       return NextResponse.json(
@@ -78,18 +78,13 @@ export async function GET(req: NextRequest) {
 
     // Roles with built-in full access (no per-login permission needed)
     const fullAccessRoles = ["admin", "client"];
-    
+
     // For other roles, check if the user has been granted access to ANY login
     if (!fullAccessRoles.includes(userRole)) {
-      const hasAnyAccess = await prisma.socialLogin.findFirst({
-        where: {
-          OR: [
-            { allowedRoles: { has: userRole } },
-            { allowedUserIds: { has: userId } },
-          ],
-        },
-        select: { id: true },
-      });
+      const [hasAnyAccess] = await db.select({ id: socialLogin.id }).from(socialLogin).where(or(
+        arrayContains(socialLogin.allowedRoles, [userRole]),
+        arrayContains(socialLogin.allowedUserIds, [userId]),
+      )).limit(1);
 
       if (!hasAnyAccess) {
         return NextResponse.json({ message: "Access denied" }, { status: 403 });
@@ -98,98 +93,56 @@ export async function GET(req: NextRequest) {
 
     const isAdmin = userRole === "admin";
 
-    let logins;
+    let rawLogins;
 
     if (isAdmin) {
-      logins = await prisma.socialLogin.findMany({
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              companyName: true,
-            },
-          },
-          updatedByUser: {
-            select: {
-              name: true,
-            },
-          },
+      rawLogins = await db.query.socialLogin.findMany({
+        with: {
+          client: { columns: { id: true, name: true, companyName: true } },
+          user: { columns: { name: true } },
         },
-        orderBy: [
-          { client: { companyName: "asc" } },
-          { platform: "asc" },
-        ],
       });
     } else if (userRole === "client") {
-      const userWithClient = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { linkedClientId: true },
-      });
+      const [userWithClient] = await db.select({ linkedClientId: userTable.linkedClientId }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
       let clientId = userWithClient?.linkedClientId;
 
       if (!clientId) {
-        const clientByUserId = await prisma.client.findFirst({
-          where: { userId: userId },
-          select: { id: true },
-        });
+        const [clientByUserId] = await db.select({ id: clientTable.id }).from(clientTable).where(eq(clientTable.userId, userId)).limit(1);
         clientId = clientByUserId?.id || null;
       }
 
-      logins = await prisma.socialLogin.findMany({
-        where: {
-          clientId: clientId || 'NO_CLIENT_FOUND',
-          adminOnly: false
+      rawLogins = await db.query.socialLogin.findMany({
+        where: and(eq(socialLogin.clientId, clientId || 'NO_CLIENT_FOUND'), eq(socialLogin.adminOnly, false)),
+        with: {
+          client: { columns: { id: true, name: true, companyName: true } },
+          user: { columns: { name: true } },
         },
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              companyName: true,
-            },
-          },
-          updatedByUser: {
-            select: {
-              name: true,
-            },
-          },
-        },
-        orderBy: [
-          { client: { companyName: "asc" } },
-          { platform: "asc" },
-        ],
       });
     } else {
-      logins = await prisma.socialLogin.findMany({
-        where: {
-          adminOnly: false,
-          OR: [
-            { allowedRoles: { has: userRole! } },
-            { allowedUserIds: { has: userId } },
-          ],
+      rawLogins = await db.query.socialLogin.findMany({
+        where: and(
+          eq(socialLogin.adminOnly, false),
+          or(
+            arrayContains(socialLogin.allowedRoles, [userRole!]),
+            arrayContains(socialLogin.allowedUserIds, [userId]),
+          ),
+        ),
+        with: {
+          client: { columns: { id: true, name: true, companyName: true } },
+          user: { columns: { name: true } },
         },
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              companyName: true,
-            },
-          },
-          updatedByUser: {
-            select: {
-              name: true,
-            },
-          },
-        },
-        orderBy: [
-          { client: { companyName: "asc" } },
-          { platform: "asc" },
-        ],
       });
     }
+
+    // Mirrors the original ORDER BY client.companyName ASC, platform ASC —
+    // ordering by a joined relation's column isn't expressible in Drizzle's
+    // relational query `orderBy` (main-table columns only), so sort in JS.
+    const logins = [...rawLogins].sort((a: any, b: any) => {
+      const companyCompare = (a.client?.companyName || "").localeCompare(b.client?.companyName || "");
+      if (companyCompare !== 0) return companyCompare;
+      return (a.platform || "").localeCompare(b.platform || "");
+    });
 
     const decryptedLogins = logins.map((login) => ({
       id: login.id,
@@ -209,9 +162,9 @@ export async function GET(req: NextRequest) {
       accessRole: login.accessRole,
       allowedRoles: login.allowedRoles || [],
       allowedUserIds: login.allowedUserIds || [],
-      passwordChangedAt: login.passwordChangedAt?.toISOString() || login.createdAt.toISOString(),
-      lastUpdated: login.updatedAt.toISOString(),
-      updatedBy: login.updatedByUser?.name || "Unknown",
+      passwordChangedAt: login.passwordChangedAt ? new Date(login.passwordChangedAt).toISOString() : new Date(login.createdAt).toISOString(),
+      lastUpdated: new Date(login.updatedAt).toISOString(),
+      updatedBy: (login as any).user?.name || "Unknown",
     }));
 
     return NextResponse.json({ logins: decryptedLogins });
@@ -247,17 +200,14 @@ export async function POST(req: NextRequest) {
 
     const { userId } = decoded;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        phone: true,
-        role: true,
-      },
-    });
+    const [user] = await db.select({
+      id: userTable.id,
+      name: userTable.name,
+      email: userTable.email,
+      image: userTable.image,
+      phone: userTable.phone,
+      role: userTable.role,
+    }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
     if (!user) {
       return NextResponse.json(
@@ -314,18 +264,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (userRole === "client" && clientId) {
-      const userWithClient = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { linkedClientId: true },
-      });
+      const [userWithClient] = await db.select({ linkedClientId: userTable.linkedClientId }).from(userTable).where(eq(userTable.id, userId)).limit(1);
 
       let userClientId = userWithClient?.linkedClientId;
 
       if (!userClientId) {
-        const clientByUserId = await prisma.client.findFirst({
-          where: { userId: userId },
-          select: { id: true },
-        });
+        const [clientByUserId] = await db.select({ id: clientTable.id }).from(clientTable).where(eq(clientTable.userId, userId)).limit(1);
         userClientId = clientByUserId?.id || null;
       }
 
@@ -339,10 +283,7 @@ export async function POST(req: NextRequest) {
 
     let client = null;
     if (clientId) {
-      client = await prisma.client.findUnique({
-        where: { id: clientId },
-        select: { companyName: true },
-      });
+      [client] = await db.select({ companyName: clientTable.companyName }).from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
 
       if (!client) {
         return NextResponse.json({ message: "Client not found" }, { status: 404 });
@@ -352,32 +293,31 @@ export async function POST(req: NextRequest) {
     const effectiveUsername = isEmailInvitePlatform ? email : username;
     const encryptedPassword = encrypt(isEmailInvitePlatform ? "" : password);
 
-    const login = await prisma.socialLogin.create({
-      data: {
-        clientId: isAdminOnlyLogin ? null : (clientId || null),
-        platform,
-        username: effectiveUsername,
-        encryptedPassword,
-        loginUrl: loginUrl || null,
-        recoveryEmail: email || null,
-        recoveryPhone: phone || null,
-        notes: notes || null,
-        backupCodesLocation: backupCodesLocation || null,
-        adminOnly: isAdminOnlyLogin,
-        accessRole: isEmailInvitePlatform ? accessRole : null,
-        allowedRoles: allowedRoles || [],
-        allowedUserIds: allowedUserIds || [],
-        updatedById: userId,
-      },
-    });
+    const [login] = await db.insert(socialLogin).values({
+      id: createId(),
+      clientId: isAdminOnlyLogin ? null : (clientId || null),
+      platform,
+      username: effectiveUsername,
+      encryptedPassword,
+      loginUrl: loginUrl || null,
+      recoveryEmail: email || null,
+      recoveryPhone: phone || null,
+      notes: notes || null,
+      backupCodesLocation: backupCodesLocation || null,
+      adminOnly: isAdminOnlyLogin,
+      accessRole: isEmailInvitePlatform ? accessRole : null,
+      allowedRoles: allowedRoles || [],
+      allowedUserIds: allowedUserIds || [],
+      updatedById: userId,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
-    await prisma.loginAuditLog.create({
-      data: {
-        action: "create",
-        loginId: login.id,
-        userId: userId,
-        details: JSON.stringify(isAdminOnlyLogin ? { platform } : { platform, clientId, allowedRoles, allowedUserIds }),
-      },
+    await db.insert(loginAuditLog).values({
+      id: createId(),
+      action: "create",
+      loginId: login.id,
+      userId: userId,
+      details: JSON.stringify(isAdminOnlyLogin ? { platform } : { platform, clientId, allowedRoles, allowedUserIds }),
     });
 
     // Notify schedulers + admins about the new login (fire-and-forget)
@@ -408,8 +348,8 @@ export async function POST(req: NextRequest) {
         accessRole: login.accessRole,
         allowedRoles: login.allowedRoles,
         allowedUserIds: login.allowedUserIds,
-        passwordChangedAt: login.createdAt.toISOString(),
-        lastUpdated: login.updatedAt.toISOString(),
+        passwordChangedAt: new Date(login.createdAt).toISOString(),
+        lastUpdated: new Date(login.updatedAt).toISOString(),
         updatedBy: user.name || "Admin",
       },
     });

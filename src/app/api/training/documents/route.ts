@@ -1,9 +1,11 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from '@/lib/db';
+import { trainingDocument } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, asc, eq } from 'drizzle-orm';
 import { getCurrentUser2, requireAdmin } from "@/lib/auth";
 import { uploadBufferToS3, generateSignedUrl } from "@/lib/s3";
-import { Role } from "@prisma/client";
 
 const ROLES_WITH_TRAINING = ["editor", "qc", "scheduler", "manager", "videographer", "sales", "admin"] as const;
 type TrainingRole = (typeof ROLES_WITH_TRAINING)[number];
@@ -35,20 +37,13 @@ export async function GET(req: NextRequest) {
           ? (user.role as TrainingRole)
           : null;
 
-    const where: any = {};
-    if (filterRole) {
-      where.role = filterRole as Role;
-    }
-    if (courseId) {
-      where.courseId = courseId;
-    }
+    const conditions = [];
+    if (filterRole) conditions.push(eq(trainingDocument.role, filterRole));
+    if (courseId) conditions.push(eq(trainingDocument.courseId, courseId));
 
-    const documents = await prisma.trainingDocument.findMany({
-      where,
-      orderBy: courseId
-        ? [{ order: "asc" }]
-        : [{ role: "asc" }, { order: "asc" }],
-    });
+    const documents = await db.select().from(trainingDocument)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(...(courseId ? [asc(trainingDocument.order)] : [asc(trainingDocument.role), asc(trainingDocument.order)]));
 
     // Sign S3/R2 URLs for downloads
     const signedDocuments = await Promise.all(
@@ -123,18 +118,18 @@ export async function POST(req: NextRequest) {
       mimeType: file.type,
     });
 
-    const document = await prisma.trainingDocument.create({
-      data: {
-        title: title.trim(),
-        description: description.trim(),
-        s3Key: upload.key,
-        fileName: file.name,
-        fileSize: file.size,
-        role: role as Role,
-        order: isNaN(order) ? 0 : order,
-        courseId: courseId || null,
-      },
-    });
+    const [document] = await db.insert(trainingDocument).values({
+      id: createId(),
+      title: title.trim(),
+      description: description.trim(),
+      s3Key: upload.key,
+      fileName: file.name,
+      fileSize: file.size,
+      role: role as TrainingRole,
+      order: isNaN(order) ? 0 : order,
+      courseId: courseId || null,
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     return NextResponse.json({ document });
   } catch (err: any) {

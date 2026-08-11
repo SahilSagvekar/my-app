@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task, tag, tagToTask } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { eq, sql } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -33,14 +36,20 @@ export async function PATCH(
 
         const names = [...new Set(tagNames.map((n: string) => n.trim()).filter(Boolean))];
 
-        const task = await prisma.task.findUnique({ where: { id }, include: { tags: true } });
-        if (!task) return NextResponse.json({ message: "Task not found" }, { status: 404 });
+        const foundTask = await db.query.task.findFirst({
+            where: eq(task.id, id),
+            columns: { id: true },
+            with: { tagToTasks: { with: { tag: true } } },
+        });
+        if (!foundTask) return NextResponse.json({ message: "Task not found" }, { status: 404 });
+
+        const currentTags = (foundTask as any).tagToTasks.map((tt: any) => tt.tag);
 
         // Anything currently on the task that isn't in the incoming list is a
         // removal — only admins can do that. Additions (new names not currently
         // on the task) are unaffected and stay open to everyone.
         const requestedLower = new Set(names.map((n) => n.toLowerCase()));
-        const isRemoval = task.tags.some((t) => !requestedLower.has(t.name.toLowerCase()));
+        const isRemoval = currentTags.some((t: any) => !requestedLower.has(t.name.toLowerCase()));
         if (isRemoval && role !== "admin") {
             return NextResponse.json(
                 { message: "Only admins can remove tags from a task" },
@@ -50,20 +59,24 @@ export async function PATCH(
 
         const tags = await Promise.all(
             names.map(async (name) => {
-                const existing = await prisma.tag.findFirst({
-                    where: { name: { equals: name, mode: "insensitive" } },
-                });
-                return existing || prisma.tag.create({ data: { name } });
+                const [existing] = await db.select().from(tag)
+                    .where(sql`lower(${tag.name}) = lower(${name})`).limit(1);
+                if (existing) return existing;
+                const [created] = await db.insert(tag).values({ id: createId(), name }).returning();
+                return created;
             })
         );
 
-        const updated = await prisma.task.update({
-            where: { id },
-            data: { tags: { set: tags.map((t) => ({ id: t.id })) } },
-            include: { tags: true },
+        // Replace the full tag set for this task (mirrors Prisma's tags: { set: [...] },
+        // which is atomic — wrap in a transaction so we never leave the task tagless mid-swap)
+        await db.transaction(async (tx) => {
+            await tx.delete(tagToTask).where(eq(tagToTask.b, id));
+            if (tags.length > 0) {
+                await tx.insert(tagToTask).values(tags.map((t) => ({ a: t.id, b: id })));
+            }
         });
 
-        return NextResponse.json({ success: true, tags: updated.tags });
+        return NextResponse.json({ success: true, tags });
     } catch (err: any) {
         console.error("Task tags update error:", err);
         return NextResponse.json(

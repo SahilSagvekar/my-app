@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/files/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { file as fileTable } from "@/lib/db/schema";
+import { eq, asc, desc } from "drizzle-orm";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getS3, BUCKET } from "@/lib/s3";
@@ -36,13 +38,9 @@ export async function GET(
   try {
     const { id } = await params;
     
-    const files = await prisma.file.findMany({
-      where: { taskId: id },
-      orderBy: [
-        { folderType: 'asc' },
-        { version: 'desc' },
-      ],
-    });
+    const files = await db.select().from(fileTable)
+      .where(eq(fileTable.taskId, id))
+      .orderBy(asc(fileTable.folderType), desc(fileTable.version));
 
     console.log("📁 Found files:", files.map(f => ({ 
       id: f.id, 

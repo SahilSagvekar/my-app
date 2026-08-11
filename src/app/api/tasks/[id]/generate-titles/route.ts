@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 // src/app/api/tasks/[id]/generate-titles/route.ts
 
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { startTitlingJob, getTitlingStatus, retryTitlingJob } from '@/lib/titling-service';
 import jwt from 'jsonwebtoken';
 
@@ -45,21 +47,21 @@ export async function POST(
     }
 
     // 3. Get task
-    const task = await prisma.task.findUnique({
-      where: { id: taskId },
-      include: {
+    const foundTask = await db.query.task.findFirst({
+      where: eq(task.id, taskId),
+      with: {
         files: {
-          where: { isActive: true },
+          where: (f, { eq }) => eq(f.isActive, true),
         },
       },
     });
 
-    if (!task) {
+    if (!foundTask) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
     // 4. Check if already processing
-    if (task.titlingStatus === 'PROCESSING') {
+    if (foundTask.titlingStatus === 'PROCESSING') {
       const status = await getTitlingStatus(taskId);
       return NextResponse.json({
         success: true,
@@ -69,23 +71,23 @@ export async function POST(
     }
 
     // 5. Check if already completed
-    if (task.titlingStatus === 'COMPLETED' && task.suggestedTitles) {
+    if (foundTask.titlingStatus === 'COMPLETED' && foundTask.suggestedTitles) {
       // Allow force regeneration via query param
       const url = new URL(req.url);
       const force = url.searchParams.get('force') === 'true';
-      
+
       if (!force) {
         return NextResponse.json({
           success: true,
           message: 'Titles already generated',
-          titles: task.suggestedTitles,
-          transcript: task.transcript?.slice(0, 500) + '...',
+          titles: foundTask.suggestedTitles,
+          transcript: foundTask.transcript?.slice(0, 500) + '...',
         });
       }
     }
 
     // 6. Check for video file
-    const videoFile = task.files.find(f => f.mimeType?.startsWith('video/'));
+    const videoFile = foundTask.files.find(f => f.mimeType?.startsWith('video/'));
     if (!videoFile) {
       return NextResponse.json(
         { error: 'No video file found for this task' },
@@ -103,11 +105,8 @@ export async function POST(
     }
 
     // 8. Update task platform if provided
-    if (platform !== task.platform) {
-      await prisma.task.update({
-        where: { id: taskId },
-        data: { platform },
-      });
+    if (platform !== foundTask.platform) {
+      await db.update(task).set({ platform, updatedAt: new Date().toISOString() }).where(eq(task.id, taskId));
     }
 
     // 9. Start titling job

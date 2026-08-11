@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { shareableFile } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
 import { randomBytes } from 'crypto';
 
 function getTokenFromCookies(req: Request) {
@@ -34,17 +36,17 @@ export async function POST(req: NextRequest) {
         const shareToken = randomBytes(24).toString('hex');
         const resolvedMimeType = isFolder ? 'application/x-directory' : mimeType;
 
-        await prisma.shareableFile.create({
-            data: {
-                s3Key,
-                fileName: fileName || s3Key.replace(/\/$/, '').split('/').pop() || (isFolder ? 'folder' : 'file'),
-                fileSize: fileSize ? BigInt(fileSize) : null,
-                mimeType: resolvedMimeType,
-                shareToken,
-                createdBy: Number(decoded.userId),
-                isActive: true,
-                expiresAt: null,
-            }
+        await db.insert(shareableFile).values({
+            id: createId(),
+            s3Key,
+            fileName: fileName || s3Key.replace(/\/$/, '').split('/').pop() || (isFolder ? 'folder' : 'file'),
+            fileSize: fileSize ? Number(fileSize) : null,
+            mimeType: resolvedMimeType,
+            shareToken,
+            createdBy: Number(decoded.userId),
+            isActive: true,
+            expiresAt: null,
+            updatedAt: new Date().toISOString(),
         });
 
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.headers.get('origin') || 'http://localhost:3000';

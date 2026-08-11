@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { preClient as preClientTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -10,14 +12,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
-    const preClient = await prisma.preClient.findUnique({
-      where: { id },
-      include: {
-        createdBy: { select: { id: true, name: true, email: true } },
-        quotes: { orderBy: { version: 'desc' } },
+    const row = await db.query.preClient.findFirst({
+      where: (pc, { eq }) => eq(pc.id, id),
+      with: {
+        user: { columns: { id: true, name: true, email: true } },
+        quotes: { orderBy: (q, { desc }) => [desc(q.version)] },
       },
     });
-    if (!preClient) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const { user: createdBy, ...rest } = row;
+    const preClient = { ...rest, createdBy };
     return NextResponse.json(preClient);
   } catch (err) {
     console.error('GET /api/pre-clients/[id] error:', err);
@@ -34,16 +38,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await req.json();
     const { name, email, phone, companyName, status } = body;
-    const preClient = await prisma.preClient.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(email && { email }),
-        ...(phone !== undefined && { phone }),
-        ...(companyName !== undefined && { companyName }),
-        ...(status && { status }),
-      },
-    });
+    const [preClient] = await db.update(preClientTable).set({
+      ...(name && { name }),
+      ...(email && { email }),
+      ...(phone !== undefined && { phone }),
+      ...(companyName !== undefined && { companyName }),
+      ...(status && { status }),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(preClientTable.id, id)).returning();
     return NextResponse.json(preClient);
   } catch (err) {
     console.error('PATCH /api/pre-clients/[id] error:', err);
@@ -58,7 +60,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
-    const preClient = await prisma.preClient.findUnique({ where: { id } });
+    const [preClient] = await db.select().from(preClientTable).where(eq(preClientTable.id, id)).limit(1);
     if (!preClient) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (preClient.status === 'CONVERTED') {
       return NextResponse.json(
@@ -66,7 +68,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         { status: 400 }
       );
     }
-    await prisma.preClient.delete({ where: { id } });
+    await db.delete(preClientTable).where(eq(preClientTable.id, id));
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('DELETE /api/pre-clients/[id] error:', err);

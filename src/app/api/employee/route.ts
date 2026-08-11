@@ -1,12 +1,15 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
 import { sendWelcomeEmail } from '@/lib/email';
 import { generateTempPassword, hashPassword } from '@/lib/password'; // ← Add this import
 import { z } from "zod";
-import { Role } from '@prisma/client';
+
+type Role = "admin" | "manager" | "editor" | "videographer" | "scheduler" | "client" | "qc" | "sales" | "sales_manager";
 
 interface CreateUserData {
   name: string;
@@ -48,9 +51,7 @@ export async function POST(req: Request) {
     console.log("✅ Parsed data:", data);
 
     // 1️⃣ Find existing employee by email
-    const existing = await prisma.user.findFirst({
-      where: { email: data.email },
-    });
+    const [existing] = await db.select().from(userTable).where(eq(userTable.email, data.email)).limit(1);
 
     let user;
     let tempPassword: string | null = null; // ← Store temp password for email
@@ -59,17 +60,15 @@ export async function POST(req: Request) {
       // 2️⃣ Update existing employee
       console.log("🔄 Updating existing user:", existing.id);
 
-      user = await prisma.user.update({
-        where: { id: existing.id },
-        data: {
-          name: data.name,
-          hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : existing.hourlyRate,
-          hoursPerWeek: data.hoursPerWeek ? Number(data.hoursPerWeek) : existing.hoursPerWeek,
-          monthlyBaseHours: data.monthlyBaseHours ?? existing.monthlyBaseHours,
-          worksOnSaturday: data.worksOnSaturday ?? existing.worksOnSaturday,
-          ...(data.joinedAt && { joinedAt: new Date(data.joinedAt) }),
-        },
-      });
+      [user] = await db.update(userTable).set({
+        name: data.name,
+        hourlyRate: data.hourlyRate ? String(Number(data.hourlyRate)) : existing.hourlyRate,
+        hoursPerWeek: data.hoursPerWeek ? String(Number(data.hoursPerWeek)) : existing.hoursPerWeek,
+        monthlyBaseHours: data.monthlyBaseHours ?? existing.monthlyBaseHours,
+        worksOnSaturday: data.worksOnSaturday ?? existing.worksOnSaturday,
+        ...(data.joinedAt && { joinedAt: new Date(data.joinedAt).toISOString() }),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(userTable.id, existing.id)).returning();
 
       await createAuditLog({
         userId: existing.id,
@@ -96,23 +95,22 @@ export async function POST(req: Request) {
       tempPassword = generateTempPassword();
       const hashedPassword = await hashPassword(tempPassword);
 
-      user = await prisma.user.create({
-        data: {
-          name: data.name,
-          email: data.email,
-          password: hashedPassword, // ← Add hashed password
-          phone: data.phone,
-          role: (data.role as Role) || null,
-          hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : null,
-          hoursPerWeek: data.hoursPerWeek ? Number(data.hoursPerWeek) : 40,
-          monthlyBaseHours: data.monthlyBaseHours,
-          worksOnSaturday: data.worksOnSaturday ?? false,
-          employeeStatus: 'ACTIVE', // ← Set status
-          // 🔥 NEW: Link to client directly if role is 'client'
-          linkedClientId: data.role === 'client' && json.clientId ? json.clientId : null,
-          ...(data.joinedAt && { joinedAt: new Date(data.joinedAt) }),
-        },
-      });
+      [user] = await db.insert(userTable).values({
+        name: data.name,
+        email: data.email,
+        password: hashedPassword, // ← Add hashed password
+        phone: data.phone,
+        role: (data.role as Role) || null,
+        hourlyRate: data.hourlyRate ? String(Number(data.hourlyRate)) : null,
+        hoursPerWeek: data.hoursPerWeek ? String(Number(data.hoursPerWeek)) : "40",
+        monthlyBaseHours: data.monthlyBaseHours,
+        worksOnSaturday: data.worksOnSaturday ?? false,
+        employeeStatus: 'ACTIVE', // ← Set status
+        // 🔥 NEW: Link to client directly if role is 'client'
+        linkedClientId: data.role === 'client' && json.clientId ? json.clientId : null,
+        ...(data.joinedAt && { joinedAt: new Date(data.joinedAt).toISOString() }),
+        updatedAt: new Date().toISOString(),
+      }).returning();
 
       await createAuditLog({
         userId: user.id,

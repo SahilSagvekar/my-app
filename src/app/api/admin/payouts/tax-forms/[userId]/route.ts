@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // admin: any rep. sales_manager: only their visible reps.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesRepPayoutProfile } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { getVisibleSalesRepIds } from '@/lib/salesManagerPermissions';
 import { generateDownloadUrl } from '@/lib/s3';
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ user
       }
     }
 
-    const profile = await prisma.salesRepPayoutProfile.findUnique({ where: { userId: targetId } });
+    const [profile] = await db.select().from(salesRepPayoutProfile).where(eq(salesRepPayoutProfile.userId, targetId)).limit(1);
     if (!profile?.taxFormS3Key) {
       return NextResponse.json({ ok: false, message: 'No tax form on file' }, { status: 404 });
     }

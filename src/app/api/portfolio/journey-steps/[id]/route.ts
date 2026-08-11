@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { portfolioJourneyStep } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 // PATCH /api/portfolio/journey-steps/[id] — admin: edit caption/order/image for a step.
@@ -18,19 +20,17 @@ export async function PATCH(
         const { id } = await params;
         const body = await req.json();
 
-        const step = await prisma.portfolioJourneyStep.findUnique({ where: { id } });
+        const [step] = await db.select().from(portfolioJourneyStep).where(eq(portfolioJourneyStep.id, id)).limit(1);
         if (!step) {
             return NextResponse.json({ ok: false, message: 'Step not found' }, { status: 404 });
         }
 
-        const updated = await prisma.portfolioJourneyStep.update({
-            where: { id },
-            data: {
-                ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
-                ...(body.caption !== undefined && { caption: body.caption }),
-                ...(body.order !== undefined && { order: body.order }),
-            },
-        });
+        const [updated] = await db.update(portfolioJourneyStep).set({
+            ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
+            ...(body.caption !== undefined && { caption: body.caption }),
+            ...(body.order !== undefined && { order: body.order }),
+            updatedAt: new Date().toISOString(),
+        }).where(eq(portfolioJourneyStep.id, id)).returning();
 
         return NextResponse.json({ ok: true, step: updated });
     } catch (err) {
@@ -53,12 +53,12 @@ export async function DELETE(
 
         const { id } = await params;
 
-        const step = await prisma.portfolioJourneyStep.findUnique({ where: { id } });
+        const [step] = await db.select().from(portfolioJourneyStep).where(eq(portfolioJourneyStep.id, id)).limit(1);
         if (!step) {
             return NextResponse.json({ ok: false, message: 'Step not found' }, { status: 404 });
         }
 
-        await prisma.portfolioJourneyStep.delete({ where: { id } });
+        await db.delete(portfolioJourneyStep).where(eq(portfolioJourneyStep.id, id));
 
         return NextResponse.json({ ok: true });
     } catch (err) {

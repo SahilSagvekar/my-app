@@ -4,7 +4,10 @@ export const dynamic = 'force-dynamic';
 // Returns created / skipped / failed counts so the UI can show a summary.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { salesLead } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, eq, ne } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -78,10 +81,9 @@ export async function POST(req: NextRequest) {
 
     // Fetch existing emails for this user to detect duplicates
     const existingEmails = new Set(
-      (await prisma.salesLead.findMany({
-        where: { userId: decoded.userId, email: { not: '' } },
-        select: { email: true },
-      })).map(l => l.email.toLowerCase().trim())
+      (await db.select({ email: salesLead.email }).from(salesLead)
+        .where(and(eq(salesLead.userId, decoded.userId), ne(salesLead.email, ''))))
+        .map(l => l.email.toLowerCase().trim())
     );
 
     let created = 0;
@@ -104,31 +106,32 @@ export async function POST(req: NextRequest) {
         return true;
       });
 
+      if (toCreate.length === 0) continue;
+
       try {
-        const result = await prisma.salesLead.createMany({
-          data: toCreate.map(row => ({
-            userId: decoded.userId,
-            name: (row.name || '').trim(),
-            company: (row.company || '').trim(),
-            email: (row.email || '').trim(),
-            phone: (row.phone || '').trim(),
-            profileUrl: row.profileUrl?.trim() || null,
-            postUrl: row.postUrl?.trim() || null,
-            socials: '',
-            status: normaliseStatus(row.status),
-            source: (row.source || '').trim(),
-            notes: (row.notes || '').trim(),
-            value: row.value != null && row.value !== '' ? parseFloat(String(row.value)) : null,
-            priority: (row.priority || '').trim(),
-            instagram: toBoolean(row.instagram),
-            facebook: toBoolean(row.facebook),
-            linkedin: toBoolean(row.linkedin),
-            twitter: toBoolean(row.twitter),
-            tiktok: toBoolean(row.tiktok),
-          })),
-          skipDuplicates: true,
-        });
-        created += result.count;
+        const result = await db.insert(salesLead).values(toCreate.map(row => ({
+          id: createId(),
+          userId: decoded.userId,
+          name: (row.name || '').trim(),
+          company: (row.company || '').trim(),
+          email: (row.email || '').trim(),
+          phone: (row.phone || '').trim(),
+          profileUrl: row.profileUrl?.trim() || null,
+          postUrl: row.postUrl?.trim() || null,
+          socials: '',
+          status: normaliseStatus(row.status),
+          source: (row.source || '').trim(),
+          notes: (row.notes || '').trim(),
+          value: row.value != null && row.value !== '' ? parseFloat(String(row.value)) : null,
+          priority: (row.priority || '').trim(),
+          instagram: toBoolean(row.instagram),
+          facebook: toBoolean(row.facebook),
+          linkedin: toBoolean(row.linkedin),
+          twitter: toBoolean(row.twitter),
+          tiktok: toBoolean(row.tiktok),
+          updatedAt: new Date().toISOString(),
+        }))).returning({ id: salesLead.id });
+        created += result.length;
       } catch (err: any) {
         failed += toCreate.length;
         errors.push(`Batch ${Math.floor(i / BATCH) + 1}: ${err.message}`);

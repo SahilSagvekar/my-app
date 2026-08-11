@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { task } from '@/lib/db/schema';
+import { and, eq, isNotNull, inArray, asc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 // GET - Fetch unbilled one-off tasks for a client (grouped by deliverable type)
@@ -22,23 +24,23 @@ export async function GET(req: NextRequest) {
 
     // Fetch tasks that are SCHEDULED or POSTED and belong to a one-off deliverable
     // Note: Once you add billedAt to schema, add: billedAt: null to the where clause
-    const unbilledTasks = await prisma.task.findMany({
-      where: {
-        clientId: clientId,
-        oneOffDeliverableId: { not: null },
-        status: { in: ['SCHEDULED', 'POSTED'] },
+    const unbilledTasks = await db.query.task.findMany({
+      where: and(
+        eq(task.clientId, clientId),
+        isNotNull(task.oneOffDeliverableId),
+        inArray(task.status, ['SCHEDULED', 'POSTED'] as any),
         // billedAt: null, // Uncomment after adding billedAt to Task model
-      },
-      include: {
+      ),
+      with: {
         oneOffDeliverable: {
-          select: {
+          columns: {
             id: true,
             type: true,
             platforms: true,
           },
         },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: asc(task.createdAt),
     });
 
     console.log(`Fetched ${unbilledTasks.length} one-off tasks for client ${clientId}`);
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
         status: string | null;
         deliverableType: string | null;
         socialMediaLinks: any;
-        createdAt: Date;
+        createdAt: string;
         oneOffDeliverableId: string | null;
       }>;
       totalCount: number;

@@ -3,7 +3,9 @@
 // Tags all active schedulers and admins by their Slack user IDs.
 // Falls back gracefully when no Slack IDs are configured.
 
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable } from "@/lib/db/schema";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { sendToChannel } from "@/lib/slack";
 
 interface LoginAddedPayload {
@@ -18,14 +20,16 @@ export async function notifyLoginAdded(payload: LoginAddedPayload): Promise<void
   const { platform, clientName, addedByName, addedByRole, isAdminOnly } = payload;
 
   // Fetch all active schedulers + admins who have a Slack user ID set
-  const notifyUsers = await prisma.user.findMany({
-    where: {
-      role: { in: ["scheduler", "admin"] },
-      employeeStatus: "ACTIVE",
-      slackUserId: { not: null },
-    },
-    select: { slackUserId: true, role: true, name: true },
-  });
+  const notifyUsers = await db
+    .select({ slackUserId: userTable.slackUserId, role: userTable.role, name: userTable.name })
+    .from(userTable)
+    .where(
+      and(
+        inArray(userTable.role, ["scheduler", "admin"]),
+        eq(userTable.employeeStatus, "ACTIVE"),
+        isNotNull(userTable.slackUserId),
+      )
+    );
 
   // Build mention string — e.g. "<@U123> <@U456>"
   const mentions = notifyUsers

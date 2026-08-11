@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic';
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { payroll } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -22,9 +24,7 @@ export async function PATCH(
         }
 
         // Check if payroll exists
-        const existing = await prisma.payroll.findUnique({
-            where: { id: payrollId }
-        });
+        const [existing] = await db.select().from(payroll).where(eq(payroll.id, payrollId)).limit(1);
 
         if (!existing) {
             return NextResponse.json(
@@ -37,10 +37,7 @@ export async function PATCH(
         const body = await req.json().catch(() => ({}));
         const hidden = body.hidden !== undefined ? body.hidden : !existing.hidden;
 
-        const updated = await prisma.payroll.update({
-            where: { id: payrollId },
-            data: { hidden }
-        });
+        const [updated] = await db.update(payroll).set({ hidden }).where(eq(payroll.id, payrollId)).returning();
 
         return NextResponse.json({
             ok: true,

@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { getYouTubeDashboardStats } from '@/lib/youtube-sync-service';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { youTubeChannel } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
     try {
@@ -47,12 +49,13 @@ export async function GET(req: NextRequest) {
         }
 
         // Check if client has YouTube connected
-        const youtubeChannel = await prisma.youTubeChannel.findUnique({
-            where: { clientId },
-            select: { id: true, channelTitle: true, channelId: true },
-        });
+        const [youtubeChannelRow] = await db.select({
+            id: youTubeChannel.id,
+            channelTitle: youTubeChannel.channelTitle,
+            channelId: youTubeChannel.channelId,
+        }).from(youTubeChannel).where(eq(youTubeChannel.clientId, clientId)).limit(1);
 
-        if (!youtubeChannel) {
+        if (!youtubeChannelRow) {
             return NextResponse.json(
                 {
                     error: 'No YouTube channel connected',
@@ -69,8 +72,8 @@ export async function GET(req: NextRequest) {
             success: true,
             connected: true,
             channel: {
-                id: youtubeChannel.channelId,
-                title: youtubeChannel.channelTitle,
+                id: youtubeChannelRow.channelId,
+                title: youtubeChannelRow.channelTitle,
             },
             stats,
             period,

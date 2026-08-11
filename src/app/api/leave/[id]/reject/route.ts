@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { leave } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import type { NextRequest } from "next/server";
 
@@ -20,30 +22,25 @@ export async function PATCH(
       );
     }
 
-    const leave = await prisma.leave.findUnique({
-      where: { id: leaveId },
-    });
+    const [foundLeave] = await db.select().from(leave).where(eq(leave.id, leaveId)).limit(1);
 
-    if (!leave) {
+    if (!foundLeave) {
       return NextResponse.json(
         { ok: false, message: "Leave not found" },
         { status: 404 }
       );
     }
 
-    if (leave.status === "REJECTED") {
+    if (foundLeave.status === "REJECTED") {
       return NextResponse.json(
         { ok: false, message: "Leave already rejected" },
         { status: 400 }
       );
     }
 
-    const updated = await prisma.leave.update({
-      where: { id: leaveId },
-      data: {
-        status: "REJECTED",
-      },
-    });
+    const [updated] = await db.update(leave).set({
+      status: "REJECTED",
+    }).where(eq(leave.id, leaveId)).returning();
 
     // NOTE: we do NOT auto-delete deduction here because it should not exist for rejected leave.
 

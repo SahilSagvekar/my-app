@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
 import { sendOTPEmail } from '@/lib/email';
 
@@ -16,11 +18,9 @@ export async function POST(req: Request) {
     }
 
     // Find user
-    const user = await prisma.user.findFirst({
-      where: { email },
-    });
+    const [foundUser] = await db.select().from(user).where(eq(user.email, email)).limit(1);
 
-    if (!user) {
+    if (!foundUser) {
       // Return success to prevent email enumeration
       return NextResponse.json({
         ok: true,
@@ -33,17 +33,15 @@ export async function POST(req: Request) {
     const otpExpiry = getOTPExpiryTime();
 
     // Save OTP to database
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        resetOTP: otp,
-        resetOTPExpiry: otpExpiry,
-      },
-    });
+    await db.update(user).set({
+      resetOtp: otp,
+      resetOtpExpiry: otpExpiry.toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(user.id, foundUser.id));
 
     // Try to send OTP via email (won't fail if email not configured)
     try {
-      await sendOTPEmail(user.email, otp);
+      await sendOTPEmail(foundUser.email, otp);
     } catch (emailError) {
       console.error('Email sending failed, but OTP is saved:', emailError);
       // Don't return error - OTP is still logged to console in development

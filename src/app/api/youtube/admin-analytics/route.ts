@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // Admin-only: returns YouTube data for ALL clients
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client as clientTable, youTubeChannel, youTubeSnapshot } from "@/lib/db/schema";
+import { and, asc, eq, gte } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -19,23 +21,31 @@ export async function GET(req: NextRequest) {
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     // Get all clients with their YouTube channels (status is lowercase 'active')
-    const clients = await prisma.client.findMany({
-      where: { status: "active" },
-      include: {
-        youtubeChannel: true,
-      },
-      orderBy: { name: "asc" },
-    });
+    // NOTE: YouTubeChannel has a unique index on clientId (1:1 with Client),
+    // even though relations.ts labels it `many()` — see schema.ts.
+    const clientRows = await db.select({
+      clientId: clientTable.id,
+      clientName: clientTable.name,
+      companyName: clientTable.companyName,
+      channelPk: youTubeChannel.id,
+      channelTitle: youTubeChannel.channelTitle,
+      channelAvatar: youTubeChannel.channelAvatar,
+      subscriberCount: youTubeChannel.subscriberCount,
+      lastSyncedAt: youTubeChannel.lastSyncedAt,
+      syncStatus: youTubeChannel.syncStatus,
+    })
+      .from(clientTable)
+      .leftJoin(youTubeChannel, eq(youTubeChannel.clientId, clientTable.id))
+      .where(eq(clientTable.status, "active"))
+      .orderBy(asc(clientTable.name));
 
     const clientsData = await Promise.all(
-      clients.map(async (client) => {
-        const channel = client.youtubeChannel;
-
-        if (!channel) {
+      clientRows.map(async (row) => {
+        if (!row.channelPk) {
           return {
-            clientId: client.id,
-            clientName: client.name,
-            companyName: client.companyName,
+            clientId: row.clientId,
+            clientName: row.clientName,
+            companyName: row.companyName,
             isConnected: false,
             channelTitle: null,
             channelAvatar: null,
@@ -50,13 +60,12 @@ export async function GET(req: NextRequest) {
         }
 
         // Get aggregated stats for the period - use snapshotDate for filtering
-        const snapshots = await prisma.youTubeSnapshot.findMany({
-          where: {
-            channelId: channel.id,
-            snapshotDate: { gte: startDate },  // Changed from periodStart to snapshotDate
-            periodType: "DAILY",
-          },
-        });
+        const snapshots = await db.select().from(youTubeSnapshot)
+          .where(and(
+            eq(youTubeSnapshot.channelId, row.channelPk),
+            gte(youTubeSnapshot.snapshotDate, startDate.toISOString()), // Changed from periodStart to snapshotDate
+            eq(youTubeSnapshot.periodType, "DAILY"),
+          ));
 
         const viewsInPeriod = snapshots.reduce(
           (sum, s) => sum + Number(s.views),
@@ -80,20 +89,20 @@ export async function GET(req: NextRequest) {
         );
 
         return {
-          clientId: client.id,
-          clientName: client.name,
-          companyName: client.companyName,
+          clientId: row.clientId,
+          clientName: row.clientName,
+          companyName: row.companyName,
           isConnected: true,
-          channelTitle: channel.channelTitle,
-          channelAvatar: channel.channelAvatar,
-          currentSubscribers: channel.subscriberCount,
+          channelTitle: row.channelTitle,
+          channelAvatar: row.channelAvatar,
+          currentSubscribers: row.subscriberCount,
           subscriberChange: subsGained - subsLost,
           viewsInPeriod,
           watchTimeHours: Math.round(watchTimeHours * 10) / 10,
           estimatedRevenue:
             revenue > 0 ? Math.round(revenue * 100) / 100 : null,
-          lastSyncedAt: channel.lastSyncedAt?.toISOString() || null,
-          syncStatus: channel.syncStatus,
+          lastSyncedAt: row.lastSyncedAt ? new Date(row.lastSyncedAt).toISOString() : null,
+          syncStatus: row.syncStatus,
         };
       })
     );
@@ -101,7 +110,7 @@ export async function GET(req: NextRequest) {
     // Summary totals
     const connected = clientsData.filter((c) => c.isConnected);
     const summary = {
-      totalClients: clients.length,
+      totalClients: clientRows.length,
       connectedClients: connected.length,
       totalSubscribers: connected.reduce(
         (sum, c) => sum + c.currentSubscribers,

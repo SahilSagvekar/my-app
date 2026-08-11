@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { task } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 
 function getTokenFromCookies(req: Request) {
@@ -33,13 +35,12 @@ export async function PATCH(
       return NextResponse.json({ message: "isSponsored must be a boolean" }, { status: 400 });
     }
 
-    const task = await prisma.task.update({
-      where: { id },
-      data: { isSponsored },
-      select: { id: true, isSponsored: true },
-    });
+    const [updatedTask] = await db.update(task).set({
+      isSponsored,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id)).returning({ id: task.id, isSponsored: task.isSponsored });
 
-    return NextResponse.json(task);
+    return NextResponse.json(updatedTask);
   } catch (err: any) {
     console.error("Error updating sponsored status:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });

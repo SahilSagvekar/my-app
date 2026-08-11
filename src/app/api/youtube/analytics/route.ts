@@ -3,7 +3,10 @@ export const dynamic = 'force-dynamic';
 // Smart caching: Returns cached data instantly, refreshes from YouTube API only when needed
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { youTubeChannel, youTubeSnapshot, youTubeVideoStat } from "@/lib/db/schema";
+import { and, desc, eq } from "drizzle-orm";
+import { createId } from "@/lib/db/id";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 import { fetchLiveYouTubeAnalytics } from "@/lib/youtube-sync-service";
 
@@ -44,9 +47,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Get channel info
-    const channel = await prisma.youTubeChannel.findUnique({
-      where: { clientId },
-    });
+    const [channel] = await db.select().from(youTubeChannel)
+      .where(eq(youTubeChannel.clientId, clientId)).limit(1);
 
     if (!channel) {
       return NextResponse.json(
@@ -56,16 +58,15 @@ export async function GET(req: NextRequest) {
     }
 
     // Check for cached snapshot for this date range
-    const cachedSnapshot = await prisma.youTubeSnapshot.findFirst({
-      where: {
-        channelId: channel.id,
-        dateRange: range,
-      },
-    });
+    const [cachedSnapshot] = await db.select().from(youTubeSnapshot)
+      .where(and(
+        eq(youTubeSnapshot.channelId, channel.id),
+        eq(youTubeSnapshot.dateRange, range),
+      )).limit(1);
 
     const now = new Date();
     const cacheAge = cachedSnapshot
-      ? now.getTime() - cachedSnapshot.snapshotDate.getTime()
+      ? now.getTime() - new Date(cachedSnapshot.snapshotDate).getTime()
       : Infinity;
     const cacheIsStale = cacheAge > CACHE_TTL_MS;
 
@@ -88,66 +89,62 @@ export async function GET(req: NextRequest) {
         startDate.setDate(startDate.getDate() - days);
 
         // Upsert the snapshot (create or update for this dateRange)
-        snapshotData = await prisma.youTubeSnapshot.upsert({
-          where: {
-            channelId_dateRange: {
-              channelId: channel.id,
-              dateRange: range,
-            },
-          },
-          create: {
-            channelId: channel.id,
-            clientId: clientId,
-            dateRange: range,
+        const [upsertedSnapshot] = await db.insert(youTubeSnapshot).values({
+          id: createId(),
+          channelId: channel.id,
+          clientId: clientId,
+          dateRange: range,
+          subscriberCount: analytics.subscriberCount,
+          views: Number(analytics.views),
+          watchTimeHours: analytics.watchTimeHours,
+          estimatedRevenue: analytics.estimatedRevenue || null,
+          likes: analytics.likes,
+          comments: analytics.comments,
+          shares: analytics.shares || 0,
+          impressions: Number(analytics.impressions || 0),
+          impressionsCtr: analytics.impressionsCtr || null,
+          avgViewDuration: analytics.avgViewDuration || null,
+          subscribersGained: analytics.subscribersGained,
+          subscribersLost: analytics.subscribersLost,
+          geographyData: analytics.geographyData || [],
+          deviceData: analytics.deviceData || [],
+          periodStart: startDate.toISOString(),
+          periodEnd: endDate.toISOString(),
+          periodType: 'DAILY',
+          snapshotDate: new Date().toISOString(),
+        }).onConflictDoUpdate({
+          target: [youTubeSnapshot.channelId, youTubeSnapshot.dateRange],
+          set: {
             subscriberCount: analytics.subscriberCount,
-            views: BigInt(analytics.views),
+            views: Number(analytics.views),
             watchTimeHours: analytics.watchTimeHours,
             estimatedRevenue: analytics.estimatedRevenue || null,
             likes: analytics.likes,
             comments: analytics.comments,
             shares: analytics.shares || 0,
-            impressions: BigInt(analytics.impressions || 0),
+            impressions: Number(analytics.impressions || 0),
             impressionsCtr: analytics.impressionsCtr || null,
             avgViewDuration: analytics.avgViewDuration || null,
             subscribersGained: analytics.subscribersGained,
             subscribersLost: analytics.subscribersLost,
             geographyData: analytics.geographyData || [],
             deviceData: analytics.deviceData || [],
-            periodStart: startDate,
-            periodEnd: endDate,
-            periodType: 'DAILY',
-            snapshotDate: new Date(),
+            periodStart: startDate.toISOString(),
+            periodEnd: endDate.toISOString(),
+            snapshotDate: new Date().toISOString(),
           },
-          update: {
-            subscriberCount: analytics.subscriberCount,
-            views: BigInt(analytics.views),
-            watchTimeHours: analytics.watchTimeHours,
-            estimatedRevenue: analytics.estimatedRevenue || null,
-            likes: analytics.likes,
-            comments: analytics.comments,
-            shares: analytics.shares || 0,
-            impressions: BigInt(analytics.impressions || 0),
-            impressionsCtr: analytics.impressionsCtr || null,
-            avgViewDuration: analytics.avgViewDuration || null,
-            subscribersGained: analytics.subscribersGained,
-            subscribersLost: analytics.subscribersLost,
-            geographyData: analytics.geographyData || [],
-            deviceData: analytics.deviceData || [],
-            periodStart: startDate,
-            periodEnd: endDate,
-            snapshotDate: new Date(),
-          },
-        });
+        }).returning();
+        snapshotData = upsertedSnapshot;
 
         // Update channel's last sync time
-        await prisma.youTubeChannel.update({
-          where: { id: channel.id },
-          data: {
-            lastSyncedAt: new Date(),
+        await db.update(youTubeChannel)
+          .set({
+            lastSyncedAt: new Date().toISOString(),
             syncStatus: 'COMPLETED',
             subscriberCount: analytics.subscriberCount,
-          },
-        });
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(youTubeChannel.id, channel.id));
       } else if (!cachedSnapshot) {
         // No cache and failed to fetch - return error
         return NextResponse.json({
@@ -167,7 +164,7 @@ export async function GET(req: NextRequest) {
           distribution: null,
           topVideos: [],
           dailyData: [],
-          lastSyncedAt: channel.lastSyncedAt?.toISOString() || null,
+          lastSyncedAt: channel.lastSyncedAt ? new Date(channel.lastSyncedAt).toISOString() : null,
           syncStatus: 'FAILED',
         });
       }
@@ -177,11 +174,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch top videos
-    const topVideos = await prisma.youTubeVideoStat.findMany({
-      where: { channelId: channel.id },
-      orderBy: { views: "desc" },
-      take: 10,
-    });
+    const topVideos = await db.select().from(youTubeVideoStat)
+      .where(eq(youTubeVideoStat.channelId, channel.id))
+      .orderBy(desc(youTubeVideoStat.views))
+      .limit(10);
 
     // Build response from snapshot data
     const response = {
@@ -207,7 +203,7 @@ export async function GET(req: NextRequest) {
       topVideos: topVideos.map((v) => ({
         id: v.videoId,
         title: v.title,
-        publishedAt: v.publishedAt.toISOString(),
+        publishedAt: new Date(v.publishedAt).toISOString(),
         thumbnailUrl: v.thumbnailUrl,
         duration: v.duration,
         views: Number(v.views),
@@ -217,7 +213,8 @@ export async function GET(req: NextRequest) {
         estimatedRevenue: v.estimatedRevenue,
       })),
       dailyData: [], // Single snapshot doesn't have daily breakdown
-      lastSyncedAt: snapshotData?.snapshotDate?.toISOString() || channel.lastSyncedAt?.toISOString() || null,
+      lastSyncedAt: (snapshotData?.snapshotDate ? new Date(snapshotData.snapshotDate).toISOString() : null)
+        || (channel.lastSyncedAt ? new Date(channel.lastSyncedAt).toISOString() : null),
       syncStatus: channel.syncStatus,
       cacheAge: Math.round(cacheAge / 1000 / 60), // Age in minutes for debugging
     };

@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client, user as userTable, task } from '@/lib/db/schema';
+import { and, or, eq, exists, notInArray, arrayContains } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendSlackWebhook, sendToChannel, SlackNotification } from '@/lib/slack';
 import { randomUUID } from 'crypto';
@@ -16,16 +18,14 @@ interface FootageLink {
 }
 
 async function getClientEditors(clientId: string) {
-  return prisma.user.findMany({
-    where: {
-      OR: [{ role: 'editor' }, { roles: { has: 'editor' } }],
-      assignedTasks: {
-        some: { clientId, status: { notIn: ['COMPLETED', 'POSTED'] } },
-      },
-    },
-    select: { id: true, name: true, slackUserId: true },
-    distinct: ['id'],
-  });
+  return db.select({ id: userTable.id, name: userTable.name, slackUserId: userTable.slackUserId }).from(userTable).where(and(
+    or(eq(userTable.role, 'editor'), arrayContains(userTable.roles, ['editor'])),
+    exists(db.select().from(task).where(and(
+      eq(task.assignedTo, userTable.id),
+      eq(task.clientId, clientId),
+      notInArray(task.status, ['COMPLETED', 'POSTED'] as any),
+    ))),
+  ));
 }
 
 // GET — fetch all footage links for a client
@@ -35,13 +35,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { id } = await params;
-    const client = await prisma.client.findUnique({
-      where: { id },
-      select: { rawFootageLinks: true },
-    });
-    if (!client) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    const [foundClient] = await db.select({ rawFootageLinks: client.rawFootageLinks }).from(client).where(eq(client.id, id)).limit(1);
+    if (!foundClient) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    return NextResponse.json({ links: client.rawFootageLinks ?? [] });
+    return NextResponse.json({ links: foundClient.rawFootageLinks ?? [] });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -68,17 +65,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
     }
 
-    const client = await prisma.client.findUnique({
-      where: { id },
-      select: {
-        id: true, name: true, companyName: true,
-        slackEnabled: true, slackWebhookUrl: true,
-        rawFootageLinks: true,
-      },
-    });
-    if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    const [foundClient] = await db.select({
+      id: client.id, name: client.name, companyName: client.companyName,
+      slackEnabled: client.slackEnabled, slackWebhookUrl: client.slackWebhookUrl,
+      rawFootageLinks: client.rawFootageLinks,
+    }).from(client).where(eq(client.id, id)).limit(1);
+    if (!foundClient) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
 
-    const existing = Array.isArray(client.rawFootageLinks) ? client.rawFootageLinks as FootageLink[] : [];
+    const existing = Array.isArray(foundClient.rawFootageLinks) ? foundClient.rawFootageLinks as FootageLink[] : [];
 
     const newLink: FootageLink = {
       id: randomUUID(),
@@ -90,18 +84,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       folderPath: folderPath || undefined,
     };
 
-    await prisma.client.update({
-      where: { id },
-      data: { rawFootageLinks: [...existing, newLink] },
-    });
+    await db.update(client).set({
+      rawFootageLinks: [...existing, newLink],
+      updatedAt: new Date().toISOString(),
+    }).where(eq(client.id, id));
 
     // ── Slack notification ──
     try {
-      const clientName = client.companyName || client.name;
+      const clientName = foundClient.companyName || foundClient.name;
       const linkDisplay = label?.trim() ? `${label.trim()} — ${url}` : url;
       const folderDisplay = folderPath ? `\n*Folder:* \`${folderPath}\`` : '';
 
-      if (client.slackEnabled && client.slackWebhookUrl) {
+      if (foundClient.slackEnabled && foundClient.slackWebhookUrl) {
         // Send to client's channel and mention assigned editors
         const editors = await getClientEditors(id);
         const mentions = editors.filter(e => e.slackUserId).map(e => `<@${e.slackUserId}>`).join(' ');
@@ -115,7 +109,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           body: `*Link:* ${linkDisplay}${folderDisplay}\n*Added by:* ${user.name} (${user.role})`,
           payload: { clientId: id },
         };
-        await sendSlackWebhook(notification, client.slackWebhookUrl);
+        await sendSlackWebhook(notification, foundClient.slackWebhookUrl);
       } else {
         // Fall back to E8 app channel
         const notification: SlackNotification = {
@@ -152,13 +146,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { linkId } = await req.json();
     if (!linkId) return NextResponse.json({ error: 'linkId required' }, { status: 400 });
 
-    const client = await prisma.client.findUnique({
-      where: { id },
-      select: { rawFootageLinks: true },
-    });
-    if (!client) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    const [foundClient] = await db.select({ rawFootageLinks: client.rawFootageLinks }).from(client).where(eq(client.id, id)).limit(1);
+    if (!foundClient) return NextResponse.json({ error: 'Client not found' }, { status: 404 });
 
-    const existing = Array.isArray(client.rawFootageLinks) ? client.rawFootageLinks as FootageLink[] : [];
+    const existing = Array.isArray(foundClient.rawFootageLinks) ? foundClient.rawFootageLinks as FootageLink[] : [];
 
     // Clients can only delete their own links
     if (user.role === 'client') {
@@ -168,10 +159,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       }
     }
 
-    await prisma.client.update({
-      where: { id },
-      data: { rawFootageLinks: existing.filter(l => l.id !== linkId) },
-    });
+    await db.update(client).set({
+      rawFootageLinks: existing.filter(l => l.id !== linkId),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(client.id, id));
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

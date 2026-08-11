@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 // app/api/clients/[clientId]/deliverables/[deliverableId]/route.ts
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { monthlyDeliverable, recurringTask } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { syncPostingTargetsForClient } from "@/lib/posting-target-sync";
 
@@ -12,12 +14,9 @@ export async function GET(
   try {
     const { id: clientId, deliverableId } = await params;
 
-    const deliverable = await prisma.monthlyDeliverable.findFirst({
-      where: {
-        id: deliverableId,
-        clientId: clientId,
-      },
-    });
+    const [deliverable] = await db.select().from(monthlyDeliverable)
+      .where(and(eq(monthlyDeliverable.id, deliverableId), eq(monthlyDeliverable.clientId, clientId)))
+      .limit(1);
 
     if (!deliverable) {
       return NextResponse.json({ message: "Deliverable not found" }, { status: 404 });
@@ -44,31 +43,26 @@ export async function PUT(
     console.log("📦 Update data:", data);
 
     // Verify deliverable exists and belongs to this client
-    const existing = await prisma.monthlyDeliverable.findFirst({
-      where: {
-        id: deliverableId,
-        clientId: clientId,
-      },
-    });
+    const [existing] = await db.select().from(monthlyDeliverable)
+      .where(and(eq(monthlyDeliverable.id, deliverableId), eq(monthlyDeliverable.clientId, clientId)))
+      .limit(1);
 
     if (!existing) {
       return NextResponse.json({ message: "Deliverable not found" }, { status: 404 });
     }
 
-    const deliverable = await prisma.monthlyDeliverable.update({
-      where: { id: deliverableId },
-      data: {
-        type: data.type,
-        quantity: data.quantity || 1,
-        videosPerDay: data.videosPerDay || 1,
-        postingSchedule: data.postingSchedule || "weekly",
-        postingDays: data.postingDays || [],
-        postingTimes: data.postingTimes || ["10:00 AM"],
-        platforms: data.platforms || [],
-        description: data.description || "",
-        isTrial: data.isTrial ?? false,
-      },
-    });
+    const [deliverable] = await db.update(monthlyDeliverable).set({
+      type: data.type,
+      quantity: data.quantity || 1,
+      videosPerDay: data.videosPerDay || 1,
+      postingSchedule: data.postingSchedule || "weekly",
+      postingDays: data.postingDays || [],
+      postingTimes: data.postingTimes || ["10:00 AM"],
+      platforms: data.platforms || [],
+      description: data.description || "",
+      isTrial: data.isTrial ?? false,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(monthlyDeliverable.id, deliverableId)).returning();
 
     console.log("✅ Deliverable updated:", deliverable.id);
 
@@ -96,12 +90,9 @@ export async function DELETE(
     console.log("🗑️ Deleting deliverable:", deliverableId);
 
     // Verify deliverable exists and belongs to this client
-    const existing = await prisma.monthlyDeliverable.findFirst({
-      where: {
-        id: deliverableId,
-        clientId: clientId,
-      },
-    });
+    const [existing] = await db.select().from(monthlyDeliverable)
+      .where(and(eq(monthlyDeliverable.id, deliverableId), eq(monthlyDeliverable.clientId, clientId)))
+      .limit(1);
 
     if (!existing) {
       return NextResponse.json(
@@ -111,20 +102,13 @@ export async function DELETE(
     }
 
     // Deactivate related recurring tasks (don't delete for data safety)
-    // await prisma.recurringTask.updateMany({
-    //   where: { deliverableId },
-    //   data: { active: false },
-    // });
+    // await db.update(recurringTask).set({ active: false }).where(eq(recurringTask.deliverableId, deliverableId));
 
     // Delete related recurring tasks first
-    await prisma.recurringTask.deleteMany({
-      where: { deliverableId },
-    });
+    await db.delete(recurringTask).where(eq(recurringTask.deliverableId, deliverableId));
 
     // Delete the deliverable
-    await prisma.monthlyDeliverable.delete({
-      where: { id: deliverableId },
-    });
+    await db.delete(monthlyDeliverable).where(eq(monthlyDeliverable.id, deliverableId));
 
     console.log("✅ Deliverable deleted:", deliverableId);
 

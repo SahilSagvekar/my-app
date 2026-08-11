@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { nasMirrorJob } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 // GET /api/nas/mirror-jobs/:id — polled by the admin UI every few seconds
@@ -14,7 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
-    const job = await prisma.nasMirrorJob.findUnique({ where: { id: params.id } });
+    const [job] = await db.select().from(nasMirrorJob).where(eq(nasMirrorJob.id, params.id)).limit(1);
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
     return NextResponse.json({ job });

@@ -1,6 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { portfolioVideo } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, asc, eq } from 'drizzle-orm';
 
 // GET /api/portfolio/videos — fetch videos, optionally filtered by category
 export async function GET(req: NextRequest) {
@@ -9,18 +12,17 @@ export async function GET(req: NextRequest) {
         const category = searchParams.get('category');
         const showAll = searchParams.get('all') === 'true'; // admin: fetch all including inactive
 
-        const where: any = {};
+        const conditions = [];
         if (!showAll) {
-            where.isActive = true;
+            conditions.push(eq(portfolioVideo.isActive, true));
         }
         if (category) {
-            where.category = category;
+            conditions.push(eq(portfolioVideo.category, category));
         }
 
-        const videos = await prisma.portfolioVideo.findMany({
-            where,
-            orderBy: { order: 'asc' },
-        });
+        const videos = await db.select().from(portfolioVideo)
+            .where(conditions.length ? and(...conditions) : undefined)
+            .orderBy(asc(portfolioVideo.order));
 
         return NextResponse.json({ ok: true, videos });
     } catch (err) {
@@ -45,16 +47,16 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const video = await prisma.portfolioVideo.create({
-            data: {
-                title,
-                description: description || '',
-                videoUrl,
-                thumbnailUrl: thumbnailUrl || null,
-                category,
-                order: order ?? 0,
-            },
-        });
+        const [video] = await db.insert(portfolioVideo).values({
+            id: createId(),
+            title,
+            description: description || '',
+            videoUrl,
+            thumbnailUrl: thumbnailUrl || null,
+            category,
+            order: order ?? 0,
+            updatedAt: new Date().toISOString(),
+        }).returning();
 
         return NextResponse.json({ ok: true, video });
     } catch (err) {

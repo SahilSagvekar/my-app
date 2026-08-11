@@ -5,7 +5,15 @@ export const dynamic = 'force-dynamic';
 // Replace your existing route.ts with this
 
 import { NextResponse } from "next/server";
-import { prisma } from "../../../../../lib/prisma";
+import { db } from "@/lib/db";
+import {
+  task as taskTable,
+  file as fileTable,
+  taskFeedback,
+  user as userTable,
+} from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
+import { and, eq, ne, isNotNull, sql as drizzleSql } from "drizzle-orm";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { startTitlingJob } from '@/lib/titling-service';
 import { notifyUser } from "@/lib/notify";
@@ -90,11 +98,11 @@ export async function PATCH(
     const incomingPostingTitle = postingTitle ?? qcTitle;
     if (incomingPostingTitle?.trim() && titleSetByQC) {
       updateData.postingTitle = incomingPostingTitle.trim();
-      updateData.titleSetByQC = true;
+      updateData.titleSetByQc = true; // drizzle schema property is titleSetByQc (lowercase c)
     }
     if (qcTitle?.trim() && titleSetByQC) {
       updateData.title = qcTitle.trim();
-      updateData.titleSetByQC = true;
+      updateData.titleSetByQc = true;
     }
     if (role === "client" && postingTitle?.trim() && titleSetByClient) {
       updateData.postingTitle = postingTitle.trim();
@@ -122,48 +130,43 @@ export async function PATCH(
 
     let task: any;
     try {
-      task = await prisma.task.findUnique({
-        where: { id },
-        include: {
+      task = await db.query.task.findFirst({
+        where: eq(taskTable.id, id),
+        with: {
           client: true,
           files: {
-            where: { isActive: true },
+            where: (f, { eq }) => eq(f.isActive, true),
           },
-          monthlyDeliverable: { select: { type: true } },
-          oneOffDeliverable: { select: { type: true } },
+          monthlyDeliverable: { columns: { type: true } },
+          oneOffDeliverable: { columns: { type: true } },
         },
       });
     } catch (readErr: any) {
       // Older tasks may have a stale status value not present in the current TaskStatus enum.
-      // Prisma throws P2009 / "Expected TaskStatus" on read too, so fall back to raw SQL.
-      if (
-        readErr.message?.includes("Expected TaskStatus") ||
-        readErr.message?.includes("validation") ||
-        readErr.code === "P2009"
-      ) {
-        console.warn("⚠️ Prisma Enum Validation failed on task read. Using raw SQL fallback for initial fetch...");
-        const rawRows: any[] = await prisma.$queryRawUnsafe(
-          `SELECT t.*, row_to_json(c.*) AS client
-           FROM "Task" t
-           LEFT JOIN "Client" c ON t."clientId" = c.id
-           WHERE t.id = $1`,
-          id
-        );
-        if (!rawRows || rawRows.length === 0) {
-          return NextResponse.json({ message: "Task not found" }, { status: 404 });
-        }
-        const raw = rawRows[0];
-        task = {
-          ...raw,
-          client: raw.client,
-          files: await prisma.$queryRawUnsafe(
-            `SELECT * FROM "File" WHERE "taskId" = $1 AND "isActive" = true`,
-            id
-          ),
-        };
-      } else {
-        throw readErr;
+      // Drizzle/Postgres reject an out-of-enum value on read too, so fall back to raw SQL.
+      console.warn("⚠️ Structured task read failed. Using raw SQL fallback for initial fetch...", readErr.message);
+      const rawResult: any = await db.execute(drizzleSql`
+        SELECT t.*, row_to_json(c.*) AS client
+        FROM "Task" t
+        LEFT JOIN "Client" c ON t."clientId" = c.id
+        WHERE t.id = ${id}
+      `);
+      const rawRows = rawResult.rows as any[];
+      if (!rawRows || rawRows.length === 0) {
+        return NextResponse.json({ message: "Task not found" }, { status: 404 });
       }
+      const raw = rawRows[0];
+      const filesResult: any = await db.execute(drizzleSql`
+        SELECT * FROM "File" WHERE "taskId" = ${id} AND "isActive" = true
+      `);
+      task = {
+        ...raw,
+        client: raw.client,
+        files: filesResult.rows,
+        // raw SQL returns the actual DB column name; normalize to match the
+        // camelCase property the ORM path (and rest of this handler) uses
+        qcSpecialist: raw.qc_specialist,
+      };
     }
 
     if (!task)
@@ -236,44 +239,31 @@ export async function PATCH(
 
     let updatedTask: any;
     try {
-      updatedTask = await (prisma.task as any).update({
-        where: { id },
-        data: {
-          ...updateData,
-          status: finalStatus,
-          updatedAt: new Date(),
-        },
-      });
+      const dbUpdateData: any = { ...updateData };
+      if ('qcReviewedAt' in dbUpdateData) dbUpdateData.qcReviewedAt = dbUpdateData.qcReviewedAt.toISOString();
+      const [row] = await db.update(taskTable).set({
+        ...dbUpdateData,
+        status: finalStatus,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(taskTable.id, id)).returning();
+      updatedTask = row;
     } catch (e: any) {
-      // If Prisma fails due to the enum mismatch (P2009 or specific error message), 
-      // we use Raw SQL to force the update and bypass runtime enum checks.
-      if (e.message?.includes("Expected TaskStatus") || e.message?.includes("validation") || e.code === "P2009") {
-        console.warn("⚠️ Prisma Enum Validation failed for status. Using raw SQL fallback...");
+      // If the write fails due to an enum mismatch (a status value not in the
+      // current TaskStatus enum), fall back to raw SQL to force the update
+      // and bypass the enum type check.
+      console.warn("⚠️ Structured status update failed. Using raw SQL fallback...", e.message);
 
-        // Construct raw update
-        // Note: We use executeRawUnsafe for maximum flexibility with the enum string
-        await prisma.$executeRawUnsafe(
-          `UPDATE "Task" SET "status" = $1, "updatedAt" = $2 WHERE "id" = $3`,
-          finalStatus,
-          new Date(),
-          id
-        );
+      await db.execute(drizzleSql`
+        UPDATE "Task" SET "status" = ${finalStatus}, "updatedAt" = ${new Date().toISOString()} WHERE "id" = ${id}
+      `);
 
-        // Try to fetch the updated record. 
-        // If findUnique also fails because it can't parse the new enum value, return raw data.
-        try {
-          updatedTask = await (prisma.task as any).findUnique({
-            where: { id }
-          });
-        } catch (readErr) {
-          const rawResult: any = await prisma.$queryRawUnsafe(
-            `SELECT * FROM "Task" WHERE "id" = $1`,
-            id
-          );
-          updatedTask = rawResult && Array.isArray(rawResult) ? rawResult[0] : { id, status: finalStatus };
-        }
-      } else {
-        throw e;
+      // Try to fetch the updated record.
+      // If the structured read also fails because it can't parse the new enum value, return raw data.
+      try {
+        updatedTask = await db.query.task.findFirst({ where: eq(taskTable.id, id) });
+      } catch (readErr) {
+        const rawResult: any = await db.execute(drizzleSql`SELECT * FROM "Task" WHERE "id" = ${id}`);
+        updatedTask = rawResult.rows?.[0] || { id, status: finalStatus };
       }
     }
 
@@ -283,26 +273,22 @@ export async function PATCH(
       schedulerFeedbackText.length > 0;
 
     if (isSchedulerSendBack) {
-      const existingSchedulerFeedback = await prisma.taskFeedback.findFirst({
-        where: {
+      const [existingSchedulerFeedback] = await db.select({ id: taskFeedback.id }).from(taskFeedback).where(and(
+        eq(taskFeedback.taskId, id),
+        eq(taskFeedback.folderType, "scheduler"),
+        eq(taskFeedback.feedback, schedulerFeedbackText),
+        ne(taskFeedback.status, "resolved"),
+      )).limit(1);
+
+      if (!existingSchedulerFeedback) {
+        await db.insert(taskFeedback).values({
+          id: createId(),
           taskId: id,
           folderType: "scheduler",
           feedback: schedulerFeedbackText,
-          status: { not: "resolved" },
-        },
-        select: { id: true },
-      });
-
-      if (!existingSchedulerFeedback) {
-        await prisma.taskFeedback.create({
-          data: {
-            taskId: id,
-            folderType: "scheduler",
-            feedback: schedulerFeedbackText,
-            category: "scheduler_sendback",
-            status: "needs_revision",
-            createdBy: Number(userId),
-          },
+          category: "scheduler_sendback",
+          status: "needs_revision",
+          createdBy: Number(userId),
         });
       }
     }
@@ -331,13 +317,11 @@ export async function PATCH(
           .catch((err) => {
             console.error(`   ❌ Failed to start titling job:`, err.message);
             // Update task to show titling failed
-            prisma.task.update({
-              where: { id },
-              data: {
-                titlingStatus: 'FAILED',
-                titlingError: err.message,
-              },
-            }).catch(console.error);
+            db.update(taskTable).set({
+              titlingStatus: 'FAILED',
+              titlingError: err.message,
+              updatedAt: new Date().toISOString(),
+            }).where(eq(taskTable.id, id)).catch(console.error);
           });
       } else {
         console.log(`   ℹ️ Task ${id} has no video file - skipping titling`);
@@ -346,9 +330,7 @@ export async function PATCH(
     // ============================================
 
     // Audit log
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const [user] = await db.select().from(userTable).where(eq(userTable.id, userId)).limit(1);
 
     // ============================================
     // NEW: In-app & Email Notifications
@@ -356,16 +338,16 @@ export async function PATCH(
     try {
       if (finalStatus === "READY_FOR_QC" && task.status !== "READY_FOR_QC") {
         // Notify QC specialist
-        if (task.qc_specialist) {
+        if (task.qcSpecialist) {
           await notifyUser({
-            userId: task.qc_specialist,
+            userId: task.qcSpecialist,
             type: "qc_ready",
             title: "Content Ready for QC Review",
             body: `Your content "${task.title}" is ready for review.`,
             payload: {
               taskId: task.id,
               clientId: task.clientId,
-              qcId: task.qc_specialist,
+              qcId: task.qcSpecialist,
               taskTitle: task.title,
             },
           });
@@ -462,10 +444,8 @@ export async function PATCH(
 
   // 🔥 If client approved, delete Drive mirror files (no longer needed)
   if (role === "client") {
-    const filesWithDrive = await prisma.file.findMany({
-      where: { taskId: id, reviewDriveUrl: { not: null } },
-      select: { id: true, reviewDriveUrl: true },
-    });
+    const filesWithDrive = await db.select({ id: fileTable.id, reviewDriveUrl: fileTable.reviewDriveUrl })
+      .from(fileTable).where(and(eq(fileTable.taskId, id), isNotNull(fileTable.reviewDriveUrl)));
 
     if (filesWithDrive.length > 0) {
       const { deleteFileFromDrive, extractGoogleDriveFileId } = await import("@/lib/googleDrive");
@@ -479,20 +459,15 @@ export async function PATCH(
             );
           }
           // Clear the reviewDriveUrl from DB
-          await prisma.file.update({
-            where: { id: file.id },
-            data: { reviewDriveUrl: null },
-          });
+          await db.update(fileTable).set({ reviewDriveUrl: null }).where(eq(fileTable.id, file.id));
         }
       }
       console.log(`🗑️ Queued Drive cleanup for ${filesWithDrive.length} file(s) on task ${id}`);
     }
 
     // 🔥 Same cleanup for YouTube mirror uploads (no longer needed once approved)
-    const filesWithYoutube = await prisma.file.findMany({
-      where: { taskId: id, youtubeVideoId: { not: null } },
-      select: { id: true, youtubeVideoId: true },
-    });
+    const filesWithYoutube = await db.select({ id: fileTable.id, youtubeVideoId: fileTable.youtubeVideoId })
+      .from(fileTable).where(and(eq(fileTable.taskId, id), isNotNull(fileTable.youtubeVideoId)));
 
     if (filesWithYoutube.length > 0) {
       for (const file of filesWithYoutube) {
@@ -502,10 +477,7 @@ export async function PATCH(
             console.error(`⚠️ YouTube cleanup failed for file ${file.id}:`, err)
           );
         }
-        await prisma.file.update({
-          where: { id: file.id },
-          data: { youtubeVideoId: null, youtubeUploadedAt: null },
-        });
+        await db.update(fileTable).set({ youtubeVideoId: null, youtubeUploadedAt: null }).where(eq(fileTable.id, file.id));
       }
       console.log(`🗑️ Queued YouTube cleanup for ${filesWithYoutube.length} file(s) on task ${id}`);
     }

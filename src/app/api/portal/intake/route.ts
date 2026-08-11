@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { eq, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export interface IntakeData {
@@ -41,11 +43,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const client = await prisma.client.findFirst({
-      where: {
-        OR: [{ userId: user.id }, { email: user.email }],
-      },
-    });
+    const [client] = await db
+      .select()
+      .from(clientTable)
+      .where(or(eq(clientTable.userId, user.id), eq(clientTable.email, user.email)))
+      .limit(1);
 
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
@@ -54,10 +56,11 @@ export async function POST(req: NextRequest) {
     const body: IntakeData = await req.json();
 
     // Merge client-submitted hashtags with any admin-set defaults — never overwrite
-    const existing = await prisma.client.findUnique({
-      where: { id: client.id },
-      select: { templateHashtags: true },
-    });
+    const [existing] = await db
+      .select({ templateHashtags: clientTable.templateHashtags })
+      .from(clientTable)
+      .where(eq(clientTable.id, client.id))
+      .limit(1);
     const mergedHashtags = Array.from(
       new Set([
         ...(existing?.templateHashtags ?? []),
@@ -66,40 +69,38 @@ export async function POST(req: NextRequest) {
     );
 
     // Save intake data into existing brandGuidelines and projectSettings JSON fields
-    await prisma.client.update({
-      where: { id: client.id },
-      data: {
-        templateHashtags: mergedHashtags,
-        brandGuidelines: {
-          primaryColors: body.brandColors || [],
-          secondaryColors: [],
-          fonts: body.brandFonts || [],
-          logoUsage: body.logoUrl || '',
-          toneOfVoice: body.brandVoice || '',
-          brandValues: body.brandGuidelines || '',
-        },
-        projectSettings: {
-          contentNiche: body.contentNiche || '',
-          targetAudience: body.targetAudience || '',
-          contentStyle: body.contentStyle || '',
-          topicsToAvoid: body.topicsToAvoid || '',
-          competitorChannels: body.competitorChannels || '',
-          platforms: body.platforms || [],
-          platformHandles: body.platformHandles || {},
-          primaryContact: {
-            name: body.primaryContactName || '',
-            email: body.primaryContactEmail || '',
-            phone: body.primaryContactPhone || '',
-          },
-          additionalNotes: body.additionalNotes || '',
-          intakeCompletedAt: new Date().toISOString(),
-        },
-        postingSchedule: {
-          preferredDays: body.preferredPostingDays || [],
-          preferredTimes: body.preferredPostingTimes || [],
-        },
+    await db.update(clientTable).set({
+      templateHashtags: mergedHashtags,
+      brandGuidelines: {
+        primaryColors: body.brandColors || [],
+        secondaryColors: [],
+        fonts: body.brandFonts || [],
+        logoUsage: body.logoUrl || '',
+        toneOfVoice: body.brandVoice || '',
+        brandValues: body.brandGuidelines || '',
       },
-    });
+      projectSettings: {
+        contentNiche: body.contentNiche || '',
+        targetAudience: body.targetAudience || '',
+        contentStyle: body.contentStyle || '',
+        topicsToAvoid: body.topicsToAvoid || '',
+        competitorChannels: body.competitorChannels || '',
+        platforms: body.platforms || [],
+        platformHandles: body.platformHandles || {},
+        primaryContact: {
+          name: body.primaryContactName || '',
+          email: body.primaryContactEmail || '',
+          phone: body.primaryContactPhone || '',
+        },
+        additionalNotes: body.additionalNotes || '',
+        intakeCompletedAt: new Date().toISOString(),
+      },
+      postingSchedule: {
+        preferredDays: body.preferredPostingDays || [],
+        preferredTimes: body.preferredPostingTimes || [],
+      },
+      updatedAt: new Date().toISOString(),
+    }).where(eq(clientTable.id, client.id));
 
     // Notify admin via email
     await notifyAdminIntakeComplete(client.name, client.email);
@@ -117,10 +118,11 @@ export async function GET(req: NextRequest) {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const client = await prisma.client.findFirst({
-      where: { OR: [{ userId: user.id }, { email: user.email }] },
-      select: { projectSettings: true, templateHashtags: true },
-    });
+    const [client] = await db
+      .select({ projectSettings: clientTable.projectSettings, templateHashtags: clientTable.templateHashtags })
+      .from(clientTable)
+      .where(or(eq(clientTable.userId, user.id), eq(clientTable.email, user.email)))
+      .limit(1);
 
     const settings = client?.projectSettings as any;
     const completed = !!settings?.intakeCompletedAt;

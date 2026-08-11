@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand, CopyObjectCommand, DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { getCurrentUser2 } from '@/lib/auth';
 import { createFolder, renameFolder } from '@/lib/file-server';
@@ -34,11 +36,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'You can only create folders inside your deliverable folders' }, { status: 403 });
       }
       if (userId) {
-        const u = await prisma.user.findUnique({
-          where: { id: parseInt(userId) },
-          select: { linkedClient: { select: { companyName: true, name: true } } },
+        const u = await db.query.user.findFirst({
+          where: eq(userTable.id, parseInt(userId)),
+          with: { client: { columns: { companyName: true, name: true } } },
         });
-        const company = u?.linkedClient?.companyName || u?.linkedClient?.name;
+        const company = u?.client?.companyName || u?.client?.name;
         if (company && !folderPath.startsWith(company)) {
           return NextResponse.json({ error: 'You can only create folders in your own area' }, { status: 403 });
         }
@@ -74,11 +76,11 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'You can only rename folders you created inside deliverable folders' }, { status: 403 });
       }
       if (userId) {
-        const u = await prisma.user.findUnique({
-          where: { id: parseInt(userId) },
-          select: { linkedClient: { select: { companyName: true, name: true } } },
+        const u = await db.query.user.findFirst({
+          where: eq(userTable.id, parseInt(userId)),
+          with: { client: { columns: { companyName: true, name: true } } },
         });
-        const company = u?.linkedClient?.companyName || u?.linkedClient?.name;
+        const company = u?.client?.companyName || u?.client?.name;
         if (company && !oldPath.startsWith(company)) {
           return NextResponse.json({ error: 'You can only rename folders in your own area' }, { status: 403 });
         }

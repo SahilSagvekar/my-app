@@ -6,7 +6,13 @@ export const dynamic = 'force-dynamic';
 // DELETE - revoke permission { managerId: number, salesRepId: number }
 //
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import {
+    user as userTable,
+    salesManagerPermission as salesManagerPermissionTable,
+} from '@/lib/db/schema';
+import { and, eq, asc } from 'drizzle-orm';
+import { createId } from '@/lib/db/id';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -38,25 +44,25 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const managers = await (prisma as any).user.findMany({
-            where: { role: 'sales_manager' },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                salesManagerPermissions: {
-                    select: { salesRepId: true, id: true },
+        const rawManagers = await db.query.user.findMany({
+            where: eq(userTable.role, 'sales_manager' as any),
+            columns: { id: true, name: true, email: true, image: true },
+            with: {
+                salesManagerPermissions_managerId: {
+                    columns: { salesRepId: true, id: true },
                 },
             },
-            orderBy: { name: 'asc' },
+            orderBy: asc(userTable.name),
+        });
+        const managers = rawManagers.map((m: any) => {
+            const { salesManagerPermissions_managerId, ...rest } = m;
+            return { ...rest, salesManagerPermissions: salesManagerPermissions_managerId };
         });
 
-        const salesReps = await prisma.user.findMany({
-            where: { role: 'sales' },
-            select: { id: true, name: true, email: true },
-            orderBy: { name: 'asc' },
-        });
+        const salesReps = await db.select({ id: userTable.id, name: userTable.name, email: userTable.email })
+            .from(userTable)
+            .where(eq(userTable.role, 'sales' as any))
+            .orderBy(asc(userTable.name));
 
         return NextResponse.json({ managers, salesReps });
     } catch (err: any) {
@@ -80,25 +86,27 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'managerId and salesRepId are required' }, { status: 400 });
         }
 
-        const manager = await (prisma as any).user.findFirst({
-            where: { id: Number(managerId), role: 'sales_manager' },
-        });
+        const [manager] = await db.select().from(userTable)
+            .where(and(eq(userTable.id, Number(managerId)), eq(userTable.role, 'sales_manager' as any)))
+            .limit(1);
         if (!manager) {
             return NextResponse.json({ error: 'Sales manager not found' }, { status: 404 });
         }
 
-        const salesRep = await prisma.user.findFirst({
-            where: { id: Number(salesRepId), role: 'sales' },
-        });
+        const [salesRep] = await db.select().from(userTable)
+            .where(and(eq(userTable.id, Number(salesRepId)), eq(userTable.role, 'sales' as any)))
+            .limit(1);
         if (!salesRep) {
             return NextResponse.json({ error: 'Sales rep not found' }, { status: 404 });
         }
 
-        const permission = await (prisma as any).salesManagerPermission.upsert({
-            where: { managerId_salesRepId: { managerId: Number(managerId), salesRepId: Number(salesRepId) } },
-            create: { managerId: Number(managerId), salesRepId: Number(salesRepId) },
-            update: {},
-        });
+        await db.insert(salesManagerPermissionTable)
+            .values({ id: createId(), managerId: Number(managerId), salesRepId: Number(salesRepId) })
+            .onConflictDoNothing({ target: [salesManagerPermissionTable.managerId, salesManagerPermissionTable.salesRepId] });
+
+        const [permission] = await db.select().from(salesManagerPermissionTable)
+            .where(and(eq(salesManagerPermissionTable.managerId, Number(managerId)), eq(salesManagerPermissionTable.salesRepId, Number(salesRepId))))
+            .limit(1);
 
         return NextResponse.json({ success: true, permission });
     } catch (err: any) {
@@ -122,9 +130,8 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: 'managerId and salesRepId are required' }, { status: 400 });
         }
 
-        await (prisma as any).salesManagerPermission.deleteMany({
-            where: { managerId: Number(managerId), salesRepId: Number(salesRepId) },
-        });
+        await db.delete(salesManagerPermissionTable)
+            .where(and(eq(salesManagerPermissionTable.managerId, Number(managerId)), eq(salesManagerPermissionTable.salesRepId, Number(salesRepId))));
 
         return NextResponse.json({ success: true });
     } catch (err: any) {

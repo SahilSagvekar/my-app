@@ -1,32 +1,23 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
+import { client, monthlyDeliverable, oneOffDeliverable, user } from "@/lib/db/schema";
+import { and, or, eq, arrayContains, asc, sql as drizzleSql } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
     // 1. Fetch all unique clients that have tasks in completed/scheduled status
-    const clients = await prisma.client.findMany({
-      select: {
-        id: true,
-        name: true,
-        companyName: true,
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
+    const clients = await db.select({
+      id: client.id,
+      name: client.name,
+      companyName: client.companyName,
+    }).from(client).orderBy(asc(client.name));
 
     // 2. Fetch all unique deliverable types across both tables
     const [monthlyTypes, oneOffTypes] = await Promise.all([
-      prisma.monthlyDeliverable.findMany({
-        distinct: ['type'],
-        select: { type: true },
-      }),
-      prisma.oneOffDeliverable.findMany({
-        distinct: ['type'],
-        select: { type: true },
-      }),
+      db.selectDistinct({ type: monthlyDeliverable.type }).from(monthlyDeliverable),
+      db.selectDistinct({ type: oneOffDeliverable.type }).from(oneOffDeliverable),
     ]);
 
     const uniqueTypes = Array.from(new Set([
@@ -37,17 +28,12 @@ export async function GET() {
     // 3. Editors — anyone whose primary role or additional roles[] includes
     // "editor", so multi-role accounts (e.g. Daena: editor + scheduler + qc)
     // show up here too, not just single-role editors.
-    const editors = await prisma.user.findMany({
-      where: {
-        employeeStatus: 'ACTIVE',
-        OR: [
-          { role: 'editor' },
-          { roles: { has: 'editor' } },
-        ],
-      },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    });
+    const editors = await db.select({ id: user.id, name: user.name }).from(user)
+      .where(and(
+        eq(user.employeeStatus, 'ACTIVE'),
+        or(eq(user.role, 'editor'), arrayContains(user.roles, ['editor'])),
+      ))
+      .orderBy(asc(user.name));
 
     return NextResponse.json({
       clients,

@@ -3,7 +3,9 @@ export const dynamic = 'force-dynamic';
 // Auth + DB logic stays here. R2 CreateMultipartUpload goes to file server.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { initiateMultipart } from '@/lib/file-server';
 import { getClientStorageInfo } from '@/lib/storage-service';
 
@@ -88,10 +90,11 @@ export async function POST(req: NextRequest) {
       if (!clientId) {
         return NextResponse.json({ message: 'Missing clientId' }, { status: 400 });
       }
-      const client = await prisma.client.findUnique({
-        where: { id: clientId },
-        select: { companyName: true, name: true },
-      });
+      const [client] = await db
+        .select({ companyName: clientTable.companyName, name: clientTable.name })
+        .from(clientTable)
+        .where(eq(clientTable.id, clientId))
+        .limit(1);
       if (!client) {
         return NextResponse.json({ message: 'Client not found' }, { status: 404 });
       }

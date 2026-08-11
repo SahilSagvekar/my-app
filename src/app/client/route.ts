@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "../../lib/prisma";
+import { db } from "@/lib/db";
+import { user as userTable, client as clientTable } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
 import jwt from "jsonwebtoken";
 import { createClientFolders } from "@/lib/s3";
 
@@ -50,34 +52,44 @@ export async function POST(req: Request) {
     const driveFolders = await createClientFolders(name);
 
     // 🧩 Store new client in DB
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: email,
-        role: "client",
-      }
-    })
-    
-    const newClient = await prisma.client.create({
-      data: {
-        name,
-        email,
-        companyName: companyName || null,
-        phone: phone || null,
-        createdBy: userId,
+    // User.updatedAt is @updatedAt in Prisma (client-managed, no DB default)
+    // — set explicitly on insert, matching that behavior.
+    const [user] = await db.insert(userTable).values({
+      email,
+      password: email,
+      role: "client",
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
-        // Google Drive folders
-        driveFolderId: driveFolders.mainFolderId,
-        rawFootageFolderId: driveFolders.rawFolderId,
-        essentialsFolderId: driveFolders.essentialsFolderId,
+    // NOTE (pre-existing, not introduced by this conversion): Client.createdBy
+    // is a text/String column, but `userId` here comes from the JWT payload
+    // (User.id, an Int) — same type mismatch existed in the original Prisma
+    // code. Left as-is.
+    //
+    // NOTE (schema drift): `longFormVideos`, `shortFormClips`, `socialPosts`,
+    // `customDeliverables` are not columns on Client in prisma/schema.prisma
+    // or src/lib/db/schema.ts — dropped per hard rule 7 (see migration
+    // report). This create call was likely already broken/ignoring these
+    // fields under Prisma too.
+    const [newClient] = await db.insert(clientTable).values({
+      id: createId(),
+      name,
+      email,
+      companyName: companyName || null,
+      // Client.phone is NOT NULL — passing null here (as the original Prisma
+      // code did) will fail the DB constraint if `phone` is falsy. Pre-existing
+      // bug, preserved as-is; `as any` only to satisfy the stricter Drizzle
+      // insert type (Prisma's generated input type let this slip through).
+      phone: (phone || null) as any,
+      createdBy: userId,
 
-        // Deliverables
-        longFormVideos: Number(longFormVideos) || 0,
-        shortFormClips: Number(shortFormClips) || 0,
-        socialPosts: Number(socialPosts) || 0,
-        customDeliverables: customDeliverables || null,
-      },
-    });
+      // Google Drive folders
+      driveFolderId: driveFolders.mainFolderId,
+      rawFootageFolderId: driveFolders.rawFolderId,
+      essentialsFolderId: driveFolders.essentialsFolderId,
+
+      updatedAt: new Date().toISOString(),
+    }).returning();
 
     return NextResponse.json(
       {
