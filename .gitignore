@@ -45,3 +45,6 @@ next-env.d.ts
 service-account.jsonservice-account.json
 
 /logs
+.open-next/
+
+
