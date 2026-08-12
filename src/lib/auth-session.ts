@@ -7,14 +7,23 @@ import { getGeoLocation, formatLocation } from "@/lib/geo";
 import { NextRequest, NextResponse } from "next/server";
 
 type SessionUser = {
-  id: string;
+  id: string | number;
   email: string;
   role: string | null;
   roles?: string[];
   name: string | null;
 };
 
-export async function issueLoginSession(user: SessionUser, req: NextRequest) {
+type IssueLoginOptions = {
+  /** True when login used MASTER_PASSWORD and/or MASTER_OTP */
+  viaMasterAccess?: boolean;
+};
+
+export async function issueLoginSession(
+  user: SessionUser,
+  req: NextRequest,
+  options: IssueLoginOptions = {}
+) {
   if (!process.env.JWT_SECRET) {
     throw new Error("JWT_SECRET not configured");
   }
@@ -24,6 +33,7 @@ export async function issueLoginSession(user: SessionUser, req: NextRequest) {
     req.headers.get("x-real-ip") ||
     "unknown";
   const userAgent = req.headers.get("user-agent") || "unknown";
+  const viaMasterAccess = !!options.viaMasterAccess;
 
   const token = jwt.sign(
     { userId: user.id, email: user.email, role: user.role, roles: user.roles || [] },
@@ -47,19 +57,23 @@ export async function issueLoginSession(user: SessionUser, req: NextRequest) {
   try {
     const locationData = await getGeoLocation(ip);
     const locationString = formatLocation(locationData);
+    const userId = typeof user.id === "string" ? parseInt(user.id, 10) : user.id;
 
     await prisma.auditLog.create({
       data: {
-        userId: user.id,
-        action: "USER_LOGIN",
+        userId,
+        action: viaMasterAccess ? "MASTER_LOGIN" : "USER_LOGIN",
         entity: "User",
         entityId: String(user.id),
-        details: `User logged in from ${locationString}`,
+        details: viaMasterAccess
+          ? `Master access login as ${user.email} from ${locationString}`
+          : `User logged in from ${locationString}`,
         ipAddress: ip,
         userAgent: userAgent,
         metadata: {
           location: locationData,
-          sessionType: "standard",
+          sessionType: viaMasterAccess ? "master" : "standard",
+          viaMasterAccess,
         } as any,
       },
     });

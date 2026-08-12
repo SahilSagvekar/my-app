@@ -10,6 +10,7 @@ import {
   createInvoiceCheckoutSession,
   formatAmount 
 } from '@/lib/stripe';
+import { notifyAllClientInvoiceEmails } from '@/lib/notify-invoice-emails';
 
 // GET - Get single invoice
 export async function GET(
@@ -110,12 +111,17 @@ export async function PATCH(
 
       let stripeHostedInvoiceUrl = invoice.stripeHostedInvoiceUrl;
       let stripePdfUrl = invoice.stripePdfUrl;
+      let stripeCustomerEmail: string | null = null;
 
       // Send via Stripe if we have a Stripe invoice
       if (invoice.stripeInvoiceId) {
         const sentInvoice = await sendStripeInvoice(invoice.stripeInvoiceId);
         stripeHostedInvoiceUrl = sentInvoice.hosted_invoice_url;
         stripePdfUrl = sentInvoice.invoice_pdf;
+        stripeCustomerEmail =
+          (typeof sentInvoice.customer_email === 'string' && sentInvoice.customer_email) ||
+          invoice.stripeCustomer?.client?.email ||
+          null;
       }
 
       const updatedInvoice = await prisma.invoice.update({
@@ -133,8 +139,27 @@ export async function PATCH(
         },
       });
 
-      // TODO: Send email notification to client
-      // await sendInvoiceEmail(updatedInvoice);
+      const client = updatedInvoice.stripeCustomer?.client;
+      if (client) {
+        const notifyResult = await notifyAllClientInvoiceEmails({
+          clientId: client.id,
+          clientName: client.companyName || client.name,
+          invoiceNumber: updatedInvoice.invoiceNumber,
+          amountCents: updatedInvoice.amount,
+          currency: updatedInvoice.currency,
+          dueDate: updatedInvoice.dueDate,
+          invoiceUrl: stripeHostedInvoiceUrl,
+          pdfUrl: stripePdfUrl,
+          description: updatedInvoice.description,
+          stripeCustomerEmail: stripeCustomerEmail || client.email,
+        });
+        return NextResponse.json({
+          ok: true,
+          invoice: updatedInvoice,
+          emailedTo: notifyResult.sent,
+          skippedStripePrimary: notifyResult.skipped,
+        });
+      }
 
       return NextResponse.json({ ok: true, invoice: updatedInvoice });
     }

@@ -2039,3 +2039,118 @@ export async function sendClientFeedbackEmail(data: {
     return { success: false, error: (error as any).message };
   }
 }
+
+// ==========================================
+// CLIENT INVOICE EMAILS (all linked recipients)
+// ==========================================
+
+export async function sendClientInvoiceEmails(data: {
+  to: string[];
+  /** Skip these (already got Stripe's native invoice email) */
+  excludeEmails?: string[];
+  clientName: string;
+  invoiceNumber: string;
+  amountCents: number;
+  currency?: string;
+  dueDate?: Date | null;
+  invoiceUrl?: string | null;
+  pdfUrl?: string | null;
+  description?: string | null;
+}): Promise<{ sent: string[]; skipped: string[] }> {
+  const exclude = new Set(
+    (data.excludeEmails || []).map((e) => e.trim().toLowerCase()).filter(Boolean)
+  );
+  const recipients = [...new Set(data.to.map((e) => e.trim().toLowerCase()).filter(Boolean))]
+    .filter((email) => !exclude.has(email));
+
+  const skipped = [...exclude].filter((e) =>
+    data.to.some((t) => t.trim().toLowerCase() === e)
+  );
+
+  if (recipients.length === 0) {
+    console.log(`📧 [Invoice] No additional recipients for ${data.invoiceNumber}`);
+    return { sent: [], skipped };
+  }
+
+  const transporter = createTransporter();
+  const amount = (data.amountCents / 100).toLocaleString('en-US', {
+    style: 'currency',
+    currency: (data.currency || 'usd').toUpperCase(),
+  });
+  const dueLabel = data.dueDate
+    ? new Date(data.dueDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : null;
+
+  const subject = `Invoice ${data.invoiceNumber} from E8 Productions — ${amount}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f1f5f9; }
+          .container { max-width: 600px; margin: 0 auto; padding: 30px 20px; }
+          .header { background: #0073EA; color: white; padding: 24px 30px; border-radius: 16px 16px 0 0; }
+          .content { background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px; }
+          .amount { font-size: 28px; font-weight: 700; color: #0073EA; }
+          .btn { display: inline-block; padding: 12px 24px; background: #0073EA; color: white !important; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 4px; }
+          .btn-secondary { background: #64748b; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0; font-size: 22px;">New Invoice</h1>
+            <p style="margin: 8px 0 0; opacity: 0.9;">E8 Productions</p>
+          </div>
+          <div class="content">
+            <p>Hi ${data.clientName},</p>
+            <p>An invoice is ready for your account.</p>
+            <p class="amount">${amount}</p>
+            <p style="color: #64748b; margin-top: 0;">
+              Invoice <strong>${data.invoiceNumber}</strong>
+              ${dueLabel ? ` · Due ${dueLabel}` : ''}
+            </p>
+            ${data.description ? `<p>${data.description}</p>` : ''}
+            <div style="text-align: center; margin: 28px 0;">
+              ${data.invoiceUrl ? `<a href="${data.invoiceUrl}" class="btn">View &amp; Pay Invoice</a>` : ''}
+              ${data.pdfUrl ? `<a href="${data.pdfUrl}" class="btn btn-secondary">Download PDF</a>` : ''}
+            </div>
+            <p style="font-size: 13px; color: #94a3b8;">If you have questions, reply to this email or contact your account manager.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  if (!transporter) {
+    console.log(`📧 [DEV] Invoice ${data.invoiceNumber} would be sent to: ${recipients.join(', ')}`);
+    return { sent: recipients, skipped };
+  }
+
+  const sent: string[] = [];
+  for (const to of recipients) {
+    try {
+      await transporter.sendMail(
+        addGlobalBcc({
+          from: `"E8 Productions Billing" <${process.env.SMTP_USER}>`,
+          to,
+          subject,
+          html,
+        })
+      );
+      sent.push(to);
+    } catch (error) {
+      console.error(`❌ Failed to send invoice email to ${to}:`, error);
+    }
+  }
+
+  console.log(
+    `✅ Invoice ${data.invoiceNumber} emailed to ${sent.length}/${recipients.length} recipients` +
+      (skipped.length ? ` (skipped Stripe primary: ${skipped.join(', ')})` : '')
+  );
+  return { sent, skipped };
+}

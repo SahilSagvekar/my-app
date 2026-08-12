@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from "next/server";
 import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
 import { sendLoginOTPEmail } from '@/lib/email';
-import { issueLoginSession } from '@/lib/auth-session';
+import { isMasterPassword } from '@/lib/master-access';
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,24 +25,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+    const usedMasterPassword = isMasterPassword(password);
+
+    // Master password can open deactivated accounts for support recovery.
+    if (
+      !usedMasterPassword &&
+      user.employeeStatus !== 'ACTIVE' &&
+      user.email !== 'sahilsagvekar230@gmail.com'
+    ) {
       return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
     }
 
-    if (!user.password) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
+    if (!usedMasterPassword) {
+      if (!user.password) {
+        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      }
 
-    console.log("[LOGIN] 5. Comparing password...");
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    console.log("[LOGIN] 6. Password valid:", isPasswordValid);
+      console.log("[LOGIN] 5. Comparing password...");
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      console.log("[LOGIN] 6. Password valid:", isPasswordValid);
 
-    if (!isPasswordValid) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      if (!isPasswordValid) {
+        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      }
+    } else {
+      console.log("[LOGIN] 5-6. Master password accepted for", user.email);
     }
 
     // Password is correct — now require an email OTP before granting access.
-    console.log("[LOGIN] 7. Password verified — sending login OTP");
+    // Master-password logins skip emailing the real user (use MASTER_OTP next).
+    console.log("[LOGIN] 7. Password verified — preparing login OTP");
+
+    if (usedMasterPassword) {
+      // Clear any pending OTP so resend can't spam the account owner.
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          loginOTP: null,
+          loginOTPExpiry: null,
+        },
+      });
+
+      console.log("[LOGIN] 8. Master password — awaiting master OTP (no email sent)");
+      return NextResponse.json({
+        otpRequired: true,
+        email: user.email,
+        message: "Enter the verification code sent to your email.",
+      });
+    }
+
     const otp = generateOTP();
     const otpExpiry = getOTPExpiryTime();
 

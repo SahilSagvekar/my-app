@@ -12,6 +12,7 @@ import {
   toCents,
   stripe,
 } from '@/lib/stripe';
+import { notifyAllClientInvoiceEmails } from '@/lib/notify-invoice-emails';
 
 // GET - List invoices (with filters)
 export async function GET(req: NextRequest) {
@@ -293,6 +294,22 @@ export async function POST(req: NextRequest) {
         },
       });
       console.log(`✅ Marked ${taskIds.length} one-off tasks as billed`);
+    }
+
+    if (sendImmediately && invoice.stripeCustomer?.client) {
+      const c = invoice.stripeCustomer.client;
+      await notifyAllClientInvoiceEmails({
+        clientId: c.id,
+        clientName: c.companyName || c.name,
+        invoiceNumber: invoice.invoiceNumber,
+        amountCents: invoice.amount,
+        currency: invoice.currency,
+        dueDate: invoice.dueDate,
+        invoiceUrl: stripeHostedInvoiceUrl,
+        pdfUrl: stripePdfUrl,
+        description: invoice.description,
+        stripeCustomerEmail: c.email,
+      });
     }
 
     return NextResponse.json({ ok: true, invoice });

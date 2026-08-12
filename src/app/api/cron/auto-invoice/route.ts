@@ -16,6 +16,7 @@ import {
   sendStripeInvoice,
   stripe,
 } from '@/lib/stripe';
+import { notifyAllClientInvoiceEmails } from '@/lib/notify-invoice-emails';
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = req.headers.get('x-cron-secret');
@@ -134,6 +135,19 @@ export async function POST(req: NextRequest) {
             sentAt: now,
             metadata: { invoiceType: 'RECURRING', billingCycle },
           },
+        });
+
+        await notifyAllClientInvoiceEmails({
+          clientId: client.id,
+          clientName: client.companyName || client.name,
+          invoiceNumber,
+          amountCents: finalTotalAmount,
+          currency: 'usd',
+          dueDate,
+          invoiceUrl: sentInvoice.hosted_invoice_url,
+          pdfUrl: sentInvoice.invoice_pdf,
+          description: lineItemDescription,
+          stripeCustomerEmail: client.email,
         });
 
         // Advance nextBillingDate by exactly one month from the cycle date
