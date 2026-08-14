@@ -77,12 +77,11 @@ export async function getOrCreateStripeCustomer(
   name: string,
   metadata?: Record<string, string>
 ): Promise<Stripe.Customer> {
-  const { getDb } = await import('@/lib/db');
+  const { getDbHttp } = await import('@/lib/db');
   const { stripeCustomer } = await import('@/lib/db/schema');
   const { createId } = await import('@/lib/db/id');
   const { eq } = await import('drizzle-orm');
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
 
   // Check if customer already exists
   const [existingCustomer] = await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, clientId)).limit(1);
@@ -118,9 +117,6 @@ export async function getOrCreateStripeCustomer(
   });
 
   return customer;
-  } finally {
-    await closeDb();
-  }
 }
 
 // Create a payment intent for one-time payment

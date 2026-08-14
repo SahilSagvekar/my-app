@@ -597,7 +597,7 @@ export const task = pgTable("Task", {
 	extraSequence: integer(),
 	isExtra: boolean().default(false).notNull(),
 	relatedTaskId: text(),
-	titleSetByQc: boolean().default(false).notNull(),
+	titleSetByQc: boolean("titleSetByQC").default(false).notNull(),
 	postingTitle: text(),
 	isSponsored: boolean().default(false).notNull(),
 	titleSetByClient: boolean().default(false).notNull(),

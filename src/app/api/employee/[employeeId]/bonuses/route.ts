@@ -1,12 +1,11 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { bonus } from "@/lib/db/schema";
 import { and, eq, gte, lte, desc } from "drizzle-orm";
 
 export async function GET(req: Request, context: { params: { employeeId: string } }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { params } = await Promise.resolve(context);
     const employeeId = Number(params.employeeId);
@@ -33,9 +32,5 @@ export async function GET(req: Request, context: { params: { employeeId: string 
       { ok: false, message: err?.message || "Something went wrong" },
       { status: 400 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

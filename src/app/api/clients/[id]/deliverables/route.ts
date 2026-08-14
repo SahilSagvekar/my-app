@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 // app/api/clients/[clientId]/deliverables/route.ts
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { client as clientTable, monthlyDeliverable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq, desc } from "drizzle-orm";
@@ -12,8 +12,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id: clientId } = await params;
     const data = await req.json();
@@ -56,10 +55,6 @@ export async function POST(
     console.error("POST deliverable failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // GET - Get all deliverables for a client
@@ -67,8 +62,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id: clientId } = await params;
 
@@ -81,9 +75,5 @@ export async function GET(
   } catch (err) {
     console.error("GET deliverables failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

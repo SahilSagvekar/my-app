@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/reports/youtube-analytics/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { youTubeSnapshot } from '@/lib/db/schema';
 import { and, eq, gte, lt, asc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
         if (!user || user.role?.toLowerCase() !== 'admin') {
@@ -125,10 +124,6 @@ export async function GET(req: NextRequest) {
         console.error("[ADMIN YT ANALYTICS] Error:", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 function calculateChange(current: number, previous: number) {

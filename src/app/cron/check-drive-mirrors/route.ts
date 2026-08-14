@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { drainDriveMirrorQueue, ackDriveMirrorJobs } from '@/lib/file-server';
@@ -34,8 +34,7 @@ function isAuthorized(req: NextRequest): boolean {
 }
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -77,9 +76,5 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('❌ /api/cron/check-drive-mirrors error:', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

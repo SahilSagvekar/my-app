@@ -1,5 +1,5 @@
 // src/app/api/health/route.ts
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -25,8 +25,7 @@ function getRuntimeStats() {
 }
 
 export async function GET() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const startTime = Date.now();
 
   try {
@@ -56,9 +55,5 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       ...getRuntimeStats(),
     }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 // Replace your existing route.ts with this
 
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import {
   task as taskTable,
   file as fileTable,
@@ -56,8 +56,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id } = await params;
     const token = getAuthToken(req);
@@ -586,9 +585,5 @@ export async function PATCH(
       },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

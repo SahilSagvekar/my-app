@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user as userTable, feedback as feedbackTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq } from "drizzle-orm";
@@ -31,8 +31,7 @@ function getUserIdFromToken(token: string): number | null {
 }
 
 export async function POST(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const token = getTokenFromCookies(req);
   if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
@@ -109,9 +108,5 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("[POST /api/client/feedback]", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

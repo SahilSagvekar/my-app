@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 // Toggle isTrial on client and bulk update all tasks for that client
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client, monthlyDeliverable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -11,8 +11,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id: clientId } = await params;
     const body = await request.json();
@@ -54,9 +53,5 @@ export async function PATCH(
       { error: 'Failed to toggle trial', details: error.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

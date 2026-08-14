@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { salesDashboardColumn } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { desc, eq } from 'drizzle-orm';
@@ -15,8 +15,7 @@ function getTokenFromCookies(req: Request) {
 
 // POST /api/sales-columns — add a new custom column
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -55,9 +54,5 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[POST /api/sales-columns]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

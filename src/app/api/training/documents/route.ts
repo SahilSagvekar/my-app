@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { trainingDocument } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, asc, eq } from 'drizzle-orm';
@@ -18,8 +18,7 @@ function isTrainingRole(r: string): r is TrainingRole {
 // - Admin/manager: all or filter by role/courseId
 // - Others: only for their role
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -72,17 +71,12 @@ export async function GET(req: NextRequest) {
     console.error("GET /api/training/documents error:", err);
     return NextResponse.json({ error: "Failed to fetch training documents" }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST – create/upload training document (admin/manager only)
 // Body: FormData containing file, title, description, role, order
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await requireAdmin(req);
 
@@ -145,9 +139,5 @@ export async function POST(req: NextRequest) {
     const status = err?.status || 500;
     const msg = err?.message || "Failed to upload training document";
     return NextResponse.json({ error: msg }, { status });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

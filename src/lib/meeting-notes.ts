@@ -5,7 +5,7 @@
 // account) so copies land in the same Drive the rest of the app writes to.
 
 import { google } from "googleapis";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { client as clientTable, meetingNote as meetingNoteTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq } from "drizzle-orm";
@@ -48,8 +48,7 @@ function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
  * Called when an admin clicks "Start This Week's Notes" for a client.
  */
 export async function createMeetingNotesDoc(clientId: string, meetingDate: Date = new Date()) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const templateId = process.env.MEETING_NOTES_TEMPLATE_ID;
   if (!templateId) throw new Error("Missing MEETING_NOTES_TEMPLATE_ID env var");
 
@@ -86,10 +85,6 @@ export async function createMeetingNotesDoc(clientId: string, meetingDate: Date 
   }).returning();
 
   return meetingNote;
-
-  } finally {
-    await closeDb();
-  }
 }
 
 /**

@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 //                        window; older days only have the summary row).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import {
   user as userTable,
   schedulerActivityEvent as schedulerActivityEventTable,
@@ -22,8 +22,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { computeActivityStats, startOfUTCDay } from '@/lib/scheduler-activity-rollup';
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || user.role?.toLowerCase() !== 'admin') {
@@ -91,9 +90,5 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[admin/scheduler-activity] error:', err.message);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

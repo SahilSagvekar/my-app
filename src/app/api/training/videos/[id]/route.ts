@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { trainingVideo } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from "@/lib/auth";
@@ -17,8 +17,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -52,10 +51,6 @@ export async function PATCH(
     console.error("PATCH /api/training/videos/[id] error:", err);
     return NextResponse.json({ error: "Failed to update training video" }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE – remove training video (admin/manager only)
@@ -63,8 +58,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -86,9 +80,5 @@ export async function DELETE(
   } catch (err: unknown) {
     console.error("DELETE /api/training/videos/[id] error:", err);
     return NextResponse.json({ error: "Failed to delete training video" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

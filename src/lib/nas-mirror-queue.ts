@@ -13,7 +13,7 @@
 // Triggered from the NAS Backup admin panel, picked up by
 // nas-mirror-worker.ts on the next cron-master tick.
 
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { nasMirrorJob } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, asc, eq, lt } from 'drizzle-orm';
@@ -29,8 +29,7 @@ export async function createNasMirrorJob(params: {
   folderPath?: string; // only for raw-footage — full relative path under raw-footage/
   triggeredById?: number | null;
 }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const [job] = await db.insert(nasMirrorJob).values({
     id: createId(),
     clientName: params.clientName,
@@ -42,16 +41,11 @@ export async function createNasMirrorJob(params: {
     updatedAt: new Date().toISOString(),
   }).returning();
   return job;
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // Picks the oldest pending job, if any, and marks it running.
 export async function popPendingNasMirrorJob() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const [job] = await db.select().from(nasMirrorJob)
     .where(eq(nasMirrorJob.status, 'pending'))
     .orderBy(asc(nasMirrorJob.createdAt))
@@ -63,10 +57,6 @@ export async function popPendingNasMirrorJob() {
     .where(eq(nasMirrorJob.id, job.id))
     .returning();
   return updated;
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function updateNasMirrorJobProgress(
@@ -80,8 +70,7 @@ export async function updateNasMirrorJobProgress(
     currentFile: string | null;
   }>
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     await db.update(nasMirrorJob)
       .set({ ...patch, updatedAt: new Date().toISOString() })
@@ -89,49 +78,30 @@ export async function updateNasMirrorJobProgress(
   } catch {
     // best-effort — if the job row was deleted or the update races, don't crash the worker
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function completeNasMirrorJob(id: string) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   await db.update(nasMirrorJob)
     .set({ status: 'completed', completedAt: new Date().toISOString(), currentFile: null, updatedAt: new Date().toISOString() })
     .where(eq(nasMirrorJob.id, id));
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function failNasMirrorJob(id: string, errorMessage: string) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   await db.update(nasMirrorJob)
     .set({ status: 'failed', completedAt: new Date().toISOString(), errorMessage, currentFile: null, updatedAt: new Date().toISOString() })
     .where(eq(nasMirrorJob.id, id));
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // On worker startup, any job stuck in "running" for over an hour (e.g. the
 // process died mid-job) gets reset to "pending" so it gets picked up again.
 export async function recoverStuckNasMirrorJobs(): Promise<number> {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MS).toISOString();
   const result = await db.update(nasMirrorJob)
     .set({ status: 'pending', startedAt: null, currentFile: null, updatedAt: new Date().toISOString() })
     .where(and(eq(nasMirrorJob.status, 'running'), lt(nasMirrorJob.startedAt, cutoff)))
     .returning({ id: nasMirrorJob.id });
   return result.length;
-
-  } finally {
-    await closeDb();
-  }
 }

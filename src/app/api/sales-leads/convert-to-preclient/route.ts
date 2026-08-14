@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 // Converted leads are removed from the sales rep's sheet.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { salesLead, preClient as preClientTable, affiliateCommission } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -19,8 +19,7 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -85,9 +84,5 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[POST /api/sales-leads/convert-to-preclient]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

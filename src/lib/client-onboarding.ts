@@ -7,7 +7,7 @@
 //   5. Save the channel name back to the Client record in DB
 
 import { WebClient } from '@slack/web-api';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
@@ -60,8 +60,7 @@ export async function createClientSlackChannel(params: {
   clientName: string;
   clientEmail: string;
 }): Promise<{ channelId: string | null; channelName: string | null; webhookUrl: string | null }> {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const slack = getSlackClient();
   if (!slack) return { channelId: null, channelName: null, webhookUrl: null };
 
@@ -148,10 +147,6 @@ export async function createClientSlackChannel(params: {
     }
     console.error('[ClientOnboarding] Slack channel creation failed:', err?.data?.error || err?.message || err);
     return { channelId: null, channelName: null, webhookUrl: null };
-  }
-
-  } finally {
-    await closeDb();
   }
 }
 

@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbPool } from "@/lib/db";
 import { task, editorEodReport, editorEodReportItem } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, inArray } from "drizzle-orm";
@@ -14,7 +14,7 @@ import {
 } from "@/lib/editor-eod";
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const user = await getCurrentUser2(req);

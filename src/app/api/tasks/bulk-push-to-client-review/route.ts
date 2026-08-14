@@ -1,12 +1,11 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const cookie = request.headers.get('cookie') || '';
     const body = await request.json();
@@ -57,9 +56,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[BULK PUSH TO CLIENT REVIEW] Error:', error);
     return NextResponse.json({ success: false, error: 'Failed to push tasks to client review' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

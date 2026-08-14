@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client as clientTable, preClient as preClientTable, quote as quoteTable } from '@/lib/db/schema';
 import { desc, eq, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -10,8 +10,7 @@ import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
 // Called from the client portal contracts & billing page after contract is signed.
 // Creates a Stripe Checkout session for the first payment + recurring subscription.
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -130,9 +129,5 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('POST /api/portal/setup-subscription error:', err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

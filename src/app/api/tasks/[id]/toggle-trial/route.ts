@@ -1,6 +1,6 @@
 // src/app/api/tasks/[id]/toggle-trial/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { task } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
@@ -23,8 +23,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getUser();
     if (!user) {
@@ -53,9 +52,5 @@ export async function PATCH(
   } catch (error) {
     console.error("Toggle trial error:", error);
     return NextResponse.json({ error: "Failed to update" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

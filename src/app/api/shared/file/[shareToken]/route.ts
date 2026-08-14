@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { shareableFile as shareableFileTable } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { generateSignedUrl } from '@/lib/s3';
@@ -10,8 +10,7 @@ export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ shareToken: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const { shareToken } = await params;
 
@@ -82,8 +81,4 @@ export async function GET(
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 // Admin only — compensation, not something a sales_manager can self-serve.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { salesRepPayoutProfile } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -17,8 +17,7 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -56,9 +55,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ us
   } catch (err) {
     console.error('[PATCH /api/admin/payouts/commission-rate/[userId]]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

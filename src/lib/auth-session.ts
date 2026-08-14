@@ -2,7 +2,7 @@
 // (used by the direct-login path and by the OTP-verification path).
 import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { getGeoLocation, formatLocation } from "@/lib/geo";
 import { NextRequest, NextResponse } from "next/server";
@@ -16,8 +16,7 @@ type SessionUser = {
 };
 
 export async function issueLoginSession(user: SessionUser, req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   if (!process.env.JWT_SECRET) {
     throw new Error("JWT_SECRET not configured");
   }
@@ -70,10 +69,6 @@ export async function issueLoginSession(user: SessionUser, req: NextRequest) {
   }
 
   return response;
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export { bcrypt };

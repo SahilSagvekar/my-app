@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { salesRepPayoutProfile } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -13,8 +13,7 @@ const SALES_ROLES = ['sales', 'sales_manager'];
 
 // GET /api/payouts/tax-form — current rep's tax form status + download link
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await getCurrentUser2(req);
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -36,16 +35,11 @@ export async function GET(req: NextRequest) {
       downloadUrl,
     },
   });
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST /api/payouts/tax-form — fill + submit W-9
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await getCurrentUser2(req);
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -134,9 +128,5 @@ export async function POST(req: NextRequest) {
       { success: false, error: 'Failed to submit tax form', details: err.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { and, gte, lte, desc } from 'drizzle-orm';
 import { affiliateCommission } from '@/lib/db/schema';
 import jwt from 'jsonwebtoken';
@@ -19,8 +19,7 @@ function csvEscape(value: string): string {
 // GET /api/affiliate/payouts/export — admin-only CSV export for accounting
 // reconciliation (matches paid commissions against Stripe balance transactions).
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -84,8 +83,4 @@ export async function GET(req: NextRequest) {
         console.error('[GET /api/affiliate/payouts/export]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

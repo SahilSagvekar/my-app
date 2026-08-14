@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { postedContent } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, gte, lte, ilike, or, count as countFn, desc } from "drizzle-orm";
@@ -105,8 +105,7 @@ export async function GET(req: NextRequest) {
     const cacheKey = `posted-content:${clientId}:${offset}:${limit}`;
 
     const fetchData = async () => {
-  const { db, closeDb } = getDb();
-  try {
+      const db = getDbHttp();
       const [rows, [{ value: total }]] = await Promise.all([
         db.query.postedContent.findMany({
           where,
@@ -126,11 +125,7 @@ export async function GET(req: NextRequest) {
         db.select({ value: countFn() }).from(postedContent).where(where),
       ]);
       return { contents: rows, total };
-    
-  } finally {
-    await closeDb();
-  }
-};
+    };
 
     const { contents, total } = isSimpleRead
       ? await cached(cacheKey, fetchData, 60)
@@ -152,8 +147,7 @@ export async function GET(req: NextRequest) {
 
 // POST - Create new posted content
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = await verifyToken(req);
     if (!token) {
@@ -192,9 +186,5 @@ export async function POST(req: NextRequest) {
       { message: "Server error", error: err.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

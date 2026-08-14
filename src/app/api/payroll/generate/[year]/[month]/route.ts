@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user, bonus, deduction, payroll as payrollTable } from "@/lib/db/schema";
 import { and, eq, gte, lte, notInArray } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
@@ -11,8 +11,7 @@ export async function POST(
   req: NextRequest,
   context: { params: { year: string; month: string } }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     await requireAdmin(req);
 
@@ -139,9 +138,5 @@ export async function POST(
       { ok: false, message: err?.message || "Something went wrong" },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

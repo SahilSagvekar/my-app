@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { employeeDocument, user as userTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, desc } from 'drizzle-orm';
@@ -16,8 +16,7 @@ export async function GET(
   req: Request,
   context: { params: { employeeId: string } },
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const { employeeId } = await context.params;
   const id = Number(employeeId);
   if (!Number.isFinite(id)) {
@@ -44,10 +43,6 @@ export async function GET(
   }).from(employeeDocument).where(eq(employeeDocument.employeeId, id)).orderBy(desc(employeeDocument.createdAt));
 
   return NextResponse.json({ documents });
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST /api/employee/[employeeId]/documents
@@ -58,8 +53,7 @@ export async function POST(
   req: Request,
   context: { params: { employeeId: string } },
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const admin = await requireAdmin(req as any);
 
@@ -135,9 +129,5 @@ export async function POST(
     const status = err?.status || 500;
     const msg = err?.message || 'Upload failed';
     return NextResponse.json({ error: msg }, { status });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

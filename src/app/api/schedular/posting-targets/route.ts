@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbPool } from '@/lib/db';
 import { postingTarget } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, asc } from 'drizzle-orm';
@@ -8,7 +8,7 @@ import { getUserFromToken } from '@/lib/auth-helpers';
 
 // GET - Fetch all posting targets (optionally by clientId)
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const currentUser = getUserFromToken(req);
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
 // POST - Create or update posting targets for a client (bulk upsert)
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const currentUser = getUserFromToken(req);

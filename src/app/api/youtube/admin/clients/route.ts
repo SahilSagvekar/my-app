@@ -2,13 +2,12 @@ export const dynamic = 'force-dynamic';
 // app/api/youtube/admin/clients/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2 } from '@/lib/auth';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client as clientTable, youTubeChannel } from '@/lib/db/schema';
 import { asc, eq } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
 
@@ -80,8 +79,4 @@ export async function GET(req: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

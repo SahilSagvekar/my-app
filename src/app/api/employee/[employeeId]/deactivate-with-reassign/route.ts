@@ -1,12 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbPool } from '@/lib/db';
 import { user, task } from '@/lib/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 
 export async function POST(req: Request, { params }: { params: { employeeId: string } }) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const adminUser = await requireAdmin(req as any);

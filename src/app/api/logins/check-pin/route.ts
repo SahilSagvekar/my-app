@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/check-pin/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user as userTable, userSecurityPin } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 // import { getServerSession } from "next-auth";
@@ -30,8 +30,7 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 }
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
        
@@ -81,9 +80,5 @@ export async function GET(req: NextRequest) {
       { message: "Failed to check PIN" },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

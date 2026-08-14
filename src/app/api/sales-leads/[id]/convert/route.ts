@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 // Runs the exact same logic as POST /api/clients (folders, deliverables, recurring tasks, onboarding).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbPool } from '@/lib/db';
 import { salesLead, user as userTable, client as clientTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -25,7 +25,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const { id: leadId } = await params;

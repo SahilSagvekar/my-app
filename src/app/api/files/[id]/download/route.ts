@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 // 🔥 ALWAYS downloads the ORIGINAL file, never the optimized/proxy version.
 
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { extractS3KeyFromUrl, generateDownloadUrl, checkFileExists } from '@/lib/s3';
@@ -16,8 +16,7 @@ export async function GET(
     req: Request,
     context: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const { id: fileId } = await context.params;
 
@@ -112,10 +111,6 @@ export async function GET(
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // export const dynamic = 'force-dynamic';

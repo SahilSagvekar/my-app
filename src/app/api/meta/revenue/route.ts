@@ -1,15 +1,14 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/meta/revenue/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { clientRevenue } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { createId } from "@/lib/db/id";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
         if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
@@ -53,15 +52,10 @@ export async function POST(req: NextRequest) {
         console.error("Revenue API Error:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
         if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -85,8 +79,4 @@ export async function GET(req: NextRequest) {
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

@@ -1,7 +1,7 @@
 // src/app/api/social/accounts/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { socialAccount, socialPost } from '@/lib/db/schema';
 import { count, desc, eq, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -10,8 +10,7 @@ export const dynamic = 'force-dynamic';
 
 // GET - List all connected accounts for a client
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -73,16 +72,11 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE - Disconnect an account
 export async function DELETE(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -131,16 +125,11 @@ export async function DELETE(req: NextRequest) {
       { status: 500 }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // PATCH - Toggle account active status
 export async function PATCH(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -191,9 +180,5 @@ export async function PATCH(req: NextRequest) {
       { ok: false, error: error.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

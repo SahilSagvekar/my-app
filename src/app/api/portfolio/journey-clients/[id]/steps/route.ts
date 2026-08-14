@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { portfolioJourneyClient, portfolioJourneyStep } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -11,8 +11,7 @@ export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = getUserFromToken(req);
         const authError = requireAdmin(user);
@@ -47,8 +46,4 @@ export async function POST(
         console.error('[POST /api/portfolio/journey-clients/[id]/steps]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

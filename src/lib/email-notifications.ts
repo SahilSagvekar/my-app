@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { getDb } from './db';
+import { getDbHttp } from './db';
 import { client as clientTable, task as taskTable } from './db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -36,8 +36,7 @@ const addGlobalBcc = (mailOptions: any) => {
  * Helper to get all relevant client emails from various possible sources
  */
 async function getAllClientEmails(clientId: string): Promise<string[]> {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     const client = await db.query.client.findFirst({
         where: eq(clientTable.id, clientId),
         with: {
@@ -114,10 +113,6 @@ async function getAllClientEmails(clientId: string): Promise<string[]> {
     console.log(`[EmailNotification] Final recipient list for ${client.name}:`, finalEscapedEmails);
 
     return finalEscapedEmails;
-
-  } finally {
-    await closeDb();
-  }
 }
 
 
@@ -125,8 +120,7 @@ async function getAllClientEmails(clientId: string): Promise<string[]> {
  * Send email when a task is ready for client review
  */
 export async function sendTaskReadyForReviewEmail(taskId: string) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const task = await db.query.task.findFirst({
             where: eq(taskTable.id, taskId),
@@ -277,8 +271,4 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
     } catch (error) {
         console.error('❌ Failed to send task ready for review email:', error);
     }
-
-  } finally {
-    await closeDb();
-  }
 }

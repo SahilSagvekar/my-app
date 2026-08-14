@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user as userTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyPassword } from '@/lib/password';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(request);
 
@@ -55,8 +54,4 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

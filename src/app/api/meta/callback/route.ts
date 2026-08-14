@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/meta/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { client as clientTable, metaAccount } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { createId } from "@/lib/db/id";
@@ -9,8 +9,7 @@ import { getCurrentUser2 } from "@/lib/auth";
 import { MetaService } from "@/lib/meta";
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
     const error = searchParams.get("error");
@@ -127,8 +126,4 @@ export async function GET(req: NextRequest) {
         console.error("Meta callback failed:", err);
         return NextResponse.redirect(`${baseUrl}/dashboard?meta_error=callback_failed&message=${encodeURIComponent(err.message)}`);
     }
-
-  } finally {
-    await closeDb();
-  }
 }

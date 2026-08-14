@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 // Feedback queue to triage — despite the path name, it handles both fields
 // rather than adding a second near-identical route).
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { feedback as feedbackTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -13,8 +13,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { feedbackId: string } }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const body = await request.json();
     const { status, priority } = body;
@@ -40,9 +39,5 @@ export async function PATCH(
       { error: "Failed to update status" },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

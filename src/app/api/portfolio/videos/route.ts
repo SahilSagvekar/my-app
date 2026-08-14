@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { portfolioVideo } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, asc, eq } from 'drizzle-orm';
 
 // GET /api/portfolio/videos — fetch videos, optionally filtered by category
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category');
@@ -34,16 +33,11 @@ export async function GET(req: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST /api/portfolio/videos — admin: add a new portfolio video
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const body = await req.json();
         const { title, description, videoUrl, thumbnailUrl, category, order } = body;
@@ -74,8 +68,4 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

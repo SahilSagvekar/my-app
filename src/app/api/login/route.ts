@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from "next/server";
 import { issueLoginSession } from '@/lib/auth-session';
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     console.log("[LOGIN] 1. Request received");
 
@@ -66,9 +65,5 @@ export async function POST(req: NextRequest) {
       console.error("[LOGIN] Root cause:", err.cause);
     }
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

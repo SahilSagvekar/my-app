@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/activity-records/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { auditLog as auditLogTable, user as userTable } from '@/lib/db/schema';
 import { and, eq, gte, lte, notInArray, ilike, desc } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -15,8 +15,7 @@ function getTokenFromCookies(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -86,8 +85,4 @@ export async function GET(req: NextRequest) {
     } catch (error: any) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

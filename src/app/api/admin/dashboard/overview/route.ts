@@ -1,6 +1,6 @@
 // app/api/admin/dashboard/overview/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import {
   user as userTable,
   task as taskTable,
@@ -47,8 +47,7 @@ export function requireAdmin(user: JWTUser | null) {
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: any) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const startTime = Date.now();
 
   try {
@@ -100,15 +99,10 @@ export async function GET(req: any) {
       { status: 500 }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 async function getKPIData() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const now = new Date();
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -193,15 +187,10 @@ async function getKPIData() {
       trend: avgChange <= 0 ? 'up' as const : 'down' as const // Lower completion time is "up" trend
     }
   };
-
-  } finally {
-    await closeDb();
-  }
 }
 
 async function getPipelineData() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const statusCounts = await db.select({ status: taskTable.status, cnt: count() })
     .from(taskTable)
     .groupBy(taskTable.status);
@@ -217,15 +206,10 @@ async function getPipelineData() {
     projects: countMap.get(stage) || 0,
     revenue: 0
   }));
-
-  } finally {
-    await closeDb();
-  }
 }
 
 async function getProjectHealthData() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const statsResult = await db.execute<{
     client_id: string;
     total_tasks: bigint;
@@ -281,15 +265,10 @@ async function getProjectHealthData() {
     { name: 'At Risk', value: Math.round((atRisk / total) * 100), count: atRisk, color: '#f59e0b' },
     { name: 'Critical', value: Math.round((critical / total) * 100), count: critical, color: '#ef4444' }
   ];
-
-  } finally {
-    await closeDb();
-  }
 }
 
 async function getRecentActivity() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const rows = await db.select({
     id: auditLogTable.id,
     action: auditLogTable.action,
@@ -326,15 +305,10 @@ async function getRecentActivity() {
       user: log.User?.name || 'System'
     };
   });
-
-  } finally {
-    await closeDb();
-  }
 }
 
 async function getSystemStatus() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
 
   const activeUserIds = await db.selectDistinct({ userId: auditLogTable.userId })
@@ -420,10 +394,6 @@ async function getSystemStatus() {
       totalAuditLogs: auditLogCount
     }
   };
-
-  } finally {
-    await closeDb();
-  }
 }
 
 function formatUptime(seconds: number): string {
@@ -437,8 +407,7 @@ function formatUptime(seconds: number): string {
 }
 
 async function getClientDeliverablesProgress() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -497,8 +466,4 @@ async function getClientDeliverablesProgress() {
         overallProgress: totalExpected > 0 ? Math.round((totalCompleted / totalExpected) * 100) : 0,
       };
     });
-
-  } finally {
-    await closeDb();
-  }
 }

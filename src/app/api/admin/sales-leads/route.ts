@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { salesLead } from '@/lib/db/schema';
 import { inArray, asc } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -16,8 +16,7 @@ function getTokenFromCookies(req: Request) {
 // GET /api/admin/sales-leads — fetch all leads across all sales reps (admin),
 // or leads for permitted sales reps only (sales_manager)
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -46,9 +45,5 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('[GET /api/admin/sales-leads]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { file as fileTable, task as taskTable, client as clientTable } from '@/lib/db/schema';
 import { and, eq, isNull, lt, like, desc } from 'drizzle-orm';
 
@@ -33,8 +33,7 @@ function isAuthorizedCallback(req: NextRequest, fileRecordId: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { fileRecordId, reviewDriveUrl, driveFileId } = await req.json();
 
@@ -65,18 +64,13 @@ export async function POST(req: NextRequest) {
     console.error('[Drive Mirror CB] Error:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // GET /api/internal/drive-mirror-complete?secret=xxx
 // Returns all file records that have no reviewDriveUrl but were uploaded more than
 // 10 minutes ago — these are likely failed callbacks that need manual recovery.
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const secret = req.nextUrl.searchParams.get('secret');
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -113,8 +107,4 @@ export async function GET(req: NextRequest) {
     files: missing,
     note: 'These video files have requiresClientReview=true but no reviewDriveUrl. Check file server logs for: MANUAL RECOVERY NEEDED',
   });
-
-  } finally {
-    await closeDb();
-  }
 }

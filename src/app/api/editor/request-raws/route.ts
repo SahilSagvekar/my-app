@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { client as clientTable, editorClientPermission } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -11,8 +11,7 @@ import { sendSlackWebhook, sendToChannel } from "@/lib/slack";
 const ERIC_SLACK_ID = "U047GKLSCBD";
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
 
@@ -82,9 +81,5 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[request-raws] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

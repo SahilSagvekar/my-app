@@ -1,0 +1,11 @@
+[
+  {
+    "table": "Task",
+    "drizzleExport": "task",
+    "prismaField": "titleSetByQC",
+    "drizzleProp": "titleSetByQc",
+    "realColumn": "titleSetByQC",
+    "currentColumnRef": "(no override, defaults to prop name)",
+    "currentColumnResolved": "titleSetByQc"
+  }
+]

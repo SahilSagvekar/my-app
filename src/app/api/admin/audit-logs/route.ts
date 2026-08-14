@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/audit-logs/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { auditLog as auditLogTable, user as userTable } from '@/lib/db/schema';
 import { and, or, eq, gte, lte, ilike, desc, count } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -141,9 +140,5 @@ export async function GET(req: NextRequest) {
       { ok: false, message: 'Internal server error' },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

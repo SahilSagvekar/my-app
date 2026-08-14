@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { helpVideo } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { asc, desc, eq } from 'drizzle-orm';
@@ -9,8 +9,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 // GET /api/help-videos — any authenticated user can read.
 // Non-admins only get active videos; admin/manager get everything (for management UI).
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -25,16 +24,11 @@ export async function GET(req: NextRequest) {
     console.error('GET /api/help-videos error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST /api/help-videos — admin/manager only
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -65,9 +59,5 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('POST /api/help-videos error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

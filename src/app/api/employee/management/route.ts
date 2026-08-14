@@ -1,13 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user, task } from "@/lib/db/schema";
 import { count, sql as drizzleSql } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     await requireAdmin(req);
 
@@ -93,9 +92,5 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("Employee management API error:", err);
     return NextResponse.json({ ok: false, message: err?.message }, { status: 400 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

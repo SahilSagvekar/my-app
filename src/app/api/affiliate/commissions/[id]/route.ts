@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { affiliateCommission, commissionAdjustment, salesLead, invoice, stripeCustomer } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq } from 'drizzle-orm';
@@ -15,8 +15,7 @@ function getTokenFromCookies(req: Request) {
 
 // PATCH /api/affiliate/commissions/[id] — admin/sales_manager: approve / mark paid / cancel
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -170,16 +169,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         console.error('[PATCH /api/affiliate/commissions/:id]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE /api/affiliate/commissions/[id] — cancel/remove commission (when lead status changes away from WON)
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -209,8 +203,4 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         console.error('[DELETE /api/affiliate/commissions/:id]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

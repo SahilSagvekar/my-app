@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user as userTable, client as clientTable } from "@/lib/db/schema";
 import { and, eq, or, arrayContains } from "drizzle-orm";
 import { auth } from "@/auth";
@@ -30,8 +30,7 @@ type AuthMeUser = {
 };
 
 async function getClientLink(user: AuthMeUser) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   if (user.role !== 'client') {
     return {
       linkedClientId: user.linkedClientId || user.client?.id || null,
@@ -55,15 +54,10 @@ async function getClientLink(user: AuthMeUser) {
     linkedClientId: client?.id || null,
     hasPostingServices: client?.hasPostingServices ?? true,
   };
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function GET(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
 
@@ -154,9 +148,5 @@ export async function GET(req: Request) {
   } catch (error) {
     console.error("DEBUG [ME ROUTE] Error:", error);
     return NextResponse.json({ user: null }, { status: 200 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

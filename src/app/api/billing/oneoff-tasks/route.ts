@@ -1,15 +1,14 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { and, eq, isNotNull, inArray, asc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 // GET - Fetch unbilled one-off tasks for a client (grouped by deliverable type)
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -99,9 +98,5 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching unbilled one-off tasks:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

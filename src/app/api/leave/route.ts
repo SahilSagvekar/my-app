@@ -225,7 +225,7 @@ export const dynamic = 'force-dynamic';
 
 
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { leave as leaveTable, user as userTable, deduction } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, gte, lte, asc, desc } from "drizzle-orm";
@@ -272,8 +272,7 @@ function getUserFromToken(req: NextRequest) {
  * }
  */
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -367,10 +366,6 @@ export async function POST(req: NextRequest) {
       { status }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 /**
@@ -384,8 +379,7 @@ export async function POST(req: NextRequest) {
  * ?sortOrder=asc|desc (default: desc)
  */
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = getUserFromToken(req);
 
@@ -470,10 +464,6 @@ export async function GET(req: NextRequest) {
       { status }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 /**
@@ -486,8 +476,7 @@ export async function GET(req: NextRequest) {
  * - Admins can delete pending requests
  */
 export async function DELETE(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = getUserFromToken(req);
 
@@ -565,10 +554,6 @@ export async function DELETE(req: NextRequest) {
       { status }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 /**
@@ -582,8 +567,7 @@ export async function DELETE(req: NextRequest) {
  * }
  */
 export async function PATCH(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = getUserFromToken(req);
 
@@ -730,9 +714,5 @@ export async function PATCH(req: NextRequest) {
       { ok: false, message: err?.message || "Something went wrong" },
       { status }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { contract as contractTable, client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -10,8 +10,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -60,9 +59,5 @@ export async function GET(
   } catch (err: any) {
     console.error(`GET /api/contracts/[id] error:`, err);
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

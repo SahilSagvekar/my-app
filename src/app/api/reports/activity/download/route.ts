@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/reports/activity/download/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { activityReport } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateSignedUrl, extractS3KeyFromUrl } from '@/lib/s3';
@@ -15,8 +15,7 @@ function getTokenFromCookies(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -69,8 +68,4 @@ export async function GET(req: NextRequest) {
         console.error('Download error:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

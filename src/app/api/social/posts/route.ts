@@ -1,7 +1,7 @@
 // src/app/api/social/posts/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { socialPost, socialAccount, task } from '@/lib/db/schema';
 import { and, asc, desc, eq, count, type SQL } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -10,8 +10,7 @@ export const dynamic = 'force-dynamic';
 
 // GET - List posts for a client or specific account
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -139,16 +138,11 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST - Link a social post to a task
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -224,16 +218,11 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE - Unlink a post from a task
 export async function DELETE(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -280,9 +269,5 @@ export async function DELETE(req: NextRequest) {
       { ok: false, error: error.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

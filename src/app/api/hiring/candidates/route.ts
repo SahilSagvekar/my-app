@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 // Admin-only candidate list + create for the editor hiring pipeline.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { hiringCandidate, hiringTestTask } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, desc, eq, ilike, inArray, or } from 'drizzle-orm';
@@ -16,8 +16,7 @@ async function requireAdmin(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await requireAdmin(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -56,15 +55,10 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ candidates });
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await requireAdmin(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -93,9 +87,5 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[Hiring] Create candidate error:', err.message);
     return NextResponse.json({ error: 'Failed to create candidate' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

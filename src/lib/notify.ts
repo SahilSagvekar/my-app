@@ -1,5 +1,5 @@
 // src/lib/notify.ts
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { notification as notificationTable, task as taskTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { inArray } from "drizzle-orm";
@@ -21,8 +21,7 @@ export type NotifyOpts = {
  * Use this from server-side logic (not the client).
  */
 export async function notifyUser(opts: NotifyOpts) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const { userId, type, title, body, payload, channels = ["in-app"] } = opts;
 
   // Normalise userId to Number (schema expects Int)
@@ -56,10 +55,6 @@ export async function notifyUser(opts: NotifyOpts) {
   }).catch((err) => console.warn("[Slack] delivery error:", err));
 
   return notification;
-
-  } finally {
-    await closeDb();
-  }
 }
 
 /**
@@ -76,8 +71,7 @@ export async function notifyEditorTaskAssignment(
   editorId: number,
   taskIds: string[],
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   if (!editorId || !taskIds || taskIds.length === 0) return null;
 
   const tasks = await db
@@ -116,8 +110,4 @@ export async function notifyEditorTaskAssignment(
   }).catch((err) => console.warn("[Slack] delivery error:", err));
 
   return notification;
-
-  } finally {
-    await closeDb();
-  }
 }

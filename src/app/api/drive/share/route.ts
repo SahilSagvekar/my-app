@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { shareableFile } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { randomBytes } from 'crypto';
@@ -14,8 +14,7 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
         if (!token) {
@@ -70,8 +69,4 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

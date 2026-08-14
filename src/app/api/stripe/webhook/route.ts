@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, constructWebhookEvent, STRIPE_WEBHOOK_EVENTS, generateInvoiceNumber, captureTechFeeFromCharge, getChargeIdFromPaymentIntent } from '@/lib/stripe';
-import { getDb } from '@/lib/db';
+import { getDbPool } from '@/lib/db';
 import {
   invoice,
   payment,
@@ -21,7 +21,7 @@ import { sendPaymentNotificationEmail } from '@/lib/email';
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const body = await req.text();
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
 // ==========================================
 
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`✅ PaymentIntent succeeded: ${paymentIntent.id}`);
 
@@ -180,7 +180,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
 }
 
 async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`❌ PaymentIntent failed: ${paymentIntent.id}`);
 
@@ -205,7 +205,7 @@ async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
 }
 
 async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`✅ Stripe Invoice paid: ${stripeInvoice.id}`);
 
@@ -308,7 +308,7 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
 }
 
 async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`❌ Stripe Invoice payment failed: ${stripeInvoice.id}`);
 
@@ -367,7 +367,7 @@ async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
 }
 
 async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`📄 Stripe Invoice finalized: ${stripeInvoice.id}`);
 
@@ -446,7 +446,7 @@ async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
 }
 
 async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`🔄 Subscription created: ${subscription.id}`);
 
@@ -485,7 +485,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`🔄 Subscription updated: ${subscription.id}`);
 
@@ -512,7 +512,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`🗑️ Subscription deleted: ${subscription.id}`);
 
@@ -528,7 +528,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`✅ Checkout completed: ${session.id}`);
 
@@ -562,7 +562,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function applyStorageUpgrade(clientId?: string, addBytes?: string) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   if (!clientId || !addBytes) return;
 
@@ -587,7 +587,7 @@ async function applyStorageUpgrade(clientId?: string, addBytes?: string) {
 }
 
 async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`💳 Payment method attached: ${paymentMethod.id}`);
 
@@ -631,7 +631,7 @@ async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) 
 }
 
 async function handlePaymentMethodDetached(paymentMethod: Stripe.PaymentMethod) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   console.log(`💳 Payment method detached: ${paymentMethod.id}`);
 
@@ -663,7 +663,7 @@ function mapSubscriptionStatus(status: Stripe.Subscription.Status): 'ACTIVE' | '
 
 // Handles first payment via Stripe Checkout (no invoice record yet in our DB)
 async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   const stripeCustomerId = stripeInvoice.customer as string;
   if (!stripeCustomerId) return;

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { task, client, monthlyDeliverable, oneOffDeliverable, tagToTask, tag as tagTable } from "@/lib/db/schema";
 import { and, or, eq, ne, ilike, inArray, exists, gte, desc, count as countFn } from "drizzle-orm";
 import { addSignedUrlsToFiles } from "@/lib/s3";
@@ -14,8 +14,7 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -309,10 +308,9 @@ export async function GET(req: Request) {
 
   } catch (err: any) {
     console.error("GET /api/schedular/tasks error:", err);
-    return NextResponse.json({ message: "Server error", error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
+    if (err?.cause) {
+      console.error("GET /api/schedular/tasks root cause:", err.cause);
+    }
+    return NextResponse.json({ message: "Server error", error: err.message, cause: err?.cause?.message }, { status: 500 });
   }
 }

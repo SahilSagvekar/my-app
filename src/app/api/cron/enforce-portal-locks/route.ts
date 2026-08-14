@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import {
   clientPortalAccess as clientPortalAccessTable,
   invoice as invoiceTable,
@@ -40,8 +40,7 @@ function isAuthorized(req: NextRequest): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -130,9 +129,5 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[enforce-portal-locks] Fatal error:', err);
     return NextResponse.json({ ok: false, message: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user as userTable, client as clientTable, socialLogin, loginAuditLog } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, or, eq, arrayContains, asc } from "drizzle-orm";
@@ -32,8 +32,7 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 
 // GET - Fetch all logins (decrypted)
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
 
@@ -177,16 +176,11 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST - Create new login
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
 
@@ -367,9 +361,5 @@ export async function POST(req: NextRequest) {
       { message: "Failed to create login" },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

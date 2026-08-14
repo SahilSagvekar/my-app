@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 // existing read-only LinkedSfTasks view keeps working exactly as before.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -17,8 +17,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -60,15 +59,10 @@ export async function GET(req: NextRequest, { params }: Params) {
     console.error('[link-lf GET]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -93,15 +87,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     console.error('[link-lf POST]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -114,9 +103,5 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   } catch (err: any) {
     console.error('[link-lf DELETE]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import {
   task as taskTable,
   client as clientTable,
@@ -198,8 +198,7 @@ const WEEKDAY_MAP: Record<string, number> = {
 
 
 export async function GET(req: any) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -596,15 +595,10 @@ return NextResponse.json({
       { status: 500 }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function POST(req: any) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     // 🔒 AUTH
     const user = await getCurrentUser2(req);
@@ -1015,9 +1009,5 @@ export async function POST(req: any) {
       { message: "Server error", error: err.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

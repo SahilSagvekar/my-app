@@ -1,7 +1,7 @@
 // src/app/api/social/sync/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { socialAccount } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -11,8 +11,7 @@ export const maxDuration = 120; // 2 minutes max
 
 // POST - Trigger sync for a client or specific account
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -69,16 +68,11 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // GET - Get sync status
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -124,9 +118,5 @@ export async function GET(req: NextRequest) {
       { ok: false, error: error.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -3,13 +3,12 @@ export const dynamic = 'force-dynamic';
 // Public (no login) — candidate-facing test task page reads/submits by token.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { hiringCandidate, hiringTestTask } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const { token } = await params;
 
   const rows = await db.select({
@@ -42,15 +41,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
       expired,
     },
   });
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const { token } = await params;
 
   const [testTask] = await db.select().from(hiringTestTask).where(eq(hiringTestTask.submissionToken, token)).limit(1);
@@ -91,9 +85,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   } catch (err: any) {
     console.error('[Hiring] Submit test task error:', err.message);
     return NextResponse.json({ error: 'Failed to submit' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

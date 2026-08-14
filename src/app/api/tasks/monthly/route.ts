@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { task } from "@/lib/db/schema";
 import { and, eq, gte, lte, asc } from "drizzle-orm";
 
@@ -15,8 +15,7 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -58,9 +57,5 @@ export async function GET(req: Request) {
       { message: "Server error", error: err.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

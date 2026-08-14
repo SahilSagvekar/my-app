@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { salesLead } from '@/lib/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -14,8 +14,7 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -99,8 +98,4 @@ export async function POST(req: NextRequest) {
         console.error('[POST /api/sales-leads/bulk-email]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

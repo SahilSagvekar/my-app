@@ -14,7 +14,7 @@
 //   - Mark old version inactive
 //   - driveLinks push
 
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { generateFileServerToken } from '@/lib/file-server';
@@ -51,8 +51,7 @@ export async function runUploadWorkerTick(): Promise<void> {
 }
 
 async function processJob(job: UploadJob): Promise<void> {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   console.log(`[UploadWorker] Processing job ${job.id} — ${job.fileName} (attempt ${job.attempts})`);
 
   try {
@@ -173,9 +172,5 @@ async function processJob(job: UploadJob): Promise<void> {
   } catch (err: any) {
     console.error(`[UploadWorker] ❌ Job ${job.id} failed:`, err.message);
     await failUploadJob(job, err.message);
-  }
-
-  } finally {
-    await closeDb();
   }
 }

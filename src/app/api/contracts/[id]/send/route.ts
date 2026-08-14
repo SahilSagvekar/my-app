@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { contract as contractTable, contractAuditLog as contractAuditLogTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -14,8 +14,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -48,9 +47,5 @@ export async function POST(
   } catch (err: any) {
     console.error('POST /api/contracts/[id]/send error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

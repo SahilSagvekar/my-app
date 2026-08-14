@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { helpVideo } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 // PATCH /api/help-videos/[id] — admin/manager only
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -33,16 +32,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     console.error('PATCH /api/help-videos/[id] error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE /api/help-videos/[id] — admin/manager only
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -56,9 +50,5 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   } catch (err) {
     console.error('DELETE /api/help-videos/[id] error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

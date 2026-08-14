@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 // This is the "Option 1" flow — no OAuth app verification needed.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { socialAccount } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -115,8 +115,7 @@ async function validateTikTok(accessToken: string): Promise<{
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -211,9 +210,5 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[CONNECT-MANUAL]', err);
     return NextResponse.json({ error: err.message || 'Failed to connect account' }, { status: 400 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

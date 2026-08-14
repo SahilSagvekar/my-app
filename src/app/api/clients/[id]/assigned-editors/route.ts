@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 // every editor with an open task for that client.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user, task } from '@/lib/db/schema';
 import { and, or, eq, exists, notInArray, arrayContains, asc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -15,8 +15,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,9 +45,5 @@ export async function GET(req: NextRequest, { params }: Params) {
   } catch (err: any) {
     console.error('[assigned-editors GET]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

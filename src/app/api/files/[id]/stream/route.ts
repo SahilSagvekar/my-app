@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
@@ -12,8 +12,7 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const { id: fileId } = await params;
 
@@ -79,8 +78,4 @@ export async function GET(
         console.error('Streaming error:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

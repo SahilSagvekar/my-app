@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import {
   client as clientTable,
   task as taskTable,
@@ -10,8 +10,7 @@ import { getCurrentUser2 } from "@/lib/auth";
 
 // GET /api/admin/production-tracker?month=April-2026
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || !["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
@@ -259,10 +258,6 @@ export async function GET(req: NextRequest) {
       { error: "Server error", details: err.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }
 

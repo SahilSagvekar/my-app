@@ -1,7 +1,7 @@
 // app/api/upload/route.ts
 
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { client as clientTable, task, file as fileTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq, sql } from "drizzle-orm";
@@ -11,8 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const form = await req.formData();
 
@@ -124,9 +123,5 @@ export async function POST(req: Request) {
       { message: "Upload failed", error: error.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

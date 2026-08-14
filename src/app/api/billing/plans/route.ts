@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { billingPlan } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, asc } from 'drizzle-orm';
@@ -10,8 +10,7 @@ import { stripe, toCents } from '@/lib/stripe';
 
 // GET - List billing plans
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { searchParams } = new URL(req.url);
     const activeOnly = searchParams.get('active') !== 'false';
@@ -25,16 +24,11 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching plans:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST - Create a new billing plan (creates Stripe product + price)
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -93,16 +87,11 @@ export async function POST(req: NextRequest) {
     console.error('Error creating plan:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // PATCH - Update a billing plan
 export async function PATCH(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -150,9 +139,5 @@ export async function PATCH(req: NextRequest) {
   } catch (error: any) {
     console.error('Error updating plan:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

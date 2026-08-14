@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { salesLead, affiliateCommission } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -18,8 +18,7 @@ function getTokenFromCookies(req: Request) {
 // PATCH /api/sales-leads/[id] — update a lead
 // admin: any lead. sales_manager: own leads + permitted reps' leads. sales: own leads only.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id } = await params;
     const token = getTokenFromCookies(req);
@@ -128,16 +127,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     console.error('[PATCH /api/sales-leads/:id]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE /api/sales-leads/[id]
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id } = await params;
     const token = getTokenFromCookies(req);
@@ -163,9 +157,5 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   } catch (err) {
     console.error('[DELETE /api/sales-leads/:id]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

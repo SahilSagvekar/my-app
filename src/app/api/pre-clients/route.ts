@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { preClient as preClientTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -8,8 +8,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 
 // GET /api/pre-clients
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -33,16 +32,11 @@ export async function GET(req: NextRequest) {
     console.error('GET /api/pre-clients error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST /api/pre-clients
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -89,9 +83,5 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('POST /api/pre-clients error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse, NextRequest } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import {
     guideline as guidelineTable,
     client as clientTable,
@@ -13,8 +13,7 @@ import { notifyUser } from "@/lib/notify";
 import { createAuditLog, AuditAction, getRequestMetadata } from "@/lib/audit-logger";
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
         const allowedRoles = ['admin', 'manager', 'qc'];
@@ -105,8 +104,4 @@ export async function POST(req: NextRequest) {
         console.error("POST /api/admin/guidelines error:", error);
         return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

@@ -3,13 +3,12 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { getYouTubeDashboardStats } from '@/lib/youtube-sync-service';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { youTubeChannel } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
         if (!user) {
@@ -87,8 +86,4 @@ export async function GET(req: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

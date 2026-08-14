@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { task, file as fileTable } from "@/lib/db/schema";
 import { and, or, eq, isNull, inArray, desc } from "drizzle-orm";
 import jwt from "jsonwebtoken";
@@ -16,8 +16,7 @@ import { getCurrentUser2 } from "@/lib/auth";
 import { addSignedUrlsToFiles } from "@/lib/s3";
 
 export async function GET(req: any) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user)
@@ -110,9 +109,5 @@ export async function GET(req: any) {
   } catch (err: any) {
     console.error("❌ Fetch assigned tasks error:", err.message);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

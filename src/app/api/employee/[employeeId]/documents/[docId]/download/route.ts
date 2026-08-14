@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { employeeDocument } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -14,8 +14,7 @@ export async function GET(
   req: Request,
   context: { params: { employeeId: string; docId: string } },
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const { employeeId, docId } = context.params;
   const id = Number(employeeId);
   if (!Number.isFinite(id)) {
@@ -35,10 +34,6 @@ export async function GET(
 
   const url = await generateDownloadUrl(document.s3Key, document.fileName, 300); // 5 min
   return NextResponse.json({ url });
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE /api/employee/[employeeId]/documents/[docId]
@@ -47,8 +42,7 @@ export async function DELETE(
   req: Request,
   context: { params: { employeeId: string; docId: string } },
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await getCurrentUser2(req as any);
   if (!user || user.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -69,8 +63,4 @@ export async function DELETE(
   // reclaim storage immediately.
 
   return NextResponse.json({ ok: true });
-
-  } finally {
-    await closeDb();
-  }
 }

@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { task, postedContent, file as fileTable, taskFeedback } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, inArray, isNull, isNotNull } from "drizzle-orm";
@@ -21,8 +21,7 @@ export async function PATCH(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const token = getTokenFromCookies(req);
     if (!token)
@@ -198,9 +197,5 @@ export async function PATCH(
   } catch (err: any) {
     console.error("PATCH /api/tasks/:id/mark-scheduled error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -2,14 +2,13 @@ export const dynamic = 'force-dynamic';
 // src/app/api/drive/structure/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client as clientTable, user as userTable, editorClientPermission, task as taskTable } from '@/lib/db/schema';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { getStructure } from '@/lib/file-server';
 
 export async function GET(request: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('clientId');
@@ -113,9 +112,5 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Structure error:', error);
     return NextResponse.json({ error: 'Failed to fetch structure', details: error.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import {
     client as clientTable,
     recurringTask as recurringTaskTable,
@@ -23,8 +23,7 @@ import { createId } from "@/lib/db/id";
  */
 
 export async function POST(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const { searchParams } = new URL(req.url);
         const dryRun = searchParams.get("dryRun") === "true";
@@ -163,10 +162,6 @@ export async function POST(req: Request) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // Helper: Get the first day of next month
@@ -179,8 +174,7 @@ function getNextMonthFirstDay(): Date {
 
 // GET: Show current RecurringTask status
 export async function GET() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const recurringTasks = await db.query.recurringTask.findMany({
             with: {
@@ -228,8 +222,4 @@ export async function GET() {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { contract as contractTable, contractSigner as contractSignerTable, contractAuditLog as contractAuditLogTable, client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -22,8 +22,7 @@ import { notifyContractSigned } from '@/lib/pipeline-notifications';
  *   - document_declined / document_voided / document_expired
  */
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     // Optional webhook secret verification
     const secret = process.env.SIGNWELL_WEBHOOK_SECRET;
@@ -192,9 +191,5 @@ export async function POST(req: NextRequest) {
     console.error('[signwell webhook] Error:', err);
     // Always return 200 to prevent SignWell from retrying endlessly
     return NextResponse.json({ received: true, error: err.message });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

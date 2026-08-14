@@ -1,0 +1,10 @@
+[
+  {
+    "table": "Feedback",
+    "field": "screenshotBase64"
+  },
+  {
+    "table": "Feedback",
+    "field": "pageUrl"
+  }
+]

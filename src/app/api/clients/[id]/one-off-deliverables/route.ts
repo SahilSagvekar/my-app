@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { client, oneOffDeliverable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq, desc } from "drizzle-orm";
@@ -10,8 +10,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id: clientId } = await params;
     const data = await req.json();
@@ -51,10 +50,6 @@ export async function POST(
     console.error("POST one-off deliverable failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // GET - Get all one-off deliverables for a client
@@ -62,8 +57,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id: clientId } = await params;
 
@@ -76,9 +70,5 @@ export async function GET(
   } catch (err) {
     console.error("GET one-off deliverables failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

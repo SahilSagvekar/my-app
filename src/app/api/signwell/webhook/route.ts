@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbPool } from '@/lib/db';
 import { contract as contractTable, contractSigner as contractSignerTable, contractAuditLog as contractAuditLogTable, client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, or } from 'drizzle-orm';
@@ -12,7 +12,7 @@ import { notifyContractSigned } from '@/lib/pipeline-notifications';
 // POST /api/signwell/webhook
 // Register this URL in SignWell: Settings → Webhooks
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const body = await req.json();
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function findContract(signwellDocId: string) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   const found = await db.query.contract.findFirst({
     where: or(
@@ -86,7 +86,7 @@ async function findContract(signwellDocId: string) {
 }
 
 async function handleCompleted(document: any) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   const contract = await findContract(document.id) as any;
   if (!contract) {
@@ -161,7 +161,7 @@ async function handleCompleted(document: any) {
 }
 
 async function handleSignerSigned(document: any) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   const contract = await findContract(document.id) as any;
   if (!contract) return;
@@ -215,7 +215,7 @@ async function handleSignerSigned(document: any) {
 }
 
 async function handleDeclined(document: any) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   const contract = await findContract(document.id) as any;
   if (!contract) return;
@@ -267,7 +267,7 @@ async function handleDeclined(document: any) {
 }
 
 async function handleViewed(document: any) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   const contract = await findContract(document.id) as any;
   if (!contract) return;

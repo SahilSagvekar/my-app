@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 // DELETE - revoke permission { editorId: number, clientId: string }
 //
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import {
     user as userTable,
     client as clientTable,
@@ -39,8 +39,7 @@ function verifyAdmin(req: Request) {
 // GET: Return all editors (role=editor) + their permitted client IDs
 // ──────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     if (!verifyAdmin(req)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -69,18 +68,13 @@ export async function GET(req: NextRequest) {
         console.error('[editor-client-permissions] GET error:', err);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // POST: Grant an editor permission to create one-off tasks for a client
 // ──────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     if (!verifyAdmin(req)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -117,18 +111,13 @@ export async function POST(req: NextRequest) {
         console.error('[editor-client-permissions] POST error:', err);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DELETE: Revoke permission
 // ──────────────────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     if (!verifyAdmin(req)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -148,8 +137,4 @@ export async function DELETE(req: NextRequest) {
         console.error('[editor-client-permissions] DELETE error:', err);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

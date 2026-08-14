@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/2fa/setup/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user, userTwoFactorAuth } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq } from "drizzle-orm";
@@ -34,8 +34,7 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 
 // POST - Generate TOTP secret and QR code for setup
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
 
@@ -134,8 +133,4 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

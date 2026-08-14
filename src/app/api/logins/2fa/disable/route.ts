@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/2fa/disable/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { userTwoFactorAuth } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
@@ -95,8 +95,7 @@ function base32Decode(encoded: string): Buffer {
 
 // POST - Disable 2FA (requires current TOTP code for security)
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
 
@@ -169,8 +168,4 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

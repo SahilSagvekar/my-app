@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { stripeCustomer, invoice, subscription, clientPortalAccess } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, inArray, count as countFn } from 'drizzle-orm';
@@ -9,8 +9,7 @@ import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { stripe } from '@/lib/stripe';
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -275,9 +274,5 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[Stripe Sync] Fatal error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

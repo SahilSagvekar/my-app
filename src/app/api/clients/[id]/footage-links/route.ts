@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client, user as userTable, task } from '@/lib/db/schema';
 import { and, or, eq, exists, notInArray, arrayContains } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -18,8 +18,7 @@ interface FootageLink {
 }
 
 async function getClientEditors(clientId: string) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   return db.select({ id: userTable.id, name: userTable.name, slackUserId: userTable.slackUserId }).from(userTable).where(and(
     or(eq(userTable.role, 'editor'), arrayContains(userTable.roles, ['editor'])),
     exists(db.select().from(task).where(and(
@@ -28,16 +27,11 @@ async function getClientEditors(clientId: string) {
       notInArray(task.status, ['COMPLETED', 'POSTED'] as any),
     ))),
   ));
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // GET — fetch all footage links for a client
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -50,16 +44,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST — add a new footage link
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -143,16 +132,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('[footage-links POST]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE — remove a footage link by id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -188,9 +172,5 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   } catch (err: any) {
     console.error('[footage-links DELETE]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

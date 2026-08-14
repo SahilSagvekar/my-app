@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbPool } from '@/lib/db';
 import { portfolioCategory, portfolioSubcategory } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { asc, eq } from 'drizzle-orm';
@@ -21,7 +21,7 @@ interface CategoryPayload {
 }
 
 export async function GET() {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
     try {
         const categories = await db.query.portfolioCategory.findMany({
@@ -54,7 +54,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
     try {
         const body = await req.json();

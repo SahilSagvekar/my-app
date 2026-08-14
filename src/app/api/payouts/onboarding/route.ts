@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { salesRepPayoutProfile } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -11,8 +11,7 @@ const SALES_ROLES = ['sales', 'sales_manager'];
 
 // GET /api/payouts/onboarding — current rep's payout onboarding status
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await getCurrentUser2(req);
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -32,18 +31,13 @@ export async function GET(req: NextRequest) {
       taxFormSubmitted: !!profile?.taxFormCollectedAt,
     },
   });
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST /api/payouts/onboarding — start or resume the hosted onboarding flow.
 // Body: { country: string (ISO 3166-1 alpha-2) } — required only on first call,
 // since Stripe locks the country at account creation.
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await getCurrentUser2(req);
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -87,9 +81,5 @@ export async function POST(req: NextRequest) {
       { success: false, error: 'Failed to start payout onboarding', details: err.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

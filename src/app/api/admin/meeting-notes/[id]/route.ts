@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/meeting-notes/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { meetingNote as meetingNoteTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserFromToken, requireAdmin } from "@/lib/auth-helpers";
@@ -11,8 +11,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = getUserFromToken(req);
     const authError = requireAdmin(user);
@@ -33,9 +32,5 @@ export async function DELETE(
   } catch (err: any) {
     console.error("DELETE meeting-notes failed:", err);
     return NextResponse.json({ message: err.message || "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

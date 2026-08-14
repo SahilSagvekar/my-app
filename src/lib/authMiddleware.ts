@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import jwt from "jsonwebtoken";
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user as userTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -9,8 +9,7 @@ export async function authMiddleware(
   res: NextApiResponse,
   allowedRoles: string[]
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
@@ -40,8 +39,4 @@ export async function authMiddleware(
   }
 
   return user; // returns authenticated user
-
-  } finally {
-    await closeDb();
-  }
 }

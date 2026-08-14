@@ -1,12 +1,11 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { inArray } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const body = await request.json();
         const { taskIds } = body;
@@ -38,8 +37,4 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

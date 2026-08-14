@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/2fa/check/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { userTwoFactorAuth } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
@@ -29,8 +29,7 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 
 // GET - Check if user has 2FA enabled
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const token = getTokenFromCookies(req);
 
@@ -83,8 +82,4 @@ export async function GET(req: NextRequest) {
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

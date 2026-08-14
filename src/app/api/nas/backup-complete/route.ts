@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { nasSyncLog, file as fileTable, task as taskTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     // ── Auth: verify webhook secret ───────────────────────
     const secret = req.headers.get('x-webhook-secret');
@@ -77,16 +76,11 @@ export async function POST(req: NextRequest) {
     console.error('[NAS Webhook] Error:', err.message);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // ── GET: last sync status (for admin panel polling) ───────────────────────────
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const secret = req.headers.get('x-webhook-secret') || req.nextUrl.searchParams.get('secret');
     if (secret !== process.env.NAS_WEBHOOK_SECRET) {
@@ -116,9 +110,5 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[NAS GET] Error:', err.message);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

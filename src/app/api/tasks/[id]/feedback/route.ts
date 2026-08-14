@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/feedback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbPool } from "@/lib/db";
 import { taskFeedback, shareableReview as shareableReviewTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, ne, desc } from "drizzle-orm";
@@ -11,7 +11,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const { id } = await params;
@@ -59,7 +59,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const { id } = await params;
@@ -133,7 +133,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const { id } = await params;
@@ -278,7 +278,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const { id } = await params;
@@ -365,7 +365,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const { id } = await params;

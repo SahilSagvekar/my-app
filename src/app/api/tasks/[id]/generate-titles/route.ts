@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // src/app/api/tasks/[id]/generate-titles/route.ts
 
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { startTitlingJob, getTitlingStatus, retryTitlingJob } from '@/lib/titling-service';
@@ -25,8 +25,7 @@ export async function POST(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id: taskId } = await params;
     
@@ -130,10 +129,6 @@ export async function POST(
     console.error('❌ Generate titles error:', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 /**
@@ -145,8 +140,7 @@ export async function GET(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id: taskId } = await params;
     
@@ -178,9 +172,5 @@ export async function GET(
   } catch (err: any) {
     console.error('❌ Get titling status error:', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

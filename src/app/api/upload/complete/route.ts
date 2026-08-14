@@ -18,7 +18,7 @@ import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
 import { completeMultipart } from '@/lib/file-server';
 import { pushUploadJob } from '@/lib/upload-queue';
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { client as clientTable, file as fileTable, task as taskTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, desc, eq, or, sql } from "drizzle-orm";
@@ -41,8 +41,7 @@ function getErrorCode(error: unknown) {
 }
 
 export async function POST(request: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(request);
     if (!user)
@@ -301,9 +300,5 @@ export async function POST(request: NextRequest) {
       { error: "Failed to complete upload", message, code },
       { status: 500 },
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -1,7 +1,7 @@
 // src/lib/upload-notifications.ts
 // Handles Slack notifications for file uploads (Files & Drive)
 
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user as userTable, client as clientTable, task as taskTable } from "@/lib/db/schema";
 import { and, eq, exists, inArray, notInArray, sql } from "drizzle-orm";
 import { sendSlackWebhook, sendToChannel, SlackNotification } from "@/lib/slack";
@@ -30,8 +30,7 @@ interface UploaderInfo {
  * Get assigned editors for a client's tasks
  */
 async function getClientAssignedEditors(clientId: string): Promise<UploaderInfo[]> {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const editors = await db
     .select({
       id: userTable.id,
@@ -59,10 +58,6 @@ async function getClientAssignedEditors(clientId: string): Promise<UploaderInfo[
     );
 
   return editors;
-
-  } finally {
-    await closeDb();
-  }
 }
 
 /**
@@ -70,8 +65,7 @@ async function getClientAssignedEditors(clientId: string): Promise<UploaderInfo[
  * editors to tag, instead of auto-tagging everyone assigned to the client.
  */
 async function getEditorsByIds(editorIds: string[]): Promise<UploaderInfo[]> {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const numericIds = editorIds
     .map((id) => Number(id))
     .filter((id) => Number.isFinite(id));
@@ -89,10 +83,6 @@ async function getEditorsByIds(editorIds: string[]): Promise<UploaderInfo[]> {
     .where(and(inArray(userTable.id, numericIds), eq(userTable.role, "editor")));
 
   return editors;
-
-  } finally {
-    await closeDb();
-  }
 }
 
 /**
@@ -137,8 +127,7 @@ function getFolderPath(s3Key?: string): string {
 export async function sendUploadNotification(
   params: UploadNotificationParams
 ): Promise<void> {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const { fileName, fileSize, uploadedBy, clientId, taskId, folderType, s3Key, taggedEditorIds } = params;
 
   try {
@@ -264,10 +253,6 @@ export async function sendUploadNotification(
     }
   } catch (err) {
     console.error("[UploadNotification] Failed:", err);
-  }
-
-  } finally {
-    await closeDb();
   }
 }
 

@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
@@ -7,8 +7,7 @@ import { sendLoginOTPEmail } from '@/lib/email';
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { email } = await req.json();
 
@@ -48,9 +47,5 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[LOGIN/RESEND-OTP] Error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

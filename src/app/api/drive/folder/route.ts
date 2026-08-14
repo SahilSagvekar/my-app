@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { PutObjectCommand, CopyObjectCommand, DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user as userTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
@@ -16,8 +16,7 @@ const s3Client = getS3();
  * Create a new folder
  */
 export async function POST(request: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -55,15 +54,10 @@ export async function POST(request: NextRequest) {
     console.error('Create folder error:', error);
     return NextResponse.json({ error: 'Failed to create folder', details: error.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function PATCH(request: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -100,9 +94,5 @@ export async function PATCH(request: NextRequest) {
   } catch (error: any) {
     console.error('Rename folder error:', error);
     return NextResponse.json({ error: 'Failed to rename folder', details: error.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

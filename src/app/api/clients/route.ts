@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbPool } from "@/lib/db";
 import { client as clientTable, task, user as userTable, monthlyDeliverable, oneOffDeliverable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, or, ilike, arrayContains, gte, lte, asc, count } from "drizzle-orm";
@@ -21,7 +21,7 @@ function getTokenFromCookies(req: Request) {
 
 // ---------- GET /api/clients ----------
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     // If the caller is a client-role user, only return their own client record.
@@ -166,7 +166,7 @@ export async function GET(req: NextRequest) {
 
 // ---------- POST /api/clients ----------
 export async function POST(req: Request) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
   try {
     const token = getTokenFromCookies(req);

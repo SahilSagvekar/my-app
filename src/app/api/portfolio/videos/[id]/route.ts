@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { portfolioVideo } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -9,8 +9,7 @@ export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const { id } = await params;
         const body = await req.json();
@@ -42,10 +41,6 @@ export async function PATCH(
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // DELETE /api/portfolio/videos/[id] — delete a portfolio video
@@ -53,8 +48,7 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const { id } = await params;
 
@@ -76,8 +70,4 @@ export async function DELETE(
             { status: 500 }
         );
     }
-
-  } finally {
-    await closeDb();
-  }
 }

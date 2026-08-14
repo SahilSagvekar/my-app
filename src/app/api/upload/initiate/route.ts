@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 // Auth + DB logic stays here. R2 CreateMultipartUpload goes to file server.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { initiateMultipart } from '@/lib/file-server';
@@ -37,8 +37,7 @@ function getCurrentMonthFolder(): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const body = await req.json();
     const {
@@ -164,9 +163,5 @@ export async function POST(req: NextRequest) {
       { message: error.message || 'Failed to initiate upload' },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

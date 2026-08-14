@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { recurringTask, task, user } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, inArray, isNull, gte, lte, count } from "drizzle-orm";
@@ -169,8 +169,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id: clientId } = await params;
 
@@ -340,9 +339,5 @@ export async function POST(
       { success: false, message: "Failed to run monthly recurring", error: String(err) },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

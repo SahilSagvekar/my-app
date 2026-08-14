@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { task as taskTable } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -7,8 +7,7 @@ import { EditorDashboard } from "@/components/dashboards/EditorDashboard";
 export const dynamic = 'force-dynamic';
 
 export default async function EditorPage() {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await getCurrentUser2();
   if (!user) return <div className="p-6">Unauthorized</div>;
 
@@ -36,8 +35,4 @@ export default async function EditorPage() {
   });
 
   return <EditorDashboard initialTasks={tasks} />;
-
-  } finally {
-    await closeDb();
-  }
 }

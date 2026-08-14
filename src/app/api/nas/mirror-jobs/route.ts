@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { nasMirrorJob, user as userTable } from '@/lib/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -17,8 +17,7 @@ import { createNasMirrorJob, NasFolderType } from '@/lib/nas-mirror-queue';
 // nas-mirror-worker.ts on cron-master's next tick — this route returns
 // immediately, it does not wait for the copy to happen.
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -73,16 +72,11 @@ export async function POST(req: NextRequest) {
     console.error('[NAS Mirror Jobs POST]', err.message);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // GET /api/nas/mirror-jobs — recent job history, most recent first.
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -105,9 +99,5 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[NAS Mirror Jobs GET]', err.message);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

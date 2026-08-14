@@ -1,15 +1,14 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/meta/analytics/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { metaAccount, metaSnapshot, clientRevenue } from "@/lib/db/schema";
 import { and, eq, desc } from "drizzle-orm";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 import { MetaAnalyticsData } from "@/types/meta";
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
         if (!user) {
@@ -85,8 +84,4 @@ export async function GET(req: NextRequest) {
         console.error("Meta analytics API error:", error);
         return NextResponse.json({ error: "Failed to fetch analytics" }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

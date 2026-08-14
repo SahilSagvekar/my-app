@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { folderStatus } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq } from "drizzle-orm";
@@ -33,8 +33,7 @@ function getUserIdFromToken(token: string): number | null {
 
 // GET /api/drive/folder-status?clientId=... — map of s3KeyPrefix -> status for a client
 export async function GET(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const token = getTokenFromCookies(req);
   if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
@@ -64,16 +63,11 @@ export async function GET(req: Request) {
     console.error("[GET /api/drive/folder-status]", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // PATCH /api/drive/folder-status — set or clear a folder's status
 export async function PATCH(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const token = getTokenFromCookies(req);
   if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
@@ -125,9 +119,5 @@ export async function PATCH(req: Request) {
   } catch (err) {
     console.error("[PATCH /api/drive/folder-status]", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

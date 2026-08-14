@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { trainingCourse } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, asc } from 'drizzle-orm';
@@ -17,8 +17,7 @@ function isTrainingRole(r: string): r is TrainingRole {
 // - Admin/manager: all or filter by role
 // - Others: only for their role
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -46,16 +45,11 @@ export async function GET(req: NextRequest) {
     console.error("GET /api/training/courses error:", err);
     return NextResponse.json({ error: "Failed to fetch training courses" }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST – create training course (admin/manager only)
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -95,9 +89,5 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("POST /api/training/courses error:", err);
     return NextResponse.json({ error: "Failed to create training course" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

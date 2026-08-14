@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { stripeCustomer, client as clientTable, paymentMethod } from '@/lib/db/schema';
 import { eq, inArray, desc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
@@ -14,8 +14,7 @@ import {
 
 // GET - Get customer billing info and payment methods
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -69,16 +68,11 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching customer:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // POST - Create Stripe customer or setup payment method
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -207,9 +201,5 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error managing customer:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

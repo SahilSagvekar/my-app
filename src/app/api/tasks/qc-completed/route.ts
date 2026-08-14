@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getCurrentUser2 } from '@/lib/auth';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { and, or, eq, ilike, inArray, desc, count, type SQL } from 'drizzle-orm';
 
@@ -75,8 +75,7 @@ function resolveEffectiveRole(
 }
 
 export async function GET(request: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(request);
     if (!user) {
@@ -187,9 +186,5 @@ export async function GET(request: NextRequest) {
       { success: false, error: 'Failed to fetch completed tasks' },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

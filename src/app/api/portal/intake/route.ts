@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -37,8 +37,7 @@ export interface IntakeData {
 // POST /api/portal/intake
 // Client submits their onboarding intake form after contract + payment
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -112,16 +111,11 @@ export async function POST(req: NextRequest) {
     console.error('POST /api/portal/intake error:', err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 // GET /api/portal/intake — check if intake is already submitted
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -142,10 +136,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }
 

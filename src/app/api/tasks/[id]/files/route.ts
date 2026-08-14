@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/files/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { file as fileTable } from "@/lib/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -35,8 +35,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { id } = await params;
     
@@ -87,9 +86,5 @@ export async function GET(
       { error: error.message },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

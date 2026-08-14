@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 // if a provider is ever wired in (see src/lib/whatsapp.ts).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { hiringCandidate, hiringTestTask } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -18,8 +18,7 @@ import { sendWhatsAppMessage, isWhatsAppConfigured } from '@/lib/whatsapp';
 const APP_URL = 'https://e8productions.com';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   const user = await getCurrentUser2(req);
   if (!user || user.role?.toLowerCase() !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -91,9 +90,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (err: any) {
     console.error('[Hiring] Send test task error:', err.message);
     return NextResponse.json({ error: err.message || 'Failed to send test task' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { oneOffDeliverable, task, user } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, inArray } from "drizzle-orm";
@@ -88,8 +88,7 @@ export async function POST(
     req: Request,
     { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const { id: clientId, deliverableId } = await params;
 
@@ -191,8 +190,4 @@ export async function POST(
         console.error("❌ Task generation failed:", err);
         return NextResponse.json({ error: "Server error", message: String(err) }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

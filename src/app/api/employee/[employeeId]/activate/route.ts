@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 // app/api/employee/[id]/activate/route.ts
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user as userTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 
 export async function PATCH(req: Request, context: { params: { employeeId: string } }) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     await requireAdmin(req as any);
     const { params } = await Promise.resolve(context);
@@ -32,9 +31,5 @@ export async function PATCH(req: Request, context: { params: { employeeId: strin
   } catch (err: any) {
     console.error(err);
     return NextResponse.json({ ok: false, message: err?.message || 'error' }, { status: 400 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

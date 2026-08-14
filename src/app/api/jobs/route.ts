@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { job, bid, user as userTable, notification } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, desc, inArray, count as countFn } from 'drizzle-orm';
@@ -8,8 +8,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { sendNewJobNotificationEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
         if (!user) {
@@ -93,15 +92,10 @@ export async function POST(req: NextRequest) {
         console.error('Error creating job:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }
 
 export async function GET(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
     try {
         const user = await getCurrentUser2(req);
 
@@ -158,8 +152,4 @@ export async function GET(req: NextRequest) {
         console.error('Error fetching jobs server-side:', error);
         return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
     }
-
-  } finally {
-    await closeDb();
-  }
 }

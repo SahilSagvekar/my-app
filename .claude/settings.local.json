@@ -41,7 +41,18 @@
       "Bash(node -e ' *)",
       "Bash(grep -rn \"const db = getDb\\(\\);\\\\s*$\" src/)",
       "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\fixdb2.cjs\" src/app)",
-      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\audit.cjs\" src)"
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\audit.cjs\" src)",
+      "Bash(grep -rl \"getDb\\(\\)\" src/app/api/)",
+      "Bash(wc -l /tmp_allapi.txt)",
+      "Bash(grep -rln \"getDb\\(\\)\" src/app/api/)",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\httpify.cjs\" all_api_getdb.txt)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(grep -rn \"getDbHttp\\(\\);\\\\s*$\" src/app/api/ -A1)",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\httpify.cjs\" lib_getdb.txt)",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\audit2.cjs\")",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\parse_schemas.cjs\")",
+      "Bash(grep -nE \"^\\\\s+[a-zA-Z]+[A-Z]{2,}[a-zA-Z]*\\\\s+\" prisma/schema.prisma)",
+      "Bash(grep -vE \"^\\\\s*//\")"
     ]
   }
 }

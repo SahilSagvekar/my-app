@@ -1,14 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
 import { sendOTPEmail } from '@/lib/email';
 
 export async function POST(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { email } = await req.json();
 
@@ -59,9 +58,5 @@ export async function POST(req: Request) {
       { ok: false, message: 'An error occurred' },
       { status: 500 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbPool } from "@/lib/db";
 import { task, tag, tagToTask } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq, sql } from "drizzle-orm";
@@ -21,7 +21,7 @@ export async function PATCH(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
+  const { db, closeDb } = getDbPool();
   try {
     try {
         const { id } = await params;

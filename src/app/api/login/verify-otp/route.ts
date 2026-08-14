@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { isOTPExpired } from '@/lib/otp';
@@ -7,8 +7,7 @@ import { issueLoginSession } from '@/lib/auth-session';
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const { email, otp } = await req.json();
 
@@ -47,9 +46,5 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[LOGIN/VERIFY-OTP] Error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

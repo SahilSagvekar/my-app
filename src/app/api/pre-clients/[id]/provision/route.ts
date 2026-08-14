@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getDbHttp } from '@/lib/db';
 import {
   preClient as preClientTable,
   client as clientTable,
@@ -110,8 +110,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -328,9 +327,5 @@ export async function POST(
         .where(and(eq(preClientTable.id, pid), eq(preClientTable.status, 'PROVISIONING')));
     } catch {}
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
-  }
-
-  } finally {
-    await closeDb();
   }
 }

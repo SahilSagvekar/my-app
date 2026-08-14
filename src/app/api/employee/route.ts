@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbHttp } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
@@ -41,8 +41,7 @@ function isValidRole(role: string): role is Role {
 }
 
 export async function POST(req: Request) {
-  const { db, closeDb } = getDb();
-  try {
+  const db = getDbHttp();
   try {
     await requireAdmin(req as any);
 
@@ -168,9 +167,5 @@ export async function POST(req: Request) {
       { ok: false, message: err.message || "Request failed" },
       { status: 400 }
     );
-  }
-
-  } finally {
-    await closeDb();
   }
 }
