@@ -1,11 +1,13 @@
 // GET /api/client/me - Get the logged-in client's information
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user as userTable, client as clientTable, monthlyDeliverable, oneOffDeliverable } from '@/lib/db/schema';
 import { eq, asc, desc, ne } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const jwtUser = getUserFromToken(req);
     if (!jwtUser) {
@@ -102,5 +104,9 @@ export async function GET(req: NextRequest) {
       { error: error.message || 'Internal server error' },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

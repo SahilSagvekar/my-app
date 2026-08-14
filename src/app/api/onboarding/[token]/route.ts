@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 
 // GET /api/onboarding/[token]
 // Public — validates the one-time magic link token
@@ -8,6 +8,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { token } = await params;
 
@@ -47,5 +49,9 @@ export async function GET(
   } catch (err) {
     console.error('GET /api/onboarding/[token] error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

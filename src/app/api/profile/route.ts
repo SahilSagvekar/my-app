@@ -1,7 +1,7 @@
 // src/app/api/profile/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { uploadOnCloudinary } from "../../config/cloudinary";
@@ -68,6 +68,8 @@ import { getCurrentUser2 } from "@/lib/auth";
 
 // GET - Fetch user profile
 export async function GET(req: any) {
+  const { db, closeDb } = getDb();
+  try {
   const url = new URL(req.url);
   console.log(`[PROFILE API] GET ${url.pathname} - Start`);
   try {
@@ -116,10 +118,16 @@ export async function GET(req: any) {
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // PUT - Update user profile with image upload
 export async function PUT(req: any) {
+  const { db, closeDb } = getDb();
+  try {
   console.log("[PROFILE API] PUT request received");
   try {
     const user = await getCurrentUser2(req);
@@ -306,5 +314,9 @@ export async function PUT(req: any) {
       },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

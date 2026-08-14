@@ -1,6 +1,6 @@
 // src/lib/social/sync.ts
 
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { socialAccount, socialAnalytics, socialPost } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { createId } from '@/lib/db/id';
@@ -18,6 +18,8 @@ const services = {
 };
 
 export async function syncSocialAccount(accountId: string) {
+  const { db, closeDb } = getDb();
+  try {
   const [account] = await db.select().from(socialAccount)
     .where(eq(socialAccount.id, accountId)).limit(1);
 
@@ -137,9 +139,15 @@ export async function syncSocialAccount(accountId: string) {
   }
 
   return { success: true, postssynced: posts.length };
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function syncClientAccounts(clientId: string) {
+  const { db, closeDb } = getDb();
+  try {
   const accounts = await db
     .select({ id: socialAccount.id })
     .from(socialAccount)
@@ -156,4 +164,8 @@ export async function syncClientAccounts(clientId: string) {
   );
 
   return { success: failures.length === 0, synced, failed: failures.length, failures };
+
+  } finally {
+    await closeDb();
+  }
 }

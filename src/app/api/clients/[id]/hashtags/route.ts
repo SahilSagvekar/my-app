@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { client } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
@@ -15,6 +15,8 @@ function getTokenFromCookies(req: Request) {
 // GET /api/clients/:id/hashtags — the client's template hashtag list,
 // used by the review screen to populate the tag-selection dropdown.
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -32,5 +34,9 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   } catch (err) {
     console.error("[GET /api/clients/:id/hashtags]", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

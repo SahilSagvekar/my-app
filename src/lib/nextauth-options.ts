@@ -2,7 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import SlackProvider from "next-auth/providers/slack";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -35,6 +35,8 @@ export const authOptions: NextAuthConfig = {
             },
 
             async authorize(credentials: any) {
+                const { db, closeDb } = getDb();
+                try {
                 if (!credentials?.email || !credentials?.password) {
                     throw new Error("Email and password are required");
                 }
@@ -67,12 +69,17 @@ export const authOptions: NextAuthConfig = {
                     role: user.role,
                     roles: user.roles,
                 };
+                } finally {
+                    await closeDb();
+                }
             },
         }),
     ],
 
     callbacks: {
         async signIn({ user, account }: any) {
+            const { db, closeDb } = getDb();
+            try {
             if (!user.email) return false;
 
             const [dbUser] = await db
@@ -86,9 +93,14 @@ export const authOptions: NextAuthConfig = {
             }
 
             return true;
+            } finally {
+                await closeDb();
+            }
         },
 
         async jwt({ token, user, account }: any) {
+            const { db, closeDb } = getDb();
+            try {
             console.log("DEBUG [JWT CALLBACK] token:", !!token, "user:", !!user, "account:", account?.provider);
 
             if (user) {
@@ -140,6 +152,9 @@ export const authOptions: NextAuthConfig = {
                 }
             }
             return token;
+            } finally {
+                await closeDb();
+            }
         },
 
         async session({ session, token }: any) {

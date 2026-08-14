@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user as userTable, client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -110,6 +110,8 @@ type Decoded = { userId: string; email: string; role?: string; name?: string };
 import { auth } from "@/auth";
 
 export async function getCurrentUser2(req?: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // 1. Try Custom JWT Token (Cookie or Header)
     const cookieToken = req
@@ -154,6 +156,10 @@ export async function getCurrentUser2(req?: NextRequest) {
     console.error("getCurrentUser error:", err);
     return null;
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export function getUserFromRequest(req: Request) {
@@ -196,6 +202,8 @@ export async function requireAdmin(req: NextRequest) {
 }
 
 export async function getRequestingUser(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   const userId = Number(req.headers.get('x-user-id'));
   if (!userId) return null;
   const [foundUser] = await db
@@ -204,6 +212,10 @@ export async function getRequestingUser(req: NextRequest) {
     .where(eq(userTable.id, userId))
     .limit(1);
   return foundUser ?? null;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export function isEmployee(user: { role: string } | null) {
@@ -222,6 +234,8 @@ export function isEmployee(user: { role: string } | null) {
  * regardless of which linking method was used.
  */
 export async function resolveClientIdForUser(userId: number): Promise<string | null> {
+  const { db, closeDb } = getDb();
+  try {
   // Method 1: Check linkedClientId on the User record (preferred, supports multi-user)
   const [foundUser] = await db
     .select({ linkedClientId: userTable.linkedClientId })
@@ -241,4 +255,8 @@ export async function resolveClientIdForUser(userId: number): Promise<string | n
     .limit(1);
 
   return clientByUserId?.id || null;
+
+  } finally {
+    await closeDb();
+  }
 }

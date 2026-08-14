@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 // DELETE - revoke permission { managerId: number, salesRepId: number }
 //
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import {
     user as userTable,
     salesManagerPermission as salesManagerPermissionTable,
@@ -39,6 +39,8 @@ function verifyAdmin(req: Request) {
 // plus the full list of sales reps (role=sales) for the admin dropdown
 // ──────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     if (!verifyAdmin(req)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -69,12 +71,18 @@ export async function GET(req: NextRequest) {
         console.error('[sales-manager-permissions] GET error:', err);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // POST: Grant a sales manager visibility into a sales rep's leads/commissions
 // ──────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     if (!verifyAdmin(req)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -113,12 +121,18 @@ export async function POST(req: NextRequest) {
         console.error('[sales-manager-permissions] POST error:', err);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DELETE: Revoke permission
 // ──────────────────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     if (!verifyAdmin(req)) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -138,4 +152,8 @@ export async function DELETE(req: NextRequest) {
         console.error('[sales-manager-permissions] DELETE error:', err);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

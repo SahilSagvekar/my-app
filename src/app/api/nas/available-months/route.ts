@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { task as taskTable, client as clientTable } from '@/lib/db/schema';
 import { and, eq, inArray, isNotNull, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -12,6 +12,8 @@ const FINALIZED_STATUSES = ['COMPLETED', 'SCHEDULED', 'POSTED'] as const;
 // with finalized output files for that client, most recent first.
 // Used to populate the month dropdown in the NAS Backup admin panel.
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -42,5 +44,9 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[NAS Available Months]', err.message);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

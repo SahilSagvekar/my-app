@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/tasks/bulk/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { task as taskTable } from '@/lib/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { notifyEditorTaskAssignment } from '@/lib/notify';
@@ -9,6 +9,8 @@ import { notifyEditorTaskAssignment } from '@/lib/notify';
 // import { authOptions } from '@/lib/auth';
 
 export async function PATCH(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         // const session = await getServerSession(authOptions);
 
@@ -100,4 +102,8 @@ export async function PATCH(req: NextRequest) {
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

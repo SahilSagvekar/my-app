@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task as taskTable } from "@/lib/db/schema";
 import { eq, and, like } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -17,6 +17,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
@@ -76,5 +78,9 @@ export async function POST(
   } catch (err: any) {
     console.error("Drive mirror trigger error:", err);
     return NextResponse.json({ error: "Server error", details: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

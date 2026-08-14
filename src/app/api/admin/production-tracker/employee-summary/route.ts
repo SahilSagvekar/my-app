@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
   user as userTable,
   task as taskTable,
@@ -15,6 +15,8 @@ import { getCurrentUser2 } from "@/lib/auth";
 // count per client, and a count for every single status (all 12 — none
 // grouped/merged) so nothing is hidden inside a bucket.
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
@@ -96,5 +98,9 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("Employee summary error:", err);
     return NextResponse.json({ error: "Server error", details: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

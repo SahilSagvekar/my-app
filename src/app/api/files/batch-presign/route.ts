@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
 import { and, inArray, isNotNull } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
@@ -8,6 +8,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function POST(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -56,5 +58,9 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Batch presign error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

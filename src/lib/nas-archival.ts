@@ -7,7 +7,7 @@
 // per-file verification) and only then delete the R2 copy. Raw footage is
 // never touched here.
 
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { file as fileTable, task as taskTable, nasSyncLog } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, inArray, isNotNull, not, like } from 'drizzle-orm';
@@ -74,6 +74,8 @@ async function verifyOnNas(s3Key: string, expectedSizeBytes: number): Promise<{ 
 }
 
 export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: string | null }): Promise<SweepSummary> {
+  const { db, closeDb } = getDb();
+  try {
   const cutoff = getCutoffDate();
   const cutoffMonthFolder = `${MONTH_NAMES[cutoff.getMonth()]}-${cutoff.getFullYear()}`;
 
@@ -181,4 +183,8 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
     monthsSwept: Array.from(monthsSwept),
     results,
   };
+
+  } finally {
+    await closeDb();
+  }
 }

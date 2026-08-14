@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { portfolioLead } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { desc, inArray } from 'drizzle-orm';
@@ -18,6 +18,8 @@ function requireLeadsAccess(req: NextRequest) {
 
 // POST /api/portfolio/leads — save a portfolio gate form submission
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const body = await req.json();
 
@@ -69,10 +71,16 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // GET /api/portfolio/leads — admin/manager: fetch all leads
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const authError = requireLeadsAccess(req);
         if (authError) {
@@ -92,11 +100,17 @@ export async function GET(req: NextRequest) {
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE /api/portfolio/leads — admin/manager: delete one or more leads
 // body: { ids: string[] }
 export async function DELETE(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const authError = requireLeadsAccess(req);
         if (authError) {
@@ -126,4 +140,8 @@ export async function DELETE(req: NextRequest) {
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

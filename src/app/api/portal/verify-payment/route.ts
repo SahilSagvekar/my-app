@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import {
   client as clientTable,
   clientPortalAccess as clientPortalAccessTable,
@@ -13,6 +13,8 @@ import { stripe } from '@/lib/stripe';
 // GET /api/portal/verify-payment
 // Checks if the user's client profile has an active Stripe subscription and unlocks the portal if so.
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -81,5 +83,9 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('GET /api/portal/verify-payment error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // src/app/api/hiring/candidates/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { hiringCandidate, hiringTestTask, user as userTable } from '@/lib/db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -14,6 +14,8 @@ async function requireAdmin(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   const user = await requireAdmin(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -39,9 +41,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const candidate = { ...candidateRow, testTasks, createdBy };
 
   return NextResponse.json({ candidate });
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   const user = await requireAdmin(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -69,9 +77,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     console.error('[Hiring] Update candidate error:', err.message);
     return NextResponse.json({ error: 'Failed to update candidate' }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   const user = await requireAdmin(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -82,5 +96,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   } catch (err: any) {
     console.error('[Hiring] Delete candidate error:', err.message);
     return NextResponse.json({ error: 'Failed to delete candidate' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

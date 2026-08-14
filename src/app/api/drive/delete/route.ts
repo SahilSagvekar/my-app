@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { DeleteObjectCommand, ListObjectsV2Command, DeleteObjectsCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user as userTable, client as clientTable } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
@@ -14,6 +14,8 @@ import { deleteItem } from '@/lib/file-server';
 const s3Client = getS3();
 
 export async function DELETE(request: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -61,6 +63,10 @@ export async function DELETE(request: NextRequest) {
   } catch (error: any) {
     console.error('Delete error:', error);
     return NextResponse.json({ error: 'Delete failed', details: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }
 

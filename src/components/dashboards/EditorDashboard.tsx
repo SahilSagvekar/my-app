@@ -2000,10 +2000,8 @@ export function EditorDashboard() {
   }, []);
 
   const handleUploadComplete = useCallback(async (taskId: string, files: any[]) => {
-    const res = await fetch("/api/tasks");
-    const data = await res.json();
-
-    const updatedTask = data.tasks.find((t: any) => t.id === taskId);
+    const res = await fetch(`/api/tasks/${taskId}`);
+    const updatedTask = res.ok ? await res.json() : null;
 
     setTasks((prev) =>
       prev.map((t) =>

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 // app/api/clients/[clientId]/deliverables/[deliverableId]/route.ts
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { monthlyDeliverable, recurringTask } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -11,6 +11,8 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id: clientId, deliverableId } = await params;
 
@@ -28,6 +30,10 @@ export async function GET(
     console.error("GET deliverable failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // PUT - Update a deliverable
@@ -35,6 +41,8 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id: clientId, deliverableId } = await params;
     const data = await req.json();
@@ -77,6 +85,10 @@ export async function PUT(
     console.error("PUT deliverable failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE - Delete a deliverable
@@ -84,6 +96,8 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id: clientId, deliverableId } = await params;
 
@@ -121,5 +135,9 @@ export async function DELETE(
   } catch (err) {
     console.error("DELETE deliverable failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

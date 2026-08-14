@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task, monthlyDeliverable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -13,6 +13,8 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -45,5 +47,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   } catch (err: any) {
     console.error("POST /api/tasks/:id/assign-deliverable error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

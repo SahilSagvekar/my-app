@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { and, eq, gte, lte, lt, inArray, count } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
@@ -13,6 +13,8 @@ const TaskStatus = {
 } as const;
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -137,5 +139,9 @@ export async function GET(req: NextRequest) {
       { ok: false, message: 'Internal server error' },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

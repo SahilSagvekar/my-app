@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user as userTable, rolePermission, socialLogin } from '@/lib/db/schema';
 import { eq, or, arrayContains } from 'drizzle-orm';
 import { NAVIGATION_ITEMS, type NavigationRole } from '@/components/constants/navigation';
@@ -15,6 +15,8 @@ function getTokenFromCookies(req: Request) {
 
 // GET /api/user/navigation - Fetch navigation items permitted for the current user's role
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const token = getTokenFromCookies(req);
         if (!token) {
@@ -117,4 +119,8 @@ export async function GET(req: NextRequest) {
         console.error('Error fetching user navigation:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

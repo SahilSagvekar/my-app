@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 // Smart caching: Returns cached data instantly, refreshes from YouTube API only when needed
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { youTubeChannel, youTubeSnapshot, youTubeVideoStat } from "@/lib/db/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { createId } from "@/lib/db/id";
@@ -14,6 +14,8 @@ import { fetchLiveYouTubeAnalytics } from "@/lib/youtube-sync-service";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -226,5 +228,9 @@ export async function GET(req: NextRequest) {
       { error: "Failed to fetch analytics" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

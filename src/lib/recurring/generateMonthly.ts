@@ -251,7 +251,7 @@
 //   return { created: creates.length };
 // }
 
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
   task as taskTable,
   client as clientTable,
@@ -377,6 +377,8 @@ async function createTaskFolderStructure(
 }
 
 export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDeliverableId?: string) {
+  const { db, closeDb } = getDb();
+  try {
   // STEP 1 — Fetch template task
   const [templateTask] = await db.select().from(taskTable).where(eq(taskTable.id, taskId)).limit(1);
 
@@ -615,4 +617,8 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   }
 
   return { created: creates.length };
+
+  } finally {
+    await closeDb();
+  }
 }

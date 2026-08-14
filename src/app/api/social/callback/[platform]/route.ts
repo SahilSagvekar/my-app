@@ -1,7 +1,7 @@
 // src/app/api/social/callback/[platform]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { socialAccount } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { encrypt } from '@/lib/encryption';
@@ -37,6 +37,8 @@ export async function GET(
   req: NextRequest,
   context: { params: Promise<{ platform: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   // Next.js 15: params is a Promise - MUST await
   const { platform } = await context.params;
   const { searchParams } = new URL(req.url);
@@ -172,6 +174,10 @@ export async function GET(
     return NextResponse.redirect(
       `${redirectBase}?social_error=${encodeURIComponent(err.message || 'connection_failed')}`
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }
 

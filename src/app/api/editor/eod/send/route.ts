@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task, editorEodReport, editorEodReportItem } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, inArray } from "drizzle-orm";
@@ -14,6 +14,8 @@ import {
 } from "@/lib/editor-eod";
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -226,5 +228,9 @@ export async function POST(req: NextRequest) {
       { error: "Server error", details: err.message },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

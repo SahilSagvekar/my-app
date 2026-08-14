@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/employee/[id]/profile/route.ts
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user as userTable, bonus, deduction } from '@/lib/db/schema';
 import { and, eq, gte, lte } from 'drizzle-orm';
 import { parseISO } from 'date-fns';
@@ -19,6 +19,8 @@ function countWeekdaysBetween(start: Date, end: Date) {
 }
 
 export async function GET(req: Request, { params }: { params: { employeeId: string } }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const requesting = await getRequestingUser(req as any);
     // allow admin or the employee themself
@@ -88,5 +90,9 @@ export async function GET(req: Request, { params }: { params: { employeeId: stri
   } catch (err: any) {
     console.error(err);
     return NextResponse.json({ ok: false, message: err?.message || 'error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

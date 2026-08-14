@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse, NextRequest } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
     guideline as guidelineTable,
     client as clientTable,
@@ -12,6 +12,8 @@ import { notifyUser } from "@/lib/notify";
 import { createAuditLog, AuditAction, getRequestMetadata } from "@/lib/audit-logger";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const user = await getCurrentUser2(req);
         const allowedRoles = ['admin', 'manager', 'qc'];
@@ -98,10 +100,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         console.error(`PATCH /api/admin/guidelines/${params.id} error:`, error);
         return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const user = await getCurrentUser2(req);
         const allowedRoles = ['admin', 'manager', 'qc'];
@@ -119,4 +127,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         console.error(`DELETE /api/admin/guidelines/${params.id} error:`, error);
         return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

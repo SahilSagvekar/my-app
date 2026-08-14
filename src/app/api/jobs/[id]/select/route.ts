@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { job, bid, user as userTable, notification } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, ne } from 'drizzle-orm';
@@ -8,6 +8,8 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { sendBidAcceptedEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
     const params = await props.params;
     try {
         const user = await getCurrentUser2(req);
@@ -87,4 +89,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         console.error('Error selecting videographer:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

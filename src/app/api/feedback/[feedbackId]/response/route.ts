@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/feedback/[feedbackId]/response/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { feedbackResponse, feedback as feedbackTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -18,6 +18,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { feedbackId: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(request);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -74,5 +76,9 @@ export async function POST(
       { error: "Failed to create response" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

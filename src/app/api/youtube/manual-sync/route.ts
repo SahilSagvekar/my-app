@@ -3,11 +3,13 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { syncYouTubeChannel } from '@/lib/youtube-sync-service';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { youTubeChannel } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const user = await getCurrentUser2(req);
         if (!user) {
@@ -90,4 +92,8 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

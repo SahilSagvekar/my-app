@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, or } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -96,5 +98,9 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('GET /api/portal/access error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

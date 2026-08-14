@@ -15,7 +15,7 @@
 // setInterval just won't re-enter while isRunning is true.
 
 import { S3Client, ListObjectsV2Command, HeadObjectCommand, GetObjectCommand, PutObjectCommand, DeleteObjectCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getS3, BUCKET as R2_BUCKET } from '@/lib/s3';
@@ -94,6 +94,8 @@ async function processJob(
   monthFolder: string,
   folderPath: string | null
 ) {
+  const { db, closeDb } = getDb();
+  try {
   const label = folderType === 'raw-footage' ? (folderPath || monthFolder) : monthFolder;
   console.log(`[NasMirrorWorker] Starting job ${jobId}: ${clientName} / ${folderType} / ${label}`);
 
@@ -171,5 +173,9 @@ async function processJob(
   } catch (err: any) {
     console.error(`[NasMirrorWorker] Job ${jobId} crashed:`, err.message);
     await failNasMirrorJob(jobId, err.message);
+  }
+
+  } finally {
+    await closeDb();
   }
 }

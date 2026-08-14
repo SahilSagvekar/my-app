@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { oneOffDeliverable } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -9,6 +9,8 @@ export async function GET(
     req: Request,
     { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const { id: clientId, deliverableId } = await params;
 
@@ -29,6 +31,10 @@ export async function GET(
         console.error("GET one-off deliverable failed:", err);
         return NextResponse.json({ message: "Server error" }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // PUT - Update a one-off deliverable
@@ -36,6 +42,8 @@ export async function PUT(
     req: Request,
     { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const { id: clientId, deliverableId } = await params;
         const data = await req.json();
@@ -68,6 +76,10 @@ export async function PUT(
         console.error("PUT one-off deliverable failed:", err);
         return NextResponse.json({ message: "Server error" }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE - Delete a one-off deliverable
@@ -75,6 +87,8 @@ export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string; deliverableId: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const { id: clientId, deliverableId } = await params;
 
@@ -94,4 +108,8 @@ export async function DELETE(
         console.error("DELETE one-off deliverable failed:", err);
         return NextResponse.json({ message: "Server error" }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

@@ -1,11 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse, NextRequest } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { guideline } from "@/lib/db/schema";
 import { and, eq, or, isNull, desc } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const user = await getCurrentUser2(req);
         if (!user) {
@@ -64,4 +66,8 @@ export async function GET(req: NextRequest) {
         console.error("GET /api/guidelines error:", error);
         return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

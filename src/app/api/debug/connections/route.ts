@@ -1,9 +1,11 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 
 export async function GET() {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // Check active connections
     const result = await db.execute<{
@@ -37,5 +39,9 @@ export async function GET() {
     });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

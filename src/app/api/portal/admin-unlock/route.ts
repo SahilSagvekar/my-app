@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -11,6 +11,8 @@ function requireAdminOrManager(user: { role?: string | null } | null) {
 
 // POST /api/portal/admin-unlock — admin bypass: force a locked client's portal open
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!requireAdminOrManager(user)) {
@@ -35,10 +37,16 @@ export async function POST(req: NextRequest) {
     console.error('POST /api/portal/admin-unlock error:', err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE /api/portal/admin-unlock — revert an admin-unlocked client back to locked
 export async function DELETE(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!requireAdminOrManager(user)) {
@@ -62,5 +70,9 @@ export async function DELETE(req: NextRequest) {
   } catch (err: any) {
     console.error('DELETE /api/portal/admin-unlock error:', err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

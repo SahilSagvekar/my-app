@@ -1,10 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { client as clientTable, task as taskTable } from "@/lib/db/schema";
 import { and, eq, isNull, isNotNull } from "drizzle-orm";
 
 export async function GET() {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // Get all clients with userId
     const clients = await db.select({ id: clientTable.id, userId: clientTable.userId, name: clientTable.name })
@@ -37,5 +39,9 @@ export async function GET() {
       success: false, 
       error: error.message 
     }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

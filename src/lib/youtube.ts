@@ -1,7 +1,7 @@
 // src/lib/youtube.ts
 // YouTube API Service - handles Data API v3 + Analytics API
 
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { youTubeChannel, youTubeSnapshot, youTubeVideoStat } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { createId } from "@/lib/db/id";
@@ -20,6 +20,8 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export async function refreshAccessToken(
   channelDbId: string
 ): Promise<string> {
+  const { db, closeDb } = getDb();
+  try {
   const [channel] = await db.select().from(youTubeChannel)
     .where(eq(youTubeChannel.id, channelDbId)).limit(1);
 
@@ -68,6 +70,10 @@ export async function refreshAccessToken(
     .where(eq(youTubeChannel.id, channelDbId));
 
   return tokens.access_token;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ============================================================================
@@ -224,6 +230,8 @@ export async function fetchChannelAnalytics(
  * Full sync for a single channel - fetches all data and stores in DB
  */
 export async function syncChannel(channelDbId: string) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // Mark as syncing
     await db.update(youTubeChannel)
@@ -412,12 +420,18 @@ export async function syncChannel(channelDbId: string) {
 
     return { success: false, error: error.message };
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
  * Sync ALL active channels - called by cron
  */
 export async function syncAllChannels() {
+  const { db, closeDb } = getDb();
+  try {
   const channels = await db.select().from(youTubeChannel)
     .where(eq(youTubeChannel.isActive, true));
 
@@ -432,6 +446,10 @@ export async function syncAllChannels() {
   }
 
   return results;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ============================================================================

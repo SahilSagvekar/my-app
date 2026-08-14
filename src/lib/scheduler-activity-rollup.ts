@@ -11,7 +11,7 @@
 // full raw table, which is exactly the kind of live-full-scan mistake this
 // project has already hit once with S3/R2 listings.
 
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import {
   schedulerActivityEvent as schedulerActivityEventTable,
   schedulerActivityDailySummary as schedulerActivityDailySummaryTable,
@@ -92,6 +92,8 @@ export function computeActivityStats(events: ActivityEventLike[]): ComputedActiv
 
 /** Roll up all scheduler activity for one UTC calendar day. */
 async function rollupDay(dayStart: Date): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
   const dayStartISO = dayStart.toISOString();
   const dayEndISO = dayEnd.toISOString();
@@ -136,9 +138,15 @@ async function rollupDay(dayStart: Date): Promise<void> {
         set: values,
       });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function runSchedulerActivityRollup(): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const yesterday = startOfUTCDay(new Date(Date.now() - 24 * 60 * 60 * 1000));
 
   try {
@@ -163,5 +171,9 @@ export async function runSchedulerActivityRollup(): Promise<void> {
     }
   } catch (err: any) {
     console.error('❌ [Scheduler Activity] Prune failed:', err.message);
+  }
+
+  } finally {
+    await closeDb();
   }
 }

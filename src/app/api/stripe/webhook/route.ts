@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, constructWebhookEvent, STRIPE_WEBHOOK_EVENTS, generateInvoiceNumber, captureTechFeeFromCharge, getChargeIdFromPaymentIntent } from '@/lib/stripe';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import {
   invoice,
   payment,
@@ -21,6 +21,8 @@ import { sendPaymentNotificationEmail } from '@/lib/email';
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const body = await req.text();
     const signature = req.headers.get('stripe-signature');
@@ -110,6 +112,10 @@ export async function POST(req: NextRequest) {
     console.error('❌ Webhook error:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ==========================================
@@ -117,6 +123,8 @@ export async function POST(req: NextRequest) {
 // ==========================================
 
 async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`✅ PaymentIntent succeeded: ${paymentIntent.id}`);
 
   const invoiceId = paymentIntent.metadata?.invoiceId;
@@ -165,9 +173,15 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
     ? paymentIntent.customer
     : (paymentIntent.customer as any)?.id;
   await captureTechFeeFromCharge(stripeCustomerId, chargeId, `PaymentIntent ${paymentIntent.id}`);
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`❌ PaymentIntent failed: ${paymentIntent.id}`);
 
   const invoiceId = paymentIntent.metadata?.invoiceId;
@@ -184,9 +198,15 @@ async function handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
     failureReason: paymentIntent.last_payment_error?.message || 'Payment failed',
     updatedAt: new Date().toISOString(),
   });
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`✅ Stripe Invoice paid: ${stripeInvoice.id}`);
 
   // Tech Fees: capture Stripe's real processing fee and queue it for this
@@ -281,9 +301,15 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
     // Resolve via Stripe customer metadata
     await handleFirstCheckoutPayment(stripeInvoice);
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`❌ Stripe Invoice payment failed: ${stripeInvoice.id}`);
 
   const rawInvoice = await db.query.invoice.findFirst({
@@ -334,9 +360,15 @@ async function handleInvoicePaymentFailed(stripeInvoice: Stripe.Invoice) {
       failureReason: 'Payment was declined or failed to process',
     });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`📄 Stripe Invoice finalized: ${stripeInvoice.id}`);
 
   const invoiceRow = await db.query.invoice.findFirst({
@@ -407,9 +439,15 @@ async function handleInvoiceFinalized(stripeInvoice: Stripe.Invoice) {
       pdfUrl: stripeInvoice.invoice_pdf || undefined,
     });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`🔄 Subscription created: ${subscription.id}`);
 
   const [stripeCustomer] = await db.select().from(stripeCustomerTable).where(eq(stripeCustomerTable.stripeCustomerId, subscription.customer as string)).limit(1);
@@ -440,9 +478,15 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   if (subscription.metadata?.type === 'storage_upgrade') {
     await applyStorageUpgrade(subscription.metadata.clientId, subscription.metadata.addBytes);
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`🔄 Subscription updated: ${subscription.id}`);
 
   const [existing] = await db.select().from(subscriptionTable).where(eq(subscriptionTable.stripeSubscriptionId, subscription.id)).limit(1);
@@ -461,9 +505,15 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     canceledAt: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
     updatedAt: new Date().toISOString(),
   }).where(eq(subscriptionTable.stripeSubscriptionId, subscription.id));
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`🗑️ Subscription deleted: ${subscription.id}`);
 
   await db.update(subscriptionTable).set({
@@ -471,9 +521,15 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     canceledAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }).where(eq(subscriptionTable.stripeSubscriptionId, subscription.id));
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`✅ Checkout completed: ${session.id}`);
 
   const { invoiceId, type } = session.metadata || {};
@@ -499,9 +555,15 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       await captureTechFeeFromCharge(stripeCustomerId, chargeId, `Checkout ${session.id}`);
     }
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function applyStorageUpgrade(clientId?: string, addBytes?: string) {
+  const { db, closeDb } = getDb();
+  try {
   if (!clientId || !addBytes) return;
 
   const [client] = await db.select({ rawFootageStorageLimit: clientTable.rawFootageStorageLimit })
@@ -518,9 +580,15 @@ async function applyStorageUpgrade(clientId?: string, addBytes?: string) {
     storageAlert95Sent: false,
     updatedAt: new Date().toISOString(),
   }).where(eq(clientTable.id, clientId));
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`💳 Payment method attached: ${paymentMethod.id}`);
 
   const customerId = paymentMethod.customer as string;
@@ -556,14 +624,24 @@ async function handlePaymentMethodAttached(paymentMethod: Stripe.PaymentMethod) 
     target: paymentMethodTable.stripePaymentMethodId,
     set: { ...data, updatedAt: new Date().toISOString() },
   });
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handlePaymentMethodDetached(paymentMethod: Stripe.PaymentMethod) {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`💳 Payment method detached: ${paymentMethod.id}`);
 
   await db.delete(paymentMethodTable).where(eq(paymentMethodTable.stripePaymentMethodId, paymentMethod.id)).catch(() => {
     // Ignore if doesn't exist
   });
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // Helper to map Stripe subscription status to our enum
@@ -585,6 +663,8 @@ function mapSubscriptionStatus(status: Stripe.Subscription.Status): 'ACTIVE' | '
 
 // Handles first payment via Stripe Checkout (no invoice record yet in our DB)
 async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
+  const { db, closeDb } = getDb();
+  try {
   const stripeCustomerId = stripeInvoice.customer as string;
   if (!stripeCustomerId) return;
 
@@ -661,6 +741,10 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
   await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, client.id));
 
   console.log(`🔓 [Portal] First payment — unlocked for: ${client.name}, invoice: ${createdInvoice.invoiceNumber}`);
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // Send billing warning email 3 days before billing date

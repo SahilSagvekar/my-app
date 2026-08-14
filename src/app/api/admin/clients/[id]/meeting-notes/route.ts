@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/clients/[id]/meeting-notes/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { meetingNote as meetingNoteTable } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getUserFromToken, requireAdmin } from "@/lib/auth-helpers";
@@ -12,6 +12,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id: clientId } = await params;
 
@@ -24,6 +26,10 @@ export async function GET(
     console.error("GET meeting-notes failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST — admin clicks "Start This Week's Notes": copies the template doc
@@ -32,6 +38,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = getUserFromToken(req);
     const authError = requireAdmin(user);
@@ -49,5 +57,9 @@ export async function POST(
   } catch (err: any) {
     console.error("POST meeting-notes failed:", err);
     return NextResponse.json({ message: err.message || "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

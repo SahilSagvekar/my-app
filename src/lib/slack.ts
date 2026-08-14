@@ -1,6 +1,6 @@
 // src/lib/slack.ts
 import { WebClient } from "@slack/web-api";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
   user as userTable,
   client as clientTable,
@@ -115,6 +115,8 @@ function emojiForType(type: string): string {
 // Helper — Get Slack user mentions from user IDs
 // ---------------------------------------------------------------------------
 async function getSlackMentions(userIds: number[]): Promise<string> {
+  const { db, closeDb } = getDb();
+  try {
   if (!userIds || userIds.length === 0) return "";
 
   const users = await db
@@ -132,6 +134,10 @@ async function getSlackMentions(userIds: number[]): Promise<string> {
     .join(" ");
 
   return mentions;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +191,8 @@ export async function sendSlackWebhook(
   notification: SlackNotification,
   overrideUrl?: string
 ): Promise<boolean> {
+  const { db, closeDb } = getDb();
+  try {
   try {
     let webhookUrl = overrideUrl;
 
@@ -225,6 +233,10 @@ export async function sendSlackWebhook(
     console.error("[Slack Webhook] Failed:", err);
     return false;
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +246,8 @@ async function sendClientSlackWebhook(
   clientId: string,
   notification: SlackNotification
 ): Promise<boolean> {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const [client] = await db
       .select({ slackWebhookUrl: clientTable.slackWebhookUrl, slackEnabled: clientTable.slackEnabled, name: clientTable.name })
@@ -261,6 +275,10 @@ async function sendClientSlackWebhook(
   } catch (err) {
     console.error("[Slack Client Webhook] Failed:", err);
     return false;
+  }
+
+  } finally {
+    await closeDb();
   }
 }
 
@@ -362,6 +380,8 @@ export async function sendSlackDM(
 export async function deliverSlackNotification(
   notification: SlackNotification,
 ): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   console.log(
     `[Slack Dispatch] Delivering notification: type=${notification.type}, title="${notification.title || notification.message || notification.type}", clientId=${notification.payload?.clientId || "none"}, userId=${notification.userId || "none"}`,
   );
@@ -608,6 +628,10 @@ export async function deliverSlackNotification(
   // ALL OTHER NOTIFICATION TYPES ARE IGNORED
   // =========================================================================
   console.log(`[Slack Dispatch] Notification type "${notificationType}" is not configured for Slack - skipping`);
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ---------------------------------------------------------------------------

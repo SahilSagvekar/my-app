@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { task, shareableReview } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, or, isNull, gt, desc } from 'drizzle-orm';
@@ -19,6 +19,8 @@ export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const { id: taskId } = await params;
 
@@ -122,6 +124,10 @@ export async function POST(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // GET /api/tasks/[id]/share - Get existing share links for a task
@@ -129,6 +135,8 @@ export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const { id: taskId } = await params;
 
@@ -170,6 +178,10 @@ export async function GET(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE /api/tasks/[id]/share - Deactivate a share link
@@ -177,6 +189,8 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const { id: taskId } = await params;
 
@@ -226,4 +240,8 @@ export async function DELETE(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

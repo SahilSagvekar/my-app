@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { client as clientTable, task, recurringTask, user } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, inArray, gte, lte, isNull, asc, count } from "drizzle-orm";
@@ -218,6 +218,8 @@ function generatePostingDatesForMonth(opts: {
 // ─────────────────────────────────────────
 
 export async function POST(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const body = await req.json().catch(() => ({}));
     const { clientId, year, month, dryRun, deliverableId } = body || {};
@@ -541,6 +543,10 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ─────────────────────────────────────────
@@ -548,6 +554,8 @@ export async function POST(req: Request) {
 // ─────────────────────────────────────────
 
 export async function GET(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get("clientId");
@@ -581,5 +589,9 @@ export async function GET(req: Request) {
       { success: false, message: "Failed to fetch recurring tasks" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

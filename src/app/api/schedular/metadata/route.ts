@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { client, monthlyDeliverable, oneOffDeliverable, user } from "@/lib/db/schema";
 import { and, or, eq, arrayContains, asc, sql as drizzleSql } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // 1. Fetch all unique clients that have tasks in completed/scheduled status
     const clients = await db.select({
@@ -43,5 +45,9 @@ export async function GET() {
   } catch (err: any) {
     console.error("GET /api/schedular/metadata error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

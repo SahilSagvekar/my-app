@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable, task, client as clientTable } from "@/lib/db/schema";
 import { and, eq, or, gte, lte, isNull, isNotNull, inArray } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -8,6 +8,8 @@ import { getCurrentUser2 } from "@/lib/auth";
 // - Admin/manager can pass any editorId
 // - Editor calling without editorId gets their own data
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -212,5 +214,9 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("Editor production tracker error:", err);
     return NextResponse.json({ error: "Server error", details: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

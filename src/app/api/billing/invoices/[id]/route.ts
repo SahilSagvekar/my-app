@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { invoice as invoiceTable, stripeCustomer } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
@@ -18,6 +18,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const currentUser = getUserFromToken(req);
@@ -67,6 +69,10 @@ export async function GET(
     console.error('Error fetching invoice:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // PATCH - Update invoice or perform actions (send, void, etc.)
@@ -74,6 +80,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const currentUser = getUserFromToken(req);
@@ -227,6 +235,10 @@ export async function PATCH(
     console.error('Error updating invoice:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE - Delete draft invoice
@@ -234,6 +246,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const currentUser = getUserFromToken(req);
@@ -268,5 +282,9 @@ export async function DELETE(
   } catch (error: any) {
     console.error('Error deleting invoice:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

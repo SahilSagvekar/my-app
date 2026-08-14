@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { postingTarget, postedContent, client } from '@/lib/db/schema';
 import { and, not, eq, ilike, inArray, gte, lte, desc } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
@@ -12,6 +12,8 @@ import {
 } from '@/lib/posting-match';
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -229,5 +231,9 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('Error fetching daily target progress:', error);
     return NextResponse.json({ ok: false, message: 'Internal server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

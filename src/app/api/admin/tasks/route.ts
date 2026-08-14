@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import "@/lib/bigint-fix";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
     task as taskTable,
     user as userTable,
@@ -226,6 +226,8 @@ import { getCurrentUser2 } from '@/lib/auth';
 
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const user = await getCurrentUser2(req);
         if (!user) {
@@ -538,4 +540,8 @@ export async function GET(req: NextRequest) {
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

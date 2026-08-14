@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { HeadObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client as clientTable, task as taskTable } from '@/lib/db/schema';
 import { eq, isNotNull, desc } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
@@ -81,6 +81,8 @@ interface ExpectedFolder {
 }
 
 async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
+  const { db, closeDb } = getDb();
+  try {
   const clients = await db.query.client.findMany({
     where: eq(clientTable.status, 'active'),
     columns: { id: true, name: true, companyName: true },
@@ -159,6 +161,10 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
   }
 
   return expected;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -166,6 +172,8 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
 // Scans all expected folders and returns which are missing — does NOT create anything
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     await requireAdmin(req);
 
@@ -202,6 +210,10 @@ export async function GET(req: NextRequest) {
     console.error('repair-folders GET error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -210,6 +222,8 @@ export async function GET(req: NextRequest) {
 // Returns per-key success/failure so the UI can update individually
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     await requireAdmin(req);
 
@@ -248,5 +262,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('repair-folders POST error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

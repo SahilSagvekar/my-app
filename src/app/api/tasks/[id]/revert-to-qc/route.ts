@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -8,6 +8,8 @@ export async function POST(
     request: NextRequest,
     { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const taskId = params.id;
 
@@ -39,4 +41,8 @@ export async function POST(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

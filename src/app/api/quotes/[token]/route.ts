@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { quote as quoteTable, preClient as preClientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { notifyQuoteAccepted, notifyQuoteRejected } from '@/lib/pipeline-notifications';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { token } = await params;
     const quote = await db.query.quote.findFirst({
@@ -47,10 +49,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     console.error('GET /api/quotes/[token] error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /** PATCH — admin inline edit. Requires active admin/manager session. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -95,9 +103,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
     console.error('PATCH /api/quotes/[token] error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { token } = await params;
     const body = await req.json();
@@ -164,5 +178,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   } catch (err) {
     console.error('POST /api/quotes/[token] error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

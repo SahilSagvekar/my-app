@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 // Returns created / skipped / failed counts so the UI can show a summary.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { salesLead } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, ne } from 'drizzle-orm';
@@ -60,6 +60,8 @@ function normaliseStatus(raw: string | undefined): string {
 }
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -142,5 +144,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[POST /api/sales-leads/import]', err);
     return NextResponse.json({ ok: false, message: err.message || 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { contract as contractTable, contractSigner as contractSignerTable } from '@/lib/db/schema';
 import { and, or, eq, ilike, desc, inArray, isNull } from 'drizzle-orm';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
@@ -8,6 +8,8 @@ import { sendContractViaSignWell } from '@/lib/contracts';
 
 // GET /api/contracts — list contracts
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -80,10 +82,16 @@ export async function GET(req: NextRequest) {
     console.error('GET /api/contracts error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST /api/contracts — create + send via SignWell
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -148,5 +156,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('POST /api/contracts error:', err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

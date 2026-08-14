@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // app/api/tasks/[taskId]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task, file as fileTable } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { addSignedUrlsToFiles, deleteFromS3 } from "@/lib/s3";
@@ -14,10 +14,12 @@ const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
   try {
-    const { taskId } = params;
+  try {
+    const { id: taskId } = await params;
 
     if (!taskId) {
       return NextResponse.json(
@@ -88,6 +90,10 @@ export async function GET(
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE - Only super admin can delete tasks
@@ -95,6 +101,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id: taskId } = await params;
 
@@ -174,5 +182,9 @@ export async function DELETE(
       { error: "Failed to delete task", message: error.message },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

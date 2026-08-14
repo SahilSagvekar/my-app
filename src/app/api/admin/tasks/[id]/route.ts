@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
     task as taskTable,
     user as userTable,
@@ -44,6 +44,8 @@ export async function GET(
     req: Request,
     { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const token = getTokenFromCookies(req);
         if (!token) {
@@ -118,6 +120,10 @@ export async function GET(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ─────────────────────────────────────────
@@ -127,6 +133,8 @@ export async function PATCH(
     req: Request,
     { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const token = getTokenFromCookies(req);
         if (!token) {
@@ -301,6 +309,10 @@ export async function PATCH(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ─────────────────────────────────────────
@@ -310,6 +322,8 @@ export async function DELETE(
     req: Request,
     { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const token = getTokenFromCookies(req);
         if (!token) {
@@ -352,4 +366,8 @@ export async function DELETE(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

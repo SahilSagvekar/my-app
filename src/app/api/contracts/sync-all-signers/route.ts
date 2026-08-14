@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { contract as contractTable, contractSigner as contractSignerTable, client as clientTable } from '@/lib/db/schema';
 import { and, eq, isNotNull, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -16,6 +16,8 @@ import { uploadBufferToS3 } from '@/lib/s3';
  * but whose signers are still showing as PENDING in the database.
  */
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -148,5 +150,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[sync-all-signers] Fatal error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

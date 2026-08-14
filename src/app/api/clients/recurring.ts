@@ -1,18 +1,19 @@
-import { db } from "@/lib/db";
 import { monthlyDeliverable, recurringTask } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq } from "drizzle-orm";
 
-export async function createRecurringTasksForClient(clientId: string, tx?: any) {
-  const dbOrTx: typeof db = tx || db;
-  const deliverables = await dbOrTx.select().from(monthlyDeliverable).where(eq(monthlyDeliverable.clientId, clientId));
+// Caller must pass either a live db instance (getDb()) or a transaction
+// (tx) it's already inside — no module-level singleton fallback, since a
+// shared Pool can't be held open across Cloudflare Worker requests.
+export async function createRecurringTasksForClient(clientId: string, db: any) {
+  const deliverables = await db.select().from(monthlyDeliverable).where(eq(monthlyDeliverable.clientId, clientId));
 
   if (!deliverables.length) return [];
 
   const tasks = deliverables.map((d) => {
     const nextRun = calculateNextRunDate(d);
 
-    return dbOrTx.insert(recurringTask).values({
+    return db.insert(recurringTask).values({
       id: createId(),
       clientId,
       deliverableId: d.id,

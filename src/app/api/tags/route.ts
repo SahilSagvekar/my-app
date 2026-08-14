@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { tag } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { asc, sql } from "drizzle-orm";
@@ -15,6 +15,8 @@ function getTokenFromCookies(req: Request) {
 
 // GET /api/tags — list all tags, for autocomplete/filter dropdowns
 export async function GET(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
 
@@ -26,10 +28,16 @@ export async function GET(req: Request) {
         console.error("[GET /api/tags]", err);
         return NextResponse.json({ ok: false, message: "Server error" }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST /api/tags — create a tag if it doesn't already exist (case-insensitive)
 export async function POST(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
 
@@ -49,4 +57,8 @@ export async function POST(req: Request) {
         console.error("[POST /api/tags]", err);
         return NextResponse.json({ ok: false, message: "Server error" }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task, tag, tagToTask } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq, sql } from "drizzle-orm";
@@ -21,6 +21,8 @@ export async function PATCH(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const { id } = await params;
         const token = getTokenFromCookies(req);
@@ -84,4 +86,8 @@ export async function PATCH(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

@@ -1,13 +1,15 @@
 export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user, auditLog } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getGeoLocation, formatLocation } from '@/lib/geo';
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || 'unknown';
   const userAgent = req.headers.get('user-agent') || 'unknown';
 
@@ -143,5 +145,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Register error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

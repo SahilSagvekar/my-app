@@ -1,14 +1,14 @@
 export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from "next/server";
-import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
-import { sendLoginOTPEmail } from '@/lib/email';
 import { issueLoginSession } from '@/lib/auth-session';
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     console.log("[LOGIN] 1. Request received");
 
@@ -43,29 +43,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    // Password is correct — now require an email OTP before granting access.
-    console.log("[LOGIN] 7. Password verified — sending login OTP");
-    const otp = generateOTP();
-    const otpExpiry = getOTPExpiryTime();
+    console.log("[LOGIN] 7. Password verified — issuing session");
+    return await issueLoginSession(
+      {
+        id: String(foundUser.id),
+        email: foundUser.email,
+        role: foundUser.role,
+        roles: foundUser.roles ?? [],
+        name: foundUser.name,
+      },
+      req
+    );
 
-    await db.update(user).set({
-      loginOtp: otp,
-      loginOtpExpiry: otpExpiry.toISOString(),
-      updatedAt: new Date().toISOString(),
-    }).where(eq(user.id, foundUser.id));
-
-    try {
-      await sendLoginOTPEmail(foundUser.email, otp);
-    } catch (emailError) {
-      console.error("[LOGIN] Failed to send login OTP email:", emailError);
-      // Don't fail the login attempt — OTP is still saved and logged to console in dev.
-    }
-
-    console.log("[LOGIN] 8. OTP sent, awaiting verification");
+    console.log("[LOGIN] 8. Session issued, login complete");
     return NextResponse.json({
-      otpRequired: true,
+      message: "Login successful",
       email: foundUser.email,
-      message: "Enter the verification code sent to your email.",
     });
   } catch (err) {
     console.error("[LOGIN] Error:", err);
@@ -73,5 +66,9 @@ export async function POST(req: NextRequest) {
       console.error("[LOGIN] Root cause:", err.cause);
     }
     return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

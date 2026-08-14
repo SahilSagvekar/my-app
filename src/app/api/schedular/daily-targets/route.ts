@@ -1,11 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client } from '@/lib/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
 
@@ -103,5 +105,9 @@ export async function GET(req: NextRequest) {
       { ok: false, message: 'Internal server error' },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

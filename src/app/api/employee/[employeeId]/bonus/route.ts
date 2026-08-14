@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { bonus } from "@/lib/db/schema";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
@@ -11,6 +11,8 @@ const BonusSchema = z.object({
 });
 
 export async function POST(req: Request, context: { params: { employeeId: string } }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     await requireAdmin(req as any);
     const { params } = await Promise.resolve(context);
@@ -45,5 +47,9 @@ export async function POST(req: Request, context: { params: { employeeId: string
       { ok: false, message: err?.message || "Something went wrong" },
       { status: 400 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

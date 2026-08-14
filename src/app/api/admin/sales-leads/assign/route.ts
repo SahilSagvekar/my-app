@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { salesLead, user } from '@/lib/db/schema';
 import { and, eq, inArray, asc, count } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -21,6 +21,8 @@ function getTokenFromCookies(req: Request) {
 // admin: unrestricted. sales_manager: leadIds must currently belong to a rep they're
 // permitted to see, and targetUserId (or round-robin pool) is limited to permitted reps.
 export async function PATCH(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -111,5 +113,9 @@ export async function PATCH(req: NextRequest) {
   } catch (err) {
     console.error('[PATCH /api/admin/sales-leads/assign]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

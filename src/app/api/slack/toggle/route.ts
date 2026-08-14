@@ -1,6 +1,6 @@
 // src/app/api/slack/toggle/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 
 // PATCH — toggle slackNotifications on/off
 export async function PATCH(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -40,5 +42,9 @@ export async function PATCH(req: NextRequest) {
   } catch (error) {
     console.error("[Slack Toggle] Error:", error);
     return NextResponse.json({ error: "Failed to update Slack preference" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

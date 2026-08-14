@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { postingTarget } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, asc } from 'drizzle-orm';
@@ -8,6 +8,8 @@ import { getUserFromToken } from '@/lib/auth-helpers';
 
 // GET - Fetch all posting targets (optionally by clientId)
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -30,10 +32,16 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching posting targets:', error);
     return NextResponse.json({ ok: false, message: 'Internal server error' }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST - Create or update posting targets for a client (bulk upsert)
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -94,5 +102,9 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Error saving posting targets:', error);
     return NextResponse.json({ ok: false, message: 'Internal server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

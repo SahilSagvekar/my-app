@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { stripeCustomer, subscription, client as clientTable } from '@/lib/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
@@ -14,6 +14,8 @@ import {
 
 // GET - List subscriptions
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -64,10 +66,16 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching subscriptions:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST - Create subscription checkout or manage subscription
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -192,5 +200,9 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error managing subscription:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

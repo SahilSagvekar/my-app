@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { salesDashboardColumn } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -14,6 +14,8 @@ function getTokenFromCookies(req: Request) {
 
 // PATCH /api/sales-columns/[id] — update column (rename, width, order, visible)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const token = getTokenFromCookies(req);
@@ -41,10 +43,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     console.error('[PATCH /api/sales-columns/[id]]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE /api/sales-columns/[id] — permanently remove a custom column
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const token = getTokenFromCookies(req);
@@ -64,5 +72,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   } catch (err) {
     console.error('[DELETE /api/sales-columns/[id]]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { affiliateCommission } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -16,6 +16,8 @@ function getTokenFromCookies(req: Request) {
 // Resets a FAILED commission to APPROVED and immediately retries the Stripe
 // transfer, rather than waiting for the next weekly batch run.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -47,4 +49,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         console.error('[POST /api/affiliate/commissions/:id/retry]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

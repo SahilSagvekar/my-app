@@ -1,6 +1,6 @@
 // src/lib/titling-service.ts
 
-import { db } from './db';
+import { getDb } from './db';
 import {
   task as taskTable,
   file as fileTable,
@@ -27,6 +27,8 @@ export interface TitlingJobResult {
  * Called when QC approves a task
  */
 export async function startTitlingJob(taskId: string): Promise<{ jobId: string; transcriptId: string }> {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`\n🎬 Starting titling job for task: ${taskId}`);
 
   // 1. Get task with files
@@ -127,6 +129,10 @@ export async function startTitlingJob(taskId: string): Promise<{ jobId: string; 
   console.log(`   ✅ Job created: ${job.id}`);
 
   return { jobId: job.id, transcriptId };
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
@@ -137,6 +143,8 @@ export async function completeTitlingJob(
   transcript: string,
   audioDuration?: number
 ): Promise<TitlingJobResult> {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`\n📝 Completing titling job for AssemblyAI ID: ${assemblyId}`);
 
   // 1. Find the job
@@ -235,12 +243,18 @@ export async function completeTitlingJob(
       error: error.message,
     };
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
  * Handle transcription failure
  */
 export async function failTitlingJob(assemblyId: string, error: string): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`\n❌ Failing titling job for AssemblyAI ID: ${assemblyId}`);
   console.log(`   Error: ${error}`);
 
@@ -266,12 +280,18 @@ export async function failTitlingJob(assemblyId: string, error: string): Promise
     titlingError: error,
     updatedAt: new Date().toISOString(),
   }).where(eq(taskTable.id, job.taskId));
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
  * Retry a failed titling job
  */
 export async function retryTitlingJob(taskId: string): Promise<{ jobId: string; transcriptId: string }> {
+  const { db, closeDb } = getDb();
+  try {
   console.log(`\n🔄 Retrying titling job for task: ${taskId}`);
 
   // Reset task status
@@ -283,12 +303,18 @@ export async function retryTitlingJob(taskId: string): Promise<{ jobId: string; 
 
   // Start fresh
   return startTitlingJob(taskId);
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
  * Get titling status for a task
  */
 export async function getTitlingStatus(taskId: string) {
+  const { db, closeDb } = getDb();
+  try {
   const task = await db.query.task.findFirst({
     where: eq(taskTable.id, taskId),
     columns: {
@@ -320,6 +346,10 @@ export async function getTitlingStatus(taskId: string) {
 
   const { titlingJobs, ...rest } = task;
   return { ...rest, titlingJob: titlingJobs[0] ?? null };
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
@@ -327,6 +357,8 @@ export async function getTitlingStatus(taskId: string) {
  * Call this from a cron job every 30 minutes
  */
 export async function checkStuckJobs(): Promise<number> {
+  const { db, closeDb } = getDb();
+  try {
   const STUCK_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
   const now = new Date();
 
@@ -366,4 +398,8 @@ export async function checkStuckJobs(): Promise<number> {
   }
 
   return stuckJobs.length;
+
+  } finally {
+    await closeDb();
+  }
 }

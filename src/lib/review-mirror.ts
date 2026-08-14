@@ -1,5 +1,5 @@
 // src/lib/review-mirror.ts
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
 import { and, eq, isNull, like } from 'drizzle-orm';
 import { uploadVideoToYoutube, QuotaExceededError } from '@/lib/youtube-mirror';
@@ -14,6 +14,8 @@ export async function triggerReviewMirror(params: {
   userId: number;
   userRole?: string | null;
 }): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const { taskId, taskTitle, clientName, driveFolderId, userId, userRole } = params;
 
   console.log(`[review-mirror] 🚦 Task "${taskTitle}" (${taskId}) entered CLIENT_REVIEW — checking for videos to mirror`);
@@ -72,4 +74,8 @@ export async function triggerReviewMirror(params: {
   }
 
   console.log(`[review-mirror] 🏁 Done processing task "${taskTitle}" (${taskId})`);
+
+  } finally {
+    await closeDb();
+  }
 }

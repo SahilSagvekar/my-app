@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { portfolioCategory, portfolioSubcategory } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { asc, eq } from 'drizzle-orm';
@@ -21,6 +21,8 @@ interface CategoryPayload {
 }
 
 export async function GET() {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const categories = await db.query.portfolioCategory.findMany({
             orderBy: asc(portfolioCategory.order),
@@ -45,9 +47,15 @@ export async function GET() {
         console.error('[GET /api/portfolio/sections]', err);
         return NextResponse.json({ ok: false, message: 'Failed to read config' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function PATCH(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const body = await req.json();
         const { sections } = body as { sections: CategoryPayload[] };
@@ -99,4 +107,8 @@ export async function PATCH(req: NextRequest) {
         console.error('[PATCH /api/portfolio/sections]', err);
         return NextResponse.json({ ok: false, message: 'Failed to update config' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

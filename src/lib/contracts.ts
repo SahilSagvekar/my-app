@@ -6,7 +6,7 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import { s3, generateSignedUrl, BUCKET, uploadBufferToS3 } from './s3';
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { createSignWellDocumentFromFile } from './signwell';
-import { db } from './db';
+import { getDb } from './db';
 import {
   contract as contractTable,
   contractSigner as contractSignerTable,
@@ -481,6 +481,8 @@ export async function sendContractViaSignWell(params: {
   expiresInDays?: number;
   performedBy?: string;
 }) {
+  const { db, closeDb } = getDb();
+  try {
   const { buffer, fileName, title, description, message, clientId, createdById, signers, expiresInDays = 30, performedBy = 'system' } = params;
 
   const { key: s3Key } = await uploadBufferToS3({
@@ -561,6 +563,10 @@ export async function sendContractViaSignWell(params: {
   notifyContractSent(title).catch((err) => console.error('[sendContractViaSignWell] notifyContractSent failed:', err));
 
   return contract;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
@@ -576,6 +582,8 @@ export async function createReferenceDocument(params: {
   clientId: string;
   createdById: number;
 }) {
+  const { db, closeDb } = getDb();
+  try {
   const { buffer, fileName, title, clientId, createdById } = params;
 
   const { key: s3Key } = await uploadBufferToS3({
@@ -608,6 +616,10 @@ export async function createReferenceDocument(params: {
 
     return { ...createdContract, signers: [] as (typeof contractSignerTable.$inferSelect)[] };
   });
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**

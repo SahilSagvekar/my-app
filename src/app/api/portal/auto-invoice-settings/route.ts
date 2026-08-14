@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { asc, eq } from 'drizzle-orm';
@@ -9,6 +9,8 @@ import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 // GET - List every active client with their recurring auto-invoice settings
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -59,11 +61,17 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching auto-invoice settings:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // PATCH - Bulk upsert recurring auto-invoice settings
 // body: { rows: Array<{ clientId, autoInvoiceActive, recurringAmount (dollars), recurringDescription, dueDays, nextBillingDate }> }
 export async function PATCH(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -114,5 +122,9 @@ export async function PATCH(req: NextRequest) {
   } catch (error: any) {
     console.error('Error updating auto-invoice settings:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

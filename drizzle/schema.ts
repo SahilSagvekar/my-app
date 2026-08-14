@@ -292,6 +292,8 @@ export const feedback = pgTable("Feedback", {
 	senderId: integer().notNull(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	pageUrl: text(),
+	screenshotBase64: text(),
 }, (table) => [
 	index("Feedback_senderId_idx").using("btree", table.senderId.asc().nullsLast().op("int4_ops")),
 	index("Feedback_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),

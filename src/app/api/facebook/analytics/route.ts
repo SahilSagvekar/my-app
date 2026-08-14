@@ -4,7 +4,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { facebookPage } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -12,6 +12,8 @@ import { FacebookService } from '@/lib/social/facebook';
 import { decrypt } from '@/lib/encryption';
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -148,5 +150,9 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('[FACEBOOK ANALYTICS] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

@@ -5,7 +5,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { facebookPage, metaAccount } from '@/lib/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { createId } from '@/lib/db/id';
@@ -15,6 +15,8 @@ import { encrypt } from '@/lib/encryption';
 
 // GET - List Facebook Pages user can manage
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -60,10 +62,16 @@ export async function GET(req: NextRequest) {
     console.error('[FACEBOOK PAGES] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST - Connect a Facebook Page
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager', 'client'].includes(user.role)) {
@@ -128,10 +136,16 @@ export async function POST(req: NextRequest) {
     console.error('[FACEBOOK PAGES POST] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE - Disconnect a Facebook Page
 export async function DELETE(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager', 'client'].includes(user.role)) {
@@ -158,5 +172,9 @@ export async function DELETE(req: NextRequest) {
   } catch (error: any) {
     console.error('[FACEBOOK PAGES DELETE] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

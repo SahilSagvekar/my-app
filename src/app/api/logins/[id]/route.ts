@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable, client as clientTable, socialLogin, loginAuditLog } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq } from "drizzle-orm";
@@ -36,6 +36,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
 
@@ -217,6 +219,10 @@ export async function PUT(
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE - Remove login
@@ -224,6 +230,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
 
@@ -330,5 +338,9 @@ export async function DELETE(
       { message: "Failed to delete login" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

@@ -1,4 +1,4 @@
-import { db } from './db';
+import { getDb } from './db';
 import { account as accountTable, user as userTable } from './db/schema';
 import { createId } from './db/id';
 import { and, eq } from 'drizzle-orm';
@@ -10,6 +10,8 @@ export async function findOrCreateOAuthUser(
   email: string,
   name?: string
 ) {
+  const { db, closeDb } = getDb();
+  try {
   // Check if account exists
   const existingAccount = await db.query.account.findFirst({
     where: and(
@@ -47,6 +49,10 @@ export async function findOrCreateOAuthUser(
   });
 
   return user;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export function generateAuthToken(userId: number, role: string | null) {

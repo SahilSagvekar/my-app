@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
@@ -17,6 +17,8 @@ export async function PATCH(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const { id } = await params;
         const token = getTokenFromCookies(req);
@@ -44,4 +46,8 @@ export async function PATCH(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

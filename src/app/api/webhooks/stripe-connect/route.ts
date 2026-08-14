@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 // or liability for it once transferred.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { affiliateCommission, commissionPayout, user as userTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import Stripe from 'stripe';
@@ -22,6 +22,8 @@ import { notifyUser } from '@/lib/notify';
 const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET!;
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   const body = await req.text();
   const signature = req.headers.get('stripe-signature');
 
@@ -60,9 +62,15 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true });
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleTransferCreated(transfer: Stripe.Transfer) {
+  const { db, closeDb } = getDb();
+  try {
   const commissionId = transfer.metadata?.commissionId;
   if (!commissionId) return;
 
@@ -86,9 +94,15 @@ async function handleTransferCreated(transfer: Stripe.Transfer) {
     body: `Your commission of $${Number(commission.commissionAmt).toFixed(2)} has been sent.`,
     channels: ['in-app', 'slack'],
   });
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleTransferReversed(transfer: Stripe.Transfer) {
+  const { db, closeDb } = getDb();
+  try {
   const commissionId = transfer.metadata?.commissionId;
   if (!commissionId) return;
 
@@ -118,6 +132,10 @@ async function handleTransferReversed(transfer: Stripe.Transfer) {
       })
     )
   );
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleAccountUpdated(account: Stripe.Account) {

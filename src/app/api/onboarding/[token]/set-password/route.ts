@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { onboardingToken, user, client, clientPortalAccess } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
@@ -14,6 +14,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { token } = await params;
     const { password, watchedVideo } = await req.json();
@@ -104,5 +106,9 @@ export async function POST(
   } catch (err: any) {
     console.error('POST /api/onboarding/[token]/set-password error:', err);
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

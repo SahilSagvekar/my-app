@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import {
   preClient as preClientTable,
   client as clientTable,
@@ -110,6 +110,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -302,7 +304,7 @@ export async function POST(
       clientEmail: preClient.email,
     }).catch((err) => console.error('[Provision] Slack channel failed:', err));
 
-    createRecurringTasksForClient(client.id).catch((err: any) =>
+    createRecurringTasksForClient(client.id, db).catch((err: any) =>
       console.error('[Provision] Recurring tasks failed:', err)
     );
 
@@ -326,5 +328,9 @@ export async function POST(
         .where(and(eq(preClientTable.id, pid), eq(preClientTable.status, 'PROVISIONING')));
     } catch {}
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

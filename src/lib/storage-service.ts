@@ -1,5 +1,5 @@
 // src/lib/storage-service.ts
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
@@ -49,6 +49,8 @@ export function formatBytes(bytes: number): string {
  * Calculate storage used by a client's raw-footage folder in S3
  */
 export async function calculateClientRawFootageStorage(clientId: string): Promise<number> {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const [client] = await db
       .select({ companyName: clientTable.companyName, name: clientTable.name })
@@ -90,12 +92,18 @@ export async function calculateClientRawFootageStorage(clientId: string): Promis
     console.error('Error calculating storage:', error);
     return 0;
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
  * Get storage info for a client - always calculates from S3
  */
 export async function getClientStorageInfo(clientId: string): Promise<StorageInfo> {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const [client] = await db
       .select({ rawFootageStorageLimit: clientTable.rawFootageStorageLimit })
@@ -131,6 +139,10 @@ export async function getClientStorageInfo(clientId: string): Promise<StorageInf
       isCritical: false,
     };
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
@@ -140,6 +152,8 @@ export async function updateClientStorageAfterUpload(
   clientId: string, 
   fileSize: number
 ): Promise<{ allowed: boolean; storageInfo: StorageInfo; message?: string }> {
+  const { db, closeDb } = getDb();
+  try {
   
   const [client] = await db
     .select({
@@ -260,6 +274,10 @@ export async function updateClientStorageAfterUpload(
       isCritical: newPercentage >= 95,
     }
   };
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
@@ -269,6 +287,8 @@ export async function updateClientStorageAfterDelete(
   clientId: string, 
   fileSize: number
 ): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const [client] = await db
     .select({ rawFootageStorageUsed: clientTable.rawFootageStorageUsed })
     .from(clientTable)
@@ -288,12 +308,18 @@ export async function updateClientStorageAfterDelete(
       updatedAt: new Date().toISOString(),
     })
     .where(eq(clientTable.id, clientId));
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
  * Recalculate storage from S3 (for sync/correction)
  */
 export async function recalculateClientStorage(clientId: string): Promise<StorageInfo> {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const actualUsed = await calculateClientRawFootageStorage(clientId);
     
@@ -358,5 +384,9 @@ export async function recalculateClientStorage(clientId: string): Promise<Storag
       isNearLimit: false,
       isCritical: false,
     };
+  }
+
+  } finally {
+    await closeDb();
   }
 }

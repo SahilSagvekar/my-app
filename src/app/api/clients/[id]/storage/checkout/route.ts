@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -29,6 +29,8 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(request);
     if (!user) {
@@ -117,5 +119,9 @@ export async function POST(
       { ok: false, message: error.message || 'Failed to start checkout' },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

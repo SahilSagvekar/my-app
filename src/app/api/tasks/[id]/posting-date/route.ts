@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { task, postedContent } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -16,6 +16,8 @@ export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -57,4 +59,8 @@ export async function PATCH(
         console.error('PATCH /api/tasks/[id]/posting-date error:', err);
         return NextResponse.json({ message: 'Server error', error: err.message }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

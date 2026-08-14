@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { client as clientTable, task, user as userTable, monthlyDeliverable, oneOffDeliverable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, or, ilike, arrayContains, gte, lte, asc, count } from "drizzle-orm";
@@ -21,6 +21,8 @@ function getTokenFromCookies(req: Request) {
 
 // ---------- GET /api/clients ----------
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // If the caller is a client-role user, only return their own client record.
     // This prevents client users from seeing all clients in the dropdown.
@@ -156,10 +158,16 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ---------- POST /api/clients ----------
 export async function POST(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token)
@@ -339,5 +347,9 @@ export async function POST(req: Request) {
       { success: false, message: err.message },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

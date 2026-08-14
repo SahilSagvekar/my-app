@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 // admin: everyone. sales_manager: only their visible reps.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user as userTable } from '@/lib/db/schema';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
@@ -18,6 +18,8 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -70,5 +72,9 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('[GET /api/admin/payouts/tax-forms]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

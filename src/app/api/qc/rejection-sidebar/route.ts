@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task as taskTable } from "@/lib/db/schema";
 import { and, eq, ne, isNotNull, gte } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -9,6 +9,8 @@ const TaskStatus = {
 } as const;
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -124,5 +126,9 @@ export async function GET(req: NextRequest) {
       { ok: false, message: "Failed to load rejection sidebar data" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

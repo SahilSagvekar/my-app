@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user as userTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateSignedUrl, getS3, BUCKET } from '@/lib/s3';
@@ -13,6 +13,8 @@ import { searchFiles } from '@/lib/file-server';
 const s3Client = getS3();
 
 export async function GET(request: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q')?.toLowerCase().trim();
@@ -41,5 +43,9 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Search error:', error);
     return NextResponse.json({ error: 'Search failed', details: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

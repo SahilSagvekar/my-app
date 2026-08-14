@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 // Returns a presigned URL — browser uploads directly to R2, main EC2 never touches the bytes
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client as clientTable, user as userTable } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { presignUpload } from '@/lib/file-server';
@@ -18,6 +18,8 @@ function getCurrentMonthFolder(): string {
 }
 
 export async function POST(request: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const contentType = request.headers.get('content-type') || '';
 
@@ -83,9 +85,15 @@ export async function POST(request: NextRequest) {
     console.error('❌ Drive upload error:', error);
     return NextResponse.json({ error: 'Upload failed', details: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function resolveS3Key(fileName: string, folderPath: string, userId: string, role: string): Promise<string> {
+  const { db, closeDb } = getDb();
+  try {
   let basePath = '';
 
   if (role === 'client') {
@@ -124,4 +132,8 @@ async function resolveS3Key(fileName: string, folderPath: string, userId: string
   }
 
   return `${folderPath}${fileName}`;
+
+  } finally {
+    await closeDb();
+  }
 }

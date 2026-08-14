@@ -1,11 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user, task } from '@/lib/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/auth';
 
 export async function POST(req: Request, { params }: { params: { employeeId: string } }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const adminUser = await requireAdmin(req as any);
     const resolvedParams = await Promise.resolve(params);
@@ -177,5 +179,9 @@ export async function POST(req: Request, { params }: { params: { employeeId: str
   } catch (err: any) {
     console.error('Error in deactivate-with-reassign:', err);
     return NextResponse.json({ ok: false, message: err?.message || 'error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

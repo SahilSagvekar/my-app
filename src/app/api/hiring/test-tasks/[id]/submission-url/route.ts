@@ -3,13 +3,15 @@ export const dynamic = 'force-dynamic';
 // Admin-only — presigned view URL for a directly-uploaded test submission.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { hiringTestTask } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { generateSignedUrl } from '@/lib/s3';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   const user = await getCurrentUser2(req);
   if (!user || user.role?.toLowerCase() !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,4 +25,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const url = await generateSignedUrl(testTask.submissionS3Key, 3600);
   return NextResponse.json({ url });
+
+  } finally {
+    await closeDb();
+  }
 }

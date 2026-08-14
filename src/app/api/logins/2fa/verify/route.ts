@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/2fa/verify/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { userTwoFactorAuth } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
@@ -37,6 +37,8 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 
 // POST - Verify TOTP code (used both for enabling 2FA and for session verification)
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const token = getTokenFromCookies(req);
 
@@ -156,4 +158,8 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

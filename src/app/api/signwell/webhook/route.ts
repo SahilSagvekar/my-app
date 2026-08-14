@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { contract as contractTable, contractSigner as contractSignerTable, contractAuditLog as contractAuditLogTable, client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, or } from 'drizzle-orm';
@@ -12,6 +12,8 @@ import { notifyContractSigned } from '@/lib/pipeline-notifications';
 // POST /api/signwell/webhook
 // Register this URL in SignWell: Settings → Webhooks
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const body = await req.json();
     const eventType: string = body.event_type || body.type || '';
@@ -44,9 +46,15 @@ export async function POST(req: NextRequest) {
     // Always 200 so SignWell doesn't retry
     return NextResponse.json({ received: true, error: err.message });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function findContract(signwellDocId: string) {
+  const { db, closeDb } = getDb();
+  try {
   const found = await db.query.contract.findFirst({
     where: or(
       eq(contractTable.signwellDocumentId, signwellDocId),
@@ -71,9 +79,15 @@ async function findContract(signwellDocId: string) {
   }
 
   return contract;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleCompleted(document: any) {
+  const { db, closeDb } = getDb();
+  try {
   const contract = await findContract(document.id) as any;
   if (!contract) {
     console.warn(`[SignWell] No contract found for doc: ${document.id}`);
@@ -140,9 +154,15 @@ async function handleCompleted(document: any) {
   } catch (err: any) {
     console.error(`[SignWell] Error handling completed doc:`, err);
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleSignerSigned(document: any) {
+  const { db, closeDb } = getDb();
+  try {
   const contract = await findContract(document.id) as any;
   if (!contract) return;
 
@@ -188,9 +208,15 @@ async function handleSignerSigned(document: any) {
   }
 
   console.log(`✍️ [SignWell] Signer signed on contract: ${contract.id}`);
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleDeclined(document: any) {
+  const { db, closeDb } = getDb();
+  try {
   const contract = await findContract(document.id) as any;
   if (!contract) return;
 
@@ -234,9 +260,15 @@ async function handleDeclined(document: any) {
   );
 
   console.log(`❌ [SignWell] Contract declined: ${contract.id}`);
+
+  } finally {
+    await closeDb();
+  }
 }
 
 async function handleViewed(document: any) {
+  const { db, closeDb } = getDb();
+  try {
   const contract = await findContract(document.id) as any;
   if (!contract) return;
 
@@ -269,6 +301,10 @@ async function handleViewed(document: any) {
         });
       }
     }
+  }
+
+  } finally {
+    await closeDb();
   }
 }
 

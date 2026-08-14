@@ -3,11 +3,13 @@ export const dynamic = 'force-dynamic';
 // Look up clientId by company name — used when admin needs to use RawFootageUploadDialog
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { or, sql } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { searchParams } = new URL(request.url);
     const companyName = searchParams.get('companyName');
@@ -43,5 +45,9 @@ export async function GET(request: NextRequest) {
       { error: 'Lookup failed', details: error.message },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

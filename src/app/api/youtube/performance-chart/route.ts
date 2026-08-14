@@ -2,11 +2,13 @@ export const dynamic = 'force-dynamic';
 // app/api/youtube/performance-chart/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { youTubeSnapshot } from '@/lib/db/schema';
 import { and, asc, eq, gte } from 'drizzle-orm';
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const user = await getCurrentUser2(req);
         if (!user) {
@@ -108,4 +110,8 @@ export async function GET(req: NextRequest) {
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

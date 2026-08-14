@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 // Converts a HIRED candidate into a real employee (User) account.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { hiringCandidate, user as userTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -22,6 +22,8 @@ async function requireAdmin(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   const admin = await requireAdmin(req);
   if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -75,5 +77,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (err: any) {
     console.error('[Hiring] Convert candidate error:', err.message);
     return NextResponse.json({ error: err.message || 'Failed to convert candidate' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

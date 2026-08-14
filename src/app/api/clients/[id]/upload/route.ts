@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { brandAsset } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { uploadBufferToS3 } from "@/lib/s3";
@@ -9,6 +9,8 @@ export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await context.params;
     const formData = await req.formData();
@@ -45,5 +47,9 @@ export async function POST(
   } catch (err) {
     console.error("UPLOAD ERROR:", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

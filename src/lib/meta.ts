@@ -1,5 +1,5 @@
 // src/lib/meta.ts
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { metaAccount, metaSnapshot } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { createId } from "@/lib/db/id";
@@ -179,6 +179,8 @@ export class MetaService {
      * Sync a single Meta account
      */
     static async syncAccount(clientId: string) {
+        const { db, closeDb } = getDb();
+        try {
         try {
             const [account] = await db.select().from(metaAccount)
                 .where(eq(metaAccount.clientId, clientId)).limit(1);
@@ -293,12 +295,17 @@ export class MetaService {
                 .catch(console.error);
             return { success: false, error: error.message };
         }
+        } finally {
+            await closeDb();
+        }
     }
 
     /**
      * Sync all active Meta accounts
      */
     static async syncAllAccounts() {
+        const { db, closeDb } = getDb();
+        try {
         const accounts = await db.select().from(metaAccount)
             .where(eq(metaAccount.isActive, true));
 
@@ -309,5 +316,8 @@ export class MetaService {
             await new Promise(r => setTimeout(r, 1000));
         }
         return results;
+        } finally {
+            await closeDb();
+        }
     }
 }

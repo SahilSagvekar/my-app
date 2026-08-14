@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/roles/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { inArray } from 'drizzle-orm';
 import { cached } from '@/lib/redis';
@@ -17,6 +17,8 @@ const taskTypeRoleMap: Record<string, string[]> = {
 };
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   const { searchParams } = new URL(req.url);
   const taskType = searchParams.get("taskType");
   const all = searchParams.get("all");
@@ -60,5 +62,9 @@ export async function GET(req: NextRequest) {
       { error: "Internal Server Error" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

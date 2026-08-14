@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task, qcMonthlyTrend, qcRejectionReason, qcAchievement } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, gte, lte, inArray, isNull, isNotNull, count, desc } from "drizzle-orm";
@@ -95,6 +95,8 @@ async function getAnalytics(
   qcSpecialistId: number,
   period: Period
 ): Promise<AnalyticsData> {
+  const { db, closeDb } = getDb();
+  try {
   const { startDate, endDate } = getDateRange(period);
   const weekRange = getDateRange("week");
 
@@ -309,6 +311,10 @@ async function getAnalytics(
       ),
     },
   };
+
+  } finally {
+    await closeDb();
+  }
 }
 
 function buildMonthlyTrend(
@@ -345,6 +351,8 @@ function buildMonthlyTrend(
 // ============================================================================
 
 export async function GET(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // 🔒 AUTH
     const token = getTokenFromCookies(req);
@@ -390,6 +398,10 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ============================================================================
@@ -397,6 +409,8 @@ export async function GET(req: Request) {
 // ============================================================================
 
 export async function POST(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // 🔒 AUTH
     const token = getTokenFromCookies(req);
@@ -441,6 +455,10 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ============================================================================
@@ -460,6 +478,8 @@ async function refreshAnalytics(qcSpecialistId: number): Promise<void> {
 
 // Extract and track rejection reasons
 async function updateRejectionReasons(qcSpecialistId: number): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const rejectedTasks = await db
     .select({ id: task.id, qcNotes: task.qcNotes })
     .from(task)
@@ -526,6 +546,10 @@ async function updateRejectionReasons(qcSpecialistId: number): Promise<void> {
   if (upsertOps.length > 0) {
     await Promise.all(upsertOps);
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // Update monthly trend
@@ -534,6 +558,8 @@ async function updateMonthlyTrend(
   year: number,
   month: number
 ): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const monthStart = new Date(year, month - 1, 1);
   const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
 
@@ -612,10 +638,16 @@ async function updateMonthlyTrend(
       approvalRate: String(approvalRate),
     },
   });
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // Check and award achievements
 async function updateAchievements(qcSpecialistId: number): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const { startDate: monthStart, endDate: monthEnd } = getDateRange("month");
   const { startDate: weekStart, endDate: weekEnd } = getDateRange("week");
 
@@ -700,4 +732,8 @@ async function updateAchievements(qcSpecialistId: number): Promise<void> {
   }
 
   await Promise.all(operations);
+
+  } finally {
+    await closeDb();
+  }
 }

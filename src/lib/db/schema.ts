@@ -233,8 +233,8 @@ export const user = pgTable("User", {
 	worksOnSaturday: boolean().default(false).notNull(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-	resetOtp: text(),
-	resetOtpExpiry: timestamp({ precision: 3, mode: 'string' }),
+resetOtp: text("resetOTP"),	
+	resetOtpExpiry: timestamp("resetOTPExpiry", { precision: 3, mode: 'string' }),
 	hoursPerWeek: numeric({ precision: 5, scale:  2 }).default('0'),
 	phone: text(),
 	monthlyRate: integer(),
@@ -242,13 +242,13 @@ export const user = pgTable("User", {
 	emailNotifications: boolean().default(true).notNull(),
 	slackNotifications: boolean().default(false).notNull(),
 	slackUserId: text(),
-	loginOtp: text(),
-	loginOtpExpiry: timestamp({ precision: 3, mode: 'string' }),
+	loginOtp: text("loginOTP"),
+	loginOtpExpiry: timestamp("loginOTPExpiry", { precision: 3, mode: 'string' }),
 	// Real DB type is Role[] (array of the "Role" enum) — drizzle-kit couldn't
 	// parse that during introspection and fell back to text[], which silently
 	// broke reads/writes on this column. Fixed to use the actual enum.
 	roles: role("roles").array(),
-}, (table) => [
+}, (table): any => [
 	index("User_email_idx").using("btree", table.email.asc().nullsLast().op("text_ops")),
 	index("User_employeeStatus_idx").using("btree", table.employeeStatus.asc().nullsLast().op("enum_ops")),
 	index("User_linkedClientId_idx").using("btree", table.linkedClientId.asc().nullsLast().op("text_ops")),

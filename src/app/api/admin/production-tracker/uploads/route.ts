@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
   user as userTable,
   file as fileTable,
@@ -21,6 +21,8 @@ import { getCurrentUser2 } from "@/lib/auth";
 //     -> returns the actual list of files uploaded in that range: who
 //        uploaded it, for which client/task, and when.
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
@@ -193,5 +195,9 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("Upload calendar error:", err);
     return NextResponse.json({ error: "Server error", details: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

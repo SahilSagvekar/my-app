@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 // cover-image checkmark on that client's Short Form tasks.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
@@ -13,6 +13,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = getUserFromToken(request);
     const authError = requireAdmin(user);
@@ -52,5 +54,9 @@ export async function PATCH(
       { error: 'Failed to update cover image setting', details: error.message },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

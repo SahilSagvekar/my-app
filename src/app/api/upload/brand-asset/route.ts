@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { client as clientTable, brandAsset } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq } from "drizzle-orm";
 import { uploadBufferToS3 } from "@/lib/s3";
 
 export async function POST(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const form = await req.formData();
     const file = form.get("file") as File;
@@ -54,5 +56,9 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("UPLOAD ERROR:", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

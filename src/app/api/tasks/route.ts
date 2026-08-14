@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
   task as taskTable,
   client as clientTable,
@@ -198,6 +198,8 @@ const WEEKDAY_MAP: Record<string, number> = {
 
 
 export async function GET(req: any) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -242,6 +244,14 @@ const { searchParams } = new URL(req.url);
     const clientIdFilter = searchParams.get("clientId") as string | null;
     const monthFilter = searchParams.get("monthFolder") as string | null;
 
+    // 🔥 Row-count safety cap — default 100, caller can request more via
+    // ?limit=, but never more than 200 (prevents ?limit=99999 from
+    // recreating the unfiltered-3000+-rows memory problem this replaces).
+    const requestedLimit = parseInt(searchParams.get("limit") || "", 10);
+    const taskLimit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, 200)
+      : 100;
+
     // Build role-based where query
     const roleWhere = await buildRoleWhereQuery(effectiveRole, Number(userId));
     const conditions: any[] = roleWhere ? [roleWhere] : [];
@@ -281,6 +291,7 @@ const { searchParams } = new URL(req.url);
       const rawTasks = await db.query.task.findMany({
         where,
         orderBy: desc(taskTable.createdAt),
+        limit: taskLimit,
         columns: {
           id: true,
           title: true,
@@ -424,6 +435,7 @@ const { searchParams } = new URL(req.url);
         LEFT JOIN "Client" c ON t."clientId" = c.id
         LEFT JOIN "User" u ON t."assignedTo" = u.id
         ORDER BY t."createdAt" DESC
+        LIMIT ${taskLimit}
       `);
       const rawRows = rawResult.rows as any[];
 
@@ -584,9 +596,15 @@ return NextResponse.json({
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function POST(req: any) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // 🔒 AUTH
     const user = await getCurrentUser2(req);
@@ -997,5 +1015,9 @@ export async function POST(req: any) {
       { message: "Server error", error: err.message },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

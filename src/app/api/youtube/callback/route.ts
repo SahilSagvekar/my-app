@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 // Handles the OAuth callback from Google
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { youTubeChannel } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { fetchChannelInfo } from "@/lib/youtube";
@@ -11,6 +11,8 @@ import { fetchChannelInfo } from "@/lib/youtube";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const code = req.nextUrl.searchParams.get("code");
     const stateParam = req.nextUrl.searchParams.get("state");
@@ -137,5 +139,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?youtube_error=server_error`
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

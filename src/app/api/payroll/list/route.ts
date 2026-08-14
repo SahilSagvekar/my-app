@@ -1,11 +1,13 @@
 export const dynamic = 'force-dynamic';
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { payroll } from "@/lib/db/schema";
 import { and, eq, gte, lte, desc } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     await requireAdmin(req);
 
@@ -60,5 +62,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     return NextResponse.json({ ok: false, message: err?.message }, { status: 400 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

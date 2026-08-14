@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/logins/audit/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable, socialLogin, loginAuditLog } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq, desc } from "drizzle-orm";
@@ -33,6 +33,8 @@ function verifyToken(token: string): { userId: number; role: string } | null {
 
 // POST - Log an audit event
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
        
@@ -114,10 +116,16 @@ export async function POST(req: NextRequest) {
     // Don't fail the request if audit logging fails
     return NextResponse.json({ success: false });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // GET - Fetch audit logs (Admin only)
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
         const token = getTokenFromCookies(req);
         
@@ -198,5 +206,9 @@ export async function GET(req: NextRequest) {
       { message: "Failed to fetch audit logs" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

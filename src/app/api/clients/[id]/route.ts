@@ -1,5 +1,5 @@
 export const dynamic = 'force-dynamic';
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
   client as clientTable,
   task,
@@ -17,6 +17,8 @@ import { getUser } from "@/lib/auth";
 import jwt from "jsonwebtoken";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await context.params;
 
@@ -104,9 +106,15 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     console.error("GET /clients/:id error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function PUT(req: Request, context: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await context.params;
     const data = await req.json();
@@ -356,12 +364,18 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     console.error("PUT client failed:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function DELETE(
   req: Request,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = params;
 
@@ -434,5 +448,9 @@ export async function DELETE(
       },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

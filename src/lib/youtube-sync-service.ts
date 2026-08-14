@@ -1,5 +1,5 @@
 // lib/youtube-sync-service.ts
-import { db } from './db';
+import { getDb } from './db';
 import { youTubeChannel, youTubeSnapshot, clientRevenue } from './db/schema';
 import { and, avg, eq, gte, lt, sum } from 'drizzle-orm';
 import { createId } from './db/id';
@@ -63,6 +63,8 @@ async function refreshAccessToken(refreshToken: string): Promise<{
  * Get valid access token (refresh if expired)
  */
 async function getValidAccessToken(youtubeChannel: any): Promise<string> {
+  const { db, closeDb } = getDb();
+  try {
     const now = new Date();
 
     // Check if token is expired or will expire in next 5 minutes
@@ -84,6 +86,10 @@ async function getValidAccessToken(youtubeChannel: any): Promise<string> {
     }
 
     return youtubeChannel.accessToken;
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
@@ -250,6 +256,8 @@ function getDateRange(days: number): { startDate: string; endDate: string } {
  * Sync YouTube data for a specific client
  */
 export async function syncYouTubeChannel(clientId: string): Promise<SyncResult> {
+  const { db, closeDb } = getDb();
+  try {
     try {
         console.log(`[YouTube Sync] Starting sync for client: ${clientId}`);
 
@@ -383,6 +391,10 @@ export async function syncYouTubeChannel(clientId: string): Promise<SyncResult> 
             error: error.message,
         };
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**

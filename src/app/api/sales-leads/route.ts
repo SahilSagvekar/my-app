@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { salesLead, salesDashboardColumn, user as userTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { asc, eq, or, sql } from 'drizzle-orm';
@@ -15,6 +15,8 @@ function getTokenFromCookies(req: Request) {
 
 // GET /api/sales-leads — sales user fetches their own rows
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -43,10 +45,16 @@ export async function GET(req: NextRequest) {
     console.error('[GET /api/sales-leads]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST /api/sales-leads — create a new lead row
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
@@ -122,5 +130,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[POST /api/sales-leads]', err);
     return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

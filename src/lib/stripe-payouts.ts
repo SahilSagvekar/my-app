@@ -1,7 +1,7 @@
 import Stripe from 'stripe';
 import { randomUUID } from 'crypto';
 import { stripe } from '@/lib/stripe';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { salesRepPayoutProfile, affiliateCommission, commissionPayout } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq } from 'drizzle-orm';
@@ -28,6 +28,8 @@ export async function getOrCreateConnectAccount(
   country: string,
   email: string
 ): Promise<{ accountId: string; profileId: string }> {
+  const { db, closeDb } = getDb();
+  try {
   const [existing] = await db.select().from(salesRepPayoutProfile).where(eq(salesRepPayoutProfile.userId, userId)).limit(1);
 
   if (existing?.stripeConnectAccountId) {
@@ -65,6 +67,10 @@ export async function getOrCreateConnectAccount(
   }).returning();
 
   return { accountId: account.id, profileId: profile.id };
+
+  } finally {
+    await closeDb();
+  }
 }
 
 /**
@@ -91,6 +97,8 @@ export async function createOnboardingLink(
  * account.updated webhook.
  */
 export async function syncAccountStatus(accountId: string): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const account = await stripe.accounts.retrieve(accountId);
   const payoutsEnabled = !!account.payouts_enabled;
 
@@ -104,6 +112,10 @@ export async function syncAccountStatus(accountId: string): Promise<void> {
   if (payoutsEnabled) updateData.taxFormCollectedAt = new Date().toISOString();
 
   await db.update(salesRepPayoutProfile).set(updateData).where(eq(salesRepPayoutProfile.stripeConnectAccountId, accountId));
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // Uniqueness here only needs to satisfy CommissionPayout.idempotencyKey's DB
@@ -122,6 +134,8 @@ export async function sendCommissionTransfer(
   commissionId: string,
   batchId?: string
 ): Promise<CommissionPayoutResult> {
+  const { db, closeDb } = getDb();
+  try {
   const commissionRow = await db.query.affiliateCommission.findFirst({
     where: eq(affiliateCommission.id, commissionId),
     with: { user: { with: { salesRepPayoutProfiles: true } } },
@@ -219,6 +233,10 @@ export async function sendCommissionTransfer(
       }).where(eq(affiliateCommission.id, commissionId)),
     ] as any);
     throw err;
+  }
+
+  } finally {
+    await closeDb();
   }
 }
 

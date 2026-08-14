@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { portfolioJourneyClient } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
@@ -10,6 +10,8 @@ export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const user = getUserFromToken(req);
         const authError = requireAdmin(user);
@@ -46,6 +48,10 @@ export async function PATCH(
         console.error('[PATCH /api/portfolio/journey-clients/[id]]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE /api/portfolio/journey-clients/[id] — admin: delete client (cascades its steps).
@@ -53,6 +59,8 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const user = getUserFromToken(req);
         const authError = requireAdmin(user);
@@ -74,4 +82,8 @@ export async function DELETE(
         console.error('[DELETE /api/portfolio/journey-clients/[id]]', err);
         return NextResponse.json({ ok: false, message: 'Server error' }, { status: 500 });
     }
+
+  } finally {
+    await closeDb();
+  }
 }

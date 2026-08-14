@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task, client, monthlyDeliverable, oneOffDeliverable, tagToTask, tag as tagTable } from "@/lib/db/schema";
 import { and, or, eq, ne, ilike, inArray, exists, gte, desc, count as countFn } from "drizzle-orm";
 import { addSignedUrlsToFiles } from "@/lib/s3";
@@ -14,6 +14,8 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(req);
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -110,77 +112,79 @@ export async function GET(req: Request) {
     const skip = (page - 1) * limit;
 
     // Fetch tasks that are ready for scheduler (QC approved or in scheduler status)
-    const [rawTasks, [{ value: total }]] = await Promise.all([
-      db.query.task.findMany({
-        where,
-        orderBy: desc(task.createdAt),
-        offset: skip,
-        limit,
-        with: {
-          client: {
-            columns: {
-              id: true,
-              name: true,
-              companyName: true,
-              requiresCoverImage: true,
-            },
+    // NOTE: these run sequentially rather than via Promise.all — running
+    // concurrent queries against one Neon serverless Pool connection was
+    // causing intermittent "Network connection lost" errors.
+    const rawTasks = await db.query.task.findMany({
+      where,
+      orderBy: desc(task.createdAt),
+      offset: skip,
+      limit,
+      with: {
+        client: {
+          columns: {
+            id: true,
+            name: true,
+            companyName: true,
+            requiresCoverImage: true,
           },
-          user_assignedTo: true,
-          files: {
-            where: (f, { eq }) => eq(f.isActive, true),
-            columns: {
-              id: true,
-              name: true,
-              url: true,
-              mimeType: true,
-              size: true,
-              s3Key: true,
-              folderType: true,
-            },
-          },
-          monthlyDeliverable: true,
-          oneOffDeliverable: true,
-          tagToTasks: { with: { tag: true } },
-          taskFeedbacks: {
-            columns: {
-              id: true,
-              fileId: true,
-              folderType: true,
-              feedback: true,
-              status: true,
-              timestamp: true,
-              category: true,
-              createdAt: true,
-              resolvedAt: true,
-              acknowledgedAt: true,
-              acknowledgedBy: true,
-            },
-            with: {
-              file: {
-                columns: { version: true, name: true },
-              },
-              user: {
-                columns: { id: true, name: true, role: true },
-              },
-            },
-            orderBy: (tf, { desc }) => desc(tf.createdAt),
-          },
-          ...(includeTitling && {
-            titlingJobs: {
-              columns: {
-                id: true,
-                status: true,
-                videoDuration: true,
-                completedAt: true,
-                error: true,
-                attempts: true,
-              },
-            },
-          }),
         },
-      }),
-      db.select({ value: countFn() }).from(task).where(where),
-    ]);
+        user_assignedTo: true,
+        files: {
+          where: (f, { eq }) => eq(f.isActive, true),
+          columns: {
+            id: true,
+            name: true,
+            url: true,
+            mimeType: true,
+            size: true,
+            s3Key: true,
+            folderType: true,
+          },
+        },
+        monthlyDeliverable: true,
+        oneOffDeliverable: true,
+        tagToTasks: { with: { tag: true } },
+        taskFeedbacks: {
+          columns: {
+            id: true,
+            fileId: true,
+            folderType: true,
+            feedback: true,
+            status: true,
+            timestamp: true,
+            category: true,
+            createdAt: true,
+            resolvedAt: true,
+            acknowledgedAt: true,
+            acknowledgedBy: true,
+          },
+          with: {
+            file: {
+              columns: { version: true, name: true },
+            },
+            user: {
+              columns: { id: true, name: true, role: true },
+            },
+          },
+          orderBy: (tf, { desc }) => desc(tf.createdAt),
+        },
+        ...(includeTitling && {
+          titlingJobs: {
+            columns: {
+              id: true,
+              status: true,
+              videoDuration: true,
+              completedAt: true,
+              error: true,
+              attempts: true,
+            },
+          },
+        }),
+      },
+    });
+
+    const [{ value: total }] = await db.select({ value: countFn() }).from(task).where(where);
 
     // Rename relation keys back to the Prisma-era shape the rest of this
     // handler (and frontend) expects.
@@ -306,5 +310,9 @@ export async function GET(req: Request) {
   } catch (err: any) {
     console.error("GET /api/schedular/tasks error:", err);
     return NextResponse.json({ message: "Server error", error: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

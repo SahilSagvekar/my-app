@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { trainingVideo } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, asc, eq } from 'drizzle-orm';
@@ -18,6 +18,8 @@ function isTrainingRole(r: string): r is TrainingRole {
 // - Admin/manager: all or filter by role/courseId
 // - Others: only for their role; when courseId is passed, restricted to that course
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -69,11 +71,17 @@ export async function GET(req: NextRequest) {
     console.error("GET /api/training/videos error:", err);
     return NextResponse.json({ error: "Failed to fetch training videos" }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST – create training video (admin/manager only)
 // Body: FormData with file OR videoUrl + title, description, role, order
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -141,5 +149,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("POST /api/training/videos error:", err);
     return NextResponse.json({ error: "Failed to create training video" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

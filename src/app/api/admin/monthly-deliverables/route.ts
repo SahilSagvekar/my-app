@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import {
   client as clientTable,
   task as taskTable,
@@ -22,6 +22,8 @@ function getMonthName(monthKey: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -327,5 +329,9 @@ export async function GET(req: NextRequest) {
       { ok: false, message: 'Internal server error' },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 } 

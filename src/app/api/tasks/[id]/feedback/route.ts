@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/feedback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { taskFeedback, shareableReview as shareableReviewTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, ne, desc } from "drizzle-orm";
@@ -11,6 +11,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
 
@@ -46,6 +48,10 @@ export async function GET(
     console.error("Error fetching feedback:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST - Add new feedback
@@ -53,6 +59,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const body = await req.json();
@@ -114,6 +122,10 @@ export async function POST(
     console.error("Error creating feedback:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // PATCH - Bulk save feedback (for QC sending back to editor)
@@ -121,6 +133,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const body = await req.json();
@@ -253,6 +267,10 @@ export async function PATCH(
     console.error("Error saving feedback:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE - Resolve or delete feedback
@@ -260,6 +278,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const { searchParams } = new URL(req.url);
@@ -334,6 +354,10 @@ export async function DELETE(
     console.error("Error deleting/resolving feedback:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // PUT - Update feedback content
@@ -341,6 +365,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const body = await req.json();
@@ -382,5 +408,9 @@ export async function PUT(
   } catch (error: any) {
     console.error("Error updating feedback:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

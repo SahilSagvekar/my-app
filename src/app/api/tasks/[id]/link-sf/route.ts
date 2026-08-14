@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // src/app/api/tasks/[id]/link-sf/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -10,6 +10,8 @@ import { getCurrentUser2 } from '@/lib/auth';
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: Params) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -44,9 +46,15 @@ export async function GET(req: NextRequest, { params }: Params) {
     console.error('[link-sf GET]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -74,9 +82,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     console.error('[link-sf POST]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -96,5 +110,9 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   } catch (err: any) {
     console.error('[link-sf DELETE]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

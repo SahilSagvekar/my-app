@@ -1,11 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
 
@@ -63,4 +65,8 @@ export async function GET(req: Request) {
   });
 
   return redirect;
+
+  } finally {
+    await closeDb();
+  }
 }

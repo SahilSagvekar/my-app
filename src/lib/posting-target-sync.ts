@@ -9,7 +9,7 @@
 // deliverable, but the tracker's progress route explicitly excludes it
 // ("Snapchat is no longer tracked"), so we don't create or delete Snapchat rows.
 
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { monthlyDeliverable, postingTarget } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq, inArray } from "drizzle-orm";
@@ -58,6 +58,8 @@ function defaultTargetNameForCreate(genericPlatform: string): string {
  * Snapchat is skipped entirely in both directions.
  */
 export async function syncPostingTargetsForClient(clientId: string): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   if (!clientId) {
     // Fail loudly rather than run any query below unscoped across ALL clients.
     throw new Error("syncPostingTargetsForClient: clientId is required");
@@ -130,5 +132,9 @@ export async function syncPostingTargetsForClient(clientId: string): Promise<voi
 
   if (batchOps.length > 0) {
     await db.batch(batchOps as any);
+  }
+
+  } finally {
+    await closeDb();
   }
 }

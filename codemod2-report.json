@@ -1,0 +1,758 @@
+[
+  {
+    "file": "src/app/api/admin/clients/[id]/meeting-notes/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/guidelines/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/guidelines/[id]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/meeting-notes/[id]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/meeting-notes/[id]/send/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/migrate-recurring/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/production-tracker/employee-summary/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/production-tracker/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/production-tracker/uploads/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/slack-config/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/tasks/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/tasks/[id]/drive-mirror/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/tasks/[id]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "PATCH",
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/tasks/[id]/youtube-mirror/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/admin/users/[userId]/reset-2fa/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/auth/google/callback/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/auth/me/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/auth/slack/callback/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/backfill/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/client/feedback/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/count/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/recurring.ts",
+    "status": "NO-HANDLERS-FOUND"
+  },
+  {
+    "file": "src/app/api/clients/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/deliverables/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/deliverables/[deliverableId]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "PUT",
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/hashtags/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/one-off-deliverables/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/one-off-deliverables/[deliverableId]/generate/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/one-off-deliverables/[deliverableId]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "PUT",
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "PUT",
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/run-monthly/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/clients/[id]/upload/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/drive/folder-status/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/editor/eod/send/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/editor/eod/tasks/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/editor/production-tracker/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/editor/request-raws/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/employee/list/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/employee/management/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/employee/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/employee/[employeeId]/bonus/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/employee/[employeeId]/bonuses/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/employee/[employeeId]/leaves/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/employee/[employeeId]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/files/[id]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/guidelines/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/leave/list/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/leave/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST",
+      "GET",
+      "POST",
+      "GET",
+      "DELETE",
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/leave/[id]/approve/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/leave/[id]/reject/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/2fa/check/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/2fa/disable/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/2fa/setup/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/2fa/verify/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/audit/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/check-pin/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/set-pin/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/verify-pin/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/logins/[id]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PUT",
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/logout/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/meta/admin-analytics/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/meta/analytics/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/meta/callback/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/meta/revenue/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/payroll/generate/[year]/[month]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/payroll/list/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/payroll/[payrollId]/hide/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/payroll/[payrollId]/mark-paid/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/posted-content/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/profile/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "PUT"
+    ]
+  },
+  {
+    "file": "src/app/api/qc/rejection-sidebar/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/qc-analytics/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/schedular/metadata/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/schedular/tasks/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/slack/link/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST",
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/slack/toggle/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tags/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/assigned/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/monthly/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/recurring/run/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST",
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/upload/google-drive/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/assign/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/assign-deliverable/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/feedback/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "POST",
+      "PATCH",
+      "DELETE",
+      "PUT"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/files/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/mark-pending/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/mark-scheduled/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET",
+      "DELETE"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/shoot-notes/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/sponsored/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/status/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/tags/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/text-content/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/tasks/[id]/toggle-trial/route.ts",
+    "status": "OK",
+    "handlers": [
+      "PATCH"
+    ]
+  },
+  {
+    "file": "src/app/api/upload/brand-asset/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/upload/complete/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/upload/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  },
+  {
+    "file": "src/app/api/youtube/admin-analytics/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/youtube/analytics/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/youtube/callback/route.ts",
+    "status": "OK",
+    "handlers": [
+      "GET"
+    ]
+  },
+  {
+    "file": "src/app/api/youtube/sync/route.ts",
+    "status": "OK",
+    "handlers": [
+      "POST"
+    ]
+  }
+]

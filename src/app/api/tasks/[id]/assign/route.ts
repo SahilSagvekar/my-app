@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { task, user, client as clientTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { notifyEditorTaskAssignment } from "../../../../../lib/notify";
@@ -17,6 +17,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = params;
     const token = getTokenFromCookies(req);
@@ -93,5 +95,9 @@ export async function PATCH(
   } catch (err: any) {
     console.error("❌ Task assignment error:", err.message);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

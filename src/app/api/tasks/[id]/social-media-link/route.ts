@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { task, postedContent } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq } from 'drizzle-orm';
@@ -40,6 +40,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -158,6 +160,10 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // PATCH - Update an existing social media link
@@ -165,6 +171,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -255,6 +263,10 @@ export async function PATCH(
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE - Remove a social media link
@@ -262,6 +274,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id } = await params;
 
@@ -355,5 +369,9 @@ export async function DELETE(
       { error: "Failed to delete social media link" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

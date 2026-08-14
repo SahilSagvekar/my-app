@@ -1,7 +1,7 @@
 // src/app/api/slack/link/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { WebClient } from "@slack/web-api";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -10,6 +10,8 @@ export const dynamic = "force-dynamic";
 
 // POST — link user's Slack account by looking up their email
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -64,10 +66,16 @@ export async function POST(req: NextRequest) {
     console.error("[Slack Link] Error:", error);
     return NextResponse.json({ error: "Failed to link Slack account" }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // DELETE — unlink Slack account
 export async function DELETE(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -84,5 +92,9 @@ export async function DELETE(req: NextRequest) {
   } catch (error) {
     console.error("[Slack Unlink] Error:", error);
     return NextResponse.json({ error: "Failed to unlink Slack account" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

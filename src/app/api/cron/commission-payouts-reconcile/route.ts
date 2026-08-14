@@ -5,7 +5,7 @@
 // current state of any payout still sitting in SENT.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { commissionPayout, affiliateCommission } from '@/lib/db/schema';
 import { and, eq, isNull, isNotNull, lte, count as countFn } from 'drizzle-orm';
 import { stripe } from '@/lib/stripe';
@@ -13,6 +13,8 @@ import { stripe } from '@/lib/stripe';
 const STUCK_AFTER_MINUTES = 30;
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
@@ -85,8 +87,18 @@ export async function POST(req: NextRequest) {
     console.error('[Payout Reconcile] Error:', error);
     return NextResponse.json({ error: 'Reconciliation failed', details: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   return POST(req);
+
+  } finally {
+    await closeDb();
+  }
 }

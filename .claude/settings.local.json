@@ -30,7 +30,18 @@
       "Bash(echo \"diff exit: $?\")",
       "PowerShell(cd \"D:\\\\E8 Productions\\\\my-app\"; npx tsc --noEmit -p tsconfig.json > tsc_out.txt 2>&1; Write-Output \"EXIT:$LASTEXITCODE\"; \\(Get-Content tsc_out.txt | Measure-Object -Line\\).Lines)",
       "PowerShell(cd \"D:\\\\E8 Productions\\\\my-app\"; Select-String -Path tsc_out.txt -Pattern \"^[^\\\\\\(]+\\\\.ts\" | ForEach-Object { \\($_ -split \"\\\\\\(\"\\)[0] } | Sort-Object -Unique)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\fixlib.cjs\")",
+      "Bash(npm run *)",
+      "Bash(npm --version)",
+      "Bash(node node_modules/next/dist/bin/next build)",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\dedupe.cjs\")",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\fixdb2.cjs\" src/app/api)",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\fixdb2.cjs\" src/lib)",
+      "Bash(node -e ' *)",
+      "Bash(grep -rn \"const db = getDb\\(\\);\\\\s*$\" src/)",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\fixdb2.cjs\" src/app)",
+      "Bash(node \"C:\\\\Users\\\\SAHIL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--E8-Productions-my-app\\\\fcab5328-a8f6-43fb-8a05-0dcf79a561bf\\\\scratchpad\\\\audit.cjs\" src)"
     ]
   }
 }

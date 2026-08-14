@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { contract as contractTable, contractSigner as contractSignerTable, client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
 import { and, or, eq, isNotNull, isNull, inArray, sql } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -9,6 +9,8 @@ import { uploadBufferToS3 } from '@/lib/s3';
 
 // GET /api/contracts/sync — Manually sync pending contracts with SignWell
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager', 'client'].includes(user.role ?? '')) {
@@ -167,5 +169,9 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('GET /api/contracts/sync error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

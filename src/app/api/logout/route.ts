@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { auditLog } from "@/lib/db/schema";
 import { getGeoLocation } from "@/lib/geo";
 
 export async function POST(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // Extract user info before clearing token
     const cookieHeader = req.headers.get("cookie");
@@ -62,5 +64,9 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error("Logout error:", err);
     return NextResponse.json({ message: "Server error" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

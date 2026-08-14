@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { invoice, stripeCustomer as stripeCustomerTable, client as clientTable, task } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, eq, inArray, isNotNull, desc, count as countFn } from 'drizzle-orm';
@@ -18,6 +18,8 @@ import {
 
 // GET - List invoices (with filters)
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     if (!currentUser) {
@@ -109,10 +111,16 @@ export async function GET(req: NextRequest) {
     console.error('Error fetching invoices:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST - Create a new invoice
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const currentUser = getUserFromToken(req);
     const authError = requireAdmin(currentUser);
@@ -299,5 +307,9 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('Error creating invoice:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

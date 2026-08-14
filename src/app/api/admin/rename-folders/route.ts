@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
@@ -174,6 +174,8 @@ async function deletePrefix(prefix: string): Promise<{ deleted: number; errors: 
 // with the proposed rename. Never modifies anything.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     await requireAdmin(req);
 
@@ -219,6 +221,10 @@ export async function GET(req: NextRequest) {
     console.error('[rename-folders] GET error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -229,6 +235,8 @@ export async function GET(req: NextRequest) {
 // dryRun=false → executes each rename: copy all objects, then delete originals
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     await requireAdmin(req);
 
@@ -309,5 +317,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[rename-folders] POST error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

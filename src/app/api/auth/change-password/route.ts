@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { hashPassword, verifyPassword } from '@/lib/password';
 import { auth } from '@/auth';
 
 export async function POST(request: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const session = await auth();  // Use auth() instead of getServerSession()
     
@@ -57,5 +59,9 @@ export async function POST(request: NextRequest) {
       { ok: false, message: 'Failed to change password' },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

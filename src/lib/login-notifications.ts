@@ -3,7 +3,7 @@
 // Tags all active schedulers and admins by their Slack user IDs.
 // Falls back gracefully when no Slack IDs are configured.
 
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { sendToChannel } from "@/lib/slack";
@@ -17,6 +17,8 @@ interface LoginAddedPayload {
 }
 
 export async function notifyLoginAdded(payload: LoginAddedPayload): Promise<void> {
+  const { db, closeDb } = getDb();
+  try {
   const { platform, clientName, addedByName, addedByRole, isAdminOnly } = payload;
 
   // Fetch all active schedulers + admins who have a Slack user ID set
@@ -58,4 +60,8 @@ export async function notifyLoginAdded(payload: LoginAddedPayload): Promise<void
     `[login-notifications] ✅ Notified ${notifyUsers.length} user(s) about new "${platform}" login` +
       (clientName ? ` (client: ${clientName})` : " (admin-only)")
   );
+
+  } finally {
+    await closeDb();
+  }
 }

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { leave } from "@/lib/db/schema";
 import { and, eq, gte, lte, desc } from "drizzle-orm";
 import { z } from "zod";
@@ -38,6 +38,8 @@ export async function GET(
   req: NextRequest,
   context: { params: { employeeId: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // Get and verify user from token
     const user = getUserFromToken(req);
@@ -102,5 +104,9 @@ export async function GET(
       { ok: false, message: err?.message || "Something went wrong" },
       { status }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

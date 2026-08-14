@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { shareableFile as shareableFileTable } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import { generateSignedUrl, getS3, BUCKET } from '@/lib/s3';
@@ -22,6 +22,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ shareToken: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { shareToken } = await params;
 
@@ -98,5 +100,9 @@ export async function GET(
   } catch (error: any) {
     console.error('[shared/folder] error:', error);
     return NextResponse.json({ error: 'Failed to load folder', details: error.message }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

@@ -1,7 +1,7 @@
 // lib/daily-summary-report.ts
 // Generates a daily summary of what each team member did (12 AM – 7 PM EST)
 // Includes: task status changes, login/logout times, client activity
-import { db } from './db';
+import { getDb } from './db';
 import { auditLog, task as taskTable, user as userTable } from './db/schema';
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { format, subSeconds } from 'date-fns';
@@ -64,6 +64,8 @@ export interface DailySummaryReport {
  * Period: 12:00 AM to 7:00 PM EST on the given day
  */
 export async function generateDailySummaryReport(options: DailySummaryOptions = {}): Promise<DailySummaryReport | null> {
+  const { db, closeDb } = getDb();
+  try {
     const { targetDate = subSeconds(new Date(), 60), sendEmail = false } = options;
 
     console.log(`\n📊 [Daily Summary] Generating report for ${format(targetDate, 'yyyy-MM-dd')}`);
@@ -489,4 +491,8 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
         console.error('❌ [Daily Summary] Failed to generate report:', error);
         throw error;
     }
+
+  } finally {
+    await closeDb();
+  }
 }

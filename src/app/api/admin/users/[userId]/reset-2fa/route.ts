@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/admin/users/[userId]/reset-2fa/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
     user as userTable,
     userTwoFactorAuth as userTwoFactorAuthTable,
@@ -36,6 +36,8 @@ export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ userId: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
     try {
         const token = getTokenFromCookies(req);
 
@@ -107,4 +109,8 @@ export async function POST(
             { status: 500 }
         );
     }
+
+  } finally {
+    await closeDb();
+  }
 }

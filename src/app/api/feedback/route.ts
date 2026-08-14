@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 // app/api/feedback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { feedback as feedbackTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, desc, asc } from 'drizzle-orm';
@@ -16,6 +16,8 @@ function getTokenFromCookies(req: Request) {
 
 // GET - Fetch all feedback
 export async function GET(request: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const token = getTokenFromCookies(request);
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -78,10 +80,16 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST - Create new feedback
 export async function POST(request: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const body = await request.json();
     const { subject, message, category, priority, senderId } = body;
@@ -113,5 +121,9 @@ export async function POST(request: NextRequest) {
       { error: "Failed to create feedback" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

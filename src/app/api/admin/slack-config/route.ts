@@ -1,6 +1,6 @@
 // src/app/api/admin/slack-config/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { slackConfig as slackConfigTable } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { createId } from "@/lib/db/id";
@@ -11,6 +11,8 @@ export const dynamic = "force-dynamic";
 
 // GET — fetch current Slack webhook config
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || user.role !== "admin") {
@@ -27,10 +29,16 @@ export async function GET(req: NextRequest) {
     console.error("[Slack Config] GET error:", error);
     return NextResponse.json({ error: "Failed to fetch config" }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 // POST — create or update Slack webhook config
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || user.role !== "admin") {
@@ -75,5 +83,9 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("[Slack Config] POST error:", error);
     return NextResponse.json({ error: "Failed to save config" }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

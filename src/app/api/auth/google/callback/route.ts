@@ -9,7 +9,7 @@ import { google } from "googleapis";
 import formidable from "formidable";
 import fs from "fs";
 import jwt from "jsonwebtoken";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -27,6 +27,8 @@ function getTokenFromCookies(req: Request) {
 }
 
 export async function GET(req: Request) {
+  const { db, closeDb } = getDb();
+  try {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
 
@@ -69,4 +71,8 @@ export async function GET(req: Request) {
   });
 
   return response;
+
+  } finally {
+    await closeDb();
+  }
 }

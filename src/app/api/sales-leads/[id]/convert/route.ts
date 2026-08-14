@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 // Runs the exact same logic as POST /api/clients (folders, deliverables, recurring tasks, onboarding).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { salesLead, user as userTable, client as clientTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq } from 'drizzle-orm';
@@ -25,6 +25,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const { id: leadId } = await params;
     const token = getToken(req);
@@ -142,5 +144,9 @@ export async function POST(
   } catch (err: any) {
     console.error('[Convert Lead] Error:', err);
     return NextResponse.json({ ok: false, message: err.message || 'Conversion failed' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

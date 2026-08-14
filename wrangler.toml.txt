@@ -1,0 +1,64 @@
+name = "e8-app"
+main = ".open-next/worker.js"
+compatibility_date = "2026-08-04"
+compatibility_flags = ["nodejs_compat"]
+
+account_id = "dbc98815b0fb7124d9fc27fb40abd290"
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# ---------- Cron triggers (short jobs, <30s CPU) ----------
+[triggers]
+crons = [
+  "0 9 * * *",
+  "0 0 * * *"
+]
+
+# ============================================
+# Production environment
+# ============================================
+[env.production]
+account_id = "dbc98815b0fb7124d9fc27fb40abd290"
+# routes = [
+#   { pattern = "api.e8productions.com/*", zone_id = "YOUR_ZONE_ID" }
+# ]
+
+[[env.production.r2_buckets]]
+binding = "R2_VIDEOS"
+bucket_name = "e8-app-r2-prod"
+
+[[env.production.queues.producers]]
+queue = "commission-payouts"
+binding = "COMMISSION_QUEUE"
+
+[[env.production.queues.producers]]
+queue = "scheduler-activity-rollup"
+binding = "ROLLUP_QUEUE"
+
+# ============================================
+# Staging environment
+# ============================================
+[env.staging]
+account_id = "dbc98815b0fb7124d9fc27fb40abd290"
+# routes = [
+#   { pattern = "staging-api.e8productions.com/*", zone_id = "YOUR_ZONE_ID" }
+# ]
+
+[[env.staging.r2_buckets]]
+binding = "R2_VIDEOS"
+bucket_name = "e8-app-r2-prod"
+
+[[env.staging.queues.producers]]
+queue = "commission-payouts"
+binding = "COMMISSION_QUEUE"
+
+[[env.staging.queues.producers]]
+queue = "scheduler-activity-rollup"
+binding = "ROLLUP_QUEUE"
+
+# NOTE — jobs staying on EC2 (exceed 30s Worker CPU limit):
+#   - s3-to-nas (2-10 min file transfer)
+#   - commission-payouts-reconcile (~30-40s DB audit)
+# These keep running on a t3.micro EC2 instance. Do not migrate.

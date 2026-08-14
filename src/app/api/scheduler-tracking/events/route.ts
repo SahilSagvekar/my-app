@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 // under a different user's name.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { schedulerActivityEvent } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { getCurrentUser2 } from '@/lib/auth';
@@ -22,6 +22,8 @@ const VALID_EVENT_TYPES = new Set([
 const MAX_BATCH_SIZE = 200; // guards against a malformed/malicious oversized payload
 
 export async function POST(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -71,5 +73,9 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[scheduler-tracking/events] error:', err.message);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

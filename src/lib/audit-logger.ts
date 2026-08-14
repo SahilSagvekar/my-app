@@ -1,5 +1,5 @@
 // lib/audit-logger.ts
-import { db } from './db';
+import { getDb } from './db';
 import { auditLog } from './db/schema';
 import type { NextRequest } from 'next/server';
 import { getGeoLocation } from './geo';
@@ -19,6 +19,8 @@ export interface AuditLogData {
  * Create an audit log entry
  */
 export async function createAuditLog(data: AuditLogData) {
+  const { db, closeDb } = getDb();
+  try {
   // Skip login/logout logs originating from India
   if (
     (data.action === AuditAction.USER_LOGIN || data.action === AuditAction.USER_LOGOUT) &&
@@ -67,6 +69,10 @@ export async function createAuditLog(data: AuditLogData) {
     console.error('Failed to create audit log:', error);
     // Don't throw - audit logging should never break the main operation
     return null;
+  }
+
+  } finally {
+    await closeDb();
   }
 }
 

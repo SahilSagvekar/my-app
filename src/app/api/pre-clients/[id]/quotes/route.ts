@@ -1,12 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { preClient as preClientTable, quote as quoteTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -21,9 +23,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     console.error('GET quotes error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
+
+  } finally {
+    await closeDb();
+  }
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     const user = await getCurrentUser2(req);
     if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
@@ -78,5 +86,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (err) {
     console.error('POST quote error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+
+  } finally {
+    await closeDb();
   }
 }

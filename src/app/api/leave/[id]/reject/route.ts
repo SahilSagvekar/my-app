@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { leave } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
@@ -10,6 +10,8 @@ export async function PATCH(
   req: NextRequest,
   context: { params: { id: string } }
 ) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     await requireAdmin(req);
     const { params } = await Promise.resolve(context);
@@ -52,5 +54,9 @@ export async function PATCH(
       { ok: false, message: err?.message || "Something went wrong" },
       { status }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }

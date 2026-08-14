@@ -3,12 +3,14 @@ export const dynamic = 'force-dynamic';
 // Admin-only: returns YouTube data for ALL clients
 
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { client as clientTable, youTubeChannel, youTubeSnapshot } from "@/lib/db/schema";
 import { and, asc, eq, gte } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const { db, closeDb } = getDb();
+  try {
   try {
     // Auth check - admin only
     const user = await getCurrentUser2(req);
@@ -134,5 +136,9 @@ export async function GET(req: NextRequest) {
       { error: "Failed to fetch admin analytics" },
       { status: 500 }
     );
+  }
+
+  } finally {
+    await closeDb();
   }
 }
