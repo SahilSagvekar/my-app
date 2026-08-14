@@ -6,7 +6,9 @@ import { sendOTPEmail } from '@/lib/email';
 
 export async function POST(req: Request) {
   try {
-    const { email } = await req.json();
+    const body = await req.json();
+    const email =
+      typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
 
     if (!email) {
       return NextResponse.json(
@@ -15,9 +17,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find user
+    // Find user (case-insensitive — emails may be stored with mixed case)
     const user = await prisma.user.findFirst({
-      where: { email },
+      where: { email: { equals: email, mode: 'insensitive' } },
     });
 
     if (!user) {

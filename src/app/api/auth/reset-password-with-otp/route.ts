@@ -6,7 +6,13 @@ import { isOTPExpired } from '@/lib/otp';
 
 export async function POST(req: Request) {
   try {
-    const { email, otp, newPassword } = await req.json();
+    const body = await req.json();
+    const email =
+      typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const otp =
+      typeof body.otp === 'string' ? body.otp.trim() : '';
+    const newPassword =
+      typeof body.newPassword === 'string' ? body.newPassword : '';
 
     if (!email || !otp || !newPassword) {
       return NextResponse.json(
@@ -22,10 +28,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find user with matching OTP - CHANGED to findFirst
+    // Find user with matching reset OTP (not loginOTP)
     const user = await prisma.user.findFirst({
       where: {
-        email,
+        email: { equals: email, mode: 'insensitive' },
         resetOTP: otp,
       },
     });
