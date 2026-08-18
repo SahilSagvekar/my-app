@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { getDbHttp } from "@/lib/db";
 import { task, client, monthlyDeliverable, oneOffDeliverable, tagToTask, tag as tagTable } from "@/lib/db/schema";
-import { and, or, eq, ne, ilike, inArray, exists, gte, desc, count as countFn } from "drizzle-orm";
+import { and, or, eq, ne, ilike, inArray, gte, desc, count as countFn } from "drizzle-orm";
 import { addSignedUrlsToFiles } from "@/lib/s3";
 
 function getTokenFromCookies(req: Request) {
@@ -62,18 +62,33 @@ export async function GET(req: Request) {
       conditions.push(inArray(task.status, ["COMPLETED", "SCHEDULED", "POSTED"] as any));
     }
 
+    // NOTE: these filters resolve matching IDs via standalone lookup queries
+    // rather than `exists(db.select()...)` correlated subqueries. Drizzle's
+    // relational query builder (db.query.task.findMany) aliases the main
+    // table as "task" in the generated SQL, but a correlated subquery built
+    // with a fresh db.select() has no awareness of that alias and compiles
+    // the outer reference against the table's real SQL name ("Task")
+    // instead — Postgres then rejects it with "invalid reference to
+    // FROM-clause entry for table \"Task\"". inArray(..., []) safely
+    // compiles to `false`, so an empty match list just excludes everything.
     if (search) {
       const pattern = `%${search}%`;
+      const matchingClients = await db.select({ id: client.id }).from(client)
+        .where(or(ilike(client.name, pattern), ilike(client.companyName, pattern)));
       conditions.push(or(
         ilike(task.title, pattern),
-        exists(db.select().from(client).where(and(eq(client.id, task.clientId), or(ilike(client.name, pattern), ilike(client.companyName, pattern))))),
+        inArray(task.clientId, matchingClients.map(c => c.id)),
       ));
     }
 
     if (deliverableType && deliverableType !== "all") {
+      const [matchingMonthly, matchingOneOff] = await Promise.all([
+        db.select({ id: monthlyDeliverable.id }).from(monthlyDeliverable).where(eq(monthlyDeliverable.type, deliverableType)),
+        db.select({ id: oneOffDeliverable.id }).from(oneOffDeliverable).where(eq(oneOffDeliverable.type, deliverableType)),
+      ]);
       conditions.push(or(
-        exists(db.select().from(monthlyDeliverable).where(and(eq(monthlyDeliverable.id, task.monthlyDeliverableId), eq(monthlyDeliverable.type, deliverableType)))),
-        exists(db.select().from(oneOffDeliverable).where(and(eq(oneOffDeliverable.id, task.oneOffDeliverableId), eq(oneOffDeliverable.type, deliverableType)))),
+        inArray(task.monthlyDeliverableId, matchingMonthly.map(d => d.id)),
+        inArray(task.oneOffDeliverableId, matchingOneOff.map(d => d.id)),
       ));
     }
 
@@ -82,11 +97,11 @@ export async function GET(req: Request) {
     }
 
     if (tag && tag !== "all") {
-      conditions.push(exists(
-        db.select().from(tagToTask)
-          .innerJoin(tagTable, eq(tagToTask.a, tagTable.id))
-          .where(and(eq(tagToTask.b, task.id), eq(tagTable.name, tag)))
-      ));
+      const taggedTaskIds = await db.select({ taskId: tagToTask.b })
+        .from(tagToTask)
+        .innerJoin(tagTable, eq(tagToTask.a, tagTable.id))
+        .where(eq(tagTable.name, tag));
+      conditions.push(inArray(task.id, taggedTaskIds.map(t => t.taskId)));
     }
 
     if (dateRange && dateRange !== "all") {

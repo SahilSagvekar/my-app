@@ -10,6 +10,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { getS3, BUCKET } from '@/lib/s3';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { presignDownload } from '@/lib/file-server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 async function listAllKeys(prefix: string): Promise<{ key: string; size: number }[]> {
   const s3 = getS3();
@@ -27,6 +28,7 @@ async function listAllKeys(prefix: string): Promise<{ key: string; size: number 
 }
 
 export async function POST(req: NextRequest) {
+  const { env } = getCloudflareContext();
   const user = await getCurrentUser2(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
           ? obj.key.slice(basePrefix.length)
           : obj.key.split('/').pop() || 'file';
         const fileName = name.split('/').pop() || name;
-        const { downloadUrl } = await presignDownload(user.id, user.role, obj.key, fileName);
+        const { downloadUrl } = await presignDownload(env, user.id, user.role, obj.key, fileName);
         return { key: obj.key, name, size: obj.size, url: downloadUrl };
       })
     );

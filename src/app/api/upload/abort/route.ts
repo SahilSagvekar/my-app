@@ -4,14 +4,16 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { abortMultipart } from '@/lib/file-server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export async function POST(request: NextRequest) {
+  const { env } = getCloudflareContext();
   try {
     const { key, uploadId } = await request.json();
     if (!key || !uploadId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    await abortMultipart('system', 'uploader', key, uploadId);
+    await abortMultipart(env, 'system', 'uploader', key, uploadId);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error aborting upload:', error);

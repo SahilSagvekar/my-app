@@ -270,6 +270,23 @@ export function SchedulerApprovedQueuePage() {
         description: 'Social media post link has been saved.',
       });
 
+      // Auto-mark as scheduled once every platform the deliverable requires has
+      // a link (or, if the deliverable has no platforms configured, as soon as
+      // the first link is added — matching scheduleTask's own bare minimum).
+      if (selectedTask.status !== 'SCHEDULED') {
+        const requiredPlatforms = (selectedTask.deliverable?.platforms || []).map(p => p.toLowerCase());
+        const allLinks = [
+          ...(selectedTask.socialMediaLinks || []).map(l => l.platform.toLowerCase()),
+          socialMediaPlatform.toLowerCase(),
+        ];
+        const allCovered = requiredPlatforms.length > 0
+          ? requiredPlatforms.every(p => allLinks.includes(p))
+          : allLinks.length > 0;
+        if (allCovered) {
+          setTimeout(() => scheduleTask({ ...selectedTask, socialMediaLinks: [...(selectedTask.socialMediaLinks || []), updatedLink] }), 300);
+        }
+      }
+
     } catch (err) {
       console.error(err);
       toast.error('Error', {

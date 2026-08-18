@@ -44,6 +44,7 @@ export async function GET(
             proxyUrl: true,
             reviewDriveUrl: true,
             youtubeVideoId: true,
+            folderType: true,
           },
           orderBy: desc(fileTable.uploadedAt),
         },

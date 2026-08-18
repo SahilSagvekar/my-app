@@ -18,6 +18,7 @@ import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
 import { completeMultipart } from '@/lib/file-server';
 import { pushUploadJob } from '@/lib/upload-queue';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDbHttp } from "@/lib/db";
 import { client as clientTable, file as fileTable, task as taskTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
@@ -42,6 +43,7 @@ function getErrorCode(error: unknown) {
 
 export async function POST(request: NextRequest) {
   const db = getDbHttp();
+  const { env } = getCloudflareContext();
   try {
     const user = await getCurrentUser2(request);
     if (!user)
@@ -93,7 +95,7 @@ export async function POST(request: NextRequest) {
         if (!parts) {
           return NextResponse.json({ error: "Missing parts for multipart complete" }, { status: 400 });
         }
-        s3Response = await completeMultipart(userId, user.role || 'admin', key, uploadId, parts);
+        s3Response = await completeMultipart(env, userId, user.role || 'admin', key, uploadId, parts);
         fileUrl = getFileUrl(key);
         console.log("✅ S3 multipart completed:", fileUrl);
       }

@@ -11,6 +11,7 @@ import {
 import { getS3, BUCKET } from '@/lib/s3';
 import { getCurrentUser2 } from '@/lib/auth';
 import { moveItem } from '@/lib/file-server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 const s3 = getS3();
 
@@ -65,6 +66,7 @@ async function deleteObjects(keys: string[]) {
 }
 
 export async function POST(req: NextRequest) {
+  const { env } = getCloudflareContext();
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'sourceKey and destinationFolderKey are required' }, { status: 400 });
     }
 
-    const result = await moveItem(user.id, user.role, sourceKey, destinationFolderKey, type);
+    const result = await moveItem(env, user.id, user.role, sourceKey, destinationFolderKey, type);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Move error:', error);

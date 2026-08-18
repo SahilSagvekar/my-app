@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbHttp } from '@/lib/db';
-import { file as fileTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { getS3, BUCKET } from '@/lib/s3';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getDbHttp } from '@/lib/db';
+import { file } from '@/lib/db/schema';
+import { generateSignedUrl } from '@/lib/s3';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +11,6 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-  const db = getDbHttp();
     try {
         const { id: fileId } = await params;
 
@@ -22,54 +20,66 @@ export async function GET(
             return new NextResponse('Unauthorized', { status: 401 });
         }
 
-        // 2. Get file details
-        const [file] = await db.select().from(fileTable).where(eq(fileTable.id, fileId)).limit(1);
+        // 2. Get file details (Drizzle — Prisma's native engine can't run
+        // on Cloudflare Workers, same reason the other ~330 routes were
+        // already converted)
+        const db = getDbHttp();
+        const [fileRow] = await db
+            .select()
+            .from(file)
+            .where(eq(file.id, fileId))
+            .limit(1);
 
-        if (!file || !file.s3Key) {
+        if (!fileRow || !fileRow.s3Key) {
             return new NextResponse('File not found', { status: 404 });
         }
 
-        if (file.deletedFromCloud) {
+        if (fileRow.deletedFromCloud) {
             return new NextResponse('This file has been archived to NAS and removed from cloud storage. Contact an admin to restore it.', { status: 410 });
         }
 
         // 3. Handle Range Requests (Crucial for video scrubbing/streaming)
         const range = request.headers.get('range');
-        const s3Client = getS3();
 
-        const getObjectParams: any = {
-            Bucket: BUCKET,
-            Key: file.s3Key,
-        };
+        // Presign, then plain fetch() — do NOT let the AWS SDK sign-and-send
+        // the request from inside the Worker. Cloudflare Workers' fetch()
+        // runtime can normalize/alter outgoing headers (especially Range),
+        // which invalidates a SigV4 signature computed just beforehand and
+        // produces SignatureDoesNotMatch even with correct credentials.
+        // Presigned URLs avoid this because signing happens once, up front,
+        // and the header set that gets signed is fixed in the query string —
+        // the same pattern already used successfully for uploads.
+        const signedUrl = await generateSignedUrl(fileRow.s3Key, 3600);
 
-        if (range) {
-            getObjectParams.Range = range;
-        }
+        const upstream = await fetch(signedUrl, {
+            headers: range ? { Range: range } : {},
+        });
 
-        const data = await s3Client.send(new GetObjectCommand(getObjectParams));
-
-        if (!data.Body) {
-            return new NextResponse('Could not fetch file from storage', { status: 500 });
+        if (!upstream.ok && upstream.status !== 206) {
+            console.error('Streaming error: upstream fetch failed', upstream.status, await upstream.text().catch(() => ''));
+            return new NextResponse('Could not fetch file from storage', { status: 502 });
         }
 
         // 4. Build Response Headers
         const headers = new Headers();
-        headers.set('Content-Type', file.mimeType || 'video/mp4');
+        headers.set('Content-Type', fileRow.mimeType || upstream.headers.get('content-type') || 'video/mp4');
         headers.set('Accept-Ranges', 'bytes');
 
-        if (data.ContentLength) {
-            headers.set('Content-Length', data.ContentLength.toString());
+        const contentLength = upstream.headers.get('content-length');
+        if (contentLength) {
+            headers.set('Content-Length', contentLength);
         }
 
-        if (data.ContentRange) {
-            headers.set('Content-Range', data.ContentRange);
+        const contentRange = upstream.headers.get('content-range');
+        if (contentRange) {
+            headers.set('Content-Range', contentRange);
         }
 
         headers.set('Cache-Control', 'public, max-age=3600');
 
         // 5. Return stream
         const status = range ? 206 : 200;
-        return new NextResponse(data.Body as any, {
+        return new NextResponse(upstream.body, {
             status,
             headers,
         });

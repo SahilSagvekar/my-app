@@ -9,6 +9,7 @@ import { client as clientTable, user as userTable } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { presignUpload } from '@/lib/file-server';
 import { sendDriveUploadNotification } from '@/lib/upload-notifications';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 function getCurrentMonthFolder(): string {
   const date = new Date();
@@ -19,6 +20,7 @@ function getCurrentMonthFolder(): string {
 
 export async function POST(request: NextRequest) {
   const db = getDbHttp();
+  const { env } = getCloudflareContext();
   try {
     const contentType = request.headers.get('content-type') || '';
 
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest) {
       }
 
       const s3Key = await resolveS3Key(fileName, folderPath, userId, role);
-      const { uploadUrl, fileUrl } = await presignUpload(userId || 0, role || 'admin', s3Key, fileType || 'application/octet-stream');
+      const { uploadUrl, fileUrl } = await presignUpload(env, userId || 0, role || 'admin', s3Key, fileType || 'application/octet-stream');
 
       return NextResponse.json({ presignedUrl: uploadUrl, s3Key, fileUrl });
     }
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
 
     const s3Key = await resolveS3Key(file.name, folderPath, userId, role);
     const fileType = file.type || 'application/octet-stream';
-    const { uploadUrl, fileUrl } = await presignUpload(userId || 0, role || 'admin', s3Key, fileType);
+    const { uploadUrl, fileUrl } = await presignUpload(env, userId || 0, role || 'admin', s3Key, fileType);
 
     // Send Slack notification
     const companyName = s3Key.split('/')[0];

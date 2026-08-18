@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { getCurrentUser2 } from '@/lib/auth';
 import { createFolder, renameFolder } from '@/lib/file-server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 const s3Client = getS3();
 
@@ -17,6 +18,7 @@ const s3Client = getS3();
  */
 export async function POST(request: NextRequest) {
   const db = getDbHttp();
+  const { env } = getCloudflareContext();
   try {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const result = await createFolder(user.id, user.role, folderPath, folderName);
+    const result = await createFolder(env, user.id, user.role, folderPath, folderName);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Create folder error:', error);
@@ -58,6 +60,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const db = getDbHttp();
+  const { env } = getCloudflareContext();
   try {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -89,7 +92,7 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    const result = await renameFolder(user.id, user.role, oldPath, newName);
+    const result = await renameFolder(env, user.id, user.role, oldPath, newName);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Rename folder error:', error);

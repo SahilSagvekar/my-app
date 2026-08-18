@@ -29,6 +29,11 @@ function getS3Config(): S3ClientConfig {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
     },
+    // R2 doesn't fully support the AWS SDK's default flexible-checksum
+    // handshake on requests/responses — can cause SignatureDoesNotMatch,
+    // especially on GET/Range requests. Force these back to opt-in.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
     ...(IS_R2 && {
       endpoint: process.env.R2_ENDPOINT!,
       forcePathStyle: true,
@@ -258,24 +263,6 @@ export async function uploadBufferToS3({
 }
 
 // Extract S3 key from URL
-// export function extractS3KeyFromUrl(s3Url: string): string | null {
-//   if (!s3Url) return null;
-
-//   try {
-//     if (s3Url.startsWith("s3://")) {
-//       const parts = s3Url.replace("s3://", "").split("/");
-//       return parts.slice(1).join("/");
-//     }
-
-//     const url = new URL(s3Url);
-//     const pathname = url.pathname;
-//     return pathname.startsWith("/") ? pathname.substring(1) : pathname;
-//   } catch (error) {
-//     console.error("Error extracting S3 key:", error);
-//     return null;
-//   }
-// }
-
 export function extractS3KeyFromUrl(s3Url: string): string | null {
   if (!s3Url) return null;
 
@@ -318,20 +305,6 @@ export async function deleteFromS3(key: string): Promise<boolean> {
     throw error;
   }
 }
-// Generate pre-signed URL
-// export async function generateSignedUrl(
-//   key: string,
-//   expiresIn: number = 7200 // 2 hours default
-// ): Promise<string> {
-//   const command = new GetObjectCommand({
-//     Bucket: BUCKET,
-//     Key: key,
-//   });
-
-//   const signedUrl = await getSignedUrl(s3, command, { expiresIn });
-//   return signedUrl;
-// }
-
 
 export async function generateSignedUrl(
   key: string,

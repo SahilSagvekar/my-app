@@ -4,6 +4,11 @@ compatibility_date = "2026-08-04"
 compatibility_flags = ["nodejs_compat"]
 account_id = "dbc98815b0fb7124d9fc27fb40abd290"
 
+routes = [
+  { pattern = "e8productions.com/*", zone_name = "e8productions.com" },
+  { pattern = "www.e8productions.com/*", zone_name = "e8productions.com" }
+]
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
@@ -25,3 +30,7 @@ binding = "COMMISSION_QUEUE"
 [[queues.producers]]
 queue = "scheduler-activity-rollup"
 binding = "ROLLUP_QUEUE"
+
+[[services]]
+binding = "FILE_SERVER"
+service = "e8-file-server"

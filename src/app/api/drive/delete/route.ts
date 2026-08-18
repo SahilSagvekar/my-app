@@ -10,11 +10,13 @@ import { getS3, BUCKET } from '@/lib/s3';
 import { updateClientStorageAfterDelete } from '@/lib/storage-service';
 import { getCurrentUser2 } from '@/lib/auth';
 import { deleteItem } from '@/lib/file-server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 const s3Client = getS3();
 
 export async function DELETE(request: NextRequest) {
   const db = getDbHttp();
+  const { env } = getCloudflareContext();
   try {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,7 +48,7 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    const result = await deleteItem(user.id, user.role, s3Key, type);
+    const result = await deleteItem(env, user.id, user.role, s3Key, type);
 
     if (s3Key.includes('raw-footage') && result.deletedSize > 0) {
       const companyName = s3Key.split('/')[0];

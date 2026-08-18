@@ -8,6 +8,7 @@ import { client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { initiateMultipart } from '@/lib/file-server';
 import { getClientStorageInfo } from '@/lib/storage-service';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 function normalizeUploadPathSegment(value: string): string {
   return value
@@ -38,6 +39,7 @@ function getCurrentMonthFolder(): string {
 
 export async function POST(req: NextRequest) {
   const db = getDbHttp();
+  const { env } = getCloudflareContext();
   try {
     const body = await req.json();
     const {
@@ -141,6 +143,7 @@ export async function POST(req: NextRequest) {
     // ── Delegate CreateMultipartUpload to file server ────────────────────────
     try {
       const { uploadId, key } = await initiateMultipart(
+        env,
         clientId,
         'uploader',
         s3Key,
@@ -152,7 +155,7 @@ export async function POST(req: NextRequest) {
       // File server returns USE_SINGLE_PUT for files < 16MB — fall back to presigned PUT
       if (err.Code === 'USE_SINGLE_PUT' || err.message?.includes('USE_SINGLE_PUT') || err.message?.includes('too small')) {
         const { presignUpload } = await import('@/lib/file-server');
-        const { uploadUrl, fileUrl } = await presignUpload(clientId, 'uploader', s3Key, resolvedFileType);
+        const { uploadUrl, fileUrl } = await presignUpload(env, clientId, 'uploader', s3Key, resolvedFileType);
         return NextResponse.json({ singlePut: true, uploadUrl, fileUrl, key: s3Key });
       }
       throw err;

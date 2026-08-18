@@ -268,14 +268,17 @@ export function useScheduler() {
                 // the setTasks() updater having already run.
                 if (mode !== 'edit' && currentTask && currentTask.status !== 'SCHEDULED') {
                     const requiredPlatforms = currentTask.deliverable?.platforms?.map(p => p.toLowerCase()) || [];
-                    if (requiredPlatforms.length > 0) {
-                        const existingLinks = (currentTask.socialMediaLinks || []).map(l => l.platform.toLowerCase());
-                        const allLinks = [...new Set([...existingLinks, platform.toLowerCase()])];
-                        const allCovered = requiredPlatforms.every(p => allLinks.includes(p));
-                        if (allCovered) {
-                            // Pass allLinks to markAsScheduled to bypass stale state check
-                            setTimeout(() => markAsScheduled(taskId, allLinks), 300);
-                        }
+                    const existingLinks = (currentTask.socialMediaLinks || []).map(l => l.platform.toLowerCase());
+                    const allLinks = [...new Set([...existingLinks, platform.toLowerCase()])];
+                    // If the deliverable has no platforms configured, markAsScheduled's own
+                    // gate only requires at least one link — match that here instead of
+                    // silently never auto-scheduling when platforms is empty.
+                    const allCovered = requiredPlatforms.length > 0
+                        ? requiredPlatforms.every(p => allLinks.includes(p))
+                        : allLinks.length > 0;
+                    if (allCovered) {
+                        // Pass allLinks to markAsScheduled to bypass stale state check
+                        setTimeout(() => markAsScheduled(taskId, allLinks), 300);
                     }
                 }
             } else {

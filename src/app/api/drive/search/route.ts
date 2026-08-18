@@ -9,11 +9,13 @@ import { user as userTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateSignedUrl, getS3, BUCKET } from '@/lib/s3';
 import { searchFiles } from '@/lib/file-server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 const s3Client = getS3();
 
 export async function GET(request: NextRequest) {
   const db = getDbHttp();
+  const { env } = getCloudflareContext();
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q')?.toLowerCase().trim();
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const result = await searchFiles(userId, role, query, prefix, max);
+    const result = await searchFiles(env, userId, role, query, prefix, max);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Search error:', error);

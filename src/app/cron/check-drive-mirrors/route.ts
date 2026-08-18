@@ -13,6 +13,7 @@ import { getDbHttp } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { drainDriveMirrorQueue, ackDriveMirrorJobs } from '@/lib/file-server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = req.headers.get('x-cron-secret');
@@ -35,12 +36,13 @@ function isAuthorized(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   const db = getDbHttp();
+  const { env } = getCloudflareContext();
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const jobs = await drainDriveMirrorQueue();
+    const jobs = await drainDriveMirrorQueue(env);
 
     if (jobs.length === 0) {
       return NextResponse.json({ ok: true, message: 'No completed Drive mirrors pending', processed: 0 });
@@ -64,7 +66,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (succeededIds.length > 0) {
-      await ackDriveMirrorJobs(succeededIds);
+      await ackDriveMirrorJobs(env, succeededIds);
     }
 
     return NextResponse.json({

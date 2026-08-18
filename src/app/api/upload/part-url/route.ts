@@ -4,8 +4,10 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPartUrl } from '@/lib/file-server';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export async function POST(request: NextRequest) {
+  const { env } = getCloudflareContext();
   let body: any;
   try {
     const rawBody = await request.text();
@@ -24,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { presignedUrl } = await getPartUrl('system', 'uploader', key, uploadId, partNumber);
+    const { presignedUrl } = await getPartUrl(env, 'system', 'uploader', key, uploadId, partNumber);
     return NextResponse.json({ presignedUrl });
   } catch (error: any) {
     console.error('❌ Part-URL proxy error:', error);
