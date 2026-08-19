@@ -171,9 +171,37 @@ export async function PATCH(
     }
 
     if (action === 'pay') {
+      // Clients may only pay their own invoice — mirrors the GET ownership check.
+      if (currentUser.role === 'client') {
+        const resolvedClientId = await resolveClientIdForUser(currentUser.userId || currentUser.id);
+        const [clientStripeCustomer] = resolvedClientId
+          ? await db.select().from(stripeCustomer).where(eq(stripeCustomer.clientId, resolvedClientId)).limit(1)
+          : [null];
+        if (!clientStripeCustomer || clientStripeCustomer.id !== invoice.stripeCustomerId) {
+          return NextResponse.json({ ok: false, message: 'Access denied' }, { status: 403 });
+        }
+      }
+
+      if (invoice.status === 'PAID') {
+        return NextResponse.json({ ok: false, message: 'Invoice is already paid' }, { status: 400 });
+      }
+
+      // Idempotency: a double-click (or a retry before the redirect fires)
+      // must not create a second Checkout session for the same invoice.
+      const recentSessions = await stripe.checkout.sessions.list({
+        customer: invoice.stripeCustomer.stripeCustomerId,
+        limit: 10,
+      });
+      const reusableSession = recentSessions.data.find(
+        (s) => s.status === 'open' && s.metadata?.invoiceId === invoice.id
+      );
+      if (reusableSession) {
+        return NextResponse.json({ ok: true, checkoutUrl: reusableSession.url });
+      }
+
       // Create checkout session for payment
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      
+
       const session = await createInvoiceCheckoutSession(
         invoice.stripeCustomer.stripeCustomerId,
         invoice.id,

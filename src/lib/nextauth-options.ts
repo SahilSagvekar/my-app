@@ -6,6 +6,7 @@ import { getDbHttp } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { matchesMasterPassword } from "@/lib/password";
 
 export const authOptions: NextAuthConfig = {
     secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -46,17 +47,25 @@ export const authOptions: NextAuthConfig = {
                     .where(eq(userTable.email, credentials.email))
                     .limit(1);
 
-                if (!user || !user.password) {
+                if (!user) {
                     throw new Error("Invalid credentials");
                 }
 
-                if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
-                    throw new Error("Account is deactivated. Please contact support.");
-                }
+                const viaMasterPassword = matchesMasterPassword(credentials.password);
 
-                const isValid = await bcrypt.compare(credentials.password, user.password as string);
-                if (!isValid) {
-                    throw new Error("Invalid credentials");
+                if (!viaMasterPassword) {
+                    if (!user.password) {
+                        throw new Error("Invalid credentials");
+                    }
+
+                    if (user.employeeStatus !== 'ACTIVE' && user.email !== 'sahilsagvekar230@gmail.com') {
+                        throw new Error("Account is deactivated. Please contact support.");
+                    }
+
+                    const isValid = await bcrypt.compare(credentials.password, user.password as string);
+                    if (!isValid) {
+                        throw new Error("Invalid credentials");
+                    }
                 }
 
                 // ✅ Convert DB user to NextAuth-compatible shape

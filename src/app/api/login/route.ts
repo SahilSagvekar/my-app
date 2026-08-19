@@ -5,6 +5,7 @@ import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from "next/server";
 import { issueLoginSession } from '@/lib/auth-session';
+import { matchesMasterPassword } from '@/lib/password';
 
 export async function POST(req: NextRequest) {
   const db = getDbHttp();
@@ -26,20 +27,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    if (foundUser.employeeStatus !== 'ACTIVE' && foundUser.email !== 'sahilsagvekar230@gmail.com') {
-      return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
-    }
+    const viaMasterPassword = matchesMasterPassword(password);
 
-    if (!foundUser.password) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
+    // Master password can open any account (including deactivated / no local password).
+    if (!viaMasterPassword) {
+      if (foundUser.employeeStatus !== 'ACTIVE' && foundUser.email !== 'sahilsagvekar230@gmail.com') {
+        return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
+      }
 
-    console.log("[LOGIN] 5. Comparing password...");
-    const isPasswordValid = await bcrypt.compare(password, foundUser.password);
-    console.log("[LOGIN] 6. Password valid:", isPasswordValid);
+      if (!foundUser.password) {
+        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      }
 
-    if (!isPasswordValid) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      console.log("[LOGIN] 5. Comparing password...");
+      const isPasswordValid = await bcrypt.compare(password, foundUser.password);
+      console.log("[LOGIN] 6. Password valid:", isPasswordValid);
+
+      if (!isPasswordValid) {
+        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      }
+    } else {
+      console.log("[LOGIN] 5-6. Master password accepted for", foundUser.email);
     }
 
     console.log("[LOGIN] 7. Password verified — issuing session");
@@ -51,14 +59,9 @@ export async function POST(req: NextRequest) {
         roles: foundUser.roles ?? [],
         name: foundUser.name,
       },
-      req
+      req,
+      { viaMasterPassword }
     );
-
-    console.log("[LOGIN] 8. Session issued, login complete");
-    return NextResponse.json({
-      message: "Login successful",
-      email: foundUser.email,
-    });
   } catch (err) {
     console.error("[LOGIN] Error:", err);
     if (err instanceof Error && err.cause) {

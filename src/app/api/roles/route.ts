@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
-import { inArray } from 'drizzle-orm';
+import { inArray, and, eq } from 'drizzle-orm';
 import { cached } from '@/lib/redis';
 
 const taskTypeRoleMap: Record<string, string[]> = {
@@ -24,10 +24,17 @@ export async function GET(req: NextRequest) {
 
   try {
     if (all === "true") {
+      // Active staff only — used by Create Task / reassign dropdowns
       const users = await cached(
-        "users:all",
+        "users:all:active",
         async () => {
-          return db.select({ id: user.id, name: user.name, email: user.email, role: user.role }).from(user);
+          return db.select({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            roles: user.roles,
+          }).from(user).where(eq(user.employeeStatus, "ACTIVE" as any));
         },
         600 // 10 minutes
       );
@@ -45,11 +52,20 @@ export async function GET(req: NextRequest) {
     const allowedRoles = taskTypeRoleMap[taskType] || [];
 
     const roleUsers = await cached(
-      `users:role:${taskType}`,
+      `users:role:active:${taskType}`,
       async () => {
-        return db.select({ id: user.id, name: user.name, email: user.email, role: user.role })
+        return db.select({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          roles: user.roles,
+        })
           .from(user)
-          .where(inArray(user.role, allowedRoles as any));
+          .where(and(
+            inArray(user.role, allowedRoles as any),
+            eq(user.employeeStatus, "ACTIVE" as any),
+          ));
       },
       600 // 10 minutes
     );

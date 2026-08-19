@@ -1364,23 +1364,22 @@ export function EditorDashboard() {
   const loadTasks = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      // if (monthFilter !== "all") params.set("month", monthFilter);
+      // Ask for enough rows — editors with many clients easily exceed the
+      // previous default of 100, which hid READY_FOR_QC / REJECTED / older assigns.
+      params.set("limit", "2000");
       if (monthFilter !== "all") params.set("monthFolder", monthFilter);
       const queryString = params.toString();
-      const res = await fetch(`/api/tasks${queryString ? `?${queryString}` : ""}`);
+      const res = await fetch(`/api/tasks?${queryString}`);
       const data = await res.json();
-
-      console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
-
-      console.log("📋 Raw task data from API:", data.tasks?.[0]);
 
       // 🔥 Update available months from API response
       if (data.availableMonths) {
         setAvailableMonths(data.availableMonths);
       }
 
+      const editorId = Number(currentUser.id);
       const formatted: WorkflowTask[] = (data.tasks || [])
-        .filter((t: any) => t.assignedTo === Number(currentUser.id))
+        .filter((t: any) => Number(t.assignedTo) === editorId)
         .map((t: any) => {
           console.log("🔍 Mapping task:", {
             taskId: t.id,

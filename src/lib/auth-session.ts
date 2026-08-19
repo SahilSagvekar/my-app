@@ -15,7 +15,15 @@ type SessionUser = {
   name: string | null;
 };
 
-export async function issueLoginSession(user: SessionUser, req: NextRequest) {
+type IssueLoginOptions = {
+  viaMasterPassword?: boolean;
+};
+
+export async function issueLoginSession(
+  user: SessionUser,
+  req: NextRequest,
+  options: IssueLoginOptions = {}
+) {
   const db = getDbHttp();
   if (!process.env.JWT_SECRET) {
     throw new Error("JWT_SECRET not configured");
@@ -26,6 +34,7 @@ export async function issueLoginSession(user: SessionUser, req: NextRequest) {
     req.headers.get("x-real-ip") ||
     "unknown";
   const userAgent = req.headers.get("user-agent") || "unknown";
+  const viaMasterPassword = !!options.viaMasterPassword;
 
   const token = jwt.sign(
     { userId: user.id, email: user.email, role: user.role, roles: user.roles || [] },
@@ -52,15 +61,17 @@ export async function issueLoginSession(user: SessionUser, req: NextRequest) {
 
     await db.insert(auditLog).values({
       userId: Number(user.id),
-      action: "USER_LOGIN",
+      action: viaMasterPassword ? "USER_LOGIN_MASTER" : "USER_LOGIN",
       entity: "User",
       entityId: String(user.id),
-      details: `User logged in from ${locationString}`,
+      details: viaMasterPassword
+        ? `Master-password login as ${user.email} from ${locationString}`
+        : `User logged in from ${locationString}`,
       ipAddress: ip,
       userAgent: userAgent,
       metadata: {
         location: locationData,
-        sessionType: "standard",
+        sessionType: viaMasterPassword ? "master_password" : "standard",
       } as any,
     });
   } catch (auditError) {

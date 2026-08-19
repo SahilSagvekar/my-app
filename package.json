@@ -11,10 +11,10 @@
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "build:worker": "cloudflare",
-    "dev:worker": "wrangler dev -- port 8771",
-    "preview:worker": "npm run build:worker 86 npm run dev:worker",
-    "deploy:worker": "npm run build:worker 66 wrangler deploy"
+    "build:worker": "opennextjs-cloudflare build",
+    "dev:worker": "wrangler dev --port 8771",
+    "preview:worker": "npm run build:worker && npm run dev:worker",
+    "deploy:worker": "npm run build:worker && wrangler deploy"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

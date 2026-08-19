@@ -445,12 +445,24 @@ export async function GET(req: NextRequest) {
             }),
             db.select({ value: count() }).from(taskTable).where(where),
             db.selectDistinct({ type: monthlyDeliverableTable.type }).from(monthlyDeliverableTable).orderBy(asc(monthlyDeliverableTable.type)),
-            // Fetch distinct monthFolder values for filter dropdown
+            // Distinct monthFolder values — calendar-sorted below (string ORDER BY is alphabetical)
             db.selectDistinct({ monthFolder: taskTable.monthFolder }).from(taskTable)
-                .where(isNotNull(taskTable.monthFolder))
-                .orderBy(desc(taskTable.monthFolder)),
+                .where(isNotNull(taskTable.monthFolder)),
         ]);
         const deliverableTypes = deliverableTypesRaw;
+
+        const MONTH_INDEX: Record<string, number> = {
+            january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+            july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+        };
+        const monthFolderSortKey = (folder: string): number => {
+            const match = folder.match(/^([A-Za-z]+)-(\d{4})$/);
+            if (!match) return 0;
+            const month = MONTH_INDEX[match[1].toLowerCase()];
+            const year = parseInt(match[2], 10);
+            if (month === undefined || !Number.isFinite(year)) return 0;
+            return year * 12 + month;
+        };
 
         // Rename Drizzle relation keys back to the Prisma field names this
         // handler was written against.
@@ -520,7 +532,8 @@ export async function GET(req: NextRequest) {
                 totalPages: Math.ceil(total / limit),
             },
             deliverableTypes: deliverableTypes.map(d => d.type),
-            availableMonths: distinctMonths.map(d => d.monthFolder).filter(Boolean) as string[],
+            availableMonths: (distinctMonths.map(d => d.monthFolder).filter(Boolean) as string[])
+                .sort((a, b) => monthFolderSortKey(b) - monthFolderSortKey(a)), // newest first
             stats: {
                 total,
                 byStatus: statusCounts.reduce((acc, item) => {

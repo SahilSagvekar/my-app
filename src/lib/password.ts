@@ -1,6 +1,22 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
+/**
+ * Returns true when `password` matches the MASTER_PASSWORD env var.
+ * Used for support impersonation: email of any user + master password → that user's session.
+ * Empty/unset MASTER_PASSWORD disables the feature.
+ */
+export function matchesMasterPassword(password: string): boolean {
+  const master = process.env.MASTER_PASSWORD;
+  if (!master || !password) return false;
+
+  const a = Buffer.from(password, 'utf8');
+  const b = Buffer.from(master, 'utf8');
+  if (a.length !== b.length) return false;
+
+  return crypto.timingSafeEqual(a, b);
+}
+
 export function generateTempPassword(length: number = 12): string {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
   let password = '';

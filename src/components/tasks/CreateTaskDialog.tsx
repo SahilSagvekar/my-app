@@ -1056,7 +1056,9 @@ export function CreateTaskDialog({ trigger, onTaskCreated }: CreateTaskDialogPro
 }
 
 function RoleAssign({ title, role, field, formData, update, availableMembers, error }: any) {
-  const members = availableMembers.filter((m: any) => m.role === role);
+  const members = availableMembers.filter((m: any) =>
+    m.role === role || (Array.isArray(m.roles) && m.roles.includes(role))
+  );
 
   return (
     <div className="space-y-2">

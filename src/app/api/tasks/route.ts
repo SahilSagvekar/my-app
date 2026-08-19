@@ -243,13 +243,20 @@ const { searchParams } = new URL(req.url);
     const clientIdFilter = searchParams.get("clientId") as string | null;
     const monthFilter = searchParams.get("monthFolder") as string | null;
 
-    // 🔥 Row-count safety cap — default 100, caller can request more via
-    // ?limit=, but never more than 200 (prevents ?limit=99999 from
-    // recreating the unfiltered-3000+-rows memory problem this replaces).
+    // Row-count safety cap.
+    // Unscoped roles (admin/manager) can return thousands of rows — keep a
+    // tight default. Scoped roles (editor/qc/etc.) are already filtered to one
+    // user, so they need a much higher ceiling: editors with many clients were
+    // silently losing READY_FOR_QC / REJECTED / older assigned tasks when only
+    // the newest 100 (by createdAt) came back.
+    const scopedRole = ["editor", "qc", "scheduler", "client", "videographer", "sales", "sales_manager"]
+      .includes(String(effectiveRole || "").toLowerCase());
+    const defaultLimit = scopedRole ? 2000 : 100;
+    const maxLimit = scopedRole ? 5000 : 200;
     const requestedLimit = parseInt(searchParams.get("limit") || "", 10);
     const taskLimit = Number.isFinite(requestedLimit) && requestedLimit > 0
-      ? Math.min(requestedLimit, 200)
-      : 100;
+      ? Math.min(requestedLimit, maxLimit)
+      : defaultLimit;
 
     // Build role-based where query
     const roleWhere = await buildRoleWhereQuery(effectiveRole, Number(userId));

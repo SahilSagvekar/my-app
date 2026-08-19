@@ -7,6 +7,10 @@ if (!process.env.STRIPE_SECRET_KEY) {
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2024-12-18.acacia',
   typescript: true,
+  // Cloudflare Workers has no Node socket API — Stripe's default HTTP client
+  // (Node's http/https module) fails there. Fetch-based client works on both
+  // Workers and normal Node, so it's safe to use unconditionally.
+  httpClient: Stripe.createFetchHttpClient(),
 });
 
 // Helper to format amount for display (cents to dollars)
@@ -164,6 +168,17 @@ export async function createInvoiceCheckoutSession(
     metadata: {
       invoiceId,
       type: 'invoice_payment',
+    },
+    // Stripe does NOT copy Checkout Session metadata onto the PaymentIntent
+    // it creates — payment_intent.succeeded's handler reads invoiceId from
+    // here to record amountPaid/create the Payment row. Without this, a paid
+    // invoice flips to PAID but amountPaid never moves and no Payment row
+    // gets created.
+    payment_intent_data: {
+      metadata: {
+        invoiceId,
+        type: 'invoice_payment',
+      },
     },
     success_url: successUrl,
     cancel_url: cancelUrl,

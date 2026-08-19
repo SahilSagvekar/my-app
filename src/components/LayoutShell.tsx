@@ -229,65 +229,66 @@ export function LayoutShell({
             {canSwitchRole && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-muted">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'}`}>
+                  <Button variant="ghost" className="flex items-center gap-2.5 px-2 hover:bg-muted">
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center bg-gray-100 text-foreground`}>
                       <ArrowLeftRight className="h-4 w-4" />
                     </div>
                     <div className="hidden sm:block text-left">
-                      <div className="text-sm font-medium">
+                      <div className="text-[15px] font-semibold">
                         {isViewingAsOther ? `Viewing: ${roleDisplay}` : 'Switch Role'}
                       </div>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-56">
-                  <div className="px-2 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isViewingAsOther ? 'bg-amber-100 text-amber-700' : 'bg-muted text-muted-foreground'}`}>
-                        <ArrowLeftRight className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate">
-                          {authUser?.name || getUserDisplayName(currentRole as UserRole)}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          Current: {roleDisplay}
-                        </p>
-                      </div>
+                <DropdownMenuContent align="end" className="w-72 rounded-2xl p-0 shadow-lg overflow-hidden">
+                  <div className="flex items-center gap-3 px-5 py-[18px]">
+                    <div className={`h-[38px] w-[38px] shrink-0 rounded-full flex items-center justify-center bg-gray-100 text-foreground`}>
+                      <ArrowLeftRight className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate">
+                        {authUser?.name || getUserDisplayName(currentRole as UserRole)}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        Current: {roleDisplay}
+                      </p>
                     </div>
                   </div>
 
-                  <DropdownMenuSeparator />
+                  <DropdownMenuSeparator className="m-0" />
 
-                  {switchableRoles.map((role) => {
-                    const isCurrent = currentRole?.toLowerCase() === role.toLowerCase();
-                    const roleLabel = role.toLowerCase() === 'qc' ? 'QC Specialist' : role.charAt(0).toUpperCase() + role.slice(1);
-                    return (
-                      <DropdownMenuItem
-                        key={role}
-                        onClick={() => switchToRole(role)}
-                        className={`cursor-pointer ${isCurrent ? 'bg-amber-50 font-semibold' : ''}`}
-                      >
-                        <div className={`mr-2 h-2 w-2 rounded-full ${isCurrent ? 'bg-amber-500' : 'bg-muted-foreground/40'}`} />
-                        {roleLabel}
-                        {isCurrent && (
-                          <span className="ml-auto text-xs text-amber-600">Active</span>
-                        )}
-                      </DropdownMenuItem>
-                    );
-                  })}
+                  <div className="px-3 py-2.5 flex flex-col gap-0.5">
+                    {switchableRoles.map((role) => {
+                      const isCurrent = currentRole?.toLowerCase() === role.toLowerCase();
+                      const roleLabel = role.toLowerCase() === 'qc' ? 'Quality Control' : role.charAt(0).toUpperCase() + role.slice(1);
+                      return (
+                        <DropdownMenuItem
+                          key={role}
+                          onClick={() => switchToRole(role)}
+                          className="cursor-pointer rounded-lg px-2.5 py-2 text-sm gap-2 focus:bg-muted"
+                        >
+                          <span className={`h-[18px] w-[18px] shrink-0 rounded-full border flex items-center justify-center ${isCurrent ? 'border-foreground' : 'border-muted-foreground/40'}`}>
+                            {isCurrent && <span className="h-[9px] w-[9px] rounded-full bg-foreground" />}
+                          </span>
+                          {roleLabel}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </div>
 
                   {isViewingAsOther && (
                     <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={resetToOriginal}
-                        className="text-amber-600 cursor-pointer"
-                      >
-                        <ArrowLeftRight className="mr-2 h-4 w-4" />
-                        Reset to {authUser?.role === 'admin' ? 'Admin' : 'Original'}
-                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="m-0" />
+                      <div className="px-3 py-2.5">
+                        <DropdownMenuItem
+                          onClick={resetToOriginal}
+                          className="text-foreground font-semibold cursor-pointer rounded-lg px-2.5 py-2 text-sm"
+                        >
+                          <ArrowLeftRight className="mr-2 h-4 w-4" />
+                          Reset to {authUser?.role === 'admin' ? 'Admin' : 'Original'}
+                        </DropdownMenuItem>
+                      </div>
                     </>
                   )}
                 </DropdownMenuContent>
