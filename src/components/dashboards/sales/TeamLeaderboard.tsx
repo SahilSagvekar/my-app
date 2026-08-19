@@ -14,6 +14,13 @@ interface LeaderboardRow {
 }
 
 type Metric = 'calls' | 'dealsClosed' | 'meetings';
+type ApiActivityType = 'call' | 'dealClosed' | 'meeting';
+
+const API_TYPE_MAP: Record<Metric, ApiActivityType> = {
+  calls: 'call',
+  dealsClosed: 'dealClosed',
+  meetings: 'meeting',
+};
 
 const METRICS: { key: Metric; label: string; unit: string }[] = [
   { key: 'calls', label: 'Calls', unit: 'calls' },
@@ -53,7 +60,7 @@ export function TeamLeaderboard() {
       const res = await fetch('/api/sales-leaderboard/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type }),
+        body: JSON.stringify({ type: API_TYPE_MAP[type] }),
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.message || 'Failed to log');
@@ -74,8 +81,6 @@ export function TeamLeaderboard() {
   const summary = myRow
     ? `You're ranked #${myRank} of ${sorted.length} in ${metricLabel.label.toLowerCase()} today (${myRow[metric]} ${metricLabel.unit}).`
     : `${sorted.length} rep${sorted.length !== 1 ? 's' : ''} on the board today.`;
-
-  if (rows.length === 0) return null;
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5 mb-5">
@@ -119,7 +124,11 @@ export function TeamLeaderboard() {
           </div>
 
           <div className="flex flex-col gap-1.5 mt-3.5">
-            {sorted.map((row, i) => {
+            {sorted.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                No activity logged today. Use the buttons above to log calls, deals, or meetings.
+              </p>
+            ) : sorted.map((row, i) => {
               const isMe = row.userId === currentUserId;
               const pct = topValue > 0 ? Math.round((row[metric] / topValue) * 100) : 0;
               const others = METRICS.filter(m => m.key !== metric).map(m => `${row[m.key]} ${m.unit}`).join(' · ');

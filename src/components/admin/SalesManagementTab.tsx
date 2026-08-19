@@ -27,6 +27,8 @@ import { SalesDashboard, LeadProfileDrawer, MassEmailModal } from '../dashboards
 import { ConvertLeadDialog } from '../sales/ConvertLeadDialog';
 import { SalesManagerPermissionsPanel } from './SalesManagerPermissionsPanel';
 import { SalesPipelineToolbar } from '../dashboards/sales/SalesPipelineToolbar';
+import { TeamLeaderboard } from '../dashboards/sales/TeamLeaderboard';
+import { SalesHeader } from '../dashboards/sales/SalesHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1100,27 +1102,14 @@ export function SalesManagementTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {TAB_ORDER.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setView(tab.id)}
-              className={cn(
-                "px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors",
-                view === tab.id
-                  ? "text-[#0073EA] border-[#0073EA]"
-                  : "text-gray-400 border-transparent hover:text-gray-600"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <SalesHeader
+        tabs={TAB_ORDER}
+        activeTab={view}
+        onTabChange={setView}
+      />
 
       {view === 'personal' ? (
-        <SalesDashboard />
+        <SalesDashboard embedded />
       ) : view === 'commissions' ? (
         <div className="space-y-5">
           <TaxComplianceList />
@@ -1132,6 +1121,8 @@ export function SalesManagementTab() {
         <>
           {/* ── Team Overview — Monday.com style ── */}
           <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
+
+            <TeamLeaderboard />
 
             {/* Stats Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
