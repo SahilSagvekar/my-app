@@ -17,6 +17,7 @@ import { Camera, Crop, Maximize2, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useFeedbackWidgetHidden } from "@/hooks/useFeedbackWidgetVisibility";
 
 interface Rect {
   x: number;
@@ -28,6 +29,7 @@ interface Rect {
 const MIN_SELECTION_PX = 10;
 
 export function ClientFeedbackWidget() {
+  const isHidden = useFeedbackWidgetHidden();
   const [isOpen, setIsOpen] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
@@ -208,21 +210,25 @@ export function ClientFeedbackWidget() {
 
   return (
     <>
-      {/* Floating trigger — always visible, bottom-right, every page */}
-      <button
-        type="button"
-        data-feedback-widget-ignore
-        onClick={handleOpen}
-        aria-label="Report a problem"
-        className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full bg-[#0073EA] px-4 py-3 text-white shadow-lg hover:bg-[#0060C0] active:scale-95 transition-all"
-      >
-        <Camera className="h-5 w-5 shrink-0" />
-        <span className="hidden sm:inline text-sm font-semibold whitespace-nowrap">
-          Report Problem
-        </span>
-      </button>
+      {/* Floating trigger — always visible, bottom-right, every page,
+          except while a full-screen review modal has hidden it (see
+          useFeedbackWidgetVisibility) */}
+      {!isHidden && (
+        <button
+          type="button"
+          data-feedback-widget-ignore
+          onClick={handleOpen}
+          aria-label="Report a problem"
+          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full bg-[#0073EA] px-4 py-3 text-white shadow-lg hover:bg-[#0060C0] active:scale-95 transition-all"
+        >
+          <Camera className="h-5 w-5 shrink-0" />
+          <span className="hidden sm:inline text-sm font-semibold whitespace-nowrap">
+            Report Problem
+          </span>
+        </button>
+      )}
 
-      {isOpen && (
+      {isOpen && !isHidden && (
         <div
           data-feedback-widget-ignore
           className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/40 p-4"

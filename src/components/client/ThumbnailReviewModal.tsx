@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { ReviewCommentCard, CommentInput } from '../review';
 import { ReviewComment } from '../review/types';
 import { useAuth } from '../auth/AuthContext';
+import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 
 /* ─── Types ────────────────────────────────────────────────────── */
@@ -85,13 +86,16 @@ export function ThumbnailReviewModal({
 }: ThumbnailReviewModalProps) {
     const { user } = useAuth();
 
-    /* Ref to the actively-reviewed image, for the CommentInput screenshot/snip toolbar */
-    const imageRef = useRef<HTMLImageElement | null>(null);
+    // Hide the floating "Report a Problem" widget while this full-screen
+    // review is open — it otherwise floats on top of the Approve/Send Back
+    // buttons.
+    useHideFeedbackWidgetWhileOpen(open);
 
     /* ── UI state ── */
     const [currentFile, setCurrentFile] = useState<TaskFile | null>(null);
     const [comments, setComments] = useState<ReviewComment[]>([]);
     const [showCommentInput, setShowCommentInput] = useState(false);
+    const imageRef = useRef<HTMLImageElement>(null);
     const [savingFeedback, setSavingFeedback] = useState(false);
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
@@ -448,7 +452,6 @@ export function ThumbnailReviewModal({
                                                 ref={imageRef}
                                                 src={currentFile.url}
                                                 alt={currentFile.name}
-                                                crossOrigin="anonymous"
                                                 className="max-w-full max-h-[calc(100vh-200px)] object-contain shadow-2xl rounded-sm"
                                             />
                                             <div className="absolute top-4 left-4 bg-purple-600 text-white px-4 py-1.5 rounded-lg font-bold text-lg shadow-xl">
@@ -507,13 +510,13 @@ export function ThumbnailReviewModal({
                                             const isComments = tab === 'comments';
                                             const isActive = sidebarTab === tab;
                                             const colorClasses = isComments
-                                                ? `border-blue-500 text-white hover:bg-blue-500 hover:text-white ${isActive ? 'bg-blue-500/20' : 'bg-transparent'}`
-                                                : `border-orange-500 text-white hover:bg-orange-500 hover:text-white ${isActive ? 'bg-orange-500/20' : 'bg-transparent'}`;
+                                                ? `bg-blue-500 text-white hover:bg-blue-600 ${isActive ? '' : 'opacity-60 hover:opacity-100'}`
+                                                : `bg-orange-500 text-white hover:bg-orange-600 ${isActive ? '' : 'opacity-60 hover:opacity-100'}`;
                                             return (
                                                 <button
                                                     key={tab}
                                                     onClick={() => handleTabChange(tab)}
-                                                    className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize border ${colorClasses}`}
+                                                    className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize ${colorClasses}`}
                                                 >
                                                     {tab === 'comments'
                                                         ? `Comments${comments.length ? ` (${comments.length})` : ''}`
@@ -533,7 +536,7 @@ export function ThumbnailReviewModal({
                                             currentTimestamp={`Thumbnail #${currentNumber}`}
                                             authorId={user?.id ? String(user.id) : 'guest'}
                                             authorName={user?.name || 'Client'}
-                                            mediaRef={imageRef}
+                                            imageRef={imageRef}
                                             onSubmit={handleCommentSubmit}
                                             onCancel={() => setShowCommentInput(false)}
                                             isExpanded={showCommentInput}

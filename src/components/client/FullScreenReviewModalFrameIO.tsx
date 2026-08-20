@@ -10,6 +10,7 @@ import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import { ReviewScreenDesktop } from './ReviewScreenDesktop';
 import { ReviewScreenMobile } from './ReviewScreenMobile';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
+import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 
 /* ─── Types ───────────────────────────────────────────────────── */
 interface Version {
@@ -201,6 +202,11 @@ export function FullScreenReviewModalFrameIO({
     templateHashtags = [],
 }: FullScreenReviewModalProps) {
     const { user } = useAuth();
+
+    // Hide the floating "Report a Problem" widget while this full-screen
+    // review is open — it otherwise floats on top of the Approve/Send Back
+    // buttons.
+    useHideFeedbackWidgetWhileOpen(open);
 
     /* ── View mode: auto-detect on mount, user can toggle ── */
     const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {

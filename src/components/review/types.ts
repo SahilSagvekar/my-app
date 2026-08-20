@@ -13,7 +13,7 @@ export interface ReviewComment {
     endTimestamp?: string; // Optional end timestamp for ranges "1:28"
     endTimestampSeconds?: number; // Optional end timestamp in seconds for ranges
     content: string;
-    category: ('design' | 'content' | 'timing' | 'technical' | 'other' | 'subtitles')[];
+    category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles')[];
 
     screenshotUrl?: string; // Base64 or URL of captured video frame
     annotations?: Annotation[];
@@ -92,7 +92,7 @@ export const REVIEW_STATUSES: ReviewStatus[] = [
 ];
 
 export interface CommentCategory {
-    value: 'design' | 'content' | 'timing' | 'technical' | 'other' | 'subtitles';
+    value: 'design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles';
     label: string;
     color: string;
 }
@@ -102,7 +102,7 @@ export const COMMENT_CATEGORIES: CommentCategory[] = [
     { value: 'content', label: 'Content', color: '#3b82f6' },
     { value: 'timing', label: 'Timing', color: '#f59e0b' },
     { value: 'technical', label: 'Technical', color: '#ef4444' },
-    { value: 'other', label: 'Other', color: '#6b7280' },
+    { value: 'broll', label: 'Broll', color: '#6b7280' },
     { value: 'subtitles', label: 'Subtitles', color: '#3b82f2' },
 ];
 

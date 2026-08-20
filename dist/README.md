@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "e8-app" generated at 2026-08-20T09:39:16.429Z.

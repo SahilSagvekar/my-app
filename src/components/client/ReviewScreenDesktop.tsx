@@ -234,6 +234,18 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setTagsText(p.postingTags.map(t => t.text).join(', '));
     };
 
+    // Two-step approve: first click switches to the Titles tab so the
+    // titles get reviewed before anything is approved; second click (once
+    // already on Titles) is the real, final approval.
+    const isReadyToApprove = sidebarTab === 'titles';
+    const handleApproveClick = () => {
+        if (!isReadyToApprove) {
+            handleTabChange('titles');
+            return;
+        }
+        p.handleStatusChange('approved');
+    };
+
     const { visibleComments, hasMoreComments } = useMemo(() => {
         if (p.sortedComments.length <= MAX_RENDERED_COMMENTS) {
             return { visibleComments: p.sortedComments, hasMoreComments: false };
@@ -642,14 +654,14 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     const isComments = tab === 'comments';
                                     const isActive = sidebarTab === tab;
                                     const colorClasses = isComments
-                                        ? `border-blue-500 text-white bg-transparent hover:bg-blue-500 hover:text-white ${isActive ? 'bg-blue-500/20' : ''}`
-                                        : `border-orange-500 text-white bg-transparent hover:bg-orange-500 hover:text-white ${isActive ? 'bg-orange-500/20' : ''}`;
+                                        ? `bg-blue-500 text-white hover:bg-blue-600 ${isActive ? '' : 'opacity-60 hover:opacity-100'}`
+                                        : `bg-orange-500 text-white hover:bg-orange-600 ${isActive ? '' : 'opacity-60 hover:opacity-100'}`;
 
                                     return (
                                         <button
                                             key={tab}
                                             onClick={() => handleTabChange(tab)}
-                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize border ${colorClasses}`}
+                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize ${colorClasses}`}
                                         >
                                             {tab === 'comments' ? 'Comments' : 'Titles'}
                                         </button>
@@ -912,10 +924,12 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             Send this video to client review anyway
                                         </label>
                                     )}
-                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}>
-                                        {p.requiresClientReview || p.forceClientReviewOverride
-                                            ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve</>
-                                            : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve</>
+                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={handleApproveClick} disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}>
+                                        {isReadyToApprove
+                                            ? <><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Confirm Approve</>
+                                            : (p.requiresClientReview || p.forceClientReviewOverride)
+                                                ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve</>
+                                                : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve</>
                                         }
                                     </Button>
                                     <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={unresolvedCount === 0 || p.savingFeedback}>
@@ -938,8 +952,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             I confirm this is the final version for publishing
                                         </label>
                                     </div>
-                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('approved')} disabled={!p.confirmFinal || p.asset.approvalLocked || unresolvedCount > 0}>
-                                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />Approve
+                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={handleApproveClick} disabled={!p.confirmFinal || p.asset.approvalLocked || unresolvedCount > 0}>
+                                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />{isReadyToApprove ? 'Confirm Approve' : 'Approve'}
                                     </Button>
                                     <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0}>
                                         <MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Request Revisions

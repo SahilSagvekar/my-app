@@ -40,9 +40,6 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
     const [rejectComment, setRejectComment] = useState('');
     const [submittingReject, setSubmittingReject] = useState(false);
 
-    /* ── Approve dialog state ── */
-    const [showApproveConfirm, setShowApproveConfirm] = useState(false);
-
     /* ── Video aspect ratio detection ── */
     const [videoAspect, setVideoAspect] = useState<'portrait' | 'landscape' | 'unknown'>('unknown');
 
@@ -102,6 +99,25 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
     };
 
     const activeMobileTab = isMobileTabVisible(mobileTab) ? mobileTab : 'comments';
+
+    // Two-step approve: first click switches to the Titles tab so titles
+    // get reviewed before anything is approved; second click (once already
+    // on Titles) is the real, final approval. Replaces the old separate
+    // confirm-bottom-sheet step for clients — the titles review now serves
+    // that "are you sure" purpose, and keeps QC/client at the same 2-click
+    // flow instead of 2 for QC vs 3 for client.
+    const isReadyToApprove = mobileTab === 'titles';
+    const handleApproveClick = () => {
+        if (!isReadyToApprove) {
+            setMobileTab('titles');
+            return;
+        }
+        if (p.userRole === 'client') {
+            p.setConfirmFinal(true);
+        }
+        p.handleStatusChange('approved');
+    };
+
     const mobileTabs = [
         { key: 'comments' as MobileTab, label: 'Comments', badge: p.sortedComments.length },
         { key: 'titles' as MobileTab, label: 'Titles', badge: null },
@@ -263,56 +279,6 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                     ? <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/30 border-t-white" />Sending...</>
                                     : <><Send className="h-4 w-4 mr-2" />Send Feedback</>
                                 }
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Approve Confirmation (bottom sheet style) ── */}
-            {showApproveConfirm && p.userRole === 'client' && (
-                <div className="absolute inset-0 z-40 flex flex-col justify-end bg-black/70 review-animate-fade-in">
-                    <div
-                        className="rounded-t-2xl p-5 border-t border-[var(--review-border)] space-y-4"
-                        style={{ background: 'var(--review-bg-elevated)' }}
-                    >
-                        <div className="flex items-center justify-between">
-                            <h3 className="font-semibold text-white flex items-center gap-2">
-                                <ThumbsUp className="h-4 w-4 text-green-400" />
-                                Approve Video
-                            </h3>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setShowApproveConfirm(false)}
-                                className="h-8 w-8 p-0 text-[var(--review-text-muted)] hover:text-white"
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
-                        </div>
-                        <div
-                            className="rounded-xl p-4 border border-green-500/20"
-                            style={{ background: 'var(--review-bg-secondary)' }}
-                        >
-                            <p className="text-sm text-[var(--review-text-secondary)] leading-relaxed">
-                                By approving, you confirm this is the <span className="text-white font-semibold">final version</span> ready for publishing. This action will send the asset to the scheduler.
-                            </p>
-                        </div>
-                        <div className="flex gap-3">
-                            <Button
-                                variant="outline"
-                                className="flex-1 bg-transparent border-[var(--review-border)] text-[var(--review-text-secondary)]"
-                                onClick={() => setShowApproveConfirm(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() => { p.setConfirmFinal(true); p.handleStatusChange('approved'); setShowApproveConfirm(false); }}
-                                disabled={p.asset.approvalLocked}
-                            >
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
-                                Approve & Send
                             </Button>
                         </div>
                     </div>
@@ -589,21 +555,21 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 {/* Approve button */}
                 {p.userRole === 'qc' ? (
                     <button
-                        onClick={() => p.handleStatusChange('approved')}
+                        onClick={handleApproveClick}
                         disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <ThumbsUp className="h-3.5 w-3.5" />
-                        Approve
+                        {isReadyToApprove ? 'Confirm Approve' : 'Approve'}
                     </button>
                 ) : (
                     <button
-                        onClick={() => setShowApproveConfirm(true)}
+                        onClick={handleApproveClick}
                         disabled={p.asset.approvalLocked || unresolvedCount > 0}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-green-400 border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <ThumbsUp className="h-3.5 w-3.5" />
-                        Approve
+                        {isReadyToApprove ? 'Confirm Approve' : 'Approve'}
                     </button>
                 )}
             </div>
@@ -855,21 +821,18 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                 <Button
                                     size="lg"
                                     className="w-full bg-green-600 hover:bg-green-700 text-white h-14 text-base rounded-xl font-semibold"
-                                    onClick={() => {
-                                        if (p.userRole === 'client') {
-                                            setShowApproveConfirm(true);
-                                        } else {
-                                            p.handleStatusChange('approved');
-                                        }
-                                    }}
+                                    onClick={handleApproveClick}
                                     disabled={p.asset.approvalLocked || p.savingFeedback || (p.userRole === 'client' && !p.confirmFinal) || unresolvedCount > 0}
                                 >
-                                    {p.userRole === 'qc'
-                                        ? p.requiresClientReview
+                                    {!isReadyToApprove ? (
+                                        <><CheckCircle2 className="h-5 w-5 mr-2" />Approve</>
+                                    ) : p.userRole === 'qc' ? (
+                                        p.requiresClientReview
                                             ? <><UserCheck className="h-5 w-5 mr-2" />Approve & Send to Client</>
                                             : <><Calendar className="h-5 w-5 mr-2" />Approve & Send to Scheduler</>
-                                        : <><CheckCircle2 className="h-5 w-5 mr-2" />Approve & Send to Scheduler</>
-                                    }
+                                    ) : (
+                                        <><CheckCircle2 className="h-5 w-5 mr-2" />Approve & Send to Scheduler</>
+                                    )}
                                 </Button>
                             </div>
                         </div>
