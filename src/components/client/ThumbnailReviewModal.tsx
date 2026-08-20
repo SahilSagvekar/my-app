@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
@@ -84,6 +84,9 @@ export function ThumbnailReviewModal({
     onPostingTagsChange,
 }: ThumbnailReviewModalProps) {
     const { user } = useAuth();
+
+    /* Ref to the actively-reviewed image, for the CommentInput screenshot/snip toolbar */
+    const imageRef = useRef<HTMLImageElement | null>(null);
 
     /* ── UI state ── */
     const [currentFile, setCurrentFile] = useState<TaskFile | null>(null);
@@ -442,8 +445,10 @@ export function ThumbnailReviewModal({
                                     <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden p-8">
                                         <div className="relative group max-w-full max-h-full">
                                             <img
+                                                ref={imageRef}
                                                 src={currentFile.url}
                                                 alt={currentFile.name}
+                                                crossOrigin="anonymous"
                                                 className="max-w-full max-h-[calc(100vh-200px)] object-contain shadow-2xl rounded-sm"
                                             />
                                             <div className="absolute top-4 left-4 bg-purple-600 text-white px-4 py-1.5 rounded-lg font-bold text-lg shadow-xl">
@@ -528,6 +533,7 @@ export function ThumbnailReviewModal({
                                             currentTimestamp={`Thumbnail #${currentNumber}`}
                                             authorId={user?.id ? String(user.id) : 'guest'}
                                             authorName={user?.name || 'Client'}
+                                            mediaRef={imageRef}
                                             onSubmit={handleCommentSubmit}
                                             onCancel={() => setShowCommentInput(false)}
                                             isExpanded={showCommentInput}

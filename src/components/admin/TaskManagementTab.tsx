@@ -73,34 +73,29 @@ interface TeamMember { id: number; name: string; role: string; roles?: string[];
 interface Client { id: string; name: string; companyName: string | null; }
 
 // ─────────────────────────────────────────
-// Status pill — single neutral outline style for every status.
-// REJECTED is the only one visually distinguished, via weight/border, not color.
+// Status pill — flat rounded-full badge, colored per status
 // ─────────────────────────────────────────
 
-const statusConfig: Record<string, { label: string; icon: React.ReactNode }> = {
-  PENDING: { label: 'Pending', icon: <Clock className="h-3 w-3" /> },
-  IN_PROGRESS: { label: 'In Progress', icon: <RefreshCw className="h-3 w-3" /> },
-  READY_FOR_QC: { label: 'Ready for QC', icon: <Eye className="h-3 w-3" /> },
-  QC_IN_PROGRESS: { label: 'QC In Progress', icon: <RefreshCw className="h-3 w-3" /> },
-  COMPLETED: { label: 'Completed', icon: <CheckCircle2 className="h-3 w-3" /> },
-  SCHEDULED: { label: 'Scheduled', icon: <Calendar className="h-3 w-3" /> },
-  ON_HOLD: { label: 'On Hold', icon: <AlertCircle className="h-3 w-3" /> },
-  REJECTED: { label: 'Rejected', icon: <XCircle className="h-3 w-3" /> },
-  CLIENT_REVIEW: { label: 'Client Review', icon: <User className="h-3 w-3" /> },
-  VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', icon: <Users className="h-3 w-3" /> },
-  HIDDEN: { label: 'Hidden', icon: <EyeOff className="h-3 w-3" /> },
+const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
+  PENDING: { label: 'Pending', bg: 'bg-amber-100', text: 'text-amber-700' },
+  IN_PROGRESS: { label: 'In Progress', bg: 'bg-violet-100', text: 'text-violet-700' },
+  READY_FOR_QC: { label: 'Ready for QC', bg: 'bg-orange-100', text: 'text-orange-700' },
+  QC_IN_PROGRESS: { label: 'QC In Progress', bg: 'bg-violet-100', text: 'text-violet-700' },
+  COMPLETED: { label: 'Completed', bg: 'bg-green-100', text: 'text-green-700' },
+  SCHEDULED: { label: 'Scheduled', bg: 'bg-blue-100', text: 'text-blue-700' },
+  ON_HOLD: { label: 'On Hold', bg: 'bg-gray-100', text: 'text-gray-700' },
+  REJECTED: { label: 'Rejected', bg: 'bg-red-100', text: 'text-red-700' },
+  CLIENT_REVIEW: { label: 'Client Review', bg: 'bg-sky-100', text: 'text-sky-700' },
+  VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', bg: 'bg-sky-100', text: 'text-sky-700' },
+  HIDDEN: { label: 'Hidden', bg: 'bg-gray-100', text: 'text-gray-500' },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const config = statusConfig[status] || { label: status, icon: null };
-  const isRejected = status === 'REJECTED';
+  const config = statusConfig[status] || { label: status, bg: 'bg-gray-100', text: 'text-gray-600' };
   return (
-    <Badge
-      variant="outline"
-      className={`flex items-center gap-1 w-fit rounded-full px-3 py-1 ${isRejected ? 'font-bold border-2 border-foreground' : ''}`}
-    >
-      {config.icon}{config.label}
-    </Badge>
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${config.bg} ${config.text}`}>
+      {config.label}
+    </span>
   );
 }
 
@@ -485,7 +480,7 @@ export function TaskManagementTab() {
     }
   }
 
-  // ── Filter column config ──
+  // ── Filter column config (drives the label-above-select row) ──
   const filterColumns: { label: string; key: keyof FilterState; items: { id: string | number; name: string }[] }[] = [
     { label: 'Editors', key: 'editor', items: editors.map(m => ({ id: m.id, name: m.name })) },
     { label: 'QCs', key: 'qc', items: qcMembers.map(m => ({ id: m.id, name: m.name })) },
@@ -527,7 +522,7 @@ export function TaskManagementTab() {
               {canDeleteTasks && (
                 <DropdownMenuItem
                   disabled={selectedTasks.size === 0}
-                  className="text-foreground font-semibold focus:bg-muted"
+                  className="text-red-600 focus:text-red-600"
                   onClick={() => setShowBulkDelete(true)}
                 >
                   <Trash2 className="h-4 w-4 mr-2" />Delete {selectedTasks.size > 0 ? selectedTasks.size : ''} Selected
@@ -548,20 +543,20 @@ export function TaskManagementTab() {
         </div>
       </div>
 
-      {/* Stats — neutral cards, weight-only hierarchy (Overdue gets bold, not red) */}
+      {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {[
-            { label: 'Total Tasks', value: stats.total },
-            { label: 'Pending', value: stats.byStatus?.PENDING || 0 },
-            { label: 'In Progress', value: stats.byStatus?.IN_PROGRESS || 0 },
-            { label: 'Ready for QC', value: stats.byStatus?.READY_FOR_QC || 0 },
-            { label: 'Completed', value: stats.byStatus?.COMPLETED || 0 },
-            { label: 'Overdue', value: stats.overdue, overdue: true },
+            { label: 'Total Tasks', value: stats.total, bg: 'bg-blue-50', text: 'text-blue-700', sub: 'text-blue-600' },
+            { label: 'Pending', value: stats.byStatus?.PENDING || 0, bg: 'bg-yellow-50', text: 'text-yellow-700', sub: 'text-yellow-600' },
+            { label: 'In Progress', value: stats.byStatus?.IN_PROGRESS || 0, bg: 'bg-purple-50', text: 'text-purple-700', sub: 'text-purple-600' },
+            { label: 'Ready for QC', value: stats.byStatus?.READY_FOR_QC || 0, bg: 'bg-orange-50', text: 'text-orange-700', sub: 'text-orange-600' },
+            { label: 'Completed', value: stats.byStatus?.COMPLETED || 0, bg: 'bg-green-50', text: 'text-green-700', sub: 'text-green-600' },
+            { label: 'Overdue', value: stats.overdue, bg: 'bg-red-50', text: 'text-red-700', sub: 'text-red-600' },
           ].map(s => (
-            <div key={s.label} className="rounded-xl border border-border bg-card p-5 flex flex-col items-center justify-center text-center gap-1">
-              <div className="text-sm text-muted-foreground">{s.label}</div>
-              <div className={`text-3xl mt-1 text-foreground ${s.overdue ? 'font-bold' : 'font-semibold'}`}>{s.value}</div>
+            <div key={s.label} className={`rounded-xl p-5 ${s.bg} flex flex-col`}>
+              <div className={`text-sm font-medium ${s.sub}`}>{s.label}</div>
+              <div className={`text-3xl font-bold mt-1 ${s.text}`}>{s.value}</div>
             </div>
           ))}
         </div>
@@ -575,16 +570,13 @@ export function TaskManagementTab() {
               {showFilters ? 'Hide Filters' : 'Show Filters'}
               {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
             </Button>
-            {activeFilterCount > 0 && <Button variant="ghost" onClick={clearFilters}>Clear filters</Button>}
             <DateRangePicker
               date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
               setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
             />
-            <div className="flex-1 flex justify-center">
-              <div className="relative w-full max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10 h-9" />
-              </div>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10 h-9" />
             </div>
             <Button variant="outline" onClick={handleRefresh} disabled={isValidating}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />Refresh
@@ -639,13 +631,13 @@ export function TaskManagementTab() {
                           <tr
                             key={task.id}
                             onClick={() => handleSelectTask(task.id, !isSelected)}
-                            className={`border-b hover:bg-muted/50 cursor-pointer ${isSelected ? 'bg-muted' : ''} ${tasksLoading ? 'opacity-60' : ''}`}
+                            className={`border-b hover:bg-muted/50 cursor-pointer ${isSelected ? 'bg-primary/5' : ''} ${tasksLoading ? 'opacity-60' : ''}`}
                           >
                             <td className="py-4 px-4"><div className="max-w-xs font-semibold truncate">{task.title || task.description?.slice(0, 50) || 'Untitled Task'}</div></td>
                             <td className="py-4 px-4">
                               <div className="text-sm flex flex-col gap-1">
                                 <span>{task.monthlyDeliverable?.type?.replace(/_/g, ' ') || task.oneOffDeliverable?.type?.replace(/_/g, ' ') || '-'}</span>
-                                {task.oneOffDeliverable && <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 font-semibold">One-Off</Badge>}
+                                {task.oneOffDeliverable && <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">One-Off</Badge>}
                               </div>
                             </td>
                             <td className="py-4 px-4"><div className="text-sm">{task.client?.companyName || task.client?.name || '-'}</div></td>
@@ -672,6 +664,7 @@ export function TaskManagementTab() {
                                   <DropdownMenuItem
                                     onClick={() => handleDriveMirror(task.id)}
                                     disabled={mirroringTaskId === task.id}
+                                    className="text-blue-600 focus:text-blue-600"
                                   >
                                     <CloudUpload className="h-4 w-4 mr-2" />
                                     {mirroringTaskId === task.id ? 'Mirroring...' : 'Trigger Drive Mirror'}
@@ -679,6 +672,7 @@ export function TaskManagementTab() {
                                   <DropdownMenuItem
                                     onClick={() => handleYoutubeMirror(task.id)}
                                     disabled={youtubeMirroringTaskId === task.id}
+                                    className="text-red-600 focus:text-red-600"
                                   >
                                     <Youtube className="h-4 w-4 mr-2" />
                                     {youtubeMirroringTaskId === task.id ? 'Uploading...' : 'Trigger YouTube Upload'}
@@ -699,7 +693,7 @@ export function TaskManagementTab() {
                                   {canDeleteTasks && (
                                     <>
                                       <DropdownMenuSeparator />
-                                      <DropdownMenuItem className="font-semibold" onClick={() => setDeleteConfirmTask(task)}>
+                                      <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteConfirmTask(task)}>
                                         <Trash2 className="h-4 w-4 mr-2" />Delete Task
                                       </DropdownMenuItem>
                                     </>
@@ -832,13 +826,13 @@ export function TaskManagementTab() {
       <Dialog open={!!deleteConfirmTask} onOpenChange={o => !o && setDeleteConfirmTask(null)}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Trash2 className="h-5 w-5" />Delete Task</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-red-600"><Trash2 className="h-5 w-5" />Delete Task</DialogTitle>
             <DialogDescription className="pt-2">
-              <div className="mt-3 p-3 border-2 border-foreground rounded-lg">
-                <p className="font-bold">{deleteConfirmTask?.title || 'Untitled Task'}</p>
-                <p className="text-sm text-muted-foreground mt-1">Client: {deleteConfirmTask?.client?.name || 'Unknown'}</p>
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="font-medium text-red-800">{deleteConfirmTask?.title || 'Untitled Task'}</p>
+                <p className="text-sm text-red-600 mt-1">Client: {deleteConfirmTask?.client?.name || 'Unknown'}</p>
               </div>
-              <p className="mt-3 text-sm font-bold">⚠️ This action cannot be undone.</p>
+              <p className="mt-3 text-sm text-red-600 font-medium">⚠️ This action cannot be undone.</p>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -852,12 +846,12 @@ export function TaskManagementTab() {
       <Dialog open={showBulkDelete} onOpenChange={o => !o && setShowBulkDelete(false)}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Trash2 className="h-5 w-5" />Delete {selectedTasks.size} Tasks</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-red-600"><Trash2 className="h-5 w-5" />Delete {selectedTasks.size} Tasks</DialogTitle>
             <DialogDescription className="pt-2">
-              <div className="mt-3 p-3 border-2 border-foreground rounded-lg max-h-48 overflow-y-auto">
-                {Array.from(selectedTasks).map(id => { const t = tasks.find(x => x.id === id); return (<div key={id} className="py-1 border-b last:border-0"><p className="font-bold text-sm truncate">{t?.title || 'Untitled'}</p><p className="text-xs text-muted-foreground">{t?.client?.name || 'Unknown Client'}</p></div>); })}
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg max-h-48 overflow-y-auto">
+                {Array.from(selectedTasks).map(id => { const t = tasks.find(x => x.id === id); return (<div key={id} className="py-1 border-b border-red-100 last:border-0"><p className="font-medium text-red-800 text-sm truncate">{t?.title || 'Untitled'}</p><p className="text-xs text-red-600">{t?.client?.name || 'Unknown Client'}</p></div>); })}
               </div>
-              <p className="mt-3 text-sm font-bold">⚠️ This action cannot be undone.</p>
+              <p className="mt-3 text-sm text-red-600 font-medium">⚠️ This action cannot be undone.</p>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -62,9 +62,7 @@ export function CommentInput({
     onToggleExpand,
 }: CommentInputProps) {
     const [content, setContent] = useState('');
-    const [category, setCategory] = useState<CommentCategory['value'][]>(
-        COMMENT_CATEGORIES.map((c) => c.value)
-    );
+    const [category, setCategory] = useState<CommentCategory['value']>('design');
     const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSelectingArea, setIsSelectingArea] = useState(false);
@@ -313,7 +311,7 @@ export function CommentInput({
                 <div className="flex items-center gap-2">
                     {/* Timestamp display with optional range */}
                     <div className="flex items-center gap-1">
-                        <span className="review-comment-timestamp flex items-center gap-1" style={{ color: '#ffffff' }}>
+                        <span className="review-comment-timestamp flex items-center gap-1">
                             {useEndTimestamp && rangeStartSeconds !== null ? formatSecondsToTimestamp(rangeStartSeconds) : currentTimestamp}
                         </span>
                         {useEndTimestamp && (
@@ -382,7 +380,7 @@ export function CommentInput({
                                 title="Add end time for a range (e.g., 1:00 - 1:28)"
                             >
                                 <Clock className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider text-white">Range</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider">Range</span>
                             </Button>
                         )}
                     </div>
@@ -396,7 +394,7 @@ export function CommentInput({
                                 title="Capture full frame"
                             >
                                 <Camera className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider text-white">Full</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider">Full</span>
                             </Button>
                             <Button
                                 variant="ghost"
@@ -406,7 +404,7 @@ export function CommentInput({
                                 title="Select area to snip"
                             >
                                 <Crop className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider text-white">Snip</span>
+                                <span className="text-[10px] uppercase font-bold tracking-wider">Snip</span>
                             </Button>
                         </div>
                     )}
@@ -450,22 +448,16 @@ export function CommentInput({
                 onChange={(e) => setContent(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Add your feedback..."
-                className="min-h-[80px] bg-transparent border-none resize-none text-white placeholder:text-white focus-visible:ring-0 p-0"
+                className="min-h-[80px] bg-transparent border-none resize-none text-white placeholder:text-[var(--review-text-muted)] focus-visible:ring-0 p-0"
             />
 
-            {/* Category Selector — multi-select, all checked by default */}
+            {/* Category Selector */}
             <div className="flex items-center gap-1 mt-3 mb-3 flex-wrap">
                 {COMMENT_CATEGORIES.map((cat) => (
                     <button
                         key={cat.value}
-                        onClick={() =>
-                            setCategory((prev) =>
-                                prev.includes(cat.value)
-                                    ? prev.filter((v) => v !== cat.value)
-                                    : [...prev, cat.value]
-                            )
-                        }
-                        className={`review-category-pill cursor-pointer transition-all ${category.includes(cat.value)
+                        onClick={() => setCategory(cat.value)}
+                        className={`review-category-pill cursor-pointer transition-all ${category === cat.value
                             ? 'ring-1 ring-offset-1 ring-offset-[var(--review-bg-tertiary)]'
                             : 'opacity-60 hover:opacity-100'
                             }`}
@@ -481,7 +473,7 @@ export function CommentInput({
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-2 border-t border-[var(--review-border)]">
-                <span className="text-xs text-white">
+                <span className="text-xs text-[var(--review-text-muted)]">
                     ⌘/Ctrl + Enter to submit
                 </span>
                 <div className="flex items-center gap-2">
@@ -489,7 +481,7 @@ export function CommentInput({
                         variant="ghost"
                         size="sm"
                         onClick={onCancel}
-                        className="text-white hover:text-white hover:bg-[var(--review-bg-elevated)]"
+                        className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-elevated)]"
                     >
                         Cancel
                     </Button>
