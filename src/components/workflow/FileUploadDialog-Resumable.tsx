@@ -338,11 +338,19 @@ export function FileUploadDialog({
     const filesToUpload = [...selectedFiles];
     setSelectedFiles([]);
 
+    // Group into one Slack notification when 2+ files are uploaded together —
+    // single-file uploads notify immediately as before.
+    const batchId = filesToUpload.length > 1
+      ? `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      : undefined;
+    const batchTotal = filesToUpload.length > 1 ? filesToUpload.length : undefined;
+    const taskData = { ...task, batchId, batchTotal };
+
     try {
       // Enqueue first file and track it in the dialog UI
       const firstId = await enqueueUpload(
         filesToUpload[0].file,
-        task,
+        taskData,
         subfolder,
         folderType,
         filesToUpload[0].relativePath
@@ -354,7 +362,7 @@ export function FileUploadDialog({
       for (let i = 1; i < filesToUpload.length; i++) {
         enqueueUpload(
           filesToUpload[i].file,
-          task,
+          taskData,
           subfolder,
           folderType,
           filesToUpload[i].relativePath

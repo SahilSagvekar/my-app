@@ -19,13 +19,58 @@ import { client as clientTable } from '@/lib/db/schema';
 import { eq, or } from 'drizzle-orm';
 import { generateFileServerToken } from '@/lib/file-server';
 import { updateClientStorageAfterUpload } from '@/lib/storage-service';
-import { sendUploadNotification } from '@/lib/upload-notifications';
+import { sendUploadNotification, sendBatchUploadNotification } from '@/lib/upload-notifications';
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
-import { popUploadJob, ackUploadJob, failUploadJob, recoverStuckJobs, UploadJob } from '@/lib/upload-queue';
+import { popUploadJob, ackUploadJob, failUploadJob, recoverStuckJobs, recordBatchFile, UploadJob } from '@/lib/upload-queue';
 import jwt from 'jsonwebtoken';
 
 function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
   return !!value && !value.includes('/') && !value.includes('\\');
+}
+
+// Sends the normal per-file Slack notification, UNLESS this job is part of a
+// multi-file batch (job.batchId set) — in that case, record the file against
+// its batch and only send once (when the batch's file count hits batchTotal).
+async function notifyForJob(job: UploadJob, folderType: string): Promise<void> {
+  if (job.batchId && job.batchTotal) {
+    try {
+      const { progress, isComplete } = await recordBatchFile(job.batchId, job.batchTotal, job.fileSize || 0, {
+        uploadedBy: job.userId,
+        clientId: job.clientId,
+        taskId: job.taskId,
+        folderType,
+        s3Key: job.key,
+        taggedEditorIds: job.taggedEditorIds,
+        isDriveUpload: job.isDriveUpload,
+      });
+      if (isComplete) {
+        await sendBatchUploadNotification({
+          fileCount: progress.total,
+          totalSize: progress.totalSize,
+          uploadedBy: progress.uploadedBy,
+          clientId: progress.clientId,
+          taskId: progress.taskId,
+          folderType: progress.folderType,
+          s3Key: progress.s3Key,
+          taggedEditorIds: progress.taggedEditorIds,
+        });
+      }
+    } catch (err: any) {
+      console.error('[UploadWorker] Batch notify failed:', err.message);
+    }
+    return;
+  }
+
+  await sendUploadNotification({
+    fileName: job.fileName,
+    fileSize: job.fileSize || 0,
+    uploadedBy: job.userId,
+    clientId: job.clientId || undefined,
+    taskId: job.taskId,
+    folderType,
+    s3Key: job.key,
+    taggedEditorIds: job.taggedEditorIds || undefined,
+  });
 }
 
 let isRunning = false;
@@ -64,15 +109,7 @@ async function processJob(job: UploadJob): Promise<void> {
 
     // ── Drive-only upload — just send Slack ──────────────────────────────
     if (isDriveUpload) {
-      sendUploadNotification({
-        fileName,
-        fileSize: fileSize || 0,
-        uploadedBy: userId,
-        clientId: clientId || undefined,
-        folderType: 'drive',
-        s3Key: key,
-        taggedEditorIds: taggedEditorIds || undefined,
-      }).catch((err: any) => console.error('[UploadWorker] Drive Slack failed:', err.message));
+      notifyForJob(job, 'drive').catch((err: any) => console.error('[UploadWorker] Drive Slack failed:', err.message));
 
       await ackUploadJob(job.id);
       console.log(`[UploadWorker] ✅ Drive upload job ${job.id} done`);
@@ -155,16 +192,7 @@ async function processJob(job: UploadJob): Promise<void> {
     }).catch((err: any) => console.error('[UploadWorker] AuditLog failed:', err.message));
 
     // ── Slack notification ───────────────────────────────────────────────
-    sendUploadNotification({
-      fileName,
-      fileSize: fileSize || 0,
-      uploadedBy: userId,
-      clientId: clientId || undefined,
-      taskId,
-      folderType,
-      s3Key: key,
-      taggedEditorIds: taggedEditorIds || undefined,
-    }).catch((err: any) => console.error('[UploadWorker] Slack failed:', err.message));
+    notifyForJob(job, folderType).catch((err: any) => console.error('[UploadWorker] Slack failed:', err.message));
 
     await ackUploadJob(job.id);
     console.log(`[UploadWorker] ✅ Job ${job.id} done`);

@@ -25,6 +25,8 @@ interface UploadState {
   estimatedTimeLeft?: number;  // seconds remaining
   relativePath?: string;       // for folder uploads — relative path within the folder
   taggedEditorIds?: string[];  // admin-selected editors to tag in Slack notification (raw footage)
+  batchId?: string;            // set when 2+ files were selected together — groups Slack notifications
+  batchTotal?: number;         // total files in this batch
 }
 
 interface UploadDB extends DBSchema {

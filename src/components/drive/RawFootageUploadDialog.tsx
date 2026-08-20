@@ -366,7 +366,14 @@ export function RawFootageUploadDialog({
     const taggedEditorIds = selectedEditorIds.size > 0
       ? Array.from(selectedEditorIds).map(String)
       : undefined;
-    const taskData = { clientId, taggedEditorIds };
+
+    // Group into one Slack notification when 2+ files are uploaded together —
+    // single-file uploads notify immediately as before.
+    const batchId = filesToUpload.length > 1
+      ? `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      : undefined;
+    const batchTotal = filesToUpload.length > 1 ? filesToUpload.length : undefined;
+    const taskData = { clientId, taggedEditorIds, batchId, batchTotal };
 
     try {
       const firstId = await enqueueUpload(

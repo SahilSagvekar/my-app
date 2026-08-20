@@ -257,6 +257,135 @@ export async function sendUploadNotification(
 }
 
 /**
+ * Send ONE Slack notification for a batch of files (2+ files uploaded
+ * together in one dialog session), instead of one notification per file.
+ * Reuses the same client-channel-vs-E8-app-channel routing and editor-tagging
+ * logic as sendUploadNotification — just summarizes count + total size
+ * instead of naming a single file.
+ */
+export async function sendBatchUploadNotification(params: {
+  fileCount: number;
+  totalSize: number;
+  uploadedBy: number;
+  clientId?: string | null;
+  taskId?: string;
+  folderType?: string;
+  s3Key?: string;
+  taggedEditorIds?: string[] | null;
+}): Promise<void> {
+  const db = getDbHttp();
+  const { fileCount, totalSize, uploadedBy, clientId, taskId, folderType, s3Key, taggedEditorIds } = params;
+
+  try {
+    const [uploader] = await db
+      .select({
+        id: userTable.id,
+        name: userTable.name,
+        role: userTable.role,
+        slackUserId: userTable.slackUserId,
+      })
+      .from(userTable)
+      .where(eq(userTable.id, uploadedBy))
+      .limit(1);
+
+    if (!uploader) {
+      console.log(`[UploadNotification] Uploader ${uploadedBy} not found, skipping batch notification`);
+      return;
+    }
+
+    const isRawFootageUpload = !!(s3Key && s3Key.includes("raw-footage/"));
+    const isClientUpload = uploader.role === "client" || isRawFootageUpload;
+
+    const formattedSize = formatFileSize(totalSize);
+    const folderPath = getFolderPath(s3Key);
+    const fileWord = fileCount === 1 ? "file" : "files";
+
+    let title: string;
+    let body: string;
+    let mentionString = "";
+
+    if (isClientUpload && clientId) {
+      const [client] = await db
+        .select({
+          id: clientTable.id,
+          name: clientTable.name,
+          companyName: clientTable.companyName,
+          slackEnabled: clientTable.slackEnabled,
+          slackWebhookUrl: clientTable.slackWebhookUrl,
+        })
+        .from(clientTable)
+        .where(eq(clientTable.id, clientId))
+        .limit(1);
+
+      if (!client) {
+        console.log(`[UploadNotification] Client ${clientId} not found, skipping batch notification`);
+        return;
+      }
+
+      if (!client.slackEnabled || !client.slackWebhookUrl) {
+        console.log(`[UploadNotification] Slack not enabled for client "${client.name}", skipping batch notification`);
+        return;
+      }
+
+      const editors =
+        taggedEditorIds && taggedEditorIds.length > 0
+          ? await getEditorsByIds(taggedEditorIds)
+          : await getClientAssignedEditors(clientId);
+      if (editors.length > 0) {
+        mentionString = buildMentions(editors);
+      }
+
+      title = `New Upload from ${uploader.name || "Client"}`;
+      body = `*Files:* ${fileCount} ${fileWord}\n*Total size:* ${formattedSize}\n*Location:* \`${folderPath}\``;
+
+      if (mentionString) {
+        title = `${mentionString} ${title}`;
+      }
+
+      const notification: SlackNotification = {
+        type: "file_uploaded",
+        title,
+        body,
+        payload: { taskId, clientId, fileCount, totalSize, folderType },
+      };
+
+      await sendSlackWebhook(notification, client.slackWebhookUrl);
+      console.log(`[UploadNotification] ✅ Batch (${fileCount} files) sent to client "${client.name}" channel`);
+    } else {
+      let clientName = "";
+      if (clientId) {
+        const [client] = await db
+          .select({ name: clientTable.name, companyName: clientTable.companyName })
+          .from(clientTable)
+          .where(eq(clientTable.id, clientId))
+          .limit(1);
+        clientName = client?.companyName || client?.name || "";
+      }
+
+      title = `📤 ${fileCount} ${fileWord} uploaded by ${uploader.name || "User"} (${uploader.role || "unknown"})`;
+      body = `*Files:* ${fileCount} ${fileWord}\n*Total size:* ${formattedSize}`;
+
+      if (clientName) {
+        body += `\n*Client:* ${clientName}`;
+      }
+      body += `\n*Location:* \`${folderPath}\``;
+
+      const notification: SlackNotification = {
+        type: "file_uploaded",
+        title,
+        body,
+        payload: { taskId, clientId, fileCount, totalSize, folderType },
+      };
+
+      await sendToChannel("e8app", notification);
+      console.log(`[UploadNotification] ✅ Batch (${fileCount} files) sent to E8 App channel`);
+    }
+  } catch (err) {
+    console.error("[UploadNotification] Batch notification failed:", err);
+  }
+}
+
+/**
  * Send drive upload notification (for direct drive uploads without task context)
  */
 export async function sendDriveUploadNotification(params: {

@@ -18,7 +18,6 @@ import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
 import { completeMultipart } from '@/lib/file-server';
 import { pushUploadJob } from '@/lib/upload-queue';
-import { runUploadWorkerTick } from '@/lib/upload-worker';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDbHttp } from "@/lib/db";
 import { client as clientTable, file as fileTable, task as taskTable } from "@/lib/db/schema";
@@ -44,7 +43,7 @@ function getErrorCode(error: unknown) {
 
 export async function POST(request: NextRequest) {
   const db = getDbHttp();
-  const { env, ctx } = getCloudflareContext();
+  const { env } = getCloudflareContext();
   try {
     const user = await getCurrentUser2(request);
     if (!user)
@@ -65,6 +64,8 @@ export async function POST(request: NextRequest) {
       singlePut,
       fileUrl: singlePutFileUrl,
       taggedEditorIds,
+      batchId,
+      batchTotal,
     } = await request.json();
 
     console.log("📥 Complete request:", {
@@ -247,20 +248,13 @@ export async function POST(request: NextRequest) {
         fileRecordId: fileRecord?.id || null,
         // Admin-selected editors to tag in Slack — falls back to auto-tag-all if omitted
         taggedEditorIds: Array.isArray(taggedEditorIds) && taggedEditorIds.length > 0 ? taggedEditorIds : null,
+        // Part of a multi-file batch (2+ files selected together) — worker
+        // groups these into one Slack notification instead of one per file.
+        batchId: batchId || null,
+        batchTotal: typeof batchTotal === 'number' && batchTotal > 0 ? batchTotal : null,
       });
 
       console.log(`📬 Background job queued: ${jobId} for ${fileName}`);
-
-      // ── STEP 5b: Drain the queue in the background ────────────────────────
-      // No persistent process on Workers to poll Redis (old cron-master.ts
-      // can't run here — no long-lived setInterval). Instead, process a tick
-      // right after enqueueing: waitUntil keeps the worker alive after the
-      // response is sent, without blocking the browser's response.
-      ctx.waitUntil(
-        runUploadWorkerTick().catch((err) =>
-          console.error('[UploadComplete] Background tick failed:', getErrorMessage(err)),
-        ),
-      );
 
       // ── STEP 6: Return success — file is already in DB ────────────────────
       return NextResponse.json({

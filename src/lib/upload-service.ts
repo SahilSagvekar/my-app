@@ -335,6 +335,8 @@ class UploadService {
                     subfolder,
                     relativePath,
                     taggedEditorIds: taskData?.taggedEditorIds,
+                    batchId: taskData?.batchId,
+                    batchTotal: taskData?.batchTotal,
                 };
                 await uploadStateManager.saveUploadState(singleState);
                 this.activeUploads.set(id, true);
@@ -369,6 +371,8 @@ class UploadService {
                                 subfolder: subfolder || 'main',
                                 codec,
                                 taggedEditorIds: taskData?.taggedEditorIds,
+                                batchId: taskData?.batchId,
+                                batchTotal: taskData?.batchTotal,
                             }),
                             signal: AbortSignal.timeout(30_000),
                         });
@@ -421,6 +425,8 @@ class UploadService {
                 subfolder,
                 relativePath,
                 taggedEditorIds: taskData?.taggedEditorIds,
+                batchId: taskData?.batchId,
+                batchTotal: taskData?.batchTotal,
             };
 
             await uploadStateManager.saveUploadState(state);
@@ -548,6 +554,8 @@ class UploadService {
                             subfolder: currentState.subfolder || 'main',
                             codec: codec,
                             taggedEditorIds: currentState.taggedEditorIds,
+                            batchId: currentState.batchId,
+                            batchTotal: currentState.batchTotal,
                         }),
                         signal: AbortSignal.timeout(90_000), // 90s — R2 complete can be slow for large files
                     });
