@@ -83,6 +83,11 @@ interface FullScreenReviewModalProps {
     onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
     // 🔥 Client's template hashtags — shown as selectable chips in the tags tab
     templateHashtags?: string[];
+    // Pure playback mode — hides the entire comments/titles sidebar and all
+    // approve/reject actions. Used for the client's "Rejected" section,
+    // where they're just rewatching something they already sent back, not
+    // reviewing it fresh.
+    readOnly?: boolean;
 }
 
 interface RevisionRequest {
@@ -200,6 +205,7 @@ export function FullScreenReviewModalFrameIO({
     onPostingDescriptionsChange,
     onPostingTagsChange,
     templateHashtags = [],
+    readOnly = false,
 }: FullScreenReviewModalProps) {
     const { user } = useAuth();
 
@@ -1013,6 +1019,7 @@ export function FullScreenReviewModalFrameIO({
     /* ── Shared props object ── */
     const screenProps = {
         asset,
+        readOnly,
         currentFileSection,
         userRole,
         requiresClientReview,

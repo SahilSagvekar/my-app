@@ -115,7 +115,7 @@ function MonthPill({ month }: { month: string | null }) {
 function SkeletonRow() {
   return (
     <tr className="border-b">
-      {[180, 90, 100, 80, 60, 90, 70, 60, 40].map((w, i) => (
+      {[20, 180, 90, 100, 80, 60, 90, 70, 60, 40].map((w, i) => (
         <td key={i} className="py-3 px-4">
           <div className="h-4 rounded bg-muted animate-pulse" style={{ width: w }} />
         </td>
@@ -499,50 +499,6 @@ export function TaskManagementTab() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Task Management</h1>
-          <p className="text-muted-foreground mt-1">Manage all tasks, assignments, and track team workload</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                Manage<ChevronDown className="h-4 w-4 ml-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                disabled={selectedTasks.size === 0}
-                onClick={() => { setBulkEditForm({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' }); setShowBulkEdit(true); }}
-              >
-                <Pencil className="h-4 w-4 mr-2" />Edit {selectedTasks.size > 0 ? selectedTasks.size : ''} Selected
-              </DropdownMenuItem>
-              {canDeleteTasks && (
-                <DropdownMenuItem
-                  disabled={selectedTasks.size === 0}
-                  className="text-red-600 focus:text-red-600"
-                  onClick={() => setShowBulkDelete(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />Delete {selectedTasks.size > 0 ? selectedTasks.size : ''} Selected
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={clearFilters} disabled={activeFilterCount === 0}>
-                Clear Filters
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {user?.role?.toLowerCase() !== 'qc' && (
-            <CreateTaskDialog
-              onTaskCreated={() => { toast({ title: 'Success', description: 'Task created. Refreshing...' }); setTimeout(() => mutateTasks(), 800); }}
-              trigger={<Button className="bg-black text-white hover:bg-black/90"><Plus className="h-4 w-4 mr-2" />Create Task</Button>}
-            />
-          )}
-        </div>
-      </div>
-
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -562,53 +518,89 @@ export function TaskManagementTab() {
         </div>
       )}
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
-              {showFilters ? 'Hide Filters' : 'Show Filters'}
-              {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
-            </Button>
-            <DateRangePicker
-              date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
-              setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
-            />
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10 h-9" />
+      {/* Filters + Tasks Table — single attached container */}
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          {/* Filters section */}
+          <div className="p-5 border-b">
+            <div className="flex items-center gap-3 mb-4">
+              <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+                {showFilters ? 'Hide Filters' : 'Show Filters'}
+                {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
+              </Button>
+              <DateRangePicker
+                date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
+                setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
+              />
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10 h-9" />
+              </div>
+              <Button variant="outline" onClick={handleRefresh} disabled={isValidating}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />Refresh
+              </Button>
             </div>
-            <Button variant="outline" onClick={handleRefresh} disabled={isValidating}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />Refresh
-            </Button>
+
+            {showFilters && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-3">
+                {filterColumns.map(({ label, key, items }) => (
+                  <div key={key} className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">{label}</label>
+                    <Select value={(filters as any)[key]} onValueChange={v => { setFilters(f => ({ ...f, [key]: v })); setPage(1); }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder={label} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{label}</SelectItem>
+                        {items.map(i => <SelectItem key={i.id} value={i.id.toString()}>{i.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {showFilters && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-3">
-              {filterColumns.map(({ label, key, items }) => (
-                <div key={key} className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">{label}</label>
-                  <Select value={(filters as any)[key]} onValueChange={v => { setFilters(f => ({ ...f, [key]: v })); setPage(1); }}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder={label} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{label}</SelectItem>
-                      {items.map(i => <SelectItem key={i.id} value={i.id.toString()}>{i.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+          {/* Bulk actions bar — shown when 1+ tasks are selected via checkboxes */}
+          {selectedTasks.size > 0 && (
+            <div className="flex items-center gap-3 px-5 py-3 border-b bg-muted/30">
+              <span className="text-sm font-medium">{selectedTasks.size} selected</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setBulkEditForm({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' });
+                  setShowBulkEdit(true);
+                }}
+              >
+                <Pencil className="h-4 w-4 mr-2" />Edit Selected
+              </Button>
+              {canDeleteTasks && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 hover:text-red-600"
+                  onClick={() => setShowBulkDelete(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />Delete Selected
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={() => setSelectedTasks(new Set())}>
+                Clear selection
+              </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Tasks Table */}
-      <Card>
-        <CardContent className="p-0">
+          {/* Tasks Table section */}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b">
+                  <th className="py-3 px-4 w-10">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                      aria-label="Select all tasks"
+                    />
+                  </th>
                   <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Task Name</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Client</th>
@@ -624,7 +616,7 @@ export function TaskManagementTab() {
                 {tasksLoading && tasks.length === 0
                   ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
                   : tasks.length === 0
-                    ? <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">No tasks found matching your filters</td></tr>
+                    ? <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">No tasks found matching your filters</td></tr>
                     : tasks.map(task => {
                         const isSelected = selectedTasks.has(task.id);
                         return (
@@ -633,6 +625,13 @@ export function TaskManagementTab() {
                             onClick={() => handleSelectTask(task.id, !isSelected)}
                             className={`border-b hover:bg-muted/50 cursor-pointer ${isSelected ? 'bg-primary/5' : ''} ${tasksLoading ? 'opacity-60' : ''}`}
                           >
+                            <td className="py-4 px-4" onClick={e => e.stopPropagation()}>
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => handleSelectTask(task.id, !!checked)}
+                                aria-label={`Select ${task.title || 'task'}`}
+                              />
+                            </td>
                             <td className="py-4 px-4"><div className="max-w-xs font-semibold truncate">{task.title || task.description?.slice(0, 50) || 'Untitled Task'}</div></td>
                             <td className="py-4 px-4">
                               <div className="text-sm flex flex-col gap-1">

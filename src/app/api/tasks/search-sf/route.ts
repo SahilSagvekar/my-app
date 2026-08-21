@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { task, monthlyDeliverable, oneOffDeliverable } from '@/lib/db/schema';
-import { and, or, eq, ne, ilike, exists, desc } from 'drizzle-orm';
+import { and, or, eq, ne, ilike, inArray, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -18,6 +18,22 @@ export async function GET(req: NextRequest) {
     const clientId = searchParams.get('clientId') ?? undefined;
     const excludeLfId = searchParams.get('excludeLfId') ?? undefined;
 
+    // Resolved to plain ID lists first, not correlated exists(db.select()...)
+    // subqueries — mixing db.query's relational API (used below, which
+    // aliases the Task table as lowercase "task") with a manually-built
+    // exists() subquery referencing the bare `task` object breaks
+    // correlation: Postgres throws "missing FROM-clause entry for table
+    // Task" since the subquery ends up as an unaliased, uncorrelated
+    // reference instead of matching the outer row.
+    const [matchingMonthlyDeliverables, matchingOneOffDeliverables] = await Promise.all([
+      db.select({ id: monthlyDeliverable.id }).from(monthlyDeliverable)
+        .where(or(ilike(monthlyDeliverable.type, '%SF%'), ilike(monthlyDeliverable.type, '%SHORT%'))),
+      db.select({ id: oneOffDeliverable.id }).from(oneOffDeliverable)
+        .where(or(ilike(oneOffDeliverable.type, '%SF%'), ilike(oneOffDeliverable.type, '%SHORT%'))),
+    ]);
+    const monthlyIds = matchingMonthlyDeliverables.map(d => d.id);
+    const oneOffIds = matchingOneOffDeliverables.map(d => d.id);
+
     const rawTasks = await db.query.task.findMany({
       where: and(
         clientId ? eq(task.clientId, clientId) : undefined,
@@ -26,14 +42,8 @@ export async function GET(req: NextRequest) {
           ilike(task.deliverableType, '%SF%'),
           ilike(task.deliverableType, '%SHORT%'),
           ilike(task.taskType, '%SF%'),
-          exists(db.select().from(monthlyDeliverable).where(and(
-            eq(monthlyDeliverable.id, task.monthlyDeliverableId),
-            or(ilike(monthlyDeliverable.type, '%SF%'), ilike(monthlyDeliverable.type, '%SHORT%')),
-          ))),
-          exists(db.select().from(oneOffDeliverable).where(and(
-            eq(oneOffDeliverable.id, task.oneOffDeliverableId),
-            or(ilike(oneOffDeliverable.type, '%SF%'), ilike(oneOffDeliverable.type, '%SHORT%')),
-          ))),
+          monthlyIds.length > 0 ? inArray(task.monthlyDeliverableId, monthlyIds) : undefined,
+          oneOffIds.length > 0 ? inArray(task.oneOffDeliverableId, oneOffIds) : undefined,
         ),
         query.length > 1
           ? or(ilike(task.title, `%${query}%`), ilike(task.description, `%${query}%`))

@@ -23,14 +23,19 @@ import {
 } from '@aws-sdk/client-s3';
 
 // ─── Short code → full name mapping ──────────────────────────────────────────
-// Matches the labels used in DriveExplorer and repair-folders
+// Matches the exact deliverable "type" strings real uploads use (see
+// ClientManagement.tsx's dropdown, RawFootageUploadDialog.tsx) — see
+// src/lib/deliverable-folder-name.ts for the single source of truth this
+// mirrors (kept as a literal map here, not imported, since this map's KEYS
+// are short codes that only ever existed as folder names on disk, not real
+// deliverable type values — the helper only knows the reverse direction).
 const SHORT_CODE_MAP: Record<string, string> = {
-  SF:    'Short Form',
-  LF:    'Long Form',
-  SQF:   'Square Form',
+  SF:    'Short Form Videos',
+  LF:    'Long Form Videos',
+  SQF:   'Square Form Videos',
   THUMB: 'Thumbnails',
   T:     'Tiles',
-  HP:    'Hard Posts',
+  HP:    'Hard Posts', // "Hard Posts / Graphic Images" contains a "/", which breaks S3 keys as a folder name — shortened, see deliverable-folder-name.ts
   SEP:   'Snapchat Episodes',
   BSF:   'Beta Short Form',
   ST:    'Stories',

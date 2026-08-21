@@ -221,7 +221,7 @@ export function ClientDashboard() {
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showTextPostReview, setShowTextPostReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
-  const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted'>('pending');
+  const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted' | 'rejected'>('pending');
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1115,11 +1115,15 @@ export function ClientDashboard() {
 
   /* ----------------------------- STATS (memoized) -------------------------- */
 
-  const { pendingReviews, approvedCount, postedCount, overdueReviews } = useMemo(() => ({
+  const { pendingReviews, approvedCount, postedCount, rejectedCount, overdueReviews } = useMemo(() => ({
     // pendingReviews: tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length,
     pendingReviews: tasks.filter(task => task.status === 'CLIENT_REVIEW').length,
     approvedCount: tasks.filter(task => task.status === 'COMPLETED').length,
     postedCount: tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length,
+    // Currently-pending rejections only — a task leaves this count the moment
+    // the editor fixes it and resubmits (status moves on from REJECTED), not
+    // a permanent history of everything ever rejected.
+    rejectedCount: tasks.filter(task => task.status === 'REJECTED').length,
     overdueReviews: tasks.filter(task => isOverdue(task)).length,
   }), [tasks]);
 
@@ -1137,6 +1141,9 @@ export function ClientDashboard() {
       }
       if (currentFilter === 'posted') {
         return task.status === 'POSTED' || task.status === 'SCHEDULED';
+      }
+      if (currentFilter === 'rejected') {
+        return task.status === 'REJECTED';
       }
       return true;
     });
@@ -1219,7 +1226,7 @@ export function ClientDashboard() {
               onValueChange={(val: any) => setCurrentFilter(val)}
               className="w-full lg:w-auto"
             >
-              <TabsList className="bg-zinc-100 p-0.5 grid grid-cols-3 w-full lg:w-auto">
+              <TabsList className="bg-zinc-100 p-0.5 grid grid-cols-4 w-full lg:w-auto">
                 <TabsTrigger
                   value="pending"
                   className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-yellow-500"
@@ -1259,6 +1266,20 @@ export function ClientDashboard() {
                       className="h-6 px-2 text-xs bg-blue-100 text-blue-800"
                     >
                       {postedCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="rejected"
+                  className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-red-600"
+                >
+                  Rejected
+                  {rejectedCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="h-6 px-2 text-xs bg-red-100 text-red-800"
+                    >
+                      {rejectedCount}
                     </Badge>
                   )}
                 </TabsTrigger>
@@ -1676,6 +1697,9 @@ export function ClientDashboard() {
               onApprove={handleVideoApprove}
               onRequestRevisions={handleVideoRequestRevisions}
               userRole="client"
+              // Pure playback when reopening something already rejected —
+              // no comments/approve actions, just rewatch it.
+              readOnly={selectedTask.status === 'REJECTED'}
               // 🔀 Switch to thumbnail review without leaving the modal — only
               // offered when this task actually has a thumbnail to review.
               onSwitchToThumbnail={
@@ -1738,6 +1762,9 @@ export function ClientDashboard() {
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
               userRole="client"
+              // Pure playback when reopening something already rejected —
+              // no comments/approve actions, just rewatch it.
+              readOnly={selectedTask.status === 'REJECTED'}
               imageLabel={selectedTask && isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
               onSwitchToVideo={
                 switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined

@@ -7,24 +7,9 @@ import { client as clientTable, task as taskTable } from '@/lib/db/schema';
 import { eq, isNotNull, desc } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { requireAdmin } from '@/lib/auth';
+import { getDeliverableFolderName } from '@/lib/deliverable-folder-name';
 
 const s3 = getS3();
-
-// ─── Deliverable type → short code (matches recurring/run exactly) ───────────
-function getShortCode(type: string): string {
-  const n = type.toLowerCase().trim();
-  if (n === 'short form videos')        return 'SF';
-  if (n === 'long form videos')         return 'LF';
-  if (n === 'square form videos')       return 'SQF';
-  if (n === 'thumbnails')               return 'THUMB';
-  if (n === 'tiles')                    return 'T';
-  if (n === 'hard posts / graphic images') return 'HP';
-  if (n === 'snapchat episodes')        return 'SEP';
-  if (n === 'beta short form')          return 'BSF';
-  if (n === 'stories')                  return 'ST';
-  if (n === 'text post')                return 'TP';
-  return type.replace(/\s+/g, '');
-}
 
 // ─── Check if an R2 "folder" key exists ──────────────────────────────────────
 // R2 folders are zero-byte objects ending in '/'. We check two ways:
@@ -72,7 +57,7 @@ async function createFolder(key: string): Promise<void> {
 //     CompanyName/raw-footage/<Month-Year>/
 //     CompanyName/outputs/<Month-Year>/
 //     For each monthly deliverable type the client has:
-//       CompanyName/raw-footage/<Month-Year>/<ShortCode>/
+//     CompanyName/raw-footage/<Month-Year>/<DeliverableFolderName>/
 interface ExpectedFolder {
   key: string;           // full R2 key with trailing slash
   label: string;         // human-readable description
@@ -129,8 +114,8 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
       nextMonth,
     ]);
 
-    const deliverableShortCodes = [
-      ...new Set(client.monthlyDeliverables.map(d => getShortCode(d.type))),
+    const deliverableFolderNames = [
+      ...new Set(client.monthlyDeliverables.map(d => getDeliverableFolderName(d.type))),
     ];
 
     for (const month of months) {
@@ -148,10 +133,10 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
       });
 
       // Deliverable sub-folders inside raw-footage (the main gap)
-      for (const code of deliverableShortCodes) {
+      for (const folderName of deliverableFolderNames) {
         expected.push({
-          key: `${company}/raw-footage/${month}/${code}/`,
-          label: `raw-footage/${month}/${code}`,
+          key: `${company}/raw-footage/${month}/${folderName}/`,
+          label: `raw-footage/${month}/${folderName}`,
           clientId: client.id,
           companyName: company,
         });

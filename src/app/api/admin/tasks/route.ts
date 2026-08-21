@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/schema";
 import { and, or, eq, ne, gte, lte, lt, inArray, notInArray, isNotNull, ilike, desc, asc, count, exists, sql as drizzleSql } from "drizzle-orm";
 import { getCurrentUser2 } from '@/lib/auth';
+import { sortMonthFolders } from '@/lib/month-folder';
 
 // ─────────────────────────────────────────
 // GET: Fetch all tasks with advanced filtering
@@ -275,12 +276,20 @@ export async function GET(req: NextRequest) {
         if (status) conditions.push(eq(taskTable.status, status as any));
         if (priority) conditions.push(eq(taskTable.priority, priority));
 
-        // Deliverable type filter
+        // Deliverable type filter — resolved to a plain ID list first (not a
+        // correlated exists() subquery) because mixing db.query's relational
+        // API (used for the main select below, which auto-aliases the Task
+        // table as lowercase "task") with a manually-written exists(db.select()
+        // ...) subquery referencing the bare `taskTable` object breaks
+        // correlation: Postgres throws "missing FROM-clause entry for table
+        // Task" since the subquery ends up referencing an unaliased, separate
+        // instance of the table instead of correlating to the outer row.
         if (deliverableType) {
-            conditions.push(exists(
-                db.select({ one: drizzleSql`1` }).from(monthlyDeliverableTable)
-                    .where(and(eq(monthlyDeliverableTable.id, taskTable.monthlyDeliverableId), eq(monthlyDeliverableTable.type, deliverableType)))
-            ));
+            const matchingDeliverables = await db.select({ id: monthlyDeliverableTable.id })
+                .from(monthlyDeliverableTable)
+                .where(eq(monthlyDeliverableTable.type, deliverableType));
+            const ids = matchingDeliverables.map(d => d.id);
+            conditions.push(ids.length > 0 ? inArray(taskTable.monthlyDeliverableId, ids) : drizzleSql`false`);
         }
 
         // Month filter
@@ -288,13 +297,15 @@ export async function GET(req: NextRequest) {
             conditions.push(eq(taskTable.monthFolder, month));
         }
 
-        // Tag filter
+        // Tag filter — same fix as deliverableType above: resolved to a plain
+        // task-ID list first instead of a correlated exists() subquery.
         if (tag && tag !== 'all') {
-            conditions.push(exists(
-                db.select({ one: drizzleSql`1` }).from(tagToTaskTable)
-                    .innerJoin(tagTable, eq(tagToTaskTable.a, tagTable.id))
-                    .where(and(eq(tagToTaskTable.b, taskTable.id), eq(tagTable.name, tag)))
-            ));
+            const matchingTaskIds = await db.select({ taskId: tagToTaskTable.b })
+                .from(tagToTaskTable)
+                .innerJoin(tagTable, eq(tagToTaskTable.a, tagTable.id))
+                .where(eq(tagTable.name, tag));
+            const ids = matchingTaskIds.map(t => t.taskId);
+            conditions.push(ids.length > 0 ? inArray(taskTable.id, ids) : drizzleSql`false`);
         }
 
         // Text search on title and description
@@ -445,24 +456,15 @@ export async function GET(req: NextRequest) {
             }),
             db.select({ value: count() }).from(taskTable).where(where),
             db.selectDistinct({ type: monthlyDeliverableTable.type }).from(monthlyDeliverableTable).orderBy(asc(monthlyDeliverableTable.type)),
-            // Distinct monthFolder values — calendar-sorted below (string ORDER BY is alphabetical)
+            // Fetch distinct monthFolder values for filter dropdown. No DB-level
+            // orderBy here — monthFolder is a "Month-YYYY" string, and a plain
+            // SQL ORDER BY sorts it alphabetically (wrong: "August-2026" would
+            // sort before "December-2025"). Sorted chronologically in JS below
+            // via sortMonthFolders() instead.
             db.selectDistinct({ monthFolder: taskTable.monthFolder }).from(taskTable)
                 .where(isNotNull(taskTable.monthFolder)),
         ]);
         const deliverableTypes = deliverableTypesRaw;
-
-        const MONTH_INDEX: Record<string, number> = {
-            january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
-            july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
-        };
-        const monthFolderSortKey = (folder: string): number => {
-            const match = folder.match(/^([A-Za-z]+)-(\d{4})$/);
-            if (!match) return 0;
-            const month = MONTH_INDEX[match[1].toLowerCase()];
-            const year = parseInt(match[2], 10);
-            if (month === undefined || !Number.isFinite(year)) return 0;
-            return year * 12 + month;
-        };
 
         // Rename Drizzle relation keys back to the Prisma field names this
         // handler was written against.
@@ -532,8 +534,7 @@ export async function GET(req: NextRequest) {
                 totalPages: Math.ceil(total / limit),
             },
             deliverableTypes: deliverableTypes.map(d => d.type),
-            availableMonths: (distinctMonths.map(d => d.monthFolder).filter(Boolean) as string[])
-                .sort((a, b) => monthFolderSortKey(b) - monthFolderSortKey(a)), // newest first
+            availableMonths: sortMonthFolders(distinctMonths.map(d => d.monthFolder).filter(Boolean) as string[], 'desc'),
             stats: {
                 total,
                 byStatus: statusCounts.reduce((acc, item) => {

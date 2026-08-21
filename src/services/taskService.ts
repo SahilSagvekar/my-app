@@ -88,14 +88,14 @@ export class TaskService {
           return {
             AND: [
               { clientId: resolvedClientId },
-              { status: { in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED"] } },
+              { status: { in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED"] } },
             ],
           };
         }
         return {
           AND: [
             { clientUserId: Number(userId) },
-            { status: { in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED"] } },
+            { status: { in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED"] } },
           ],
         };
       }

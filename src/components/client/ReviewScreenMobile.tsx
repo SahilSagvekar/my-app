@@ -527,6 +527,10 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                 )}
             </div>
 
+            {/* ── FLOATING ACTION BUTTONS (Approve / Reject), TAB BAR, TAB CONTENT —
+                 all hidden in read-only playback mode ── */}
+            {!p.readOnly && (
+            <>
             {/* ── FLOATING ACTION BUTTONS (Approve / Reject) ── */}
             {/* Always visible quick actions bar */}
             <div
@@ -977,6 +981,8 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                     </div>
                 )}
             </div>
+            </>
+            )}
 
             {/* Share dialog */}
             <ShareDialog

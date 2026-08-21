@@ -12,6 +12,9 @@ import { Input } from '../ui/input';
 const MAX_SCREENSHOT_WIDTH = 1280;
 const MAX_SCREENSHOT_HEIGHT = 720;
 
+// Either a video frame or a static image can be the capture source.
+type CaptureSource = HTMLVideoElement | HTMLImageElement;
+
 // Helper to format seconds to timestamp string (e.g., 90 -> "1:30")
 function formatSecondsToTimestamp(seconds: number): string {
     const mins = Math.floor(seconds / 60);
@@ -36,6 +39,7 @@ interface CommentInputProps {
     authorId: string;
     authorName: string;
     videoRef?: React.RefObject<HTMLVideoElement | null>;
+    imageRef?: React.RefObject<HTMLImageElement | null>;
     duration?: number; // Video duration for validation
     currentVersionNumber?: number; // Version to stamp on new comments
 
@@ -53,6 +57,7 @@ export function CommentInput({
     authorId,
     authorName,
     videoRef,
+    imageRef,
     duration = 0,
     currentVersionNumber,
     onSubmit,
@@ -77,6 +82,10 @@ export function CommentInput({
     const [isEndTracking, setIsEndTracking] = useState(false); // true = end follows video live
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // The active capture element — whichever ref was passed in.
+    const getCaptureSource = (): CaptureSource | null => videoRef?.current || imageRef?.current || null;
+    const hasCaptureSource = !!(videoRef || imageRef);
 
     // Live-track end timestamp as video plays
     useEffect(() => {
@@ -110,14 +119,17 @@ export function CommentInput({
         }
     }, [isExpanded]);
 
-    const captureArea = (video: HTMLVideoElement, area?: { x: number, y: number, w: number, h: number }) => {
+    const captureArea = (source: CaptureSource, area?: { x: number, y: number, w: number, h: number }) => {
         const canvas = document.createElement('canvas');
 
-        // Use intrinsic video dimensions
-        const sourceW = video.videoWidth || video.clientWidth;
-        const sourceH = video.videoHeight || video.clientHeight;
-        const displayW = video.clientWidth;
-        const displayH = video.clientHeight;
+        const isVideo = source instanceof HTMLVideoElement;
+
+        // Use intrinsic source dimensions — videoWidth/videoHeight for video,
+        // naturalWidth/naturalHeight for a static image.
+        const sourceW = isVideo ? ((source as HTMLVideoElement).videoWidth || source.clientWidth) : ((source as HTMLImageElement).naturalWidth || source.clientWidth);
+        const sourceH = isVideo ? ((source as HTMLVideoElement).videoHeight || source.clientHeight) : ((source as HTMLImageElement).naturalHeight || source.clientHeight);
+        const displayW = source.clientWidth;
+        const displayH = source.clientHeight;
 
         // Fallback if we can't determine sizes
         if (!sourceW || !sourceH || !displayW || !displayH) {
@@ -151,7 +163,7 @@ export function CommentInput({
         if (!ctx) return;
 
         ctx.drawImage(
-            video,
+            source,
             cropX,
             cropY,
             cropW,
@@ -171,12 +183,12 @@ export function CommentInput({
     };
 
     const handleCapture = () => {
-        const video = videoRef?.current;
-        if (!video) return;
+        const source = getCaptureSource();
+        if (!source) return;
 
         // Defer heavy canvas work off the exact playback tick
         window.requestAnimationFrame(() => {
-            captureArea(video);
+            captureArea(source);
         });
     };
 
@@ -208,7 +220,8 @@ export function CommentInput({
     };
 
     const handleMouseUp = () => {
-        if (!selectionRect || !videoRef?.current) {
+        const source = getCaptureSource();
+        if (!selectionRect || !source) {
             setIsSelectingArea(false);
             setSelectionStart(null);
             return;
@@ -221,10 +234,9 @@ export function CommentInput({
             return;
         }
 
-        const video = videoRef.current;
         // Defer heavy canvas work off the exact playback tick
         window.requestAnimationFrame(() => {
-            captureArea(video, selectionRect);
+            captureArea(source, selectionRect);
         });
         setIsSelectingArea(false);
         setSelectionStart(null);
@@ -366,7 +378,7 @@ export function CommentInput({
                                 </Button>
                             </>
                         )}
-                        {!useEndTimestamp && (
+                        {!useEndTimestamp && videoRef && (
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -384,14 +396,14 @@ export function CommentInput({
                             </Button>
                         )}
                     </div>
-                    {videoRef && (
+                    {hasCaptureSource && (
                         <div className="flex items-center gap-1">
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={handleCapture}
                                 className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
-                                title="Capture full frame"
+                                title={videoRef ? 'Capture full frame' : 'Capture full image'}
                             >
                                 <Camera className="h-3.5 w-3.5" />
                                 <span className="text-[10px] uppercase font-bold tracking-wider">Full</span>
@@ -497,7 +509,7 @@ export function CommentInput({
                 </div>
             </div>
             {/* Area Selection Overlay Portal */}
-            {isSelectingArea && videoRef?.current?.parentElement && createPortal(
+            {isSelectingArea && (videoRef?.current?.parentElement || imageRef?.current?.parentElement) && createPortal(
                 <div
                     className="absolute inset-0 z-[100] cursor-crosshair bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center"
                     onMouseDown={handleMouseDown}
@@ -529,7 +541,7 @@ export function CommentInput({
                         Cancel
                     </button>
                 </div>,
-                videoRef.current.parentElement
+                (videoRef?.current?.parentElement || imageRef?.current?.parentElement)!
             )}
         </div>
     );

@@ -40,6 +40,9 @@ import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 export interface ReviewScreenProps {
     /* asset */
     asset: any;
+    // Pure playback mode — hides the entire sidebar (comments/titles tabs,
+    // approve/reject actions). Used for the client's "Rejected" section.
+    readOnly?: boolean;
     currentFileSection?: { folderType: string; fileId: string; version: number };
     userRole: 'client' | 'qc';
     requiresClientReview: boolean;
@@ -642,7 +645,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         </div>
                     </div>
 
-                    {/* ── SIDEBAR ── */}
+                    {/* ── SIDEBAR — hidden entirely in read-only playback mode ── */}
+                    {!p.readOnly && (
                     <div
                         className="w-96 flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
                         style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
@@ -962,6 +966,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             )}
                         </div>
                     </div>
+                    )}
 
                     {/* ── INFO PANEL ── */}
                     {p.showInfoPanel && (

@@ -315,3 +315,24 @@ export async function ackDriveMirrorJobs(env: CloudflareEnv, fileRecordIds: stri
   });
   if (!res.ok) throw new Error(`File server /drive-mirror/ack failed: ${res.status}`);
 }
+
+// Queues a thumbnail generation job for a single key — raw-footage videos
+// always queue; output videos only queue if the task has no real thumbnail
+// image yet (checked server-side by the file server against R2 directly).
+// Used by the admin thumbnail backfill route.
+export async function retryThumbnail(env: CloudflareEnv, key: string): Promise<{ outcome?: string; kind?: string; error?: string }> {
+  const token = makeToken('0', 'admin');
+  const res = await env.FILE_SERVER.fetch(`${FILE_SERVER_ORIGIN}/thumbnail/retry`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ key }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { error: (data as any)?.error || `File server /thumbnail/retry failed: ${res.status}` };
+  }
+  return data as { outcome: string; kind: string };
+}

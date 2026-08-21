@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { task, monthlyDeliverable, oneOffDeliverable } from '@/lib/db/schema';
-import { and, or, eq, ne, ilike, exists, desc } from 'drizzle-orm';
+import { and, or, eq, ne, ilike, inArray, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -20,6 +20,17 @@ export async function GET(req: NextRequest) {
     const clientId = searchParams.get('clientId') ?? undefined;
     const excludeSfId = searchParams.get('excludeSfId') ?? undefined;
 
+    // Resolved to plain ID lists first, not correlated exists(db.select()...)
+    // subqueries — same fix as search-sf/route.ts, see its comment for why.
+    const [matchingMonthlyDeliverables, matchingOneOffDeliverables] = await Promise.all([
+      db.select({ id: monthlyDeliverable.id }).from(monthlyDeliverable)
+        .where(or(ilike(monthlyDeliverable.type, '%LF%'), ilike(monthlyDeliverable.type, '%LONG%'))),
+      db.select({ id: oneOffDeliverable.id }).from(oneOffDeliverable)
+        .where(or(ilike(oneOffDeliverable.type, '%LF%'), ilike(oneOffDeliverable.type, '%LONG%'))),
+    ]);
+    const monthlyIds = matchingMonthlyDeliverables.map(d => d.id);
+    const oneOffIds = matchingOneOffDeliverables.map(d => d.id);
+
     const rawTasks = await db.query.task.findMany({
       where: and(
         clientId ? eq(task.clientId, clientId) : undefined,
@@ -28,14 +39,8 @@ export async function GET(req: NextRequest) {
           ilike(task.deliverableType, '%LF%'),
           ilike(task.deliverableType, '%LONG%'),
           ilike(task.taskType, '%LF%'),
-          exists(db.select().from(monthlyDeliverable).where(and(
-            eq(monthlyDeliverable.id, task.monthlyDeliverableId),
-            or(ilike(monthlyDeliverable.type, '%LF%'), ilike(monthlyDeliverable.type, '%LONG%')),
-          ))),
-          exists(db.select().from(oneOffDeliverable).where(and(
-            eq(oneOffDeliverable.id, task.oneOffDeliverableId),
-            or(ilike(oneOffDeliverable.type, '%LF%'), ilike(oneOffDeliverable.type, '%LONG%')),
-          ))),
+          monthlyIds.length > 0 ? inArray(task.monthlyDeliverableId, monthlyIds) : undefined,
+          oneOffIds.length > 0 ? inArray(task.oneOffDeliverableId, oneOffIds) : undefined,
         ),
         query.length > 1
           ? or(ilike(task.title, `%${query}%`), ilike(task.description, `%${query}%`))

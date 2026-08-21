@@ -302,6 +302,8 @@ interface TaskFeedbackItem {
   acknowledgedBy?: number;
   fileVersion?: number; // The version of the file this feedback relates to
   fileName?: string;
+  authorName?: string | null;
+  authorRole?: string | null; // 'qc' | 'client' | other
 }
 
 interface WorkflowTask {
@@ -378,7 +380,7 @@ function FilePreviewCard({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <p className="text-xs font-medium truncate">{file.name}</p>
+          <p className="text-xs font-medium truncate" title={file.name}>{file.name}</p>
           {isOptimizing && (
             <span className="text-[9px] text-blue-600 font-medium animate-pulse">Optimizing...</span>
           )}
@@ -468,7 +470,7 @@ function FileViewerDialog({
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{file.name}</p>
+                    <p className="font-medium text-sm truncate" title={file.name}>{file.name}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatFileSize(file.size)}</span>
                       <span>•</span>
@@ -560,6 +562,18 @@ const [showGuidelines, setShowGuidelines] = useState(false);
     clientName?: string | null;
   }[]>([]);
   const [guidelinesError, setGuidelinesError] = useState<string | null>(null);
+
+  // 🔥 "QC Revision Feedback" / "Client Revision Feedback" — based on who
+  // submitted the feedback. Falls back to generic label if mixed/unknown.
+  const getRevisionFeedbackLabel = (role?: string | null) => {
+    if (role === "qc") return "QC Revision Feedback";
+    if (role === "client") return "Client Revision Feedback";
+    return "Revision Feedback";
+  };
+  const getRevisionFeedbackListLabel = (items: TaskFeedbackItem[]) => {
+    const roles = new Set(items.map(i => i.authorRole).filter(Boolean));
+    return roles.size === 1 ? getRevisionFeedbackLabel([...roles][0] as string) : "Revision Feedback";
+  };
 
   const loadGuidelines = async () => {
     if (!task.clientId) {
@@ -802,7 +816,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                             ← Back
                           </button>
                         ) : (
-                          <span className="flex-1">Revision Feedback</span>
+                          <span className="flex-1">{getRevisionFeedbackListLabel(visibleFeedback)}</span>
                         )}
                         {selectedFeedback ? (
                           (() => {
@@ -849,8 +863,13 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                           <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
                             {selectedFeedback.feedback}
                           </p>
+                          {selectedFeedback.authorName && (
+                            <p className="text-[11px] text-muted-foreground">
+                              — {selectedFeedback.authorName}{selectedFeedback.authorRole === 'qc' ? ' (QC)' : selectedFeedback.authorRole === 'client' ? ' (Client)' : ''}
+                            </p>
+                          )}
                           {selectedFeedback.fileName && (
-                            <p className="text-[11px] text-muted-foreground truncate">📎 {selectedFeedback.fileName}</p>
+                            <p className="text-[11px] text-muted-foreground truncate" title={selectedFeedback.fileName}>📎 {selectedFeedback.fileName}</p>
                           )}
                           {selectedFeedback.acknowledgedAt && (
                             <p className="text-[11px] text-green-600">Fixed on {new Date(selectedFeedback.acknowledgedAt).toLocaleDateString()}</p>
@@ -892,6 +911,11 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                                       {fb.timestamp && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {fb.timestamp}</Badge>}
                                     </div>
                                     <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{fb.feedback}</p>
+                                    {fb.authorName && (
+                                      <p className="text-[9px] text-muted-foreground mt-1">
+                                        — {fb.authorName}{fb.authorRole === 'qc' ? ' (QC)' : fb.authorRole === 'client' ? ' (Client)' : ''}
+                                      </p>
+                                    )}
                                   </div>
                                   <span className="text-muted-foreground shrink-0 mt-1 text-xs">›</span>
                                 </div>
@@ -1027,7 +1051,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
     <DialogHeader>
       <DialogTitle className="flex items-center gap-2 text-base text-destructive">
         <AlertCircle className="h-4 w-4" />
-        Revision Feedback
+        {getRevisionFeedbackLabel(selectedFeedback?.authorRole)}
       </DialogTitle>
     </DialogHeader>
     {selectedFeedback && (
@@ -1064,10 +1088,17 @@ const [showGuidelines, setShowGuidelines] = useState(false);
           </p>
         </div>
 
+        {/* Author */}
+        {selectedFeedback.authorName && (
+          <p className="text-xs text-muted-foreground">
+            — {selectedFeedback.authorName}{selectedFeedback.authorRole === 'qc' ? ' (QC)' : selectedFeedback.authorRole === 'client' ? ' (Client)' : ''}
+          </p>
+        )}
+
         {/* File reference */}
         {selectedFeedback.fileName && (
           <p className="text-xs text-muted-foreground flex items-center gap-1">
-            📎 <span className="truncate">{selectedFeedback.fileName}</span>
+            📎 <span className="truncate" title={selectedFeedback.fileName}>{selectedFeedback.fileName}</span>
           </p>
         )}
 
@@ -1364,22 +1395,23 @@ export function EditorDashboard() {
   const loadTasks = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      // Ask for enough rows — editors with many clients easily exceed the
-      // previous default of 100, which hid READY_FOR_QC / REJECTED / older assigns.
-      params.set("limit", "2000");
+      // if (monthFilter !== "all") params.set("month", monthFilter);
       if (monthFilter !== "all") params.set("monthFolder", monthFilter);
       const queryString = params.toString();
-      const res = await fetch(`/api/tasks?${queryString}`);
+      const res = await fetch(`/api/tasks${queryString ? `?${queryString}` : ""}`);
       const data = await res.json();
+
+      console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
+
+      console.log("📋 Raw task data from API:", data.tasks?.[0]);
 
       // 🔥 Update available months from API response
       if (data.availableMonths) {
         setAvailableMonths(data.availableMonths);
       }
 
-      const editorId = Number(currentUser.id);
       const formatted: WorkflowTask[] = (data.tasks || [])
-        .filter((t: any) => Number(t.assignedTo) === editorId)
+        .filter((t: any) => t.assignedTo === Number(currentUser.id))
         .map((t: any) => {
           console.log("🔍 Mapping task:", {
             taskId: t.id,
@@ -1433,6 +1465,9 @@ export function EditorDashboard() {
               // Use nested file data from API response
               fileVersion: fb.file?.version || 1,
               fileName: fb.file?.name || null,
+              // 🔥 Who submitted this feedback (QC or client), for the dialog title + byline
+              authorName: fb.user?.name || null,
+              authorRole: fb.user?.role || null,
             })),
           };
         });
@@ -1999,8 +2034,10 @@ export function EditorDashboard() {
   }, []);
 
   const handleUploadComplete = useCallback(async (taskId: string, files: any[]) => {
-    const res = await fetch(`/api/tasks/${taskId}`);
-    const updatedTask = res.ok ? await res.json() : null;
+    const res = await fetch("/api/tasks");
+    const data = await res.json();
+
+    const updatedTask = data.tasks.find((t: any) => t.id === taskId);
 
     setTasks((prev) =>
       prev.map((t) =>

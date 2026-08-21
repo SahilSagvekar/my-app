@@ -62,6 +62,9 @@ interface ThumbnailReviewModalProps {
     onPostingTitlesChange?: (items: { id: string; text: string }[]) => void;
     onPostingDescriptionsChange?: (items: { id: string; text: string }[]) => void;
     onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
+    // Pure playback mode — hides the entire sidebar (comments/titles tabs,
+    // approve/reject actions). Used for the client's "Rejected" section.
+    readOnly?: boolean;
 }
 
 /* ─── Component ─────────────────────────────────────────────────── */
@@ -83,6 +86,7 @@ export function ThumbnailReviewModal({
     onPostingTitlesChange,
     onPostingDescriptionsChange,
     onPostingTagsChange,
+    readOnly = false,
 }: ThumbnailReviewModalProps) {
     const { user } = useAuth();
 
@@ -498,7 +502,8 @@ export function ThumbnailReviewModal({
                                 )}
                             </div>
 
-                            {/* ── SIDEBAR ── */}
+                            {/* ── SIDEBAR — hidden entirely in read-only playback mode ── */}
+                            {!readOnly && (
                             <div
                                 className="w-80 flex-shrink-0 flex flex-col overflow-hidden border-l border-[var(--review-border)]"
                                 style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
@@ -704,6 +709,7 @@ export function ThumbnailReviewModal({
                                     </Button>
                                 </div>
                             </div>
+                            )}
                         </div>
                     </div>
                 </TooltipProvider>
