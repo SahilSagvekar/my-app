@@ -17,6 +17,7 @@ import {
   AlertCircle,
   Trash2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface PaymentMethod {
   id: string;
@@ -135,11 +136,15 @@ export function ClientBillingPortal() {
       });
 
       const data = await res.json();
-      if (data.ok && data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
+      const payUrl = data.payUrl || data.checkoutUrl || data.stripeHostedInvoiceUrl;
+      if (data.ok && payUrl) {
+        window.location.href = payUrl;
+        return;
       }
+      toast.error(data.message || 'Could not open payment page. Please try again.');
     } catch (error) {
       console.error('Failed to initiate payment:', error);
+      toast.error('Could not open payment page. Please try again.');
     }
   }
 
