@@ -5,6 +5,7 @@ import { getDbHttp } from "@/lib/db";
 import { task, client, monthlyDeliverable, oneOffDeliverable, tagToTask, tag as tagTable } from "@/lib/db/schema";
 import { and, or, eq, ne, ilike, inArray, gte, desc, count as countFn } from "drizzle-orm";
 import { addSignedUrlsToFiles } from "@/lib/s3";
+import { MULTI_ASSET_FOLDER_TYPES } from "@/lib/file-folder-types";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -145,7 +146,15 @@ export async function GET(req: Request) {
         },
         user_assignedTo: true,
         files: {
-          where: (f, { eq }) => eq(f.isActive, true),
+          // Active files always. Also include inactive rows for multi-asset
+          // folders AND inactive images on `main` (Hard Posts / graphic images
+          // were incorrectly version-replaced before this fix).
+          where: (f, { eq, or, and, inArray, like }) =>
+            or(
+              eq(f.isActive, true),
+              inArray(f.folderType, [...MULTI_ASSET_FOLDER_TYPES]),
+              and(eq(f.folderType, 'main'), like(f.mimeType, 'image/%')),
+            ),
           columns: {
             id: true,
             name: true,
