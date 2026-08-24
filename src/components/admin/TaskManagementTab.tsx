@@ -115,6 +115,9 @@ function MonthPill({ month }: { month: string | null }) {
 function SkeletonRow() {
   return (
     <tr className="border-b">
+      <td className="py-3 px-4">
+        <div className="h-4 w-4 rounded bg-muted animate-pulse" />
+      </td>
       {[180, 90, 100, 80, 60, 90, 70, 60, 40].map((w, i) => (
         <td key={i} className="py-3 px-4">
           <div className="h-4 rounded bg-muted animate-pulse" style={{ width: w }} />
@@ -499,50 +502,6 @@ export function TaskManagementTab() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Task Management</h1>
-          <p className="text-muted-foreground mt-1">Manage all tasks, assignments, and track team workload</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                Manage<ChevronDown className="h-4 w-4 ml-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                disabled={selectedTasks.size === 0}
-                onClick={() => { setBulkEditForm({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' }); setShowBulkEdit(true); }}
-              >
-                <Pencil className="h-4 w-4 mr-2" />Edit {selectedTasks.size > 0 ? selectedTasks.size : ''} Selected
-              </DropdownMenuItem>
-              {canDeleteTasks && (
-                <DropdownMenuItem
-                  disabled={selectedTasks.size === 0}
-                  className="text-red-600 focus:text-red-600"
-                  onClick={() => setShowBulkDelete(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />Delete {selectedTasks.size > 0 ? selectedTasks.size : ''} Selected
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={clearFilters} disabled={activeFilterCount === 0}>
-                Clear Filters
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {user?.role?.toLowerCase() !== 'qc' && (
-            <CreateTaskDialog
-              onTaskCreated={() => { toast({ title: 'Success', description: 'Task created. Refreshing...' }); setTimeout(() => mutateTasks(), 800); }}
-              trigger={<Button className="bg-black text-white hover:bg-black/90"><Plus className="h-4 w-4 mr-2" />Create Task</Button>}
-            />
-          )}
-        </div>
-      </div>
-
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -570,6 +529,9 @@ export function TaskManagementTab() {
               {showFilters ? 'Hide Filters' : 'Show Filters'}
               {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
             </Button>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>Clear Filters</Button>
+            )}
             <DateRangePicker
               date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
               setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
@@ -581,6 +543,12 @@ export function TaskManagementTab() {
             <Button variant="outline" onClick={handleRefresh} disabled={isValidating}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />Refresh
             </Button>
+            {user?.role?.toLowerCase() !== 'qc' && (
+              <CreateTaskDialog
+                onTaskCreated={() => { toast({ title: 'Success', description: 'Task created. Refreshing...' }); setTimeout(() => mutateTasks(), 800); }}
+                trigger={<Button className="bg-black text-white hover:bg-black/90"><Plus className="h-4 w-4 mr-2" />Create Task</Button>}
+              />
+            )}
           </div>
 
           {showFilters && (
@@ -605,10 +573,44 @@ export function TaskManagementTab() {
       {/* Tasks Table */}
       <Card>
         <CardContent className="p-0">
+          {/* Bulk action bar — appears once one or more tasks are ticked */}
+          {selectedTasks.size > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
+              <div className="text-sm font-medium">
+                {selectedTasks.size} task{selectedTasks.size > 1 ? 's' : ''} selected
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setSelectedTasks(new Set())}>
+                  Clear Selection
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setBulkEditForm({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' });
+                    setShowBulkEdit(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />Edit Selected
+                </Button>
+                {canDeleteTasks && (
+                  <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
+                    <Trash2 className="h-4 w-4 mr-2" />Delete Selected
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b">
+                  <th className="w-10 py-3 px-4">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                      onCheckedChange={(checked) => handleSelectAll(checked === true)}
+                      aria-label="Select all tasks"
+                    />
+                  </th>
                   <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Task Name</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</th>
                   <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Client</th>
@@ -624,7 +626,7 @@ export function TaskManagementTab() {
                 {tasksLoading && tasks.length === 0
                   ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
                   : tasks.length === 0
-                    ? <tr><td colSpan={9} className="text-center py-12 text-muted-foreground">No tasks found matching your filters</td></tr>
+                    ? <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">No tasks found matching your filters</td></tr>
                     : tasks.map(task => {
                         const isSelected = selectedTasks.has(task.id);
                         return (
@@ -633,6 +635,13 @@ export function TaskManagementTab() {
                             onClick={() => handleSelectTask(task.id, !isSelected)}
                             className={`border-b hover:bg-muted/50 cursor-pointer ${isSelected ? 'bg-primary/5' : ''} ${tasksLoading ? 'opacity-60' : ''}`}
                           >
+                            <td className="py-4 px-4" onClick={e => e.stopPropagation()}>
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => handleSelectTask(task.id, checked === true)}
+                                aria-label={`Select ${task.title || 'task'}`}
+                              />
+                            </td>
                             <td className="py-4 px-4"><div className="max-w-xs font-semibold truncate">{task.title || task.description?.slice(0, 50) || 'Untitled Task'}</div></td>
                             <td className="py-4 px-4">
                               <div className="text-sm flex flex-col gap-1">

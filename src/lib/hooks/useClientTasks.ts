@@ -58,11 +58,19 @@ interface ClientTask {
   };
 }
 
-// SWR fetcher with error handling
-const fetcher = async (url: string): Promise<ClientTask[]> => {
-  const res = await fetch(url, {
+// SWR fetcher with error handling. clientIdOverride is set only when an
+// admin/manager is previewing a specific client's portal (see
+// useEffectiveClientId) — it's sent both as ?clientId= (which the backend
+// uses to scope the query) and as the x-viewing-as header (which the
+// backend requires alongside it before it'll treat the caller as "client"
+// rather than their real role). A real client user needs neither — the
+// backend resolves their own linkedClientId from the session as before.
+const fetcher = async ([url, clientIdOverride]: [string, string | null]): Promise<ClientTask[]> => {
+  const fetchUrl = clientIdOverride ? `${url}?clientId=${clientIdOverride}` : url;
+  const res = await fetch(fetchUrl, {
     method: 'GET',
     credentials: 'include',
+    headers: clientIdOverride ? { 'x-viewing-as': 'client' } : undefined,
   });
 
   if (!res.ok) {
@@ -107,16 +115,22 @@ const fetcher = async (url: string): Promise<ClientTask[]> => {
 interface UseClientTasksOptions {
   refreshInterval?: number;
   revalidateOnFocus?: boolean;
+  // Pass useEffectiveClientId()'s result here when this hook is used from
+  // a page an admin might be previewing as a specific client (currently:
+  // ClientDashboard's "Content Review" / approvals tab). Undefined/null
+  // for a real client user — the backend falls back to their own session.
+  clientIdOverride?: string | null;
 }
 
 export function useClientTasks(options: UseClientTasksOptions = {}) {
   const {
     refreshInterval = 0, // No auto-refresh by default
     revalidateOnFocus = true,
+    clientIdOverride = null,
   } = options;
 
   const { data, error, isLoading, isValidating, mutate } = useSWR<ClientTask[]>(
-    '/api/tasks',
+    ['/api/tasks', clientIdOverride],
     fetcher,
     {
       refreshInterval,

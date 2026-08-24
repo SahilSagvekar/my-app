@@ -13,11 +13,30 @@ const ROLE_SWITCH_MAP: Record<string, string[]> = {
 
 const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler"];
 
+// 🔥 Client-portal preview: lets a specific admin account switch into ONE
+// specific client's portal (not just the generic "client" role shell).
+// Unlike ROLE_SWITCH_MAP above, "client" always needs a concrete target —
+// there's no such thing as previewing "client" in the abstract — so this
+// is a separate map from {email -> {clientId, label}} rather than another
+// entry in a role-name array. The backend (/api/tasks and friends) trusts
+// this only when the request ALSO supplies the matching clientId, so
+// adding an entry here is the only place this needs to be granted.
+const CLIENT_PREVIEW_MAP: Record<string, { clientId: string; label: string }> = {
+    "eric@e8productions.com": { clientId: "cmk2diuay001donns7yy1ihix", label: "The Drew Meyers" },
+};
+
 interface ViewAsRoleContextType {
     viewingAsRole: string | null;
     canSwitchRole: boolean;
     switchableRoles: string[];
     isViewingAsOther: boolean;
+    // Set only when viewingAsRole === "client" via CLIENT_PREVIEW_MAP —
+    // the specific client's ID to scope data-fetching to. null for a real
+    // client user (who doesn't need an override) and for every other role.
+    viewingAsClientId: string | null;
+    // Display label for the above (e.g. "The Drew Meyers"), so the switch
+    // role dropdown can show the actual client name instead of "Client".
+    viewingAsClientLabel: string | null;
     switchToRole: (role: string) => void;
     resetToOriginal: () => void;
 }
@@ -37,10 +56,13 @@ interface ViewAsRoleProviderProps {
 export function ViewAsRoleProvider({ children, userEmail, userRole, userRoles }: ViewAsRoleProviderProps) {
     const [viewingAsRole, setViewingAsRole] = useState<string | null>(userRole);
     const [isViewingAsOther, setIsViewingAsOther] = useState(false);
+    const [viewingAsClientId, setViewingAsClientId] = useState<string | null>(null);
+
+    const emailKey = userEmail?.toLowerCase() || "";
+    const clientPreview = CLIENT_PREVIEW_MAP[emailKey] || null;
 
     // Check if this user can switch roles (real roles[] OR the legacy preview map OR admin default)
     const switchableRoles = React.useMemo(() => {
-        const emailKey = userEmail?.toLowerCase() || "";
         const roleKey = userRole?.toLowerCase() || "";
 
         // 1. Real, authorized additional roles (e.g. Daena: editor + scheduler + qc)
@@ -54,9 +76,16 @@ export function ViewAsRoleProvider({ children, userEmail, userRole, userRoles }:
             permittedRoles = Array.from(new Set([...permittedRoles, ...DEFAULT_ADMIN_SWITCH_ROLES]));
         }
 
+        // 4. Client-portal preview — only if this email has a specific
+        // client assigned above; "client" is otherwise never offered
+        // generically, since there'd be no client to scope it to.
+        if (clientPreview) {
+            permittedRoles = Array.from(new Set([...permittedRoles, "client"]));
+        }
+
         // Remove the user's current original role from the list if present
         return permittedRoles.filter(role => role !== roleKey);
-    }, [userEmail, userRole, userRoles]);
+    }, [emailKey, userRole, userRoles, clientPreview]);
 
     const canSwitchRole = switchableRoles.length > 0;
 
@@ -74,9 +103,12 @@ export function ViewAsRoleProvider({ children, userEmail, userRole, userRoles }:
             if (saved && saved !== userRole && switchableRoles.includes(saved)) {
                 setViewingAsRole(saved);
                 setIsViewingAsOther(true);
+                if (saved === "client" && clientPreview) {
+                    setViewingAsClientId(clientPreview.clientId);
+                }
             }
         }
-    }, [canSwitchRole, userEmail, userRole, switchableRoles]);
+    }, [canSwitchRole, userEmail, userRole, switchableRoles, clientPreview]);
 
     const switchToRole = (targetRole: string) => {
         if (!canSwitchRole || !userEmail) return;
@@ -89,6 +121,7 @@ export function ViewAsRoleProvider({ children, userEmail, userRole, userRoles }:
         if (switchableRoles.includes(targetRole)) {
             setViewingAsRole(targetRole);
             setIsViewingAsOther(true);
+            setViewingAsClientId(targetRole === "client" && clientPreview ? clientPreview.clientId : null);
             localStorage.setItem(`viewingAs_${userEmail}`, targetRole);
         }
     };
@@ -96,6 +129,7 @@ export function ViewAsRoleProvider({ children, userEmail, userRole, userRoles }:
     const resetToOriginal = () => {
         setViewingAsRole(userRole);
         setIsViewingAsOther(false);
+        setViewingAsClientId(null);
         if (userEmail) {
             localStorage.removeItem(`viewingAs_${userEmail}`);
         }
@@ -108,6 +142,8 @@ export function ViewAsRoleProvider({ children, userEmail, userRole, userRoles }:
                 canSwitchRole,
                 switchableRoles,
                 isViewingAsOther,
+                viewingAsClientId,
+                viewingAsClientLabel: viewingAsRole === "client" ? (clientPreview?.label ?? null) : null,
                 switchToRole,
                 resetToOriginal,
             }}
@@ -122,6 +158,8 @@ const nullContext: ViewAsRoleContextType = {
     canSwitchRole: false,
     switchableRoles: [],
     isViewingAsOther: false,
+    viewingAsClientId: null,
+    viewingAsClientLabel: null,
     switchToRole: () => {},
     resetToOriginal: () => {},
 };

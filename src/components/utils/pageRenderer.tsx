@@ -381,7 +381,10 @@ export function renderPage(
       case "archive":
         return <ComingSoonPage title="Archive" />;
       case "contracts":
-        return <ClientPortalPage />;
+        // ClientPortalPage already supports an explicit clientId prop
+        // (falls back to the ?clientId= URL param, then the caller's own
+        // session) — just wasn't being passed one before.
+        return <ClientPortalPage clientId={linkedClientId} />;
       case "help-videos":
         return <ClientHelpVideos />;
       default:

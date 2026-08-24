@@ -8,6 +8,7 @@ import { getDbHttp } from "@/lib/db";
 import {
   task as taskTable,
   client as clientTable,
+  user as userTable,
   monthlyDeliverable as monthlyDeliverableTable,
   oneOffDeliverable as oneOffDeliverableTable,
   shootDetail as shootDetailTable,
@@ -15,7 +16,7 @@ import {
   file as fileTable,
 } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
-import { and, or, eq, inArray, isNull, isNotNull, ne, desc, count, sql as drizzleSql } from "drizzle-orm";
+import { and, or, eq, inArray, isNull, isNotNull, ne, desc, count, getTableColumns, sql as drizzleSql } from "drizzle-orm";
 import { uploadBufferToS3, addSignedUrlsToFiles } from "@/lib/s3";
 // import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
@@ -130,7 +131,7 @@ function sanitizeBigInt(obj: any): any {
   return obj;
 }
 
-const buildRoleWhereQuery = async (role: string | null, userId: number) => {
+const buildRoleWhereQuery = async (role: string | null, userId: number, clientIdOverride?: string | null) => {
   if (!role) {
     return undefined;
   }
@@ -157,8 +158,15 @@ const buildRoleWhereQuery = async (role: string | null, userId: number) => {
 
     case "client": {
       // 🔥 FIX: Resolve the actual clientId (via linkedClientId or fallback)
-      // so ALL users linked to the same client see the same tasks
-      const resolvedClientId = await resolveClientIdForUser(userId);
+      // so ALL users linked to the same client see the same tasks.
+      //
+      // clientIdOverride: used when an admin/manager is previewing a
+      // SPECIFIC client's portal via the switch-role dropdown (e.g. eric
+      // viewing "The Drew Meyers"). The admin's own userId has no real
+      // client link, so resolveClientIdForUser(userId) would fail — the
+      // caller passes the target client's ID explicitly instead, already
+      // authorized upstream in GET() before this function is called.
+      const resolvedClientId = clientIdOverride || (await resolveClientIdForUser(userId));
       const clientStatuses = ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED"] as any;
 
       if (resolvedClientId) {
@@ -228,20 +236,30 @@ const authorizedSwitchRoles = new Set<string>([
     ? DEFAULT_ADMIN_SWITCH_ROLES
     : []),
   ...(baseRole === "admin" ? DEFAULT_ADMIN_SWITCH_ROLES : []),
+  // 🔥 "client" is deliberately NOT in DEFAULT_ADMIN_SWITCH_ROLES above —
+  // unlike qc/sales/scheduler, previewing "client" needs a specific target
+  // client, not just the role name. Any admin/manager MAY switch into it,
+  // but only once they also supply ?clientId= (see below) — the frontend
+  // only offers this via ViewAsRoleContext's CLIENT_PREVIEW_MAP, which is
+  // scoped per-email, so in practice only accounts explicitly granted a
+  // client to preview will ever send this combination.
+  ...((baseRole === "admin" || baseRole === "manager") ? ["client"] : []),
 ]);
-
-// Viewing as QC (from any authorized base role — editor, scheduler, etc.)
-// is treated as admin-level access so the viewer sees ALL QC tasks, not
-// just tasks assigned to them personally in their normal role.
-const effectiveRole =
-  viewingAs && viewingAs !== baseRole && authorizedSwitchRoles.has(viewingAs)
-    ? (viewingAs === "qc" ? "admin" : viewingAs)
-    : role;
 
 const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status") as string | null;
     const clientIdFilter = searchParams.get("clientId") as string | null;
     const monthFilter = searchParams.get("monthFolder") as string | null;
+
+// Viewing as QC (from any authorized base role — editor, scheduler, etc.)
+// is treated as admin-level access so the viewer sees ALL QC tasks, not
+// just tasks assigned to them personally in their normal role. Viewing as
+// "client" additionally requires a clientId — without one there's no
+// client to scope to, so it's ignored and the real role is used instead.
+const effectiveRole =
+  viewingAs && viewingAs !== baseRole && authorizedSwitchRoles.has(viewingAs) && (viewingAs !== "client" || !!clientIdFilter)
+    ? (viewingAs === "qc" ? "admin" : viewingAs)
+    : role;
 
     // 🔥 Row-count safety cap — default 100, caller can request more via
     // ?limit=, but never more than 200 (prevents ?limit=99999 from
@@ -251,12 +269,23 @@ const { searchParams } = new URL(req.url);
       ? Math.min(requestedLimit, 200)
       : 100;
 
-    // Build role-based where query
-    const roleWhere = await buildRoleWhereQuery(effectiveRole, Number(userId));
+    // Build role-based where query. When previewing "client", pass the
+    // requested clientId through as the override (see buildRoleWhereQuery) —
+    // for a real client user this is undefined and it falls back to
+    // resolveClientIdForUser as before.
+    const roleWhere = await buildRoleWhereQuery(
+      effectiveRole,
+      Number(userId),
+      effectiveRole === "client" ? clientIdFilter : undefined
+    );
     const conditions: any[] = roleWhere ? [roleWhere] : [];
 
-    // 🔥 ADD CLIENT FILTER - For filtering tasks by client
-    if (clientIdFilter) {
+    // 🔥 ADD CLIENT FILTER - For filtering tasks by client. Skipped when
+    // effectiveRole is already "client", since buildRoleWhereQuery just
+    // applied the same clientId scoped to client-visible statuses only —
+    // adding it again here would be redundant and (harmlessly) duplicate
+    // the condition.
+    if (clientIdFilter && effectiveRole !== "client") {
       conditions.push(eq(taskTable.clientId, clientIdFilter));
     }
 
@@ -426,17 +455,30 @@ const { searchParams } = new URL(req.url);
       });
     } catch (e: any) {
       console.warn("⚠️ Structured task query failed, falling back to raw SQL...", e.message);
-      const rawResult: any = await db.execute(drizzleSql`
-        SELECT t.*,
-               c.name as "clientName", c."companyName" as "clientCompanyName",
-               u.name as "userName", u.role as "userRole"
-        FROM "Task" t
-        LEFT JOIN "Client" c ON t."clientId" = c.id
-        LEFT JOIN "User" u ON t."assignedTo" = u.id
-        ORDER BY t."createdAt" DESC
-        LIMIT ${taskLimit}
-      `);
-      const rawRows = rawResult.rows as any[];
+
+      // 🔒 IMPORTANT: this fallback used to run a completely unscoped
+      // `SELECT t.* ... LIMIT` with no WHERE clause at all — it ignored the
+      // same `where` (role + status + client + month filters) built above.
+      // For an editor, that meant the global most-recent-N tasks across the
+      // ENTIRE company, almost never including her own — the dashboard
+      // rendered "No tasks" everywhere until a reload retried the primary
+      // query. For a client session, the same gap meant potentially seeing
+      // other clients' unscoped task rows. Always reuse `where` here so a
+      // fallback degrades gracefully instead of silently changing scope.
+      const rawRows = await db
+        .select({
+          ...getTableColumns(taskTable),
+          clientName: clientTable.name,
+          clientCompanyName: clientTable.companyName,
+          userName: userTable.name,
+          userRole: userTable.role,
+        })
+        .from(taskTable)
+        .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
+        .leftJoin(userTable, eq(taskTable.assignedTo, userTable.id))
+        .where(where)
+        .orderBy(desc(taskTable.createdAt))
+        .limit(taskLimit);
 
       const taskIds = rawRows.map(t => t.id);
       const allFiles: any[] = taskIds.length > 0

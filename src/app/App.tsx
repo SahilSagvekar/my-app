@@ -19,7 +19,7 @@ type AuthScreen = "login" | "forgot-password" | "reset-password" | "two-factor";
 
 function AuthenticatedAppInner() {
   const { user, logout, loading } = useAuth();
-  const { viewingAsRole, isViewingAsOther } = useViewAsRole();
+  const { viewingAsRole, isViewingAsOther, viewingAsClientId } = useViewAsRole();
   const [currentPage, setCurrentPage] = useState(() =>
     getDefaultPage(viewingAsRole || user?.role || "admin")
   );
@@ -86,6 +86,12 @@ function AuthenticatedAppInner() {
   const displayRole = (viewingAsRole || user.role || "admin").toLowerCase();
   const originalRole = user.role?.toLowerCase(); // The user's actual role
 
+  // When an admin/manager is previewing a specific client's portal (e.g.
+  // eric -> "The Drew Meyers"), scope every client-facing page to THAT
+  // client instead of the admin's own (always-null) linkedClientId — a
+  // real client user's own linkedClientId passes through unchanged.
+  const effectiveLinkedClientId = viewingAsClientId || user.linkedClientId;
+
   return (
     // <NotificationProvider>
       <SearchProvider>
@@ -95,7 +101,7 @@ function AuthenticatedAppInner() {
           onPageChange={handlePageChange}
           onLogout={logout}
         >
-          {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices, originalRole, user.linkedClientId)}
+          {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices, originalRole, effectiveLinkedClientId)}
         </LayoutShell>
       </SearchProvider>
     // </NotificationProvider>

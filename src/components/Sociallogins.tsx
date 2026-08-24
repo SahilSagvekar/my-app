@@ -70,6 +70,7 @@ import { SlSocialSteam } from "react-icons/sl";
 import { toast } from "sonner";
 import { useAuth } from "./auth/AuthContext";
 import { useViewAsRole } from "./auth/ViewAsRoleContext";
+import { useEffectiveClientId } from "@/lib/hooks/useEffectiveClientId";
 import { formatPhone } from "@/lib/formatPhone";
 
 /* -------------------------------------------------------------------------- */
@@ -859,7 +860,9 @@ export function SocialLogins() {
   const userRole = (viewingAsRole || user?.role || "").toLowerCase();
   const isAdmin = userRole === "admin";
   const isClient = userRole === "client";
-  const userClientId = user?.linkedClientId || null;
+  // Real client user: their own linkedClientId. Admin previewing a specific
+  // client's portal (e.g. eric -> "The Drew Meyers"): that client's ID.
+  const userClientId = useEffectiveClientId();
   const userId = user?.id ? Number(user.id) : null;
 
   // Lock screen is removed — auto-unlock all roles on mount.
@@ -1262,7 +1265,7 @@ export function SocialLogins() {
                       {isAdmin && !login.adminOnly && (login.allowedRoles?.length ?? 0) > 0 && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200 whitespace-nowrap">
                           <Users className="h-2.5 w-2.5" />
-                          {login.allowedRoles!.map((r) => r.charAt(0).toUpperCase() + r.slice(1)).join(", ")}
+                          {login.allowedRoles!.map((r) => r.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')).join(", ")}
                         </span>
                       )}
                       {isAdmin && !login.adminOnly && (login.allowedUserIds?.length ?? 0) > 0 && (

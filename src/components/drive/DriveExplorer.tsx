@@ -45,6 +45,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/auth/AuthContext";
+import { useEffectiveClientId } from "@/lib/hooks/useEffectiveClientId";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -169,6 +170,7 @@ function setPathInUrl(path: string) {
 
 export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
+  const effectiveClientIdForUser = useEffectiveClientId();
   const [driveStructure, setDriveStructure] = useState<DriveItem | null>(null);
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
@@ -335,7 +337,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
 
   // Use linkedClientId when present, otherwise resolve from the visible company folder.
-  const effectiveClientId = role === 'client' ? (user?.linkedClientId || browsingClientId) : browsingClientId;
+  // effectiveClientIdForUser already accounts for an admin/manager previewing
+  // a specific client's portal (see useEffectiveClientId) — falls through to
+  // browsingClientId for admins not in a client preview, same as before.
+  const effectiveClientId = role === 'client' ? (effectiveClientIdForUser || browsingClientId) : browsingClientId;
   const effectiveCompanyName = role === 'client'
     ? (browsingCompanyName || breadcrumb[0]?.name || '')
     : browsingCompanyName;

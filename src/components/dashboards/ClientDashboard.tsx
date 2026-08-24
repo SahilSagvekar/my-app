@@ -49,6 +49,7 @@ import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
 
 // 🚀 Performance imports
 import { useClientTasks } from '../../lib/hooks/useClientTasks';
+import { useEffectiveClientId } from '../../lib/hooks/useEffectiveClientId';
 import { ClientTaskCard } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
 
@@ -179,6 +180,11 @@ const persistClientResult = async ({
 /* -------------------------------------------------------------------------- */
 
 export function ClientDashboard() {
+  // Scopes task-fetching to a specific client when an admin/manager is
+  // previewing that client's portal (e.g. eric -> "The Drew Meyers");
+  // null for a real client user, who needs no override.
+  const effectiveClientId = useEffectiveClientId();
+
   // 🚀 SWR for cached data fetching
   const { 
     tasks, 
@@ -188,6 +194,7 @@ export function ClientDashboard() {
     hasActiveJobs 
   } = useClientTasks({
     revalidateOnFocus: true,
+    clientIdOverride: effectiveClientId,
   });
 
   // 🚀 Auto-refresh when optimization jobs are active

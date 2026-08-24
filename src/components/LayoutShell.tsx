@@ -104,12 +104,16 @@ export function LayoutShell({
   }, [currentRole]);
 
   // 🔥 Role switching feature
-  const { canSwitchRole, isViewingAsOther, switchableRoles, switchToRole, resetToOriginal } = useViewAsRole();
+  const { canSwitchRole, isViewingAsOther, switchableRoles, switchToRole, resetToOriginal, viewingAsClientLabel } = useViewAsRole();
 
   const roleDisplay = currentRole
     ? currentRole.toLowerCase() === 'qc'
       ? 'QC'
-      : currentRole.charAt(0).toUpperCase() + currentRole.slice(1).toLowerCase()
+      : currentRole
+          .toLowerCase()
+          .split('_')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')
     : 'User';
 
   // UPDATED: Fetch permitted navigation items
@@ -261,7 +265,19 @@ export function LayoutShell({
                   <div className="px-3 py-2.5 flex flex-col gap-0.5">
                     {switchableRoles.map((role) => {
                       const isCurrent = currentRole?.toLowerCase() === role.toLowerCase();
-                      const roleLabel = role.toLowerCase() === 'qc' ? 'Quality Control' : role.charAt(0).toUpperCase() + role.slice(1);
+                      // "sales_manager" -> "Sales Manager", "qc" -> "Quality
+                      // Control", "client" -> the specific client's name
+                      // when this account previews a named client portal
+                      // (e.g. eric -> "The Drew Meyers"), otherwise "Client".
+                      const roleLabel =
+                        role.toLowerCase() === 'qc'
+                          ? 'Quality Control'
+                          : role.toLowerCase() === 'client' && viewingAsClientLabel
+                          ? viewingAsClientLabel
+                          : role
+                              .split('_')
+                              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                              .join(' ');
                       return (
                         <DropdownMenuItem
                           key={role}
