@@ -1,0 +1,152 @@
+export const dynamic = 'force-dynamic';
+import { NextRequest, NextResponse } from 'next/server';
+import { getDbHttp } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { eq, or } from 'drizzle-orm';
+import { getCurrentUser2 } from '@/lib/auth';
+
+export interface IntakeData {
+  // Brand
+  brandColors: string[];
+  brandFonts: string[];
+  brandVoice: string;
+  brandGuidelines: string; // URL or description
+  logoUrl: string;
+  // Platforms
+  platforms: string[]; // ['youtube', 'instagram', 'tiktok', 'facebook', 'linkedin']
+  platformHandles: Record<string, string>; // { instagram: '@handle', ... }
+  // Content
+  contentNiche: string;
+  targetAudience: string;
+  contentStyle: string; // 'educational', 'entertaining', 'promotional', 'mixed'
+  topicsToAvoid: string;
+  competitorChannels: string;
+  // Scheduling
+  preferredPostingDays: string[];
+  preferredPostingTimes: string[];
+  // Contacts
+  primaryContactName: string;
+  primaryContactEmail: string;
+  primaryContactPhone: string;
+  // Additional
+  additionalNotes: string;
+  // Client-added template hashtags (merged with any admin-set defaults)
+  hashtags: string[];
+}
+
+// POST /api/portal/intake
+// Client submits their onboarding intake form after contract + payment
+export async function POST(req: NextRequest) {
+  const db = getDbHttp();
+  try {
+    const user = await getCurrentUser2(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const [client] = await db
+      .select()
+      .from(clientTable)
+      .where(or(eq(clientTable.userId, user.id), eq(clientTable.email, user.email)))
+      .limit(1);
+
+    if (!client) {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+    }
+
+    const body: IntakeData = await req.json();
+
+    // Merge client-submitted hashtags with any admin-set defaults — never overwrite
+    const [existing] = await db
+      .select({ templateHashtags: clientTable.templateHashtags })
+      .from(clientTable)
+      .where(eq(clientTable.id, client.id))
+      .limit(1);
+    const mergedHashtags = Array.from(
+      new Set([
+        ...(existing?.templateHashtags ?? []),
+        ...(body.hashtags || []).map((h) => h.trim()).filter(Boolean),
+      ])
+    );
+
+    // Save intake data into existing brandGuidelines and projectSettings JSON fields
+    await db.update(clientTable).set({
+      templateHashtags: mergedHashtags,
+      brandGuidelines: {
+        primaryColors: body.brandColors || [],
+        secondaryColors: [],
+        fonts: body.brandFonts || [],
+        logoUsage: body.logoUrl || '',
+        toneOfVoice: body.brandVoice || '',
+        brandValues: body.brandGuidelines || '',
+      },
+      projectSettings: {
+        contentNiche: body.contentNiche || '',
+        targetAudience: body.targetAudience || '',
+        contentStyle: body.contentStyle || '',
+        topicsToAvoid: body.topicsToAvoid || '',
+        competitorChannels: body.competitorChannels || '',
+        platforms: body.platforms || [],
+        platformHandles: body.platformHandles || {},
+        primaryContact: {
+          name: body.primaryContactName || '',
+          email: body.primaryContactEmail || '',
+          phone: body.primaryContactPhone || '',
+        },
+        additionalNotes: body.additionalNotes || '',
+        intakeCompletedAt: new Date().toISOString(),
+      },
+      postingSchedule: {
+        preferredDays: body.preferredPostingDays || [],
+        preferredTimes: body.preferredPostingTimes || [],
+      },
+      updatedAt: new Date().toISOString(),
+    }).where(eq(clientTable.id, client.id));
+
+    // Notify admin via email
+    await notifyAdminIntakeComplete(client.name, client.email);
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('POST /api/portal/intake error:', err);
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  }
+}
+
+// GET /api/portal/intake — check if intake is already submitted
+export async function GET(req: NextRequest) {
+  const db = getDbHttp();
+  try {
+    const user = await getCurrentUser2(req);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const [client] = await db
+      .select({ projectSettings: clientTable.projectSettings, templateHashtags: clientTable.templateHashtags })
+      .from(clientTable)
+      .where(or(eq(clientTable.userId, user.id), eq(clientTable.email, user.email)))
+      .limit(1);
+
+    const settings = client?.projectSettings as any;
+    const completed = !!settings?.intakeCompletedAt;
+
+    return NextResponse.json({
+      completed,
+      completedAt: settings?.intakeCompletedAt || null,
+      hashtags: client?.templateHashtags ?? [],
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+async function notifyAdminIntakeComplete(clientName: string, clientEmail: string) {
+  const { createTransporter } = await import('@/lib/mail-transport');
+  const transporter = createTransporter();
+
+  await transporter.sendMail({
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: 'eric@e8productions.com',
+    subject: `📋 Intake form submitted — ${clientName}`,
+    html: `<p><strong>${clientName}</strong> (${clientEmail}) has completed their onboarding intake form. All details are now available in the E8 app under their client profile.</p>`,
+  }).catch(console.error);
+}

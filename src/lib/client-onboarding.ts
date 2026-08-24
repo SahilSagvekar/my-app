@@ -10,7 +10,8 @@ import { WebClient } from '@slack/web-api';
 import { getDbHttp } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import nodemailer from 'nodemailer';
+import { createTransporter } from '@/lib/mail-transport';
+import { enqueueNotification } from '@/lib/notification-queue';
 
 // ---------------------------------------------------------------------------
 // ⚙️  CONFIG — Add every Slack user ID that should join every client channel.
@@ -97,8 +98,9 @@ export async function createClientSlackChannel(params: {
 
     // --- Post a welcome message in the channel ---
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    await slack.chat.postMessage({
-      channel: channelId,
+    await enqueueNotification({
+      kind: 'slack-dm',
+      channelId,
       text: `🎉 New client onboarded: *${params.companyName}*`,
       blocks: [
         {
@@ -119,8 +121,6 @@ export async function createClientSlackChannel(params: {
         },
       ],
     });
-
-    // --- Persist channel name & mark Slack enabled on the client ---
     await db.update(clientTable).set({
       slackChannelName: channelName,
       slackEnabled: true,
@@ -160,26 +160,14 @@ export async function sendClientWelcomeEmail(params: {
   email: string;
   slackChannelName: string | null;
 }): Promise<boolean> {
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-
-  if (!smtpUser || !smtpPass) {
-    console.warn('[ClientOnboarding] SMTP not configured — welcome email skipped');
-    console.log(`[ClientOnboarding] Would have sent welcome email to ${params.email}`);
-    return false;
-  }
+  const smtpUser = process.env.SMTP_USER || 'noreply@e8productions.com';
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const slackNote = params.slackChannelName
     ? `<p>We've also set up a dedicated Slack channel <strong>#${params.slackChannelName}</strong> where you can communicate directly with our team.</p>`
     : '';
 
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: { user: smtpUser, pass: smtpPass },
-  });
+  const transporter = createTransporter();
 
   const mailOptions = {
     from: `"E8 Productions" <${smtpUser}>`,

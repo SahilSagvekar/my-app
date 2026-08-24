@@ -6,7 +6,7 @@ import { createId } from '@/lib/db/id';
 import { eq, or } from 'drizzle-orm';
 import { downloadSignWellPdf, mapSignWellStatus, mapSignWellSignerStatus } from '@/lib/signwell';
 import { uploadBufferToS3 } from '@/lib/s3';
-import nodemailer from 'nodemailer';
+import { createTransporter } from '@/lib/mail-transport';
 import { notifyContractSigned } from '@/lib/pipeline-notifications';
 
 // POST /api/signwell/webhook
@@ -309,11 +309,7 @@ async function handleViewed(document: any) {
 }
 
 async function notifyAdmin(subject: string, body: string) {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return;
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com', port: 465, secure: true,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-  });
+  const transporter = createTransporter();
   await transporter.sendMail({
     from: `"E8 App" <${process.env.SMTP_USER}>`,
     to: 'eric@e8productions.com',

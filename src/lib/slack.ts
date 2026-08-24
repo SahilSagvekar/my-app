@@ -8,6 +8,7 @@ import {
   task as taskTable,
 } from "@/lib/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
+import { enqueueNotification } from "@/lib/notification-queue";
 
 // ---------------------------------------------------------------------------
 // Lazy-initialised Slack WebClient (for bot DMs)
@@ -207,22 +208,19 @@ export async function sendSlackWebhook(
 
     const blocks = await buildSlackBlocks(notification);
 
-    const res = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ blocks }),
-    });
+    // Queued, not delivered synchronously — this now means "accepted for
+    // delivery", not "confirmed delivered". The Worker's queue() consumer
+    // (worker.ts) does the real fetch() and handles retries/DLQ.
+    const queued = await enqueueNotification({ kind: "slack-webhook", url: webhookUrl, blocks });
 
-    if (!res.ok) {
-      const errorText = await res.text().catch(() => 'unknown');
-      console.error(`[Slack Webhook] Failed with status ${res.status}: ${errorText} (url=${webhookUrl.substring(0, 60)}...)`);
+    if (!queued) {
+      console.error(`[Slack Webhook] Failed to queue notification (url=${webhookUrl.substring(0, 60)}...)`);
       return false;
-    } else {
-      console.log(
-        `[Slack Webhook] ✅ Sent notification: "${notification.title || notification.message || notification.type}" (type=${notification.type})`,
-      );
-      return true;
     }
+    console.log(
+      `[Slack Webhook] ✅ Queued notification: "${notification.title || notification.message || notification.type}" (type=${notification.type})`,
+    );
+    return true;
   } catch (err) {
     console.error("[Slack Webhook] Failed:", err);
     return false;
@@ -349,11 +347,10 @@ export async function sendSlackDM(
       text += `\n<${appUrl}/dashboard?task=${notification.payload.taskId}|View Task>`;
     }
 
-    await client.chat.postMessage({
-      channel: channelId,
-      text,
-      mrkdwn: true,
-    });
+    // Queued rather than sent synchronously — conversations.open() above
+    // still runs inline (plain HTTPS, fine on Workers); only the actual
+    // message send goes through the queue for retry/DLQ coverage.
+    await enqueueNotification({ kind: "slack-dm", channelId, text });
   } catch (err) {
     console.error("[Slack DM] Failed:", err);
   }
@@ -687,13 +684,9 @@ export async function sendDailySummaryToSlack(
       }
     ];
 
-    await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ blocks }),
-    });
+    await enqueueNotification({ kind: "slack-webhook", url: webhookUrl, blocks });
 
-    console.log(`✅ [Slack Report] Minimal download link sent to dedicated channel`);
+    console.log(`✅ [Slack Report] Minimal download link queued to dedicated channel`);
   } catch (err) {
     console.error("[Slack Report] Failed to send summary link:", err);
   }

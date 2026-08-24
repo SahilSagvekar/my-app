@@ -5,6 +5,7 @@ import { createId } from "@/lib/db/id";
 import { inArray } from "drizzle-orm";
 // import { broadcastNotification } from "@/lib/notifications-bus";
 import { deliverSlackNotification } from "@/lib/slack";
+import { keepAlive } from "@/lib/keep-alive";
 
 export type NotifyOpts = {
   userId: string | number | null;    // recipient userId (null => broadcast)
@@ -45,14 +46,17 @@ export async function notifyUser(opts: NotifyOpts) {
   //   console.warn("SSE broadcast failed:", err);
   // }
 
-  // Deliver to Slack (webhook + DM) — fire-and-forget
-  deliverSlackNotification({
-    type,
-    title,
-    body,
-    payload,
-    userId: userIdValue,
-  }).catch((err) => console.warn("[Slack] delivery error:", err));
+  // Deliver to Slack (webhook + DM) — fire-and-forget, but kept alive past
+  // the response via ctx.waitUntil() (see keepAlive() above).
+  keepAlive(
+    deliverSlackNotification({
+      type,
+      title,
+      body,
+      payload,
+      userId: userIdValue,
+    }).catch((err) => console.warn("[Slack] delivery error:", err))
+  );
 
   return notification;
 }
@@ -101,13 +105,15 @@ export async function notifyEditorTaskAssignment(
     updatedAt: new Date().toISOString(),
   }).returning();
 
-  deliverSlackNotification({
-    type: "task_assigned",
-    title,
-    body,
-    payload: { taskIds: tasks.map((t) => t.id), taskTitles },
-    userId: editorId,
-  }).catch((err) => console.warn("[Slack] delivery error:", err));
+  keepAlive(
+    deliverSlackNotification({
+      type: "task_assigned",
+      title,
+      body,
+      payload: { taskIds: tasks.map((t) => t.id), taskTitles },
+      userId: editorId,
+    }).catch((err) => console.warn("[Slack] delivery error:", err))
+  );
 
   return notification;
 }

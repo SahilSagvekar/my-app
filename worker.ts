@@ -16,15 +16,26 @@
 
 // @ts-ignore — .open-next/worker.js is generated at build time
 import { default as handler } from './.open-next/worker.js';
+import { deliverSlackJobNow, deliverEmailJobNow, NotificationJob } from './src/lib/notification-queue';
 
 const APP_URL = 'https://e8productions.com';
 
-async function triggerCronRoute(path: string, env: any): Promise<void> {
+// Calls the app's own cron route handler directly, in-process — NOT via a
+// real fetch() over the network. A Worker fetch()-ing its own public
+// custom domain from inside scheduled() is a self-referential request back
+// through Cloudflare's full edge pipeline (DNS, TLS, routing) to reach the
+// very same Worker instance that's making the call; in practice this
+// reliably produced 522 timeouts on every single cron tick. Since the
+// OpenNext handler is already imported right here, we can just invoke
+// handler.fetch(request, env, ctx) directly — identical Request in,
+// identical Response out, zero network hop, so there's nothing to time out.
+async function triggerCronRoute(path: string, env: any, ctx: ExecutionContext): Promise<void> {
   try {
-    const res = await fetch(`${APP_URL}${path}`, {
+    const request = new Request(`${APP_URL}${path}`, {
       method: 'POST',
       headers: { 'x-cron-secret': env.CRON_SECRET || '' },
     });
+    const res: Response = await handler.fetch(request, env, ctx);
     if (!res.ok) {
       console.error(`[worker.ts] ${path} returned ${res.status}: ${await res.text().catch(() => '')}`);
     }
@@ -40,12 +51,12 @@ export default {
     switch (controller.cron) {
       // Every minute — drains the upload-notification and NAS-sweep queues.
       case '* * * * *':
-        ctx.waitUntil(triggerCronRoute('/api/cron/tick-queues', env));
+        ctx.waitUntil(triggerCronRoute('/api/cron/tick-queues', env, ctx));
         break;
 
       // Every Saturday — populates the weekly NAS backup sweep queue.
       case '0 20 * * 6':
-        ctx.waitUntil(triggerCronRoute('/api/cron/nas-weekly-sweep', env));
+        ctx.waitUntil(triggerCronRoute('/api/cron/nas-weekly-sweep', env, ctx));
         break;
 
       // Pre-existing placeholder schedules (0 9 * * *, 0 0 * * *) — not
@@ -54,6 +65,29 @@ export default {
       // wire these up here when whatever they were meant for goes live.
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);
+    }
+  },
+
+  // Consumer for the `notifications` Cloudflare Queue (see wrangler.toml's
+  // [[queues.consumers]]) — every Slack message and email in the app is
+  // enqueued via src/lib/notification-queue.ts's enqueueNotification() and
+  // lands here for actual delivery. Slack jobs are delivered directly
+  // (plain HTTPS, fine on Workers); email jobs are relayed to
+  // e8-file-server, since Workers can't open raw SMTP sockets.
+  async queue(batch: MessageBatch<NotificationJob>, env: any, ctx: ExecutionContext) {
+    for (const message of batch.messages) {
+      try {
+        const job = message.body;
+        if (job.kind === 'email') {
+          await deliverEmailJobNow(job, env);
+        } else {
+          await deliverSlackJobNow(job);
+        }
+        message.ack();
+      } catch (err: any) {
+        console.error(`[worker.ts] Notification job failed (kind=${message.body.kind}):`, err?.message || err);
+        message.retry();
+      }
     }
   },
 };

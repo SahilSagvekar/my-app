@@ -1,0 +1,94 @@
+export const dynamic = 'force-dynamic';
+import { NextRequest, NextResponse } from 'next/server';
+import { getDbHttp } from '@/lib/db';
+import { quote as quoteTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { getCurrentUser2 } from '@/lib/auth';
+import { createTransporter as getTransporter } from '@/lib/mail-transport';
+import { notifyQuoteSent } from '@/lib/pipeline-notifications';
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; quoteId: string }> }
+) {
+  const db = getDbHttp();
+  try {
+    const user = await getCurrentUser2(req);
+    if (!user || !['admin', 'manager'].includes(user.role ?? '')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id: preClientId, quoteId } = await params;
+
+    const quote = await db.query.quote.findFirst({
+      where: (q, { eq }) => eq(q.id, quoteId),
+      with: { preClient: true },
+    });
+
+    if (!quote || quote.preClientId !== preClientId) {
+      return NextResponse.json({ error: 'Quote not found' }, { status: 404 });
+    }
+
+    if (quote.status === 'ACCEPTED') {
+      return NextResponse.json({ error: 'Quote already accepted' }, { status: 400 });
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://e8productions.com';
+    const quoteUrl = `${baseUrl}/quote/${quote.shareToken}`;
+    const isResend = quote.sentAt !== null || quote.version > 1;
+
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"E8 Productions" <eric@e8productions.com>`,
+      to: quote.preClient.email,
+      subject: isResend
+        ? `Your Revised Quote from E8 Productions — ${quote.preClient.name}`
+        : `Your Quote from E8 Productions — ${quote.preClient.name}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+          <div style="border-bottom: 3px solid #0066ff; padding-bottom: 16px; margin-bottom: 24px;">
+            <h1 style="font-size: 24px; margin: 0; color: #000;">E8 Productions</h1>
+            <p style="margin: 4px 0 0; color: #666; font-size: 14px;">Full Service Video + Content</p>
+          </div>
+          <p style="font-size: 16px;">Hi ${quote.preClient.name},</p>
+          <p style="font-size: 15px; line-height: 1.6;">
+            Thank you for the opportunity. We've put together a proposal for your review.
+            Please click the button below to view your quote.
+          </p>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${quoteUrl}"
+               style="background: #0066ff; color: #fff; padding: 14px 32px;
+                      border-radius: 8px; text-decoration: none; font-size: 16px;
+                      font-weight: bold; display: inline-block;">
+              View Your Quote
+            </a>
+          </div>
+          <p style="font-size: 13px; color: #888;">
+            Or copy this link: <a href="${quoteUrl}" style="color: #0066ff;">${quoteUrl}</a>
+          </p>
+          <div style="border-top: 1px solid #eee; margin-top: 32px; padding-top: 16px;">
+            <p style="font-size: 13px; color: #666; margin: 0;">
+              E8 Productions, LLC · <a href="https://e8productions.com" style="color: #0066ff;">e8productions.com</a>
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    const [updated] = await db.update(quoteTable).set({
+      status: 'SENT',
+      sentAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(quoteTable.id, quoteId)).returning();
+
+    const amount = `$${(quote.totalAmount / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    notifyQuoteSent(quote.preClient.name, amount).catch((err) =>
+      console.error('[quotes/send] notifyQuoteSent failed:', err)
+    );
+
+    return NextResponse.json({ success: true, quote: updated });
+  } catch (err) {
+    console.error('POST quote/send error:', err);
+    return NextResponse.json({ error: 'Failed to send quote' }, { status: 500 });
+  }
+}

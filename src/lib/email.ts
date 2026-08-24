@@ -1,29 +1,12 @@
-import nodemailer from 'nodemailer';
+// Every send in this file goes through the notifications queue now — see
+// src/lib/mail-transport.ts. Workers can't open raw SMTP sockets, so the
+// actual send happens in e8-file-server (a real Node container); this
+// file's ~24 functions are otherwise unchanged, since createTransporter()
+// still returns an object with the same sendMail(mailOptions) shape.
+import { createTransporter, isEmailConfigured } from '@/lib/mail-transport';
 
 // 🔥 Global BCC - All emails will be copied to these addresses for monitoring
 const GLOBAL_BCC_EMAILS = ['sahilsagvekar230@gmail.com', 'eric@e8productions.com'];
-
-// Check if email is configured
-const isEmailConfigured = () => {
-  return !!(process.env.SMTP_USER && process.env.SMTP_PASS);
-};
-
-// Create transporter only if configured
-const createTransporter = () => {
-  if (!isEmailConfigured()) {
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true, // Gmail requires this for port 465
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-};
 
 // Helper function to add global BCC to mail options
 const addGlobalBcc = (mailOptions: any) => {
@@ -65,29 +48,46 @@ export async function sendMeetingNotesEmail(data: {
     cc: data.cc && data.cc.length > 0 ? data.cc : undefined,
     subject: `Meeting Notes — ${data.clientName} — ${dateLabel}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f1f5f9; }
-            .container { max-width: 600px; margin: 0 auto; padding: 30px 20px; }
-            .header { background: #0073EA; color: white; padding: 24px 30px; border-radius: 16px 16px 0 0; }
-            .content { background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2 style="margin: 0;">Meeting Notes</h2>
-            </div>
-            <div class="content">
-              <p>Hi ${data.clientName},</p>
-              <p>Attached are the notes from our meeting on ${dateLabel}.</p>
-              <p>Let us know if you have any questions.</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Meeting notes from your session with E8 Productions are attached.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Meeting notes are attached</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${data.clientName},</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Attached are the notes from our meeting on <strong>${dateLabel}</strong>. Let us know if you have any questions.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">Attachment: ${data.docTitle}.pdf</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
     attachments: [
       {
@@ -127,66 +127,51 @@ export async function sendOTPEmail(email: string, otp: string) {
     to: email,
     subject: 'Your Password Reset OTP - E8 Productions',
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .otp-box { 
-              background-color: #f3f4f6; 
-              border: 2px dashed #3b82f6;
-              padding: 20px;
-              text-align: center;
-              border-radius: 8px;
-              margin: 30px 0;
-            }
-            .otp-code {
-              font-size: 32px;
-              font-weight: bold;
-              letter-spacing: 8px;
-              color: #1f2937;
-            }
-            .warning {
-              background-color: #fef3c7;
-              border-left: 4px solid #f59e0b;
-              padding: 12px;
-              margin: 20px 0;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1 style="color: #111827;">Password Reset Request</h1>
-            
-            <p>Hello,</p>
-            
-            <p>You requested to reset your password for your E8 Productions account.</p>
-            
-            <p>Your One-Time Password (OTP) is:</p>
-            
-            <div class="otp-box">
-              <div class="otp-code">${otp}</div>
-            </div>
-            
-            <div class="warning">
-              <strong>⚠️ Important:</strong>
-              <ul style="margin: 5px 0;">
-                <li>This OTP will expire in 10 minutes</li>
-                <li>Do not share this OTP with anyone</li>
-                <li>If you didn't request this, please ignore this email</li>
-              </ul>
-            </div>
-            
-            <p>If you didn't request this password reset, you can safely ignore this email.</p>
-            
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
-              <p><strong>E8 Productions</strong></p>
-              <p>© ${new Date().getFullYear()} E8 Productions. All rights reserved.</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your password reset code for E8 Productions.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Reset your password</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hello,</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">You requested to reset your password for your E8 Productions account. Enter this code to continue:</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#f4f4f5;border:1px dashed #c7c7cc;border-radius:8px;text-align:center;padding:20px;">
+          <span style="font-family:'Courier New',monospace;font-size:32px;font-weight:bold;letter-spacing:8px;color:#0a0a0b;">${otp}</span>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">This code expires in 10 minutes. Don't share it with anyone. If you didn't request this, you can safely ignore this email.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -219,62 +204,51 @@ export async function sendLoginOTPEmail(email: string, otp: string) {
     to: email,
     subject: 'Your Login Verification Code - E8 Productions',
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .otp-box {
-              background-color: #f3f4f6;
-              border: 2px dashed #3b82f6;
-              padding: 20px;
-              text-align: center;
-              border-radius: 8px;
-              margin: 30px 0;
-            }
-            .otp-code {
-              font-size: 32px;
-              font-weight: bold;
-              letter-spacing: 8px;
-              color: #1f2937;
-            }
-            .warning {
-              background-color: #fef3c7;
-              border-left: 4px solid #f59e0b;
-              padding: 12px;
-              margin: 20px 0;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1 style="color: #111827;">Verify Your Login</h1>
-
-            <p>Hello,</p>
-
-            <p>Someone is signing in to your E8 Productions account. Enter this code to complete the login:</p>
-
-            <div class="otp-box">
-              <div class="otp-code">${otp}</div>
-            </div>
-
-            <div class="warning">
-              <strong>⚠️ Important:</strong>
-              <ul style="margin: 5px 0;">
-                <li>This code will expire in 10 minutes</li>
-                <li>Do not share this code with anyone</li>
-                <li>If you didn't try to log in, change your password immediately</li>
-              </ul>
-            </div>
-
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
-              <p><strong>E8 Productions</strong></p>
-              <p>© ${new Date().getFullYear()} E8 Productions. All rights reserved.</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your login verification code for E8 Productions.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Verify your login</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hello,</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Someone is signing in to your E8 Productions account. Enter this code to complete the login:</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#f4f4f5;border:1px dashed #c7c7cc;border-radius:8px;text-align:center;padding:20px;">
+          <span style="font-family:'Courier New',monospace;font-size:32px;font-weight:bold;letter-spacing:8px;color:#0a0a0b;">${otp}</span>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">This code expires in 10 minutes. If you didn't try to log in, change your password immediately.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -321,15 +295,7 @@ export async function sendRawEmail({
 }
 
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // true for 465, false for other ports
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+const transporter = createTransporter();
 
 export async function sendWelcomeEmail({
   email,
@@ -347,148 +313,59 @@ export async function sendWelcomeEmail({
     to: email,
     subject: 'Welcome to E8 Productions! 🎬',
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              max-width: 600px;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            .header {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-              padding: 30px;
-              border-radius: 10px 10px 0 0;
-              text-align: center;
-            }
-            .content {
-              background: #f9fafb;
-              padding: 30px;
-              border-radius: 0 0 10px 10px;
-            }
-            .credentials-box {
-              background: white;
-              border: 2px solid #e5e7eb;
-              border-radius: 8px;
-              padding: 20px;
-              margin: 20px 0;
-            }
-            .credential-item {
-              display: flex;
-              justify-content: space-between;
-              padding: 10px 0;
-              border-bottom: 1px solid #e5e7eb;
-            }
-            .credential-item:last-child {
-              border-bottom: none;
-            }
-            .credential-label {
-              font-weight: 600;
-              color: #6b7280;
-            }
-            .credential-value {
-              font-family: 'Courier New', monospace;
-              background: #f3f4f6;
-              padding: 4px 8px;
-              border-radius: 4px;
-            }
-            .button {
-              display: inline-block;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-              padding: 14px 28px;
-              text-decoration: none;
-              border-radius: 8px;
-              font-weight: 600;
-              margin: 20px 0;
-            }
-            .footer {
-              text-align: center;
-              margin-top: 30px;
-              color: #6b7280;
-              font-size: 14px;
-            }
-            .important {
-              background: #fef3c7;
-              border-left: 4px solid #f59e0b;
-              padding: 15px;
-              margin: 20px 0;
-              border-radius: 4px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>🎬 Welcome to E8 Productions!</h1>
-          </div>
-          
-          <div class="content">
-            <p>Hi <strong>${name}</strong>,</p>
-            
-            <p>We're excited to have you join the E8 Productions team as a <strong>${role}</strong>! 🎉</p>
-            
-            <p>Your account has been created and you can now access the E8 Productions management system.</p>
-            
-            <div class="credentials-box">
-              <h3 style="margin-top: 0;">📝 Your Login Credentials</h3>
-              
-              <div class="credential-item">
-                <span class="credential-label">Email:</span>
-                <span class="credential-value">${email}</span>
-              </div>
-              
-              <div class="credential-item">
-                <span class="credential-label">Temporary Password:</span>
-                <span class="credential-value">${tempPassword}</span>
-              </div>
-              
-              <div class="credential-item">
-                <span class="credential-label">Role:</span>
-                <span class="credential-value">${role}</span>
-              </div>
-            </div>
-            
-            <div class="important">
-              <strong>⚠️ Important Security Note:</strong>
-              <p style="margin: 10px 0 0 0;">
-                This is a temporary password. You will be prompted to change it on your first login. 
-                Please do not share these credentials with anyone.
-              </p>
-            </div>
-            
-            <div style="text-align: center;">
-              <a href="${process.env.BASE_URLL || 'http://localhost:3000'}/dashboard" class="button">
-                Access Dashboard →
-              </a>
-            </div>
-            
-            <h3>📚 Getting Started</h3>
-            <ol>
-              <li>Click the button above to access the dashboard</li>
-              <li>Log in with your email and temporary password</li>
-              <li>Set up your new password when prompted</li>
-              <li>Complete your profile information</li>
-            </ol>
-            
-            <p>If you have any questions or need assistance, please don't hesitate to reach out to your manager or the admin team.</p>
-            
-            <p>Looking forward to working with you!</p>
-            
-            <p>Best regards,<br>
-            <strong>The E8 Productions Team</strong></p>
-          </div>
-          
-          <div class="footer">
-            <p>This email was sent from E8 Productions Management System</p>
-            <p>If you believe you received this email in error, please contact your administrator.</p>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Welcome to E8 Productions — your account is ready.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Welcome to E8 Productions</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${name},</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">We're excited to have you join the E8 Productions as a <strong>${role}</strong>. Your account has been created and you can now access the management system.</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Email</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:'Courier New',monospace;font-size:13px;color:#0a0a0b;">${email}</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Temporary Password</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:'Courier New',monospace;font-size:13px;color:#0a0a0b;">${tempPassword}</td></tr>
+          <tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Role</td><td style="padding:12px 16px;text-align:right;font-family:'Courier New',monospace;font-size:13px;color:#0a0a0b;">${role}</td></tr>
+        </table>
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">This is a temporary password — you'll be prompted to set a new one on first login. Don't share these credentials with anyone.</td></tr>
+      <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${process.env.BASE_URLL || 'http://localhost:3000'}/dashboard" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Access Dashboard</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">This email was sent from the E8 App. If you believe you received it in error, contact your administrator.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC · e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -525,44 +402,58 @@ export async function sendRoleAssignedEmail(data: {
     to: data.email,
     subject: `Your role has been updated — ${formatRole(data.newRole)}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center; }
-            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-            .role-box { background: white; border: 2px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
-            .role-value { font-size: 22px; font-weight: 700; color: #667eea; }
-            .role-prev { font-size: 13px; color: #9ca3af; text-decoration: line-through; margin-bottom: 4px; }
-            .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>🔄 Your Role Has Been Updated</h1>
-          </div>
-          <div class="content">
-            <p>Hi <strong>${data.name}</strong>,</p>
-            <p>Your role on the E8 Productions platform has been updated by an admin.</p>
-            <div class="role-box">
-              ${data.previousRole ? `<div class="role-prev">${formatRole(data.previousRole)}</div>` : ''}
-              <div class="role-value">${formatRole(data.newRole)}</div>
-            </div>
-            <p>This may change what you see and what you're able to do on the dashboard. If anything looks off, log back in to refresh your access.</p>
-            <div style="text-align: center;">
-              <a href="${process.env.BASE_URLL || process.env.BASE_URL || 'http://localhost:3000'}/dashboard" class="button">
-                Go to Dashboard →
-              </a>
-            </div>
-            <p>If you weren't expecting this change, please reach out to your manager or the admin team.</p>
-          </div>
-          <div class="footer">
-            <p>This email was sent from E8 Productions Management System</p>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your role on the E8 Productions platform has been updated.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Your role has been updated 🔄</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${data.name},</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Your role on the E8 Productions platform has been updated by an admin.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;"><tr><td style="padding:20px;text-align:center;">
+          ${data.previousRole ? `<div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#a8a397;text-decoration:line-through;">${formatRole(data.previousRole)}</div>` : ''}
+          <div style="font-family:Helvetica,Arial,sans-serif;font-size:22px;font-weight:bold;color:#0a0a0b;margin-top:4px;">${formatRole(data.newRole)}</div>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#222225;">This may change what you see and what you're able to do on the dashboard. If anything looks off, log back in to refresh your access.</td></tr>
+      <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${process.env.BASE_URLL || process.env.BASE_URL || 'http://localhost:3000'}/dashboard" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Go to Dashboard</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">If you weren't expecting this change, please reach out to an admin.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC · e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -601,55 +492,55 @@ export async function sendActivityReportEmail(reportUrl: string, date: Date, log
     to: "Eric@e8productions.com",
     subject: `Daily Activity Report - ${formattedDate}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
-            .stats { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }
-            .button { 
-              display: inline-block; 
-              padding: 12px 24px; 
-              background-color: #007bff; 
-              color: white; 
-              text-decoration: none; 
-              border-radius: 5px !important; 
-              font-weight: bold;
-              margin: 20px 0;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2 style="color: #007bff;">Daily Activity Report</h2>
-              <p>Period: ${formattedDate} (up to 7:00 PM EST)</p>
-            </div>
-            
-            <p>Hi Eric,</p>
-            
-            <p>The daily activity report for the production team has been generated.</p>
-            
-            <div class="stats">
-              <strong>Summary:</strong><br>
-              • Total actions recorded: ${logCount}<br>
-              • Report Type: CSV Export
-            </div>
-            
-            <p>You can download or view the full report by clicking the button below:</p>
-            
-            <div style="text-align: center;">
-              <a href="${reportUrl}" class="button" style="color: white;">Download CSV Report</a>
-            </div>
-            
-            <p style="font-size: 12px; color: #666; margin-top: 30px;">
-              This is an automated report generated by the E8 Productions Management System.
-            </p>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Daily activity report is ready.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Daily Activity Report 📊</td></tr>
+      <tr><td class="px" style="padding:6px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#6b6b72;">Period: ${formattedDate} (up to 7:00 PM EST)</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi Eric, the daily activity report for the production team has been generated.</td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Total Actions Recorded</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;font-weight:bold;">${logCount}</td></tr>
+          <tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Report Type</td><td style="padding:12px 16px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">CSV Export</td></tr>
+        </table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 24px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${reportUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Download CSV Report</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">This is an automated report generated by the E8 App.</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -670,63 +561,59 @@ export async function sendCronReportEmail(data: {
     to: "sahilsagvekar230@GMAIL.COM",
     subject: `🤖 Daily Task Machine Report - ${new Date().toLocaleDateString()}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; }
-            .header { text-align: center; padding-bottom: 20px; }
-            .stats { display: flex; justify-content: space-around; background: #f0f7ff; padding: 15px; border-radius: 8px; margin: 20px 0; }
-            .stat-box { text-align: center; }
-            .stat-num { font-size: 24px; font-weight: bold; color: #007bff; }
-            .stat-label { font-size: 14px; color: #666; }
-            .details { margin-top: 20px; }
-            .client-row { padding: 10px; border-bottom: 1px solid #f9f9f9; }
-            .success { color: #28a745; font-weight: bold; }
-            .skipped { color: #dc3545; font-size: 13px; }
-            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🤖 Hello Sahil!</h1>
-              <p>Your "Task Machine" just finished its morning work!</p>
-            </div>
-
-            <p>I woke up at ${new Date(data.timestamp).toLocaleTimeString()} and checked all our clients to make sure their schedules are ready.</p>
-
-            <div class="stats">
-              <div class="stat-box">
-                <div class="stat-num">${data.results.reduce((acc, curr) => acc + (curr.created || 0), 0)}</div>
-                <div class="stat-label">New Tasks Made</div>
-              </div>
-              <div class="stat-box">
-                <div class="stat-num">${data.results.reduce((acc, curr) => acc + (curr.skipped || 0), 0)}</div>
-                <div class="stat-label">Clients Skipped</div>
-              </div>
-            </div>
-
-            <div class="details">
-              <h3>📝 Here is what I did:</h3>
-              ${data.results.map(res => `
-                <div class="client-row">
-                  <strong>${res.name}</strong>: 
-                  ${res.created > 0 ? `<span class="success">I made ${res.created} new tasks!</span>` : `<span class="skipped">I skipped this because ${res.skippedReason || 'the schedule is already full.'}</span>`}
-                </div>
-              `).join('')}
-            </div>
-
-            <p><strong>Why did I do this?</strong> To make sure your editors have work ready for them and you don't have to click "Create" a hundred times!</p>
-
-            <div class="footer">
-              <p>This report was sent automatically by the E8 Productions Robot.</p>
-              <p>Timestamp: ${data.timestamp}</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your Task Machine finished its morning run.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Hello Sahil</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Your Task Machine just finished its morning work. I woke up at ${new Date(data.timestamp).toLocaleTimeString()} and checked all our clients to make sure their schedules are ready.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="text-align:center;font-family:Helvetica,Arial,sans-serif;"><div style="font-size:22px;font-weight:bold;color:#0a0a0b;">${data.results.reduce((acc, curr) => acc + (curr.created || 0), 0)}</div><div style="font-size:11px;color:#8a8a91;text-transform:uppercase;">New Tasks Made</div></td>
+          <td style="text-align:center;font-family:Helvetica,Arial,sans-serif;"><div style="font-size:22px;font-weight:bold;color:#0a0a0b;">${data.results.reduce((acc, curr) => acc + (curr.skipped || 0), 0)}</div><div style="font-size:11px;color:#8a8a91;text-transform:uppercase;">Clients Skipped</div></td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:14px;color:#0a0a0b;">Here is what I did:</td></tr>
+      <tr><td class="px" style="padding:8px 40px 0 40px;">
+        ${data.results.map(res => `
+        <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.8;color:#222225;padding:8px 0;border-bottom:1px solid #f4f4f5;">
+          <strong>${res.name}</strong>: ${res.created > 0 ? `I made ${res.created} new tasks!` : `I skipped this because ${res.skippedReason || 'the schedule is already full.'}`}
+        </div>
+        `).join('')}
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">Why did I do this? To make sure your editors have work ready for them and you don't have to click "Create" a hundred times.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">Sent automatically by the E8 Productions Robot &middot; ${data.timestamp}</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -755,71 +642,57 @@ export async function sendExecutiveSummaryReportEmail(data: {
     to: "Eric@e8productions.com",
     subject: `📊 Executive Production Summary - ${formattedDate}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 700px; margin: 0 auto; padding: 25px; border: 1px solid #eef; border-radius: 12px; background: #fff; }
-            .header { border-bottom: 3px solid #007bff; padding-bottom: 15px; margin-bottom: 25px; }
-            .user-card { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #007bff; }
-            .user-name { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 8px; }
-            .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-            .metric { font-size: 14px; }
-            .metric-count { font-weight: bold; color: #3b82f6; }
-            .button-container { text-align: center; margin: 30px 0; }
-            .download-button {
-              background-color: #007bff;
-              color: white !important;
-              padding: 12px 24px;
-              text-decoration: none;
-              border-radius: 6px;
-              font-weight: bold;
-              display: inline-block;
-            }
-            .footer { margin-top: 40px; font-size: 11px; color: #9ca3af; text-align: center; border-top: 1px solid #eee; padding-top: 15px; }
-            .summary-title { font-size: 20px; color: #111827; }
-            .highlight-green { color: #10b981; font-weight: bold; }
-            .highlight-red { color: #ef4444; font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1 class="summary-title">📊 Executive Production Summary</h1>
-              <p style="color: #6b7280; font-size: 15px;">Activity for ${formattedDate}</p>
-            </div>
-
-            <p>Hello,</p>
-            <p>Here is the simplified production report for today. You can see the high-level stats below or download the full summary file.</p>
-
-            <div class="button-container">
-              <a href="${data.summaryUrl}" class="download-button">📥 Download Summary CSV</a>
-            </div>
-
-            <div class="details">
-              ${data.stats.length === 0 ? '<p>No activity recorded for this period.</p>' : data.stats.map(user => `
-                <div class="user-card">
-                  <div class="user-name">${user.userName} (${user.role})</div>
-                  <div class="metric-grid">
-                    ${user.inProgress > 0 ? `<div class="metric">🚀 Started Tasks: <span class="metric-count">${user.inProgress}</span></div>` : ''}
-                    ${user.readyForQc > 0 ? `<div class="metric">📤 Sent to QC: <span class="metric-count">${user.readyForQc}</span></div>` : ''}
-                    ${user.approved > 0 ? `<div class="metric">✅ Approved: <span class="highlight-green">${user.approved}</span></div>` : ''}
-                    ${user.rejected > 0 ? `<div class="metric">❌ Rejected: <span class="highlight-red">${user.rejected}</span></div>` : ''}
-                    ${user.clientApproved > 0 ? `<div class="metric">🌟 Client Approved: <span class="highlight-green">${user.clientApproved}</span></div>` : ''}
-                    ${user.clientRejected > 0 ? `<div class="metric">⚠️ Client Revisions: <span class="highlight-red">${user.clientRejected}</span></div>` : ''}
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-
-            <div class="footer">
-              <p>Automated Report by E8 Productions Management System</p>
-              <p>© ${new Date().getFullYear()} E8 Productions</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Executive production summary for today.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Executive Production Summary 📊</td></tr>
+      <tr><td class="px" style="padding:6px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#6b6b72;">Activity for ${formattedDate}</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hello, here is the simplified production report for today. You can see the high-level stats below or download the full summary file.</td></tr>
+      <tr><td class="px" align="center" style="padding:20px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${data.summaryUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Download Summary CSV</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        ${data.stats.length === 0 ? `<p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#8a8a91;">No activity recorded for this period.</p>` : data.stats.map(user => `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:2px solid #0a0a0b;background-color:#f9f9fa;border-radius:0 8px 8px 0;margin-bottom:10px;"><tr><td style="padding:12px 16px;">
+          <div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#0a0a0b;">${user.userName} (${user.role})</div>
+          <div style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#6b6b72;margin-top:4px;">Started: ${user.inProgress} · Sent to QC: ${user.readyForQc} · Approved: ${user.approved} · Rejected: ${user.rejected} · Client Approved: ${user.clientApproved} · Client Revisions: ${user.clientRejected}</div>
+        </td></tr></table>
+        `).join('')}
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">Automated Report by E8 App</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -856,61 +729,61 @@ export async function sendNasArchivalReportEmail(data: {
     to: "sahilsagvekar230@gmail.com",
     subject: `📦 S3 → NAS Archive Report: ${data.month} ${data.dryRun ? '[DRY RUN]' : ''}`,
     html: `
-      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px; border-radius: 10px;">
-        <h2 style="color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;">📦 Monthly S3 → NAS Archive</h2>
-        <p>The monthly archival process for <strong>${data.month}</strong> has completed.</p>
-        
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <table width="100%">
-            <tr>
-              <td><strong>Bucket:</strong></td>
-              <td>${data.bucket}</td>
-            </tr>
-            <tr>
-              <td><strong>Status:</strong></td>
-              <td style="color: ${data.results.failed > 0 ? '#dc3545' : '#28a745'}; font-weight: bold;">
-                ${data.results.failed > 0 ? 'Completed with Errors' : 'Success'}
-              </td>
-            </tr>
-            <tr>
-              <td><strong>Files Transferred:</strong></td>
-              <td>${data.results.transferred}</td>
-            </tr>
-            <tr>
-              <td><strong>Total Data Moved:</strong></td>
-              <td>${formatSize(data.results.totalSize)}</td>
-            </tr>
-          </table>
-        </div>
-
-        <h3 style="color: #555;">🏢 Breakdown by Company:</h3>
-        <table width="100%" style="border-collapse: collapse;">
-          <tr style="background: #eee;">
-            <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Company</th>
-            <th style="padding: 10px; border: 1px solid #ddd; text-align: center;">Files</th>
-            <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Size</th>
-          </tr>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Monthly S3 to NAS archival report.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Monthly R2 → NAS Archive</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">The monthly archival process for <strong>${data.month}</strong> has completed.${data.dryRun ? ' [DRY RUN]' : ''}</td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Bucket</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.bucket}</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Status</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;font-weight:bold;">${data.results.failed > 0 ? 'Completed with Errors' : 'Success'}</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Files Transferred</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.results.transferred}</td></tr>
+          <tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Total Data Moved</td><td style="padding:12px 16px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${formatSize(data.results.totalSize)}</td></tr>
+        </table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:14px;color:#0a0a0b;">Breakdown by Company</td></tr>
+      <tr><td class="px" style="padding:8px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;overflow:hidden;">
+          <tr style="background-color:#f4f4f5;"><td style="padding:8px 12px;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#8a8a91;text-transform:uppercase;">Company</td><td style="padding:8px 12px;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#8a8a91;text-transform:uppercase;">Files</td><td style="padding:8px 12px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#8a8a91;text-transform:uppercase;">Size</td></tr>
           ${Object.entries(data.results.companyStats).map(([name, stats]) => `
-            <tr>
-              <td style="padding: 10px; border: 1px solid #ddd;">${name}</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${stats.count}</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${formatSize(stats.size)}</td>
-            </tr>
+          <tr><td style="padding:8px 12px;border-top:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#222225;">${name}</td><td style="padding:8px 12px;border-top:1px solid #e7e7e9;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#222225;">${stats.count}</td><td style="padding:8px 12px;border-top:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#222225;">${formatSize(stats.size)}</td></tr>
           `).join('')}
         </table>
-
-        ${data.results.errors.length > 0 ? `
-          <h3 style="color: #dc3545; margin-top: 30px;">❌ Errors encountered (${data.results.failed}):</h3>
-          <ul style="background: #fff5f5; color: #b91c1c; padding: 15px; border-radius: 8px; list-style-position: inside; font-size: 13px;">
-            ${data.results.errors.slice(0, 5).map(err => `<li>${err}</li>`).join('')}
-            ${data.results.errors.length > 5 ? `<li>...and ${data.results.errors.length - 5} more</li>` : ''}
-          </ul>
-        ` : ''}
-
-        <p style="font-size: 12px; color: #888; margin-top: 30px; text-align: center; border-top: 1px solid #eee; padding-top: 15px;">
-          This report was generated automatically by the E8 Productions Archival System.
-        </p>
-      </div>
+      </td></tr>
+      ${data.results.errors.length > 0 ? `<tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#b91c1c;"><strong>Errors encountered (${data.results.failed}):</strong><br>${data.results.errors.slice(0, 5).map(err => `${err}`).join('<br>')}${data.results.errors.length > 5 ? `<br>...and ${data.results.errors.length - 5} more` : ''}</td></tr>` : ''}
+      <tr><td class="px" style="padding:16px 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">This report was generated automatically by the E8 App.</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `
   };
 
@@ -931,46 +804,58 @@ export async function sendNewJobNotificationEmail(
     from: `"E8 Jobs" <${process.env.SMTP_USER}>`,
     subject: `🎥 New Job Opportunity: ${jobDetails.title}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; }
-            .header { background: #007bff; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { padding: 20px; }
-            .job-card { background: #f8f9fa; padding: 15px; border-left: 4px solid #007bff; margin: 20px 0; border-radius: 4px; }
-            .button { display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
-            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2>New Job Posted! 🎬</h2>
-            </div>
-            <div class="content">
-              <p>Hello Team,</p>
-              <p>A new videography job has been posted and is open for bidding.</p>
-              
-              <div class="job-card">
-                <h3>${jobDetails.title}</h3>
-                <p><strong>📍 Location:</strong> ${jobDetails.location || 'TBD'}</p>
-                <p><strong>📅 Date:</strong> ${jobDetails.date}</p>
-              </div>
-
-              <p>Log in to the portal to view full details and submit your bid.</p>
-              
-              <div style="text-align: center; margin-top: 25px;">
-                <a href="${jobDetails.link}" class="button" style="color: white;">View Job & Bid</a>
-              </div>
-            </div>
-            <div class="footer">
-              <p>E8 Productions • Videographer Portal</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">A new videography job is open for bidding.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">New job posted</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hello Team,</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">A new videography job has been posted and is open for bidding.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:2px solid #0a0a0b;background-color:#f9f9fa;border-radius:0 8px 8px 0;"><tr><td style="padding:14px 18px;">
+          <div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;color:#0a0a0b;">${jobDetails.title}</div>
+          <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;margin-top:6px;">Location: ${jobDetails.location || 'TBD'}</div>
+          <div style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;margin-top:2px;">Date: ${jobDetails.date}</div>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#222225;">Log in to the portal to view full details and submit your bid.</td></tr>
+      <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${jobDetails.link}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">View Job &amp; Bid</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions &middot; Videographer Portal</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `
   };
 
@@ -1003,46 +888,58 @@ export async function sendBidAcceptedEmail(
     to: recipient.email,
     subject: `🎉 Bid Accepted: ${jobDetails.title}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; }
-            .header { background: #28a745; color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { padding: 20px; }
-            .details-box { background: #f0fdf4; padding: 15px; border: 1px solid #bbf7d0; border-radius: 8px; margin: 20px 0; }
-            .button { display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
-            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2>You're Hired! 🎉</h2>
-            </div>
-            <div class="content">
-              <p>Hi ${recipient.name},</p>
-              <p>Great news! Your bid for <strong>${jobDetails.title}</strong> has been accepted.</p>
-              
-              <div class="details-box">
-                <p><strong>Job:</strong> ${jobDetails.title}</p>
-                <p><strong>Date:</strong> ${jobDetails.date}</p>
-                <p><strong>Approved Rate:</strong> $${jobDetails.amount}</p>
-              </div>
-
-              <p>Please check the portal for further instructions regarding the shoot.</p>
-              
-              <div style="text-align: center; margin-top: 25px;">
-                <a href="${jobDetails.link}" class="button" style="color: white;">Open Job Details</a>
-              </div>
-            </div>
-            <div class="footer">
-              <p>E8 Productions • Videographer Portal</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your bid has been accepted.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">You're hired</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${recipient.name},</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Your bid for <strong>${jobDetails.title}</strong> has been accepted.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Job</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;font-weight:bold;">${jobDetails.title}</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Date</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${jobDetails.date}</td></tr>
+          <tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Approved Rate</td><td style="padding:12px 16px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;font-weight:bold;">$${jobDetails.amount}</td></tr>
+        </table>
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#222225;">Please check the portal for further instructions regarding the shoot.</td></tr>
+      <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${jobDetails.link}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Open Job Details</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions &middot; Videographer Portal</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `
   };
 
@@ -1064,42 +961,54 @@ export async function sendScreenshotAlertEmail(data: {
     to: "Eric@e8productions.com",
     subject: `🚨 Security Alert: Login Screen Screenshot Detected`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; border: 2px solid #ef4444; border-radius: 10px; }
-            .header { background: #fee2e2; color: #991b1b; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { padding: 20px; }
-            .info-box { background: #f9fafb; padding: 15px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 20px 0; }
-            .footer { margin-top: 30px; font-size: 12px; color: #888; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2>🚨 Screenshot Detected!</h2>
-            </div>
-            <div class="content">
-              <p>Hello Admin,</p>
-              <p>A potential screenshot attempt was detected on the login screen by a user.</p>
-              
-              <div class="info-box">
-                <p><strong>📧 User Email (if entered):</strong> ${data.email || 'Not provided'}</p>
-                <p><strong>🌐 IP Address:</strong> ${data.ip}</p>
-                <p><strong>📱 Device Info:</strong> ${data.userAgent}</p>
-                <p><strong>⏰ Timestamp:</strong> ${data.timestamp}</p>
-              </div>
-
-              <p>This is an automated security notification. If this activity is unexpected, please investigate further.</p>
-            </div>
-            <div class="footer">
-              <p>E8 Productions Security System</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">A potential screenshot attempt was detected on the login screen.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Screenshot detected on login screen</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hello Admin,</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">A potential screenshot attempt was detected on the login screen by a user.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">User Email</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.email || 'Not provided'}</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">IP Address</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.ip}</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Device Info</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.userAgent}</td></tr>
+          <tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Timestamp</td><td style="padding:12px 16px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.timestamp}</td></tr>
+        </table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">This is an automated security notification. If this activity is unexpected, please investigate further.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions Security System</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `
   };
 
@@ -1305,62 +1214,59 @@ export async function sendDailySummaryReportEmail(report: {
     // to: "sahilsagvekar230@gmail.com",
     subject: `📋 Daily Team Summary - ${formattedDate}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
-          <div style="max-width: 700px; margin: 0 auto; padding: 30px 20px;">
-            
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%); color: white; padding: 35px 30px; border-radius: 16px 16px 0 0; text-align: center;">
-              <h1 style="margin: 0 0 8px 0; font-size: 26px; font-weight: 700;">📋 Daily Team Summary</h1>
-              <p style="margin: 0; opacity: 0.85; font-size: 15px;">${formattedDate}</p>
-              <p style="margin: 8px 0 0 0; opacity: 0.7; font-size: 13px;">Report Period: ${report.periodStart} → ${report.periodEnd}</p>
-            </div>
-
-            <!-- Stats Bar -->
-            <div style="background: #ffffff; padding: 20px 30px; display: flex; border-bottom: 1px solid #e2e8f0;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
-                <tr>
-                  <td width="50%" style="text-align: center; padding: 10px;">
-                    <div style="font-size: 32px; font-weight: 800; color: #1e293b;">${report.totalTeamMembers}</div>
-                    <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Active Team Members</div>
-                  </td>
-                  <td width="50%" style="text-align: center; padding: 10px; border-left: 1px solid #e2e8f0;">
-                    <div style="font-size: 32px; font-weight: 800; color: #3b82f6;">${report.totalTasksMoved}</div>
-                    <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Total Task Actions</div>
-                  </td>
-                </tr>
-              </table>
-            </div>
-
-            <!-- Download Button -->
-            ${csvDownloadUrl ? `
-            <div style="background: #ffffff; padding: 20px 30px; text-align: center; border-bottom: 1px solid #e2e8f0;">
-              <a href="${csvDownloadUrl}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; letter-spacing: 0.3px; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);">📥 Download Full CSV Report</a>
-              <p style="margin: 10px 0 0 0; font-size: 12px; color: #94a3b8;">CSV file includes team summary, login/logout activity, and detailed task history</p>
-            </div>
-            ` : ''}
-
-            <!-- User Cards -->
-            <div style="background: #f8fafc; padding: 25px 20px; border-radius: 0 0 16px 16px;">
-              <h2 style="margin: 0 0 20px 0; font-size: 18px; color: #1e293b; padding-left: 5px;">Team Activity Breakdown</h2>
-              ${noActivityHtml}
-              ${userCardsHtml}
-            </div>
-
-            <!-- Footer -->
-            <div style="text-align: center; margin-top: 25px; padding: 15px;">
-              ${csvDownloadUrl ? `<p style="font-size: 12px; margin: 0 0 8px 0;"><a href="${csvDownloadUrl}" style="color: #3b82f6; text-decoration: underline;">📥 Download CSV Report</a> (link valid for 7 days)</p>` : ''}
-              <p style="font-size: 12px; color: #94a3b8; margin: 0;">Automated Daily Report by E8 Productions Management System</p>
-              <p style="font-size: 11px; color: #cbd5e1; margin: 5px 0 0 0;">© ${new Date().getFullYear()} E8 Productions. Report generated at ${new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Daily team activity summary.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Daily Team Summary 📝</td></tr>
+      <tr><td class="px" style="padding:6px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#6b6b72;">${formattedDate} · Report Period: ${report.periodStart} → ${report.periodEnd}</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="text-align:center;font-family:Helvetica,Arial,sans-serif;"><div style="font-size:22px;font-weight:bold;color:#0a0a0b;">${report.totalTeamMembers}</div><div style="font-size:11px;color:#8a8a91;text-transform:uppercase;">Active Team Members</div></td>
+          <td style="text-align:center;font-family:Helvetica,Arial,sans-serif;"><div style="font-size:22px;font-weight:bold;color:#0a0a0b;">${report.totalTasksMoved}</div><div style="font-size:11px;color:#8a8a91;text-transform:uppercase;">Total Task Actions</div></td>
+        </tr></table>
+      </td></tr>
+      ${csvDownloadUrl ? `<tr><td class="px" align="center" style="padding:20px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${csvDownloadUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Download Full CSV Report</a>
+        </td></tr></table>
+      </td></tr>` : ''}
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        ${noActivityHtml}
+        ${userCardsHtml}
+      </td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">Automated Daily Report by E8 App</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -1398,30 +1304,7 @@ export async function sendClientReviewReminderEmail(data: {
 
   // Build task rows for the HTML table
   const taskRows = data.tasks.map(t => `
-    <tr>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; color: #111827; font-weight: 500;">
-        ${t.title || 'Untitled Task'}
-      </td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; text-align: center;">
-        <span style="
-          display: inline-block;
-          padding: 3px 10px;
-          border-radius: 9999px;
-          font-size: 13px;
-          font-weight: 600;
-          background: ${t.daysInReview >= 7 ? '#fee2e2' : '#fef3c7'};
-          color: ${t.daysInReview >= 7 ? '#b91c1c' : '#92400e'};
-        ">
-          ${t.daysInReview} day${t.daysInReview !== 1 ? 's' : ''}
-        </span>
-      </td>
-      <td style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; text-align: center;">
-        <a href="${t.dashboardUrl}"
-           style="color: #2563eb; text-decoration: none; font-weight: 500; font-size: 13px;">
-          Review Now →
-        </a>
-      </td>
-    </tr>
+          <tr><td style="padding:10px 14px;border-top:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;font-weight:bold;">${t.title || 'Untitled Task'}</td><td style="padding:10px 14px;border-top:1px solid #e7e7e9;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#222225;">${t.daysInReview} day(s)</td><td style="padding:10px 14px;border-top:1px solid #e7e7e9;text-align:center;"><a href="${t.dashboardUrl}" style="font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#0a0a0b;font-weight:bold;text-decoration:none;">Review Now →</a></td></tr>
   `).join('');
 
   const subject = data.tasks.length === 1
@@ -1429,90 +1312,57 @@ export async function sendClientReviewReminderEmail(data: {
     : `⏰ Reminder: ${data.tasks.length} tasks are awaiting review for ${data.clientName}`;
 
   const html = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Review Reminder</title>
-    </head>
-    <body style="margin: 0; padding: 0; background: #f3f4f6; font-family: 'Segoe UI', Arial, sans-serif; color: #374151;">
-
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6; padding: 40px 0;">
-        <tr>
-          <td align="center">
-            <table width="600" cellpadding="0" cellspacing="0" style="background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.07);">
-
-              <!-- Header -->
-              <tr>
-                <td style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); padding: 32px 40px;">
-                  <p style="margin: 0 0 4px 0; font-size: 13px; color: #93c5fd; letter-spacing: 1px; text-transform: uppercase;">E8 Productions</p>
-                  <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #ffffff;">
-                    ⏰ Review Reminder
-                  </h1>
-                  <p style="margin: 8px 0 0; color: #bfdbfe; font-size: 14px;">
-                    ${data.tasks.length} task${data.tasks.length !== 1 ? 's' : ''} for <strong>${data.clientName}</strong> ${data.tasks.length !== 1 ? 'are' : 'is'} awaiting review
-                  </p>
-                </td>
-              </tr>
-
-              <!-- Body -->
-              <tr>
-                <td style="padding: 32px 40px;">
-                  <p style="margin: 0 0 20px; font-size: 15px; line-height: 1.6; color: #374151;">
-                    Hi there,<br/><br/>
-                    The following task${data.tasks.length !== 1 ? 's' : ''} for <strong>${data.clientName}</strong> ${data.tasks.length !== 1 ? 'have' : 'has'} been sitting in <em>Client Review</em> for <strong>more than 4 days</strong> without any action.
-                    Please take a moment to review ${data.tasks.length !== 1 ? 'them' : 'it'} and provide your feedback.
-                  </p>
-
-                  <!-- Task table -->
-                  <table width="100%" cellpadding="0" cellspacing="0"
-                    style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 28px;">
-                    <thead>
-                      <tr style="background: #f9fafb;">
-                        <th style="padding: 11px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb;">Task</th>
-                        <th style="padding: 11px 16px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; width: 110px;">Waiting</th>
-                        <th style="padding: 11px 16px; text-align: center; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; width: 120px;">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      ${taskRows}
-                    </tbody>
-                  </table>
-
-                  <!-- CTA -->
-                  <div style="text-align: center; margin: 8px 0 24px;">
-                    <a href="${APP_URL}/dashboard"
-                       style="display: inline-block; padding: 14px 32px; background: #2563eb; color: #ffffff;
-                              text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 15px;
-                              box-shadow: 0 2px 6px rgba(37,99,235,0.35);">
-                      Go to Dashboard →
-                    </a>
-                  </div>
-
-                  <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.6;">
-                    If you have already reviewed these tasks, please disregard this message.<br/>
-                    This reminder is sent automatically after <strong>4 days</strong> without a response.
-                  </p>
-                </td>
-              </tr>
-
-              <!-- Footer -->
-              <tr>
-                <td style="background: #f9fafb; padding: 20px 40px; border-top: 1px solid #e5e7eb;">
-                  <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
-                    © ${new Date().getFullYear()} E8 Productions · Automated Reminder System
-                  </p>
-                </td>
-              </tr>
-
-            </table>
-          </td>
-        </tr>
-      </table>
-
-    </body>
-    </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Tasks are awaiting your review.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Review reminder</td></tr>
+      <tr><td class="px" style="padding:8px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#6b6b72;">${data.tasks.length} task(s) for <strong>${data.clientName}</strong> awaiting review</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi there, the following task(s) for <strong>${data.clientName}</strong> have been sitting in <em>Client Review</em> for more than 4 days without any action. Please take a moment to review and provide your feedback.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;overflow:hidden;">
+          <tr style="background-color:#f4f4f5;"><td style="padding:9px 14px;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#8a8a91;text-transform:uppercase;">Task</td><td style="padding:9px 14px;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#8a8a91;text-transform:uppercase;">Waiting</td><td style="padding:9px 14px;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:11px;color:#8a8a91;text-transform:uppercase;">Action</td></tr>
+          ${taskRows}
+        </table>
+      </td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${APP_URL}/dashboard" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Go to Dashboard</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">If you've already reviewed these tasks, please disregard this message. This reminder is sent automatically after 4 days without a response.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions &middot; Automated Reminder System</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
   `;
 
   const transporter2 = createTransporter();
@@ -1559,40 +1409,57 @@ export async function sendContractSigningInvite(data: {
     to: data.signerEmail,
     subject: `✍️ Signature Requested: ${data.contractTitle}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
-          <div style="max-width: 600px; margin: 0 auto; padding: 30px 20px;">
-            <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%); color: white; padding: 35px 30px; border-radius: 16px 16px 0 0; text-align: center;">
-              <h1 style="margin: 0 0 8px 0; font-size: 24px;">✍️ Signature Requested</h1>
-              <p style="margin: 0; opacity: 0.85; font-size: 15px;">${data.senderName} has requested your signature</p>
-            </div>
-            <div style="background: #ffffff; padding: 32px 30px; border-radius: 0 0 16px 16px;">
-              <p>Hi ${data.signerName},</p>
-              <p><strong>${data.senderName}</strong> has sent you a document to review and sign:</p>
-              <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0;">
-                <h3 style="margin: 0 0 4px 0; color: #1e293b;">${data.contractTitle}</h3>
-              </div>
-              ${data.message ? `
-                <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 14px 18px; border-radius: 8px; margin: 16px 0;">
-                  <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>Message from sender:</strong></p>
-                  <p style="margin: 8px 0 0; font-size: 14px; color: #78350f;">${data.message}</p>
-                </div>
-              ` : ''}
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${data.signingUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">Review & Sign Document</a>
-              </div>
-              <p style="font-size: 13px; color: #94a3b8; text-align: center;">Or copy this link: <a href="${data.signingUrl}" style="color: #2563eb; word-break: break-all;">${data.signingUrl}</a></p>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
-              <p style="font-size: 12px; color: #94a3b8; text-align: center;">This signing link is unique to you. Do not share it with others.<br/>© ${new Date().getFullYear()} E8 Productions</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">A document is waiting for your signature.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Signature requested</td></tr>
+      <tr><td class="px" style="padding:6px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#6b6b72;">${data.senderName} has requested your signature</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${data.signerName}, <strong>${data.senderName}</strong> has sent you a document to review and sign:</td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:2px solid #0a0a0b;background-color:#f9f9fa;border-radius:0 8px 8px 0;"><tr><td style="padding:14px 18px;font-family:Helvetica,Arial,sans-serif;font-size:16px;font-weight:bold;color:#0a0a0b;">${data.contractTitle}</td></tr></table>
+      </td></tr>
+      ${data.message ? `<tr><td class="px" style="padding:14px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px dashed #c7c7cc;border-radius:8px;"><tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#222225;"><strong>Message from sender:</strong><br>${data.message}</td></tr></table>
+      </td></tr>` : ''}
+      <tr><td class="px" style="padding:24px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${data.signingUrl}" style="display:block;padding:14px 32px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Review &amp; Sign Document</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;text-align:center;">This signing link is unique to you. Do not share it with others.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -1616,25 +1483,50 @@ export async function sendContractSignedNotification(data: {
     to: data.recipientEmail,
     subject: `✅ ${data.signerName} signed "${data.contractTitle}"`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
-          <div style="max-width: 600px; margin: 0 auto; padding: 30px 20px;">
-            <div style="background: linear-gradient(135deg, #065f46 0%, #059669 100%); color: white; padding: 30px; border-radius: 16px 16px 0 0; text-align: center;">
-              <h1 style="margin: 0; font-size: 22px;">✅ Signature Received</h1>
-            </div>
-            <div style="background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px;">
-              <p>Hi ${data.recipientName},</p>
-              <p><strong>${data.signerName}</strong> has successfully signed the document <strong>"${data.contractTitle}"</strong>.</p>
-              <p>Log in to your dashboard to view the contract status and track remaining signatures.</p>
-              <div style="text-align: center; margin: 24px 0;">
-                <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/dashboard" style="display: inline-block; padding: 12px 28px; background: #059669; color: white; text-decoration: none; border-radius: 8px; font-weight: 600;">View Contract</a>
-              </div>
-              <p style="font-size: 12px; color: #94a3b8; text-align: center;">© ${new Date().getFullYear()} E8 Productions</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">A signer has completed their signature.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Signature received</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${data.recipientName},</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;"><strong>${data.signerName}</strong> has successfully signed the document <strong>"${data.contractTitle}"</strong>. Log in to your dashboard to view the contract status and track remaining signatures.</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/dashboard" style="display:block;padding:12px 28px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">View Contract</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -1657,27 +1549,51 @@ export async function sendContractCompletedEmail(data: {
     to: data.recipientEmail,
     subject: `🎉 Contract Completed: ${data.contractTitle}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #334155; background-color: #f1f5f9; margin: 0; padding: 0;">
-          <div style="max-width: 600px; margin: 0 auto; padding: 30px 20px;">
-            <div style="background: linear-gradient(135deg, #1e3a5f 0%, #7c3aed 100%); color: white; padding: 35px 30px; border-radius: 16px 16px 0 0; text-align: center;">
-              <h1 style="margin: 0 0 8px 0; font-size: 24px;">🎉 Contract Completed!</h1>
-              <p style="margin: 0; opacity: 0.85;">All parties have signed</p>
-            </div>
-            <div style="background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px;">
-              <p>Hi ${data.recipientName},</p>
-              <p>Great news! All signers have completed signing <strong>"${data.contractTitle}"</strong>.</p>
-              <p>The fully signed document is now available for download in your dashboard.</p>
-              <div style="text-align: center; margin: 28px 0;">
-                <a href="${data.downloadUrl}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);">📥 Download Signed Contract</a>
-              </div>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
-              <p style="font-size: 12px; color: #94a3b8; text-align: center;">A copy of this signed document has been stored securely.<br/>© ${new Date().getFullYear()} E8 Productions</p>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">All parties have signed your contract.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Contract completed</td></tr>
+      <tr><td class="px" style="padding:6px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;color:#6b6b72;">All parties have signed</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${data.recipientName}, great news — all signers have completed signing <strong>"${data.contractTitle}"</strong>. The fully signed document is now available for download in your dashboard.</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${data.downloadUrl}" style="display:block;padding:14px 32px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Download Signed Contract</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;text-align:center;">A copy of this signed document has been stored securely.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -1781,58 +1697,59 @@ export async function sendPaymentNotificationEmail(data: PaymentNotificationData
     to: PAYMENTS_EMAIL,
     subject: subjects[data.type],
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: ${statusColors[data.type]}; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; }
-            .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-            .label { color: #6b7280; font-weight: 500; }
-            .value { color: #111827; font-weight: 600; }
-            .amount { font-size: 24px; color: ${statusColors[data.type]}; font-weight: bold; }
-            .btn { display: inline-block; padding: 12px 24px; background: ${statusColors[data.type]}; color: white; text-decoration: none; border-radius: 6px; margin: 5px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1 style="margin: 0;">${statusLabels[data.type]}</h1>
-            </div>
-            <div class="content">
-              <div style="text-align: center; margin-bottom: 20px;">
-                <div class="amount">$${data.amount.toFixed(2)}</div>
-              </div>
-              
-              <div class="detail-row">
-                <span class="label">Invoice Number</span>
-                <span class="value">${data.invoiceNumber}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Client</span>
-                <span class="value">${data.clientName}</span>
-              </div>
-              <div class="detail-row">
-                <span class="label">Client Email</span>
-                <span class="value">${data.clientEmail}</span>
-              </div>
-              ${data.failureReason ? `
-              <div class="detail-row">
-                <span class="label">Failure Reason</span>
-                <span class="value" style="color: #ef4444;">${data.failureReason}</span>
-              </div>
-              ` : ''}
-              
-              <div style="text-align: center; margin-top: 20px;">
-                ${data.invoiceUrl ? `<a href="${data.invoiceUrl}" class="btn">View Invoice</a>` : ''}
-                ${data.pdfUrl ? `<a href="${data.pdfUrl}" class="btn" style="background: #6b7280;">Download PDF</a>` : ''}
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Payment status update for an E8 invoice.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">${statusLabels[data.type]}</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:28px;font-weight:bold;color:#0a0a0b;text-align:center;">$${data.amount.toFixed(2)}</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Invoice Number</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;font-weight:bold;">${data.invoiceNumber}</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Client</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.clientName}</td></tr>
+          <tr><td style="padding:12px 16px;${data.failureReason ? 'border-bottom:1px solid #e7e7e9;' : ''}font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Client Email</td><td style="padding:12px 16px;${data.failureReason ? 'border-bottom:1px solid #e7e7e9;' : ''}text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.clientEmail}</td></tr>
+          ${data.failureReason ? `<tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Failure Reason</td><td style="padding:12px 16px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#ef4444;">${data.failureReason}</td></tr>` : ''}
+        </table>
+      </td></tr>
+      <tr><td class="px" align="center" style="padding:20px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+          ${data.invoiceUrl ? `<td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b"><a href="${data.invoiceUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">View Invoice</a></td><td style="width:10px;">&nbsp;</td>` : ''}
+          ${data.pdfUrl ? `<td style="background-color:#ffffff;border:1px solid #d3d3d6;text-align:center;border-radius:8px;"><a href="${data.pdfUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#0a0a0b;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Download PDF</a></td>` : ''}
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">Any questions or concerns on payment, email <a href="mailto:payments@e8productions.com" style="color:#0a0a0b;">payments@e8productions.com</a>.</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -1871,82 +1788,68 @@ export async function sendStorageAlertEmail(data: {
     to: data.to.join(', '),
     subject: `${emoji} Storage ${urgency}: ${data.percentage}% capacity reached - ${data.clientName}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f1f5f9; }
-            .container { max-width: 600px; margin: 0 auto; padding: 30px 20px; }
-            .header { background: ${color}; color: white; padding: 30px; text-align: center; border-radius: 16px 16px 0 0; }
-            .content { background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px; }
-            .progress-container { background: #e5e7eb; border-radius: 999px; height: 24px; overflow: hidden; margin: 20px 0; }
-            .progress-bar { background: ${color}; height: 100%; border-radius: 999px; transition: width 0.3s; }
-            .stats { display: flex; justify-content: space-between; margin: 20px 0; padding: 16px; background: #f9fafb; border-radius: 8px; }
-            .stat { text-align: center; }
-            .stat-value { font-size: 20px; font-weight: bold; color: #111827; }
-            .stat-label { font-size: 12px; color: #6b7280; }
-            .alert-box { background: ${isCritical ? '#fef2f2' : '#fffbeb'}; border-left: 4px solid ${color}; padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; }
-            .btn { display: inline-block; padding: 14px 32px; background: ${color}; color: white; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 15px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1 style="margin: 0; font-size: 24px;">${emoji} Storage ${urgency}</h1>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">Your raw footage storage is ${data.percentage >= 100 ? 'full' : 'almost full'}</p>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your raw footage storage is approaching capacity.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Storage ${isCritical ? 'critical' : 'warning'}</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${data.clientName},</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Your raw footage storage has reached <strong>${data.percentage}%</strong> capacity.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="vertical-align:middle;">
+            <div style="background-color:#e7e7e9;border-radius:999px;height:10px;overflow:hidden;">
+              <div style="background-color:#e11d1d;height:100%;width:${Math.min(data.percentage, 100)}%;"></div>
             </div>
-            <div class="content">
-              <p>Hi ${data.clientName},</p>
-              
-              <p>Your raw footage storage has reached <strong>${data.percentage}%</strong> capacity.</p>
-              
-              <div class="progress-container">
-                <div class="progress-bar" style="width: ${Math.min(data.percentage, 100)}%;"></div>
-              </div>
-              
-              <div class="stats">
-                <div class="stat">
-                  <div class="stat-value">${data.used}</div>
-                  <div class="stat-label">Used</div>
-                </div>
-                <div class="stat">
-                  <div class="stat-value">${data.limit}</div>
-                  <div class="stat-label">Total Limit</div>
-                </div>
-                <div class="stat">
-                  <div class="stat-value">${data.percentage}%</div>
-                  <div class="stat-label">Capacity</div>
-                </div>
-              </div>
-              
-              <div class="alert-box">
-                ${isCritical ? `
-                  <strong>🚨 Critical:</strong> You are very close to your storage limit. 
-                  Uploads will be blocked once you reach 100% capacity.
-                ` : `
-                  <strong>⚠️ Warning:</strong> You are approaching your storage limit. 
-                  Consider upgrading your plan or managing your files.
-                `}
-              </div>
-              
-              <p>To continue uploading without interruption, please upgrade your storage plan.</p>
-              
-              <div style="text-align: center; margin: 28px 0;">
-                <a href="${process.env.BASE_URL || 'https://e8-app.vercel.app'}/settings/billing" class="btn">
-                  Upgrade Storage Plan
-                </a>
-              </div>
-              
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
-              
-              <p style="font-size: 12px; color: #94a3b8; text-align: center;">
-                Need help? Contact us at support@e8productions.com<br/>
-                © ${new Date().getFullYear()} E8 Productions
-              </p>
-            </div>
-          </div>
-        </body>
-      </html>
+          </td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="text-align:center;font-family:Helvetica,Arial,sans-serif;"><div style="font-size:18px;font-weight:bold;color:#0a0a0b;">${data.used}</div><div style="font-size:11px;color:#8a8a91;text-transform:uppercase;">Used</div></td>
+          <td style="text-align:center;font-family:Helvetica,Arial,sans-serif;"><div style="font-size:18px;font-weight:bold;color:#0a0a0b;">${data.limit}</div><div style="font-size:11px;color:#8a8a91;text-transform:uppercase;">Limit</div></td>
+          <td style="text-align:center;font-family:Helvetica,Arial,sans-serif;"><div style="font-size:18px;font-weight:bold;color:#0a0a0b;">${data.percentage}%</div><div style="font-size:11px;color:#8a8a91;text-transform:uppercase;">Capacity</div></td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#222225;">${isCritical ? 'Uploads will be blocked once you reach 100% capacity.' : 'Consider upgrading your plan or managing your files.'} To continue uploading without interruption, please upgrade your storage plan.</td></tr>
+      <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+          <a href="${process.env.BASE_URL || 'https://e8-app.vercel.app'}/settings/billing" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Upgrade Storage Plan</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">Need help? Contact us at support@e8productions.com</td></tr>
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
   };
 
@@ -1993,39 +1896,57 @@ export async function sendClientFeedbackEmail(data: {
     to: "sahilsagvekar230@gmail.com",
     subject: `📸 Feedback from ${data.clientName} — ${data.userName}`,
     html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background: #f1f5f9; }
-            .container { max-width: 600px; margin: 0 auto; padding: 30px 20px; }
-            .header { background: #0073EA; color: white; padding: 24px 30px; border-radius: 16px 16px 0 0; }
-            .content { background: #ffffff; padding: 28px 30px; border-radius: 0 0 16px 16px; }
-            .info-box { background: #f9fafb; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 16px 0; font-size: 13px; }
-            .message-box { background: #E6F1FD; border-left: 4px solid #0073EA; padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 16px 0; white-space: pre-wrap; }
-            img.screenshot { width: 100%; border-radius: 8px; border: 1px solid #e5e7eb; margin-top: 16px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2 style="margin: 0;">📸 New Feedback</h2>
-            </div>
-            <div class="content">
-              <div class="info-box">
-                <p style="margin: 4px 0;"><strong>From:</strong> ${data.clientName}</p>
-                <p style="margin: 4px 0;"><strong>Reported by:</strong> ${data.userName} (${data.userEmail})</p>
-                <p style="margin: 4px 0;"><strong>Page:</strong> ${data.pageUrl}</p>
-                <p style="margin: 4px 0;"><strong>Device:</strong> ${data.userAgent}</p>
-              </div>
-
-              ${data.message ? `<div class="message-box">${data.message}</div>` : `<p style="color: #94a3b8; font-size: 13px;">No message was included — just the screenshot.</p>`}
-
-              ${data.screenshotBase64 ? `<img class="screenshot" src="cid:feedback-screenshot" alt="Screenshot" />` : ""}
-            </div>
-          </div>
-        </body>
-      </html>
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) { .container { width: 100% !important; } .px { padding-left: 24px !important; padding-right: 24px !important; } }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">New feedback submitted from a client portal user.</span>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:40px 16px;">
+    <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
+      <tr><td class="px" style="padding:20px 40px 16px 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="width:27px;vertical-align:middle;"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEgAAABgCAYAAAC+EjQcAAAE4ElEQVR4AeycXZqqMAyGUy7VPR1nZejKxtkT9tKefpRgQTAKFRDSZ2KR0DZ5ScrP4zSjkeVwOBx3u8Npv9//sux2ezeXwAbYA4FtI92jQYAwMAyAMbeb+yVyuXN0ZBlr1Jj2sIHI5eQFtoUTdTgN7fMtQADThtI1sDF0mVJILC4fCuplQIgYnBHnIyW2ByCyzPywWHs11+v1Z0ohMmd6qbwPSgTEUYOQjW0wPkoABSCKoriwxMcsd9vlyAT4Jtn4FBA6aEcNwHCUAIo0wFL1yAT4Bh+f2dgLiFOKGwMMRwzvW0MNSPC1z5dOQKGBy7kR4HAq8b511S7vi6QHQOHAOxzyEyDg0MoLIin43nT0AZBzTTjWFoPvIZpDLf9b0/dgbwMQUstFl/EtwQEO+A4G2GZpACJ/91kr/L0Nb2+rbs5HNaAmOXP+5kv42BMap1oJKExOLueOt5Za7DfXzk8zgQmFh9XbjY5UF/P8tr0+bhsbZQRRNPdsPXr4tHOaZRxKUBj/fIVaxYdMlWZZnF7Omb8xcAAbD4Hh1cJ0L828O/kYu/vagk2VYuGQLKMLDSy4CuJu1HnyA7tYXDNj3L8MH2zZ0Es7IoeieQz9GZ+uUwrG/IRkKc44QpGNAxQ7w0szjEn+uZESl0aKDe/b5dx2zgdbm/i50fnpogaEM89Oan0nUAO679KtmIACiml0bCugDijxLgUU0+jYVkAdUOJdUwCKx/u6bQUknDIFpIAEAoJaI0gBCQQEtUaQAhIICGqNIAUkEBDUySNo6hf27fEEf99WJwf0tgULb6CAhBOUBJD1L+lTiWDv5OokgJJbvaAOFZBwMhSQAhIICGqNIAUkEBDUGkEKSCAgqDWCFJBAQFBrBCkggYCg1giaAlD7pdWY74K9k6vXEkEfA5ccEH7KN6ekJpUcEH7EOacsHlBqA+fuL3kEze1Q6vEVkEBUASkggYCg1ghSQAIBQa0RpIAEAoJaI0gBCQQE9XYjSADDagXEJHpqBdQDhncrICbRUycBhBdk3H/4F3H+9v11DQj/4ZvCHV7zIkVf7/aBxQ3ebSMdn6U4+8aYesUYgMZLeyxRMaVgTGotbiA5L+mNoUsdQdLBz/RhxQZTQ8KxADWlYMzU4pz58xF0d2xMelhbnKy9GvrA6gc0Y0kSQbH9tgJlPayphD50UrDYSxbSg8riHB3XdhUqHRv4ATZlBBk/GXEfY9KM+1hHbco5tQIUvsAxjSJQILJ+qsBWCQihZDSKwKMSU0YPvpSAsGFa9zJbnoswOYMJpAZUFMWFoqvBduei5iKbNSDyBXlnqlTDXIQ7Yb97M3/wHQxihxuAoDCtVPvE8w3GWaLEvrN9D4AwYWeNhW7D+u/cYK01fIbvbf8eAOGAcKCpZ3KkGx4G1ztxN+cdMGDpBARlyMU7JOzDOolrSzlETvAVHj5KLyAciobWP1OZauLGPrxSQDQB1DdHFHwCnJAtwbOuz6eAuAF+MUbRLQCVxeUhorAk6eEEWJBStfgPc4ZPEhy48RIgHGj9rbf10UQPoMiXAOsObO9wizCVxKuJemN6/zhqrPel96CW4mVA3A6d2woUBuT97RoT+5TSHp+/BxvNGen0atRwW9RvA0IjiPVnAQPaChb5yIIxEJqpYGwWAIEEG4vTK+nUZfZ/AAAA//9KLssaAAAABklEQVQDAELh2umNXjYGAAAAAElFTkSuQmCC" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;"></td>
+          <td style="width:12px;">&nbsp;</td>
+          <td style="font-family:Helvetica,Arial,sans-serif;font-size:25px;font-weight:bold;letter-spacing:0.2px;color:#0a0a0b;vertical-align:middle;">E8 App</td>
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:0 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">New feedback</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">From</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.clientName}</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Reported by</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.userName} (${data.userEmail})</td></tr>
+          <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Page</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.pageUrl}</td></tr>
+          <tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Device</td><td style="padding:12px 16px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${data.userAgent}</td></tr>
+        </table>
+      </td></tr>
+      <tr><td class="px" style="padding:16px 40px 0 40px;">
+        ${data.message
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-left:2px solid #0a0a0b;background-color:#f9f9fa;border-radius:0 8px 8px 0;"><tr><td style="padding:14px 18px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#222225;white-space:pre-wrap;">${data.message}</td></tr></table>`
+          : `<p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#8a8a91;">No message was included — just the screenshot.</p>`}
+      </td></tr>
+      ${data.screenshotBase64 ? `<tr><td class="px" style="padding:16px 40px 0 40px;"><img src="cid:feedback-screenshot" alt="Screenshot" style="width:100%;border-radius:8px;border:1px solid #e7e7e9;display:block;" /></td></tr>` : ''}
+      <tr><td class="px" style="padding:32px 40px 24px 40px;"><div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+      <tr><td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">E8 Productions, LLC &middot; e8productions.com</td></tr>
+    </table>
+  </td></tr></table>
+</div>
+</body>
+</html>
     `,
     attachments,
   };

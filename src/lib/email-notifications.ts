@@ -1,24 +1,14 @@
-import nodemailer from 'nodemailer';
 import { getDbHttp } from './db';
 import { client as clientTable, task as taskTable } from './db/schema';
 import { eq } from 'drizzle-orm';
-
-// Use environment variables for SMTP
-const SMTP_USER = process.env.SMTP_USER;
-const SMTP_PASS = process.env.SMTP_PASS;
+// Routes through the notifications queue — see src/lib/mail-transport.ts
+// and src/lib/email.ts for the full explanation.
+import { createTransporter } from '@/lib/mail-transport';
 
 // 🔥 Global BCC - All emails will be copied to these addresses for monitoring
 const GLOBAL_BCC_EMAILS = ['sahilsagvekar230@gmail.com', 'eric@e8productions.com'];
 
-const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
-    auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
-    },
-});
+const transporter = createTransporter();
 
 // Helper function to add global BCC to mail options
 const addGlobalBcc = (mailOptions: any) => {
@@ -174,95 +164,111 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
             to: clientEmails.join(', '),
             subject: `Your ${deliverableLabel} is ready for review`,
             html: `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>Ready for review</title>
-        </head>
-        <body style="margin: 0; padding: 0; background: #f3f4f6; font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6; padding: 40px 0;">
-            <tr>
-              <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb;">
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<![endif]-->
+<style>
+body { margin: 0; padding: 0; }
+  @media (max-width: 620px) {
+    .container { width: 100% !important; }
+    .px { padding-left: 24px !important; padding-right: 24px !important; }
+  }
+  table { border-collapse: collapse; }
+</style>
+</head>
+<body style="margin:0;padding:0;">
+<div style="background-color:#f4f4f5;margin:0;padding:0;font-family:Helvetica,Arial,sans-serif;">
+  <span style="display:none;font-size:1px;color:#f4f4f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">Your ${deliverableLabel} is ready for review — ${taskName}.</span>
 
-                  <!-- Header -->
-                  <tr>
-                    <td style="padding: 32px 40px 24px;">
-                      <table cellpadding="0" cellspacing="0">
-                        <tr>
-                          <td style="padding-right: 10px;">
-                            <img src="${LOGO_URL}" width="21" height="28" alt="" style="display:block;" />
-                          </td>
-                          <td>
-                            <span style="font-size: 20px; font-weight: 700; color: #111827;">E8 App</span>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                  <tr><td style="border-top: 1px solid #e5e7eb;"></td></tr>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:#ffffff;border:1px solid #d3d3d6;border-radius:12px;box-shadow:0 2px 12px rgba(10,10,11,0.06);">
 
-                  <!-- Body -->
-                  <tr>
-                    <td style="padding: 32px 40px 8px;">
-                      <h1 style="margin: 0; font-size: 26px; line-height: 1.3; font-weight: 700; color: #111827;">
-                        Your ${deliverableLabel} is ready for review
-                      </h1>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 20px 40px 0; font-size: 15px; line-height: 1.6; color: #1a1a1a;">
-                      Hi ${recipientFirstName}${recipientLastName ? ' ' + recipientLastName : ''},
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px 40px 0; font-size: 15px; line-height: 1.6; color: #1a1a1a;">
-                      <strong>${taskName}</strong> passed our Quality Control. The following deliverable(s) are up for review.
-                    </td>
-                  </tr>
+          <tr>
+            <td class="px" style="padding: 20px 40px 16px 40px; width: 518px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="width:27px;vertical-align:middle;">
+                    <img src="${LOGO_URL}" width="27" height="36" alt="E8" style="display:block;width:27px;height:36px;">
+                  </td>
+                  <td style="width:12px;">&nbsp;</td>
+                  <td style="font-family: Helvetica,Arial,sans-serif; font-size: 25px; font-weight: bold; letter-spacing: 0.2px; color: #0a0a0b; vertical-align: middle; width: 94px; height: 58px">E8 App</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-                  ${footnote ? `
-                  <tr>
-                    <td style="padding: 20px 40px 0; font-size: 14px; line-height: 1.6; color: #6b7280;">
-                      ${footnote}
-                    </td>
-                  </tr>` : ''}
+          <tr>
+            <td class="px" style="padding:0 40px;">
+              <div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div>
+            </td>
+          </tr>
 
-                  <!-- Button -->
-                  <tr>
-                    <td style="padding: 28px 40px 8px;">
-                      <a href="${dashboardUrl}"
-                         style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none;
-                                font-size: 14px; font-weight: 600; padding: 12px 24px; border-radius: 6px;">
-                        Review Deliverable
-                      </a>
-                    </td>
-                  </tr>
+          <tr>
+            <td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">
+              Your ${deliverableLabel} is ready for review
+            </td>
+          </tr>
 
-                  <!-- Automated notice -->
-                  <tr>
-                    <td style="padding: 28px 40px 32px; font-size: 13px; line-height: 1.6; color: #6b7280;">
-                      This is an automated notification from the E8 App. Replies to this address aren't always monitored.
-                    </td>
-                  </tr>
+          <tr>
+            <td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">
+              Hi ${recipientFirstName}${recipientLastName ? ' ' + recipientLastName : ''},
+            </td>
+          </tr>
 
-                  <tr><td style="border-top: 1px solid #e5e7eb;"></td></tr>
+          <tr>
+            <td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">
+              <strong>${taskName}</strong> passed our Quality Control. The following deliverable(s) are up for review.</td>
+          </tr>
 
-                  <!-- Footer -->
-                  <tr>
-                    <td style="padding: 20px 40px 28px; font-size: 12px; color: #9ca3af;">
-                      E8 Productions, LLC &middot; e8productions.com
-                    </td>
-                  </tr>
+          ${footnote ? `
+          <tr>
+            <td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#6b6b72;">${footnote}</td>
+          </tr>` : ''}
 
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-        </html>
+          <tr>
+            <td class="px" style="padding:28px 40px 0 40px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+                    <a href="${dashboardUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Review Deliverable</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">This is an automated notification from the E8 App. Replies to this address aren't always monitored.</td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:32px 40px 24px 40px;">
+              <div style="border-top:1px solid #e7e7e9;font-size:0;line-height:0;">&nbsp;</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="px" style="padding:0 40px 32px 40px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#8a8a91;">
+              E8 Productions, LLC &middot; e8productions.com
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>
+</body>
+</html>
       `,
         };
 

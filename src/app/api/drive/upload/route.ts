@@ -10,6 +10,7 @@ import { eq, or } from 'drizzle-orm';
 import { presignUpload } from '@/lib/file-server';
 import { sendDriveUploadNotification } from '@/lib/upload-notifications';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { keepAlive } from '@/lib/keep-alive';
 
 function getCurrentMonthFolder(): string {
   const date = new Date();
@@ -65,13 +66,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (userId) {
-      sendDriveUploadNotification({
-        fileName: file.name,
-        fileSize: file.size,
-        uploadedBy: parseInt(userId),
-        s3Key,
-        clientId: matchedClient?.id,
-      }).catch(err => console.error('[DriveUpload] Slack notification failed:', err));
+      keepAlive(
+        sendDriveUploadNotification({
+          fileName: file.name,
+          fileSize: file.size,
+          uploadedBy: parseInt(userId),
+          s3Key,
+          clientId: matchedClient?.id,
+        }).catch(err => console.error('[DriveUpload] Slack notification failed:', err))
+      );
     }
 
     return NextResponse.json({

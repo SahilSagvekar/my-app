@@ -187,3 +187,11 @@ export async function getNasSweepQueueStats(): Promise<{ pending: number; proces
   ]);
   return { pending, processing, failed };
 }
+
+// Used by the manual NAS backup admin panel's status polling — the last
+// 100 permanently-failed jobs (same cap failNasSweepJob already applies),
+// with the actual error message per file rather than just a count.
+export async function getRecentFailedNasSweepJobs(): Promise<Array<NasSweepJob & { error: string; failedAt: string }>> {
+  const raw = await getRedis().lrange(FAILED_KEY, 0, 99);
+  return raw.map((r) => (typeof r === 'string' ? JSON.parse(r) : r));
+}
