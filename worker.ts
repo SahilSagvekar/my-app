@@ -59,10 +59,21 @@ export default {
         ctx.waitUntil(triggerCronRoute('/api/cron/nas-weekly-sweep', env, ctx));
         break;
 
-      // Pre-existing placeholder schedules (0 9 * * *, 0 0 * * *) — not
-      // wired to anything yet (see /areas/cloudflare-migration.md). Left as
-      // a deliberate no-op so this switch doesn't error when they fire;
-      // wire these up here when whatever they were meant for goes live.
+      // Nightly — Daily Team Summary report (email + ops Slack channel).
+      // Original cron-master.ts schedule was '5 19 * * *' in America/New_York
+      // (7:05 PM ET, DST-aware). Cloudflare Cron Triggers are UTC-only with
+      // no timezone option, so '0 0 * * *' is a fixed approximation — exact
+      // during EST (winter), ~1hr late during EDT (summer). Good enough to
+      // restore delivery; tighten later with two DST-split cron entries if
+      // the extra precision ever matters.
+      case '0 0 * * *':
+        ctx.waitUntil(triggerCronRoute('/api/reports/daily-summary', env, ctx));
+        break;
+
+      // Pre-existing placeholder schedule (0 9 * * *) — not wired to
+      // anything yet (see /areas/cloudflare-migration.md). Left as a
+      // deliberate no-op so this switch doesn't error when it fires; wire
+      // this up when whatever it was meant for goes live.
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);
     }
