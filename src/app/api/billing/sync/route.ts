@@ -106,8 +106,11 @@ export async function GET(req: NextRequest) {
             lineItems: lineItems,
             stripeHostedInvoiceUrl: stripeInv.hosted_invoice_url,
             stripePdfUrl: stripeInv.invoice_pdf,
-            isRecurring: !!stripeInv.subscription,
+            isRecurring: !!stripeInv.subscription || stripeInv.metadata?.invoiceType === 'RECURRING',
             stripePaymentIntentId: stripeInv.payment_intent as string | null,
+            metadata: stripeInv.metadata && Object.keys(stripeInv.metadata).length > 0
+              ? stripeInv.metadata
+              : undefined,
           };
 
           if (existingInvoice) {
@@ -121,6 +124,7 @@ export async function GET(req: NextRequest) {
               sentAt: invoiceData.sentAt,
               dueDate: invoiceData.dueDate,
               stripePaymentIntentId: invoiceData.stripePaymentIntentId,
+              ...(invoiceData.metadata ? { metadata: invoiceData.metadata } : {}),
               updatedAt: new Date().toISOString(),
             }).where(eq(invoice.id, existingInvoice.id));
           } else {
@@ -138,6 +142,7 @@ export async function GET(req: NextRequest) {
                 stripeHostedInvoiceUrl: invoiceData.stripeHostedInvoiceUrl,
                 stripePdfUrl: invoiceData.stripePdfUrl,
                 stripePaymentIntentId: invoiceData.stripePaymentIntentId,
+                ...(invoiceData.metadata ? { metadata: invoiceData.metadata } : {}),
                 updatedAt: new Date().toISOString(),
               }).where(eq(invoice.id, invoiceByNumber.id));
             } else {
@@ -245,16 +250,18 @@ export async function GET(req: NextRequest) {
             }).where(eq(clientPortalAccess.clientId, customer.clientId));
             console.log(`[Stripe Sync] Locked portal for client: ${customer.client?.name}`);
           } else if (!shouldLock && portalAccess.status === 'LOCKED') {
-            // Auto unlock if everything is clean and they have a subscription
-            const nextBilling = new Date(now);
-            nextBilling.setMonth(nextBilling.getMonth() + 1);
-
-            await db.update(clientPortalAccess).set({
+            // Auto unlock if everything is clean. Preserve auto-invoice schedule.
+            const unlockData: Record<string, unknown> = {
               status: 'ACTIVE',
               lockedAt: null,
-              nextBillingDate: nextBilling.toISOString(),
               updatedAt: now.toISOString(),
-            }).where(eq(clientPortalAccess.clientId, customer.clientId));
+            };
+            if (!portalAccess.autoInvoiceActive) {
+              const nextBilling = new Date(now);
+              nextBilling.setMonth(nextBilling.getMonth() + 1);
+              unlockData.nextBillingDate = nextBilling.toISOString();
+            }
+            await db.update(clientPortalAccess).set(unlockData).where(eq(clientPortalAccess.clientId, customer.clientId));
             console.log(`[Stripe Sync] Unlocked portal for client: ${customer.client?.name}`);
           }
         }

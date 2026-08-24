@@ -17,7 +17,12 @@ directory = ".open-next/assets"
 binding = "ASSETS"
 
 [triggers]
-crons = [ "0 9 * * *", "0 0 * * *", "* * * * *", "0 20 * * 6" ]
+# * * * * *      — queue tick (upload notifications / NAS sweep drain)
+# 0 20 * * 6     — weekly NAS backup sweep populate (Sat 20:00 UTC)
+# 0 13 * * *     — auto-invoice (≈ 9:00 AM America/New_York during EDT)
+# 15 13 * * *    — enforce portal locks (≈ 9:15 AM ET)
+# 0 14 * * *     — billing warning emails (≈ 10:00 AM ET)
+crons = [ "* * * * *", "0 20 * * 6", "0 13 * * *", "15 13 * * *", "0 14 * * *" ]
 
 [[r2_buckets]]
 binding = "R2_VIDEOS"

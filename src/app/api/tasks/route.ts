@@ -854,14 +854,12 @@ export async function POST(req: any) {
       },
     });
 
-    // 🔔 Notify the assigned editor (in-app + grouped Slack message)
-    if (assignedTo) {
-      try {
-        await notifyEditorTaskAssignment(assignedTo, [task.id]);
-      } catch (err) {
-        console.error("Failed to send assignment notification:", err);
-      }
-    }
+    // 🔔 Notification moved to after each branch below sets the real title —
+    // see the "🔔 Notify" comments near each return statement. Calling this
+    // here (right after insert, when title is still "") is exactly why the
+    // Slack "You've been assigned 1 task: Untitled" bug happened: this task
+    // row's title isn't filled in until the extra/monthly/one-off title
+    // logic runs further down, well after this point.
 
     // 📤 UPLOAD FILES TO S3
     for (const file of files) {
@@ -975,6 +973,18 @@ export async function POST(req: any) {
         createdExtraTasks.push(extraTask);
       }
 
+      // 🔔 Notify the assigned editor now that every extra task has its
+      // real title (createdExtraTasks was built above with the final
+      // title/folder already set) — one grouped Slack message covering
+      // the whole batch instead of the old single premature "Untitled" one.
+      if (assignedTo) {
+        try {
+          await notifyEditorTaskAssignment(assignedTo, createdExtraTasks.map((t: any) => t.id));
+        } catch (err) {
+          console.error("Failed to send assignment notification:", err);
+        }
+      }
+
       return NextResponse.json(
         {
           created: createdExtraTasks.length,
@@ -985,6 +995,17 @@ export async function POST(req: any) {
       );
     } else if (monthlyDeliverableId) {
       await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
+
+      // 🔔 Notify now that generateMonthlyTasksFromTemplate has set the
+      // real title on this template task (task.id) — see STEP 6 in
+      // src/lib/recurring/generateMonthly.ts.
+      if (assignedTo) {
+        try {
+          await notifyEditorTaskAssignment(assignedTo, [task.id]);
+        } catch (err) {
+          console.error("Failed to send assignment notification:", err);
+        }
+      }
     } else if (oneOffDeliverableId) {
       // 🔥 HANDLE ONE-OFF TASK NAMING AND FOLDERS
       const [deliverable] = await db.select().from(oneOffDeliverableTable)
@@ -1017,6 +1038,17 @@ export async function POST(req: any) {
 
         console.log(`✅ One-off task updated: ${title}`);
 
+        // 🔔 Notify the assigned editor now that the task has its real
+        // title (updatedOneOff, just set above) instead of the "" it had
+        // when it was first inserted.
+        if (assignedTo) {
+          try {
+            await notifyEditorTaskAssignment(assignedTo, [updatedOneOff.id]);
+          } catch (err) {
+            console.error("Failed to send assignment notification:", err);
+          }
+        }
+
         // 🔥 NOTIFY CLIENT SLACK CHANNEL (Editor One-off only)
         if (isEditorCreate) {
           const editorName = user.name || user.email;
@@ -1042,6 +1074,17 @@ export async function POST(req: any) {
     if (monthlyDeliverableId) {
       const [updatedMonthly] = await db.select().from(taskTable).where(eq(taskTable.id, task.id)).limit(1);
       return NextResponse.json(updatedMonthly || task, { status: 201 });
+    }
+
+    // 🔔 Plain task path (no monthly/one-off/extra deliverable link) — title
+    // genuinely stays blank for these, so "Untitled" here is accurate, not
+    // a timing bug like the other branches.
+    if (assignedTo) {
+      try {
+        await notifyEditorTaskAssignment(assignedTo, [task.id]);
+      } catch (err) {
+        console.error("Failed to send assignment notification:", err);
+      }
     }
 
     return NextResponse.json(task, { status: 201 });

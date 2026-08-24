@@ -2,10 +2,16 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { client as clientTable, clientPortalAccess as clientPortalAccessTable } from '@/lib/db/schema';
+import {
+  client as clientTable,
+  clientPortalAccess as clientPortalAccessTable,
+  stripeCustomer as stripeCustomerTable,
+  subscription as subscriptionTable,
+} from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
+import { fromDateInputValue } from '@/lib/auto-invoice';
 
 // GET - List every active client with their recurring auto-invoice settings
 export async function GET(req: NextRequest) {
@@ -33,14 +39,25 @@ export async function GET(req: NextRequest) {
             nextBillingDate: true,
           },
         },
+        stripeCustomers: {
+          columns: { id: true },
+          with: {
+            subscriptions: {
+              columns: { id: true, status: true },
+            },
+          },
+        },
       },
       orderBy: asc(clientTable.name),
     });
 
     const rows = clients.map((c) => {
-      // clientPortalAccess has a unique clientId FK (1:1), but drizzle-kit
-      // introspection mislabels it many() — take the first (only) entry.
       const portalAccess = c.clientPortalAccesses[0];
+      const subs = (c.stripeCustomers || []).flatMap((sc: any) => sc.subscriptions || []);
+      const hasActiveSubscription = subs.some((s: any) =>
+        ['ACTIVE', 'TRIALING', 'PAST_DUE'].includes(s.status)
+      );
+
       return {
         clientId: c.id,
         name: c.name,
@@ -52,6 +69,10 @@ export async function GET(req: NextRequest) {
         recurringDescription: portalAccess?.recurringDescription ?? '',
         dueDays: portalAccess?.dueDays ?? 15,
         nextBillingDate: portalAccess?.nextBillingDate ?? null,
+        hasActiveSubscription,
+        warning: hasActiveSubscription
+          ? 'This client already has an active Stripe subscription. Turning on auto-invoice can double-bill them.'
+          : null,
       };
     });
 
@@ -63,7 +84,7 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH - Bulk upsert recurring auto-invoice settings
-// body: { rows: Array<{ clientId, autoInvoiceActive, recurringAmount (dollars), recurringDescription, dueDays, nextBillingDate }> }
+// body: { rows: Array<{ clientId, autoInvoiceActive, recurringAmount (dollars), recurringDescription, dueDays, nextBillingDate, clearNextBillingDate? }> }
 export async function PATCH(req: NextRequest) {
   const db = getDbHttp();
   try {
@@ -81,38 +102,138 @@ export async function PATCH(req: NextRequest) {
     }
 
     const results = [];
+    const errors: Array<{ clientId: string; message: string }> = [];
+
     for (const row of rows) {
-      const { clientId, autoInvoiceActive, recurringAmount, recurringDescription, dueDays, nextBillingDate } = row;
+      const {
+        clientId,
+        autoInvoiceActive,
+        recurringAmount,
+        recurringDescription,
+        dueDays,
+        nextBillingDate,
+        clearNextBillingDate,
+      } = row;
       if (!clientId) continue;
 
       const amountCents =
         recurringAmount === null || recurringAmount === undefined || recurringAmount === ''
           ? null
-          : Math.round(parseFloat(recurringAmount) * 100);
+          : Math.round(parseFloat(String(recurringAmount)) * 100);
 
-      const data = {
-        autoInvoiceActive: !!autoInvoiceActive,
+      if (amountCents !== null && (Number.isNaN(amountCents) || amountCents < 0)) {
+        errors.push({ clientId, message: 'Monthly amount must be a valid number' });
+        continue;
+      }
+
+      let parsedDueDays = 15;
+      if (dueDays !== null && dueDays !== undefined && dueDays !== '') {
+        parsedDueDays = parseInt(String(dueDays), 10);
+        if (Number.isNaN(parsedDueDays) || parsedDueDays < 0 || parsedDueDays > 90) {
+          errors.push({ clientId, message: 'Days until due must be between 0 and 90' });
+          continue;
+        }
+      }
+
+      const isActive = !!autoInvoiceActive;
+      if (isActive) {
+        if (!amountCents || amountCents <= 0) {
+          errors.push({ clientId, message: 'Turned-on clients need a monthly amount greater than $0' });
+          continue;
+        }
+        const hasIncomingDate = !!(nextBillingDate && String(nextBillingDate).trim());
+        if (!hasIncomingDate) {
+          const [existingAccess] = await db
+            .select({ nextBillingDate: clientPortalAccessTable.nextBillingDate })
+            .from(clientPortalAccessTable)
+            .where(eq(clientPortalAccessTable.clientId, clientId))
+            .limit(1);
+          if (!existingAccess?.nextBillingDate || clearNextBillingDate) {
+            errors.push({ clientId, message: 'Turned-on clients need a next billing date' });
+            continue;
+          }
+        }
+      }
+
+      // Double-bill soft check — still allow save but surface warning in response
+      let doubleBillWarning: string | null = null;
+      if (isActive) {
+        const [sc] = await db
+          .select({ id: stripeCustomerTable.id })
+          .from(stripeCustomerTable)
+          .where(eq(stripeCustomerTable.clientId, clientId))
+          .limit(1);
+        if (sc) {
+          const [sub] = await db
+            .select({ id: subscriptionTable.id })
+            .from(subscriptionTable)
+            .where(and(
+              eq(subscriptionTable.stripeCustomerId, sc.id),
+              inArray(subscriptionTable.status, ['ACTIVE', 'TRIALING', 'PAST_DUE']),
+            ))
+            .limit(1);
+          if (sub) {
+            doubleBillWarning =
+              'Client has an active Stripe subscription — auto-invoice will be skipped until that subscription ends.';
+          }
+        }
+      }
+
+      const data: Record<string, unknown> = {
+        autoInvoiceActive: isActive,
         recurringAmount: amountCents,
         recurringDescription: recurringDescription || null,
-        dueDays: dueDays ? parseInt(dueDays, 10) : 15,
-        ...(nextBillingDate ? { nextBillingDate: new Date(nextBillingDate).toISOString() } : {}),
+        dueDays: parsedDueDays,
         updatedAt: new Date().toISOString(),
       };
 
-      const [updated] = await db.insert(clientPortalAccessTable).values({
-        id: createId(),
-        clientId,
-        status: 'ACTIVE',
-        ...data,
-      }).onConflictDoUpdate({
-        target: clientPortalAccessTable.clientId,
-        set: data,
-      }).returning();
+      if (clearNextBillingDate) {
+        data.nextBillingDate = null;
+      } else if (nextBillingDate) {
+        const dateStr = String(nextBillingDate);
+        data.nextBillingDate =
+          fromDateInputValue(dateStr.slice(0, 10)) || new Date(dateStr).toISOString();
+      }
 
-      results.push({ clientId, id: updated.id });
+      // Never force portal status to ACTIVE on create — preserve onboarding states.
+      const [existing] = await db
+        .select({ id: clientPortalAccessTable.id, status: clientPortalAccessTable.status })
+        .from(clientPortalAccessTable)
+        .where(eq(clientPortalAccessTable.clientId, clientId))
+        .limit(1);
+
+      let updated;
+      if (existing) {
+        [updated] = await db
+          .update(clientPortalAccessTable)
+          .set(data)
+          .where(eq(clientPortalAccessTable.clientId, clientId))
+          .returning();
+      } else {
+        [updated] = await db
+          .insert(clientPortalAccessTable)
+          .values({
+            id: createId(),
+            clientId,
+            status: 'ONBOARDING',
+            ...data,
+          })
+          .returning();
+      }
+
+      results.push({ clientId, id: updated.id, warning: doubleBillWarning });
     }
 
-    return NextResponse.json({ ok: true, updated: results.length });
+    if (errors.length > 0 && results.length === 0) {
+      return NextResponse.json({ ok: false, message: 'Validation failed', errors }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      updated: results.length,
+      results,
+      errors: errors.length ? errors : undefined,
+    });
   } catch (error: any) {
     console.error('Error updating auto-invoice settings:', error);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
