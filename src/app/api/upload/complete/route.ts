@@ -4,8 +4,11 @@ export const dynamic = "force-dynamic";
 // WHAT THIS ROUTE DOES (synchronous — browser waits for these):
 //   1. Tell R2 to assemble the uploaded chunks
 //   2. Create the file record in DB (so file appears immediately in UI)
-//   3. Mark old version inactive + push fileUrl to task.driveLinks
-//   4. Return success + fileId to browser
+//   3. For single-asset folders (e.g. main video), mark old version inactive
+//      Multi-asset folders (thumbnails, music-license, covers, tiles) keep
+//      every upload active so editors can attach more than one.
+//   4. Push fileUrl to task.driveLinks
+//   5. Return success + fileId to browser
 //
 // WHAT THE BACKGROUND WORKER DOES (async — browser doesn't wait):
 //   - Storage usage update
@@ -23,6 +26,7 @@ import { getDbHttp } from "@/lib/db";
 import { client as clientTable, file as fileTable, task as taskTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, desc, eq, or, sql } from "drizzle-orm";
+import { isMultiAssetFolderType } from "@/lib/file-folder-types";
 
 function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
   return !!value && !value.includes("/") && !value.includes("\\");
@@ -162,6 +166,7 @@ export async function POST(request: NextRequest) {
 
       // ── STEP 3: Create file record — file appears in UI immediately ───────
       const folderType = !subfolder || subfolder === 'main' ? 'main' : subfolder;
+      const isMultiAsset = isMultiAssetFolderType(folderType);
       const newVersion = existingActiveFile ? existingActiveFile.version + 1 : 1;
 
       let fileRecord: { id: string; version: number } | null = null;
@@ -199,11 +204,14 @@ export async function POST(request: NextRequest) {
             .where(eq(fileTable.id, fileRecord.id));
         }
 
-        console.log(`💾 File v${newVersion} saved: ${fileRecord.id}`);
+        console.log(`💾 File v${newVersion} saved: ${fileRecord.id}${isMultiAsset ? ' (multi-asset, keep previous)' : ''}`);
 
-        // ── STEP 4: Mark old version inactive + push fileUrl ─────────────
+        // ── STEP 4: Optionally mark old version inactive + push fileUrl ──
+        // Thumbnails / music licenses / covers / tiles are multi-asset:
+        // each upload stays active so scheduler/editor can show all of them.
+        // Main video (and other single-asset folders) still version-replace.
         await Promise.all([
-          existingActiveFile
+          existingActiveFile && !isMultiAsset
             ? db
                 .update(fileTable)
                 .set({
@@ -222,7 +230,7 @@ export async function POST(request: NextRequest) {
             .where(eq(taskTable.id, taskId)),
         ]);
 
-        if (existingActiveFile) {
+        if (existingActiveFile && !isMultiAsset) {
           console.log(`📁 v${existingActiveFile.version} → replaced by v${newVersion}`);
         }
       }

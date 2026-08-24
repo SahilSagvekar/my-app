@@ -5,6 +5,7 @@ import { getDbHttp } from "@/lib/db";
 import { task, client, monthlyDeliverable, oneOffDeliverable, tagToTask, tag as tagTable } from "@/lib/db/schema";
 import { and, or, eq, ne, ilike, inArray, gte, desc, count as countFn } from "drizzle-orm";
 import { addSignedUrlsToFiles } from "@/lib/s3";
+import { MULTI_ASSET_FOLDER_TYPES } from "@/lib/file-folder-types";
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -145,7 +146,14 @@ export async function GET(req: Request) {
         },
         user_assignedTo: true,
         files: {
-          where: (f, { eq }) => eq(f.isActive, true),
+          // Active files always. Also include inactive rows for multi-asset
+          // folders (thumbnails, music-license, etc.) so scheduler shows every
+          // upload — older uploads were incorrectly version-replaced before.
+          where: (f, { eq, or, inArray }) =>
+            or(
+              eq(f.isActive, true),
+              inArray(f.folderType, [...MULTI_ASSET_FOLDER_TYPES]),
+            ),
           columns: {
             id: true,
             name: true,
