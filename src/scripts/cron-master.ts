@@ -373,6 +373,15 @@ cron.schedule('0 10 * * *', () => {
 }, { timezone: 'America/New_York' });
 
 // ==========================================
+// 6c. Auto-Invoice Day-Before Review (Daily at 10:30 AM)
+// Slack/email Eric with planned invoice details for clients whose
+// nextBillingDate is tomorrow. Auto-send still runs the next morning.
+// ==========================================
+cron.schedule('30 10 * * *', () => {
+    triggerJob('Auto Invoice Review Reminder', '/api/cron/auto-invoice-review-reminder', 'POST');
+}, { timezone: 'America/New_York' });
+
+// ==========================================
 // 9. Weekly Commission Payout Batch (Fridays at 5 PM EST)
 // Sends Stripe transfers for every APPROVED commission past its hold window
 // and above the configured minimum threshold. See src/lib/stripe-payouts.ts.
@@ -398,6 +407,7 @@ console.log(' - YouTube Sync: Daily at 3 AM');
 console.log(' - Auto Invoice: Daily at 9 AM (creates + sends recurring invoices)');
 console.log(' - Enforce Portal Locks: Daily at 9:15 AM (overdue invoices -> lock portal)');
 console.log(' - Billing Warnings: Daily at 10 AM');
+console.log(' - Auto Invoice Review Reminder: Daily at 10:30 AM (day-before Eric review)');
 console.log(' - Activity Report: Daily at 7 PM');
 console.log(' - Team Summary Report: Daily at 7:05 PM');
 console.log(' - Maintenance: Every 2 hours');
