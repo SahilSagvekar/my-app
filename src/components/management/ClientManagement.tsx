@@ -320,7 +320,8 @@ export function ClientManagement() {
     message?: string;
     results?: Array<{ clientId: string; clientName: string; status: string; reason?: string; amountCents?: number }>;
   }>({ loading: false });
-  const [autoInvoiceFilter, setAutoInvoiceFilter] = useState<"all" | "on" | "due">("all");
+  const [autoInvoiceFilter, setAutoInvoiceFilter] = useState<"all" | "on" | "due" | "tomorrow">("all");
+  const [runningReviewReminder, setRunningReviewReminder] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [managerFilter, setManagerFilter] = useState<string>("all");
@@ -690,6 +691,33 @@ export function ClientManagement() {
     }
   };
 
+  const toDateInputValueLocal = (iso: string | null) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const tomorrowEtYmdLocal = () => {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const partsNow = fmt.formatToParts(new Date());
+    const y = Number(partsNow.find((p) => p.type === "year")?.value);
+    const m = Number(partsNow.find((p) => p.type === "month")?.value);
+    const d = Number(partsNow.find((p) => p.type === "day")?.value);
+    const anchor = new Date(Date.UTC(y, m - 1, d, 16, 0, 0));
+    const tomorrow = new Date(anchor.getTime() + 24 * 60 * 60 * 1000);
+    return fmt.format(tomorrow);
+  };
+
   const filteredAutoInvoiceRows = autoInvoiceRows.filter((row) => {
     const q = autoInvoiceSearch.trim().toLowerCase();
     if (q) {
@@ -701,19 +729,35 @@ export function ClientManagement() {
       if (!row.autoInvoiceActive || !row.nextBillingDate) return false;
       if (new Date(row.nextBillingDate) > new Date()) return false;
     }
+    if (autoInvoiceFilter === "tomorrow") {
+      if (!row.autoInvoiceActive || !row.nextBillingDate) return false;
+      const billingYmd = toDateInputValueLocal(row.nextBillingDate);
+      if (billingYmd !== tomorrowEtYmdLocal()) return false;
+    }
     return true;
   });
 
-  const toDateInputValueLocal = (iso: string | null) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    // Prefer YYYY-MM-DD already stored as date input
-    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(d.getUTCDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
+  const dueTomorrowRows = autoInvoiceRows.filter((row) => {
+    if (!row.autoInvoiceActive || !row.nextBillingDate) return false;
+    return toDateInputValueLocal(row.nextBillingDate) === tomorrowEtYmdLocal();
+  });
+
+  const runReviewReminderNow = async () => {
+    setRunningReviewReminder(true);
+    try {
+      const res = await fetch("/api/cron/auto-invoice-review-reminder", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(data.message || "Review reminder sent");
+      } else {
+        toast.error(data.message || "Failed to send review reminder");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to send review reminder");
+    } finally {
+      setRunningReviewReminder(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -4351,6 +4395,7 @@ export function ClientManagement() {
               {([
                 ["all", "All"],
                 ["on", "On only"],
+                ["tomorrow", "Due tomorrow"],
                 ["due", "Due now"],
               ] as const).map(([key, label]) => (
                 <Button
@@ -4365,6 +4410,13 @@ export function ClientManagement() {
               ))}
             </div>
           </div>
+
+          {dueTomorrowRows.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <strong>{dueTomorrowRows.length}</strong> invoice(s) are set to send tomorrow.
+              Review amounts below (filter: Due tomorrow). Auto-send still runs if nothing is changed.
+            </div>
+          )}
 
           {autoInvoiceLoading ? (
             <div className="py-12 text-center text-gray-500">Loading clients...</div>
@@ -4471,7 +4523,22 @@ export function ClientManagement() {
           )}
 
           <div className="flex flex-wrap items-start gap-3 pt-3 border-t border-gray-100">
-            <div className="flex-1 min-w-[260px] space-y-1">
+            <div className="flex-1 min-w-[240px] space-y-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={runReviewReminderNow}
+                disabled={runningReviewReminder || autoInvoiceLoading}
+                className="gap-2"
+              >
+                <AlertCircle className="h-3.5 w-3.5" />
+                {runningReviewReminder ? "Sending..." : "Send day-before review alert now"}
+              </Button>
+              <p className="text-xs text-gray-500">
+                Slack/email Eric with tomorrow&apos;s planned invoices (does not send client invoices).
+              </p>
+            </div>
+            <div className="flex-1 min-w-[240px] space-y-1">
               <Button
                 variant="outline"
                 size="sm"
@@ -4491,7 +4558,7 @@ export function ClientManagement() {
                 </p>
               )}
             </div>
-            <div className="flex-1 min-w-[260px] space-y-1">
+            <div className="flex-1 min-w-[240px] space-y-1">
               <Button
                 variant="outline"
                 size="sm"
