@@ -147,12 +147,13 @@ export async function GET(req: Request) {
         user_assignedTo: true,
         files: {
           // Active files always. Also include inactive rows for multi-asset
-          // folders (thumbnails, music-license, etc.) so scheduler shows every
-          // upload — older uploads were incorrectly version-replaced before.
-          where: (f, { eq, or, inArray }) =>
+          // folders AND inactive images on `main` (Hard Posts / graphic images
+          // were incorrectly version-replaced before this fix).
+          where: (f, { eq, or, and, inArray, like }) =>
             or(
               eq(f.isActive, true),
               inArray(f.folderType, [...MULTI_ASSET_FOLDER_TYPES]),
+              and(eq(f.folderType, 'main'), like(f.mimeType, 'image/%')),
             ),
           columns: {
             id: true,

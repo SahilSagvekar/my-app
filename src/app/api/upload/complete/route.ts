@@ -26,7 +26,7 @@ import { getDbHttp } from "@/lib/db";
 import { client as clientTable, file as fileTable, task as taskTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, desc, eq, or, sql } from "drizzle-orm";
-import { isMultiAssetFolderType } from "@/lib/file-folder-types";
+import { isMultiAssetFolderType, shouldVersionReplaceUpload } from "@/lib/file-folder-types";
 
 function isLikelyGoogleDriveFolderId(value?: string | null): value is string {
   return !!value && !value.includes("/") && !value.includes("\\");
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
 
       // ── STEP 3: Create file record — file appears in UI immediately ───────
       const folderType = !subfolder || subfolder === 'main' ? 'main' : subfolder;
-      const isMultiAsset = isMultiAssetFolderType(folderType);
+      const keepPreviousAssets = !shouldVersionReplaceUpload(folderType, fileType);
       const newVersion = existingActiveFile ? existingActiveFile.version + 1 : 1;
 
       let fileRecord: { id: string; version: number } | null = null;
@@ -204,14 +204,16 @@ export async function POST(request: NextRequest) {
             .where(eq(fileTable.id, fileRecord.id));
         }
 
-        console.log(`💾 File v${newVersion} saved: ${fileRecord.id}${isMultiAsset ? ' (multi-asset, keep previous)' : ''}`);
+        console.log(
+          `💾 File v${newVersion} saved: ${fileRecord.id}` +
+            (keepPreviousAssets ? ' (keep previous assets)' : ''),
+        );
 
         // ── STEP 4: Optionally mark old version inactive + push fileUrl ──
-        // Thumbnails / music licenses / covers / tiles are multi-asset:
-        // each upload stays active so scheduler/editor can show all of them.
-        // Main video (and other single-asset folders) still version-replace.
+        // Multi-asset folders + image uploads (Hard Posts on main, etc.) keep
+        // every file active. Main videos still version-replace.
         await Promise.all([
-          existingActiveFile && !isMultiAsset
+          existingActiveFile && !keepPreviousAssets
             ? db
                 .update(fileTable)
                 .set({
@@ -230,7 +232,7 @@ export async function POST(request: NextRequest) {
             .where(eq(taskTable.id, taskId)),
         ]);
 
-        if (existingActiveFile && !isMultiAsset) {
+        if (existingActiveFile && !keepPreviousAssets) {
           console.log(`📁 v${existingActiveFile.version} → replaced by v${newVersion}`);
         }
       }

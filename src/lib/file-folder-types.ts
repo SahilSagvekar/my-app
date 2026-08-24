@@ -16,3 +16,20 @@ export function isMultiAssetFolderType(
     (MULTI_ASSET_FOLDER_TYPES as readonly string[]).includes(folderType)
   );
 }
+
+/**
+ * Whether a newly uploaded file should deactivate the previous active file
+ * in the same folderType (version replace).
+ *
+ * Multi-asset folders always keep every upload.
+ * Image uploads on `main` (Hard Posts / graphic images, story stills, etc.)
+ * also accumulate — only main *videos* version-replace.
+ */
+export function shouldVersionReplaceUpload(
+  folderType: string | null | undefined,
+  mimeType: string | null | undefined,
+): boolean {
+  if (isMultiAssetFolderType(folderType)) return false;
+  if ((mimeType || '').startsWith('image/')) return false;
+  return true;
+}
