@@ -59,10 +59,21 @@ export default {
         ctx.waitUntil(triggerCronRoute('/api/cron/nas-weekly-sweep', env, ctx));
         break;
 
-      // Pre-existing placeholder schedules (0 9 * * *, 0 0 * * *) — not
-      // wired to anything yet (see /areas/cloudflare-migration.md). Left as
-      // a deliberate no-op so this switch doesn't error when they fire;
-      // wire these up here when whatever they were meant for goes live.
+      // Auto-invoice — daily ≈ 9:00 AM America/New_York (13:00 UTC during EDT).
+      case '0 13 * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/auto-invoice', env, ctx));
+        break;
+
+      // Enforce portal locks — daily ≈ 9:15 AM ET (after auto-invoice).
+      case '15 13 * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/enforce-portal-locks', env, ctx));
+        break;
+
+      // Billing warning emails — daily ≈ 10:00 AM ET (clients due in 3 days).
+      case '0 14 * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/billing-warnings', env, ctx));
+        break;
+
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);
     }

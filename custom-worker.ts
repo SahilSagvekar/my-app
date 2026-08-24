@@ -45,21 +45,11 @@ export default {
     const xCronSecret = { "x-cron-secret": cronSecret };
     const bearer = { authorization: `Bearer ${cronSecret}` };
 
-    // NOTE (2026-08-19): auto-invoice, commission-payouts, and
-    // commission-payouts-reconcile are paused — their cron strings are
-    // commented out in wrangler.toml's [triggers], so event.cron will never
-    // match those cases below. Logic is kept as-is; re-enable by uncommenting
-    // the matching line in wrangler.toml.
+    // NOTE: This file is NOT the deployed Worker entrypoint.
+    // Production uses root worker.ts (see wrangler.toml `main`).
+    // Auto-invoice / portal-lock / billing-warnings crons are wired there.
+    // Commission payouts remain paused until intentionally re-enabled.
     switch (event.cron) {
-      // Auto-Invoice Generation — daily 9:00 AM ET (PAUSED)
-      case "0 13 * * *":
-        ctx.waitUntil(triggerCronRoute("/api/cron/auto-invoice", "POST", xCronSecret, env));
-        break;
-
-      // Enforce Portal Locks — daily 9:15 AM ET (runs after auto-invoice)
-      case "15 13 * * *":
-        ctx.waitUntil(triggerCronRoute("/api/cron/enforce-portal-locks", "POST", xCronSecret, env));
-        break;
 
       // Commission Payout Batch — Fridays 5:00 PM ET (PAUSED)
       case "0 21 * * 5":

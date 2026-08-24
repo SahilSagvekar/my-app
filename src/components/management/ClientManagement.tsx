@@ -150,10 +150,13 @@ interface AutoInvoiceRow {
   email: string;
   portalStatus: string | null;
   autoInvoiceActive: boolean;
-  recurringAmount: number | null; // cents, from server
+  recurringAmount: number | null; // dollars in UI after load
   recurringDescription: string;
   dueDays: number;
   nextBillingDate: string | null;
+  hasActiveSubscription?: boolean;
+  warning?: string | null;
+  _dirty?: boolean;
 }
 
 interface Client {
@@ -310,6 +313,14 @@ export function ClientManagement() {
   const [runningLockNow, setRunningLockNow] = useState(false);
   const [runInvoiceResult, setRunInvoiceResult] = useState<string | null>(null);
   const [runLockResult, setRunLockResult] = useState<string | null>(null);
+  const [autoInvoiceSearch, setAutoInvoiceSearch] = useState("");
+  const [showInvoiceConfirm, setShowInvoiceConfirm] = useState(false);
+  const [invoicePreview, setInvoicePreview] = useState<{
+    loading: boolean;
+    message?: string;
+    results?: Array<{ clientId: string; clientName: string; status: string; reason?: string; amountCents?: number }>;
+  }>({ loading: false });
+  const [autoInvoiceFilter, setAutoInvoiceFilter] = useState<"all" | "on" | "due">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [managerFilter, setManagerFilter] = useState<string>("all");
@@ -497,6 +508,7 @@ export function ClientManagement() {
 
   const loadAutoInvoiceSettings = async () => {
     setAutoInvoiceLoading(true);
+    setRunInvoiceResult(null);
     try {
       const res = await fetch("/api/portal/auto-invoice-settings");
       const data = await res.json();
@@ -505,7 +517,10 @@ export function ClientManagement() {
           data.rows.map((row: AutoInvoiceRow) => ({
             ...row,
             recurringAmount:
-              row.recurringAmount === null ? null : row.recurringAmount / 100, // dollars, for editing
+              row.recurringAmount === null || row.recurringAmount === undefined
+                ? null
+                : Number(row.recurringAmount) / 100, // dollars, for editing
+            _dirty: false,
           }))
         );
       } else {
@@ -521,26 +536,56 @@ export function ClientManagement() {
 
   const openAutoInvoiceDialog = () => {
     setShowAutoInvoiceDialog(true);
+    setAutoInvoiceSearch("");
+    setAutoInvoiceFilter("all");
+    setShowInvoiceConfirm(false);
     loadAutoInvoiceSettings();
   };
 
   const updateAutoInvoiceRow = (clientId: string, patch: Partial<AutoInvoiceRow>) => {
     setAutoInvoiceRows((prev) =>
-      prev.map((row) => (row.clientId === clientId ? { ...row, ...patch } : row))
+      prev.map((row) =>
+        row.clientId === clientId ? { ...row, ...patch, _dirty: true } : row
+      )
     );
   };
 
+  const dirtyAutoInvoiceCount = autoInvoiceRows.filter((r) => r._dirty).length;
+
   const saveAutoInvoiceSettings = async () => {
+    const rowsToSave = autoInvoiceRows.filter((r) => r._dirty);
+    if (rowsToSave.length === 0) {
+      toast.message("No changes to save");
+      return;
+    }
+
+    // Client-side validation for turned-on rows
+    for (const row of rowsToSave) {
+      if (row.autoInvoiceActive) {
+        if (!row.recurringAmount || row.recurringAmount <= 0) {
+          toast.error(`${row.companyName || row.name}: enter a monthly amount before turning on`);
+          return;
+        }
+        if (!row.nextBillingDate) {
+          toast.error(`${row.companyName || row.name}: pick a next billing date before turning on`);
+          return;
+        }
+      }
+    }
+
     setAutoInvoiceSaving(true);
     try {
       const payload = {
-        rows: autoInvoiceRows.map((row) => ({
+        rows: rowsToSave.map((row) => ({
           clientId: row.clientId,
           autoInvoiceActive: row.autoInvoiceActive,
-          recurringAmount: row.recurringAmount, // already dollars
+          recurringAmount: row.recurringAmount, // dollars
           recurringDescription: row.recurringDescription,
           dueDays: row.dueDays,
-          nextBillingDate: row.nextBillingDate,
+          nextBillingDate: row.nextBillingDate
+            ? String(row.nextBillingDate).slice(0, 10)
+            : null,
+          clearNextBillingDate: row.nextBillingDate === null || row.nextBillingDate === "",
         })),
       };
 
@@ -552,16 +597,50 @@ export function ClientManagement() {
       const data = await res.json();
 
       if (data.ok) {
-        toast.success(`Saved auto-invoice settings for ${data.updated} client(s)`);
-        setShowAutoInvoiceDialog(false);
+        const warnCount = (data.results || []).filter((r: any) => r.warning).length;
+        toast.success(
+          `Saved ${data.updated} client(s)` +
+            (data.errors?.length ? ` (${data.errors.length} skipped)` : "") +
+            (warnCount ? ` — ${warnCount} subscription warning(s)` : "")
+        );
+        if (data.errors?.length) {
+          data.errors.forEach((e: any) => toast.error(e.message));
+        }
+        await loadAutoInvoiceSettings();
       } else {
         toast.error(data.message || "Failed to save auto-invoice settings");
+        (data.errors || []).forEach((e: any) => toast.error(e.message));
       }
     } catch (err) {
       console.error("Failed to save auto-invoice settings", err);
       toast.error("Failed to save auto-invoice settings");
     } finally {
       setAutoInvoiceSaving(false);
+    }
+  };
+
+  const openInvoiceConfirm = async () => {
+    if (dirtyAutoInvoiceCount > 0) {
+      toast.error("Save your changes first, then send invoices");
+      return;
+    }
+    setShowInvoiceConfirm(true);
+    setInvoicePreview({ loading: true });
+    try {
+      const res = await fetch("/api/cron/auto-invoice?dryRun=true", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setInvoicePreview({
+          loading: false,
+          message: data.message,
+          results: data.results || [],
+        });
+      } else {
+        setInvoicePreview({ loading: false, message: data.message || "Preview failed", results: [] });
+      }
+    } catch (err) {
+      console.error(err);
+      setInvoicePreview({ loading: false, message: "Preview failed", results: [] });
     }
   };
 
@@ -574,7 +653,8 @@ export function ClientManagement() {
       if (data.ok) {
         setRunInvoiceResult(data.message);
         toast.success(data.message);
-        loadAutoInvoiceSettings(); // refresh nextBillingDate values in the table
+        setShowInvoiceConfirm(false);
+        loadAutoInvoiceSettings();
       } else {
         setRunInvoiceResult(data.message || "Failed to run");
         toast.error(data.message || "Failed to run auto-invoice");
@@ -608,6 +688,32 @@ export function ClientManagement() {
     } finally {
       setRunningLockNow(false);
     }
+  };
+
+  const filteredAutoInvoiceRows = autoInvoiceRows.filter((row) => {
+    const q = autoInvoiceSearch.trim().toLowerCase();
+    if (q) {
+      const hay = `${row.name} ${row.companyName || ""} ${row.email || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (autoInvoiceFilter === "on" && !row.autoInvoiceActive) return false;
+    if (autoInvoiceFilter === "due") {
+      if (!row.autoInvoiceActive || !row.nextBillingDate) return false;
+      if (new Date(row.nextBillingDate) > new Date()) return false;
+    }
+    return true;
+  });
+
+  const toDateInputValueLocal = (iso: string | null) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    // Prefer YYYY-MM-DD already stored as date input
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   };
 
   const getStatusIcon = (status: string) => {
@@ -3487,15 +3593,16 @@ export function ClientManagement() {
 
             <Separator className="bg-gray-200" />
 
-            {/* Payment & Billing */}
+            {/* Payment & Billing — notes only; real monthly invoices use Auto-Invoice Settings */}
             <div className="space-y-4">
               <div>
                 <h3 className="text-gray-900 flex items-center gap-2">
                   <DollarSign className="h-5 w-5" />
-                  Payment & Billing
+                  Payment & Billing (notes only)
                 </h3>
                 <p className="text-sm text-gray-600">
-                  Set up payment schedule and billing information
+                  Internal notes for this client. To actually send monthly invoices, use the
+                  &quot;Auto-Invoice Settings&quot; button on the clients list.
                 </p>
               </div>
 
@@ -4215,44 +4322,85 @@ export function ClientManagement() {
       {/* Client Details Dialog */}
       <ClientDetailsDialog />
 
-      {/* Auto-Invoice Settings Dialog — bulk edit recurring billing per client */}
+      {/* Auto-Invoice Settings Dialog — simple monthly billing per client */}
       <Dialog open={showAutoInvoiceDialog} onOpenChange={setShowAutoInvoiceDialog}>
-        <DialogContent className="!max-w-none w-[70vw] max-h-[85vh] overflow-y-auto bg-white border-gray-200">
+        <DialogContent className="!max-w-none w-[min(1100px,92vw)] max-h-[90vh] overflow-y-auto bg-white border-gray-200">
           <DialogHeader>
-            <DialogTitle>Auto-Invoice Settings</DialogTitle>
-            <DialogDescription>
-              Set the recurring amount, billing date, and grace period once per client.
-              Invoices will be generated and sent automatically on each client's billing date,
-              and unpaid clients will be locked out after the grace period.
+            <DialogTitle>Monthly Auto-Invoices</DialogTitle>
+            <DialogDescription className="space-y-1">
+              <span className="block">
+                Turn on monthly invoices for a client, set the dollar amount and next bill date, then Save.
+              </span>
+              <span className="block text-gray-500">
+                Invoices are emailed automatically on the bill date. Unpaid clients are locked after the grace period (days until due).
+              </span>
             </DialogDescription>
           </DialogHeader>
 
+          <div className="flex flex-wrap items-center gap-2 pb-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search clients..."
+                value={autoInvoiceSearch}
+                onChange={(e) => setAutoInvoiceSearch(e.target.value)}
+                className="pl-8 bg-white"
+              />
+            </div>
+            <div className="flex gap-1">
+              {([
+                ["all", "All"],
+                ["on", "On only"],
+                ["due", "Due now"],
+              ] as const).map(([key, label]) => (
+                <Button
+                  key={key}
+                  type="button"
+                  size="sm"
+                  variant={autoInvoiceFilter === key ? "default" : "outline"}
+                  onClick={() => setAutoInvoiceFilter(key)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
           {autoInvoiceLoading ? (
             <div className="py-12 text-center text-gray-500">Loading clients...</div>
-          ) : autoInvoiceRows.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">No active clients found.</div>
+          ) : filteredAutoInvoiceRows.length === 0 ? (
+            <div className="py-12 text-center text-gray-500">No clients match this view.</div>
           ) : (
             <div className="space-y-3">
-              {/* Column headers */}
-              <div className="grid grid-cols-[2fr_1.2fr_2fr_1fr_1.3fr_auto] gap-3 px-3 text-xs font-medium text-gray-500 uppercase">
+              <div className="hidden md:grid grid-cols-[2fr_1.1fr_1.8fr_1fr_1.2fr_auto] gap-3 px-3 text-xs font-medium text-gray-500 uppercase">
                 <div>Client</div>
-                <div>Monthly Amount</div>
-                <div>Invoice Description</div>
-                <div>Due (days)</div>
-                <div>Next Billing Date</div>
-                <div>Active</div>
+                <div>Monthly $</div>
+                <div>What the invoice says</div>
+                <div>Grace (days)</div>
+                <div>Next bill date</div>
+                <div>On</div>
               </div>
 
-              {autoInvoiceRows.map((row) => (
+              {filteredAutoInvoiceRows.map((row) => (
                 <div
                   key={row.clientId}
-                  className="grid grid-cols-[2fr_1.2fr_2fr_1fr_1.3fr_auto] gap-3 items-center px-3 py-2 border border-gray-200 rounded-lg bg-white"
+                  className={`grid grid-cols-1 md:grid-cols-[2fr_1.1fr_1.8fr_1fr_1.2fr_auto] gap-3 items-center px-3 py-3 border rounded-lg bg-white ${
+                    row._dirty ? "border-amber-300 bg-amber-50/40" : "border-gray-200"
+                  }`}
                 >
                   <div className="min-w-0">
                     <div className="font-medium text-gray-900 truncate">
                       {row.companyName || row.name}
+                      {row._dirty && (
+                        <span className="ml-2 text-[10px] uppercase text-amber-700">unsaved</span>
+                      )}
                     </div>
-                    <div className="text-xs text-gray-500 truncate">{row.email}</div>
+                    <div className="text-xs text-gray-500 truncate">{row.email || "No email"}</div>
+                    {row.hasActiveSubscription && (
+                      <div className="text-[11px] text-amber-700 mt-0.5">
+                        Has a live Stripe subscription — auto-invoice will skip to avoid double billing
+                      </div>
+                    )}
                   </div>
 
                   <div className="relative">
@@ -4287,6 +4435,8 @@ export function ClientManagement() {
                   <Input
                     type="number"
                     min={0}
+                    max={90}
+                    title="Days the client has to pay before the portal can lock"
                     value={row.dueDays}
                     onChange={(e) =>
                       updateAutoInvoiceRow(row.clientId, {
@@ -4298,11 +4448,7 @@ export function ClientManagement() {
 
                   <Input
                     type="date"
-                    value={
-                      row.nextBillingDate
-                        ? new Date(row.nextBillingDate).toISOString().slice(0, 10)
-                        : ""
-                    }
+                    value={toDateInputValueLocal(row.nextBillingDate)}
                     onChange={(e) =>
                       updateAutoInvoiceRow(row.clientId, {
                         nextBillingDate: e.target.value || null,
@@ -4311,7 +4457,7 @@ export function ClientManagement() {
                     className="bg-white border-gray-200 text-gray-900"
                   />
 
-                  <div className="flex justify-center">
+                  <div className="flex justify-start md:justify-center">
                     <Switch
                       checked={row.autoInvoiceActive}
                       onCheckedChange={(checked) =>
@@ -4324,23 +4470,28 @@ export function ClientManagement() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
-            <div className="flex-1 min-w-[280px] space-y-1">
+          <div className="flex flex-wrap items-start gap-3 pt-3 border-t border-gray-100">
+            <div className="flex-1 min-w-[260px] space-y-1">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={runInvoiceNow}
-                disabled={runningInvoiceNow}
+                onClick={openInvoiceConfirm}
+                disabled={runningInvoiceNow || autoInvoiceLoading}
                 className="gap-2"
               >
                 <DollarSign className="h-3.5 w-3.5" />
-                {runningInvoiceNow ? "Invoicing..." : "Invoice Due Clients Now"}
+                Preview &amp; send due invoices
               </Button>
               {runInvoiceResult && (
                 <p className="text-xs text-gray-500">{runInvoiceResult}</p>
               )}
+              {dirtyAutoInvoiceCount > 0 && (
+                <p className="text-xs text-amber-700">
+                  {dirtyAutoInvoiceCount} unsaved change(s) — save before sending.
+                </p>
+              )}
             </div>
-            <div className="flex-1 min-w-[280px] space-y-1">
+            <div className="flex-1 min-w-[260px] space-y-1">
               <Button
                 variant="outline"
                 size="sm"
@@ -4349,7 +4500,7 @@ export function ClientManagement() {
                 className="gap-2"
               >
                 <AlertCircle className="h-3.5 w-3.5" />
-                {runningLockNow ? "Checking..." : "Check Overdue & Lock Now"}
+                {runningLockNow ? "Checking..." : "Lock overdue clients now"}
               </Button>
               {runLockResult && (
                 <p className="text-xs text-gray-500">{runLockResult}</p>
@@ -4357,19 +4508,76 @@ export function ClientManagement() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => setShowAutoInvoiceDialog(false)}
               disabled={autoInvoiceSaving}
             >
-              Cancel
+              Close
             </Button>
             <Button
               onClick={saveAutoInvoiceSettings}
-              disabled={autoInvoiceLoading || autoInvoiceSaving || autoInvoiceRows.length === 0}
+              disabled={autoInvoiceLoading || autoInvoiceSaving || dirtyAutoInvoiceCount === 0}
             >
-              {autoInvoiceSaving ? "Saving..." : "Save All"}
+              {autoInvoiceSaving
+                ? "Saving..."
+                : dirtyAutoInvoiceCount > 0
+                  ? `Save ${dirtyAutoInvoiceCount} change(s)`
+                  : "Saved"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm send invoices after dry-run preview */}
+      <Dialog open={showInvoiceConfirm} onOpenChange={setShowInvoiceConfirm}>
+        <DialogContent className="bg-white max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Send invoices now?</DialogTitle>
+            <DialogDescription>
+              This emails Stripe invoices to every client whose bill date is today or earlier.
+            </DialogDescription>
+          </DialogHeader>
+          {invoicePreview.loading ? (
+            <div className="py-6 text-center text-gray-500">Checking who is due...</div>
+          ) : (
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto">
+              <p className="text-sm text-gray-700">{invoicePreview.message}</p>
+              {(invoicePreview.results || []).length === 0 ? (
+                <p className="text-sm text-gray-500">Nobody is due right now.</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {(invoicePreview.results || []).map((r) => (
+                    <li
+                      key={r.clientId}
+                      className="flex justify-between gap-3 border border-gray-100 rounded-md px-3 py-2"
+                    >
+                      <span className="font-medium text-gray-900">{r.clientName}</span>
+                      <span className="text-gray-600 text-right">
+                        {r.status === "would_invoice"
+                          ? `Would bill $${((r.amountCents || 0) / 100).toFixed(2)}`
+                          : `${r.status}${r.reason ? ` — ${r.reason}` : ""}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInvoiceConfirm(false)} disabled={runningInvoiceNow}>
+              Cancel
+            </Button>
+            <Button
+              onClick={runInvoiceNow}
+              disabled={
+                runningInvoiceNow ||
+                invoicePreview.loading ||
+                !(invoicePreview.results || []).some((r) => r.status === "would_invoice")
+              }
+            >
+              {runningInvoiceNow ? "Sending..." : "Yes, send invoices"}
             </Button>
           </DialogFooter>
         </DialogContent>

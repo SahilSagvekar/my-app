@@ -33,6 +33,7 @@ import { formatPhone } from "@/lib/formatPhone";
 import { getPlatformMeta } from "./constants/platformIcons";
 import { ContractStatusBadge, SignerStatusBadge } from "./contracts/ContractStatusBadge";
 import { ContractDetailView } from "./contracts/ContractDetailView";
+import { toast } from "sonner";
 
 // Types
 interface MonthlyDeliverable {
@@ -234,20 +235,32 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
     fetchData();
   }, [fetchData]);
 
-  // Handle returning from Stripe payment
+  // Handle returning from Stripe payment (Checkout fallback or hosted invoice return)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('payment') === 'success') {
-      fetch('/api/portal/verify-payment')
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.status === 'ACTIVE') {
-            // Hard reload to clear query param and re-fetch global app state (unlocking the portal UI)
+    const payment = urlParams.get("payment");
+    if (payment === "success") {
+      toast.success("Payment received — thank you!");
+      fetch("/api/portal/verify-payment")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.status === "ACTIVE") {
             window.location.href = window.location.pathname;
+            return;
           }
+          // Invoice-based clients: refresh local data / unlock state without requiring a subscription
+          fetchData();
+          window.history.replaceState({}, "", window.location.pathname);
         })
-        .catch(console.error);
+        .catch(() => {
+          fetchData();
+          window.history.replaceState({}, "", window.location.pathname);
+        });
+    } else if (payment === "canceled") {
+      toast.message("Payment canceled — you can pay anytime from your invoices.");
+      window.history.replaceState({}, "", window.location.pathname);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Contract download
@@ -265,7 +278,7 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
     }
   };
 
-  // Pay invoice
+  // Pay invoice — prefer Stripe hosted invoice link (same as email)
   const handlePayInvoice = async (invoiceId: string) => {
     try {
       const res = await fetch(`/api/billing/invoices/${invoiceId}`, {
@@ -276,13 +289,15 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
       });
 
       const data = await res.json();
-      if (data.ok && data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else if (data.stripeHostedInvoiceUrl) {
-        window.location.href = data.stripeHostedInvoiceUrl;
+      const payUrl = data.payUrl || data.checkoutUrl || data.stripeHostedInvoiceUrl;
+      if (data.ok && payUrl) {
+        window.location.href = payUrl;
+        return;
       }
+      toast.error(data.message || "Could not open payment page. Please try again.");
     } catch (error) {
       console.error("Failed to initiate payment:", error);
+      toast.error("Could not open payment page. Please try again.");
     }
   };
 
@@ -312,7 +327,10 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
   // ── Portal lock gate ──────────────────────────────────────────────────────
   // If the portal is locked (payment overdue) or in CONTRACT_PENDING /
   // PAYMENT_PENDING, show only the contracts & billing section with a banner.
-  const isLocked = portalAccess && !portalAccess.fullAccess && portalAccess.forcePage === 'contracts-billing';
+  const isLocked = portalAccess && !portalAccess.fullAccess && (
+    portalAccess.forcePage === 'contracts' ||
+    portalAccess.forcePage === 'contracts-billing'
+  );
 
   if (isLocked) {
     // Categorize contracts and invoices for the locked view
@@ -963,8 +981,8 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
             <h3 className="text-lg font-semibold text-gray-600 mb-1">
               No invoices yet
             </h3>
-            <p className="text-sm text-gray-400">
-              Invoices will appear here when they are sent to you
+            <p className="text-sm text-gray-400 max-w-sm mx-auto">
+              When an invoice is ready, it will show up here and in your email. Use Pay Now to pay securely.
             </p>
           </div>
         )}

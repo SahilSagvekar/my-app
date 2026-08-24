@@ -75,20 +75,20 @@ export function PortalLockGate({ currentPage, onPageChange, children }: Props) {
 }
 
 function LockBanner({ access }: { access: PortalAccess }) {
-  const isLocked = access.status === 'LOCKED';
+  const isHardLocked = access.status === 'LOCKED';
   const isContractPending = access.status === 'CONTRACT_PENDING';
   const isPaymentPending = access.status === 'PAYMENT_PENDING';
 
   return (
     <div className={`rounded-xl px-5 py-4 flex items-center gap-4 border ${
-      isLocked
+      isHardLocked
         ? 'bg-red-50 border-red-200'
         : 'bg-blue-50 border-blue-200'
     }`}>
       <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-        isLocked ? 'bg-red-100' : 'bg-blue-100'
+        isHardLocked ? 'bg-red-100' : 'bg-blue-100'
       }`}>
-        {isLocked
+        {isHardLocked
           ? <Lock className="w-4 h-4 text-red-600" />
           : isContractPending
           ? <FileText className="w-4 h-4 text-blue-600" />
@@ -96,15 +96,17 @@ function LockBanner({ access }: { access: PortalAccess }) {
         }
       </div>
       <div>
-        <p className={`font-semibold text-sm ${isLocked ? 'text-red-800' : 'text-blue-800'}`}>
-          {isLocked
+        <p className={`font-semibold text-sm ${isHardLocked ? 'text-red-800' : 'text-blue-800'}`}>
+          {isHardLocked
             ? 'Your portal is locked — payment required'
             : isContractPending
             ? 'Please sign your contract to continue'
-            : 'Please complete your first payment to unlock your portal'}
+            : isPaymentPending
+            ? 'Please complete your first payment to unlock your portal'
+            : 'Please complete payment to restore full access'}
         </p>
         {access.message && (
-          <p className={`text-xs mt-0.5 ${isLocked ? 'text-red-600' : 'text-blue-600'}`}>
+          <p className={`text-xs mt-0.5 ${isHardLocked ? 'text-red-600' : 'text-blue-600'}`}>
             {access.message}
           </p>
         )}
