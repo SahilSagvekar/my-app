@@ -186,8 +186,53 @@ export async function PATCH(
         return NextResponse.json({ ok: false, message: 'Invoice is already paid' }, { status: 400 });
       }
 
-      // Idempotency: a double-click (or a retry before the redirect fires)
-      // must not create a second Checkout session for the same invoice.
+      // Prefer Stripe's hosted invoice page whenever we have a real Stripe invoice.
+      // Paying via a separate Checkout PaymentIntent used to leave the Stripe
+      // invoice open (double-charge risk) and did not unlock the portal.
+      if (invoice.stripeInvoiceId) {
+        let hostedUrl = invoice.stripeHostedInvoiceUrl;
+        try {
+          const stripeInv = await stripe.invoices.retrieve(invoice.stripeInvoiceId);
+          if (stripeInv.status === 'paid') {
+            await db.update(invoiceTable).set({
+              status: 'PAID',
+              amountPaid: stripeInv.amount_paid ?? invoice.amount,
+              paidAt: new Date().toISOString(),
+              stripeHostedInvoiceUrl: stripeInv.hosted_invoice_url || hostedUrl,
+              stripePdfUrl: stripeInv.invoice_pdf || invoice.stripePdfUrl,
+              updatedAt: new Date().toISOString(),
+            }).where(eq(invoiceTable.id, id));
+            return NextResponse.json({ ok: false, message: 'Invoice is already paid' }, { status: 400 });
+          }
+          if (stripeInv.hosted_invoice_url) {
+            hostedUrl = stripeInv.hosted_invoice_url;
+            if (hostedUrl !== invoice.stripeHostedInvoiceUrl) {
+              await db.update(invoiceTable).set({
+                stripeHostedInvoiceUrl: hostedUrl,
+                stripePdfUrl: stripeInv.invoice_pdf || invoice.stripePdfUrl,
+                updatedAt: new Date().toISOString(),
+              }).where(eq(invoiceTable.id, id));
+            }
+          }
+        } catch (e) {
+          console.error('Failed to refresh Stripe hosted invoice URL:', e);
+        }
+
+        if (hostedUrl) {
+          return NextResponse.json({
+            ok: true,
+            payUrl: hostedUrl,
+            stripeHostedInvoiceUrl: hostedUrl,
+          });
+        }
+
+        return NextResponse.json({
+          ok: false,
+          message: 'Payment link is not ready yet. Please try again in a moment.',
+        }, { status: 502 });
+      }
+
+      // Fallback Checkout only for local invoices that were never pushed to Stripe.
       const recentSessions = await stripe.checkout.sessions.list({
         customer: invoice.stripeCustomer.stripeCustomerId,
         limit: 10,
@@ -196,22 +241,21 @@ export async function PATCH(
         (s) => s.status === 'open' && s.metadata?.invoiceId === invoice.id
       );
       if (reusableSession) {
-        return NextResponse.json({ ok: true, checkoutUrl: reusableSession.url });
+        return NextResponse.json({ ok: true, checkoutUrl: reusableSession.url, payUrl: reusableSession.url });
       }
 
-      // Create checkout session for payment
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.BASE_URL || 'https://e8productions.com';
 
       const session = await createInvoiceCheckoutSession(
         invoice.stripeCustomer.stripeCustomerId,
         invoice.id,
-        invoice.amount - invoice.amountPaid, // Remaining amount
+        invoice.amount - invoice.amountPaid,
         `Invoice ${invoice.invoiceNumber}${invoice.description ? ` - ${invoice.description}` : ''}`,
-        `${baseUrl}/billing/invoices/${invoice.id}?payment=success`,
-        `${baseUrl}/billing/invoices/${invoice.id}?payment=canceled`
+        `${baseUrl}/?payment=success&invoiceId=${invoice.id}`,
+        `${baseUrl}/?payment=canceled&invoiceId=${invoice.id}`
       );
 
-      return NextResponse.json({ ok: true, checkoutUrl: session.url });
+      return NextResponse.json({ ok: true, checkoutUrl: session.url, payUrl: session.url });
     }
 
     // Regular update (admin only)

@@ -17,6 +17,7 @@ import { createId } from '@/lib/db/id';
 import { eq, sql as drizzleSql } from 'drizzle-orm';
 import Stripe from 'stripe';
 import { sendPaymentNotificationEmail } from '@/lib/email';
+import { portalUnlockUpdate, advanceOneCalendarMonth } from '@/lib/auto-invoice';
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -130,6 +131,8 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
   const invoiceId = paymentIntent.metadata?.invoiceId;
   if (!invoiceId) return;
 
+  let fullyPaid = false;
+
   // Update invoice and create payment record
   await db.transaction(async (tx) => {
     const [foundInvoice] = await tx.select().from(invoice).where(eq(invoice.id, invoiceId)).limit(1);
@@ -158,12 +161,36 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
     }).where(eq(invoice.id, invoiceId)).returning();
 
     const isPaid = updated.amountPaid >= updated.amount;
+    fullyPaid = isPaid;
     await tx.update(invoice).set({
       status: isPaid ? 'PAID' : 'PARTIALLY_PAID',
       paidAt: isPaid ? new Date().toISOString() : null,
       updatedAt: new Date().toISOString(),
     }).where(eq(invoice.id, invoiceId));
   });
+
+  // Unlock portal for Checkout/PaymentIntent pays (hosted Stripe Invoice
+  // unlocks via handleInvoicePaid instead).
+  if (fullyPaid) {
+    const rawInvoice = await db.query.invoice.findFirst({
+      where: eq(invoice.id, invoiceId),
+      with: {
+        stripeCustomer: {
+          with: { client: { with: { clientPortalAccesses: true } } },
+        },
+      },
+    });
+    const portalAccess = (rawInvoice as any)?.stripeCustomer?.client?.clientPortalAccesses?.[0];
+    const clientId = (rawInvoice as any)?.stripeCustomer?.clientId;
+    if (portalAccess && clientId) {
+      const updateData = portalUnlockUpdate({
+        autoInvoiceActive: !!portalAccess.autoInvoiceActive,
+        existingNextBillingDate: portalAccess.nextBillingDate,
+        billingAnchorDate: portalAccess.billingAnchorDate,
+      });
+      await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, clientId));
+    }
+  }
 
   // Tech Fees: pass Stripe's real processing fee on to the client's next invoice
   const chargeId = typeof paymentIntent.latest_charge === 'string'
@@ -251,32 +278,25 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
     }).where(eq(invoice.id, foundInvoice.id));
 
     // ── Portal unlock logic ────────────────────────────────────────────────
+    // When auto-invoice owns the schedule, do NOT rewrite nextBillingDate —
+    // the cron already advanced it when the invoice was created.
     const client = (foundInvoice.stripeCustomer as any)?.client;
     if (client?.portalAccess) {
       const portalAccess = client.portalAccess;
-      const now = new Date();
-
-      // Compute next billing date (same calendar day next month)
-      const nextBilling = new Date(now);
-      nextBilling.setMonth(nextBilling.getMonth() + 1);
-
-      const updateData: any = {
-        status: 'ACTIVE',
-        lockedAt: null,
-        adminUnlockedById: null,
-        adminUnlockedAt: null,
-        nextBillingDate: nextBilling.toISOString(),
-        updatedAt: now.toISOString(),
-      };
-
-      // Set billing anchor on first payment
-      if (!portalAccess.billingAnchorDate) {
-        updateData.billingAnchorDate = now.toISOString();
-      }
+      const updateData = portalUnlockUpdate({
+        autoInvoiceActive: !!portalAccess.autoInvoiceActive,
+        existingNextBillingDate: portalAccess.nextBillingDate,
+        billingAnchorDate: portalAccess.billingAnchorDate,
+      });
 
       await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, client.id));
 
-      console.log(`🔓 [Portal] Unlocked for client: ${client.name} | next billing: ${nextBilling.toISOString()}`);
+      console.log(
+        `🔓 [Portal] Unlocked for client: ${client.name}` +
+          (portalAccess.autoInvoiceActive
+            ? ' (schedule preserved — auto-invoice active)'
+            : ` | next billing: ${updateData.nextBillingDate}`)
+      );
     }
     // ──────────────────────────────────────────────────────────────────────
 
@@ -535,7 +555,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const { invoiceId, type } = session.metadata || {};
 
   if (type === 'invoice_payment' && invoiceId) {
-    // Update invoice status
+    // Update invoice status. Tech Fees are captured in payment_intent.succeeded
+    // to avoid double-queuing the same fee from both events.
     await db.update(invoice).set({
       status: 'PAID',
       paidAt: new Date().toISOString(),
@@ -543,16 +564,24 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       updatedAt: new Date().toISOString(),
     }).where(eq(invoice.id, invoiceId));
 
-    // Tech Fees: pass Stripe's real processing fee on to the client's next invoice
-    const stripeCustomerId = typeof session.customer === 'string'
-      ? session.customer
-      : (session.customer as any)?.id;
-    const paymentIntentId = typeof session.payment_intent === 'string'
-      ? session.payment_intent
-      : (session.payment_intent as any)?.id;
-    if (paymentIntentId) {
-      const chargeId = await getChargeIdFromPaymentIntent(paymentIntentId);
-      await captureTechFeeFromCharge(stripeCustomerId, chargeId, `Checkout ${session.id}`);
+    const rawInvoice = await db.query.invoice.findFirst({
+      where: eq(invoice.id, invoiceId),
+      with: {
+        stripeCustomer: {
+          with: { client: { with: { clientPortalAccesses: true } } },
+        },
+      },
+    });
+    const portalAccess = (rawInvoice as any)?.stripeCustomer?.client?.clientPortalAccesses?.[0];
+    const clientId = (rawInvoice as any)?.stripeCustomer?.clientId;
+    if (portalAccess && clientId) {
+      const updateData = portalUnlockUpdate({
+        autoInvoiceActive: !!portalAccess.autoInvoiceActive,
+        existingNextBillingDate: portalAccess.nextBillingDate,
+        billingAnchorDate: portalAccess.billingAnchorDate,
+      });
+      await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, clientId));
+      console.log(`🔓 [Portal] Unlocked via Checkout for invoice ${invoiceId}`);
     }
   }
 
@@ -681,8 +710,6 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
   const stripeCustomer = rawStripeCustomer;
 
   const now = new Date();
-  const nextBilling = new Date(now);
-  nextBilling.setMonth(nextBilling.getMonth() + 1);
 
   // Create Invoice record so it shows in admin + client billing pages
   const [createdInvoice] = await db.insert(invoice).values({
@@ -709,6 +736,7 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
     ],
     description: `Monthly retainer — ${client.companyName || client.name}`,
     sentAt: now.toISOString(),
+    metadata: stripeInvoice.metadata || undefined,
     updatedAt: now.toISOString(),
   }).returning();
 
@@ -726,16 +754,16 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
     });
   }
 
-  // Unlock portal
-  const updateData: any = {
-    status: 'ACTIVE',
-    lockedAt: null,
-    nextBillingDate: nextBilling.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-
-  if (!client.portalAccess.billingAnchorDate) {
-    updateData.billingAnchorDate = now.toISOString();
+  // Unlock portal — preserve auto-invoice schedule if already configured
+  const updateData = portalUnlockUpdate({
+    autoInvoiceActive: !!client.portalAccess.autoInvoiceActive,
+    existingNextBillingDate: client.portalAccess.nextBillingDate,
+    billingAnchorDate: client.portalAccess.billingAnchorDate,
+    now,
+  });
+  // First-time onboarding without auto-invoice still needs a nextBillingDate
+  if (!updateData.nextBillingDate && !client.portalAccess.autoInvoiceActive) {
+    updateData.nextBillingDate = advanceOneCalendarMonth(now).toISOString();
   }
 
   await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, client.id));
