@@ -64,12 +64,24 @@ const CHANNEL_CARD_SUBCATEGORY = 'who-we-work-with';
    journey instead of the usual video grid. */
 const BEFORE_AFTER_CATEGORY = 'before-after';
 
+/* "photography" has no subcategories — renders an image gallery. */
+const PHOTOGRAPHY_CATEGORY = 'photography';
+
 interface PortfolioChannel {
     id: string;
     name: string;
     channelUrl: string;
     avatarUrl: string | null;
     followerCount: string;
+    category: string;
+}
+
+interface PortfolioImage {
+    id: string;
+    title: string;
+    description: string;
+    imageUrl: string;
+    thumbnailUrl: string | null;
     category: string;
 }
 
@@ -576,6 +588,7 @@ function PortfolioNav({
     categories,
     showHowItWorks,
     onToggleHowItWorks,
+    howItWorksVisible,
 }: {
     activeCategory: string;
     activeSubcategory: string;
@@ -583,6 +596,7 @@ function PortfolioNav({
     categories: Category[];
     showHowItWorks: boolean;
     onToggleHowItWorks: () => void;
+    howItWorksVisible: boolean;
 }) {
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
@@ -618,16 +632,26 @@ function PortfolioNav({
                             const Icon = ICON_MAP[cat.icon as string] || Film;
                             const isActive = activeCategory === cat.key && !showHowItWorks;
                             const isOpen = openDropdown === cat.key;
+                            // Photography (and any flat category) never shows a subcategory dropdown.
+                            const isFlat = cat.key === PHOTOGRAPHY_CATEGORY;
+                            const activeSubs = isFlat
+                                ? []
+                                : cat.subcategories.filter(s => s.isActive);
+                            const hasSubs = activeSubs.length > 0;
 
                             return (
                                 <div key={cat.key} className="relative" data-nav-dropdown>
                                     <button
                                         onClick={() => {
+                                            if (!hasSubs) {
+                                                onSelectSub(cat.key, '');
+                                                setOpenDropdown(null);
+                                                return;
+                                            }
                                             const next = isOpen ? null : cat.key;
                                             setOpenDropdown(next);
                                             if (!isActive) {
-                                                const firstSub = cat.subcategories.find(s => s.isActive);
-                                                if (firstSub) onSelectSub(cat.key, firstSub.key);
+                                                onSelectSub(cat.key, activeSubs[0].key);
                                             }
                                         }}
                                         className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all active:scale-95 border ${
@@ -638,9 +662,12 @@ function PortfolioNav({
                                     >
                                         <Icon className="w-3.5 h-3.5 shrink-0" />
                                         {cat.label}
-                                        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                                        {hasSubs && (
+                                            <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                                        )}
                                     </button>
 
+                                    {hasSubs && (
                                     <div
                                         className={`absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-64 bg-white rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.14)] border border-black/[0.06] overflow-hidden transition-all duration-200 origin-top z-50 ${
                                             isOpen
@@ -649,7 +676,7 @@ function PortfolioNav({
                                         }`}
                                     >
                                         <div className="p-2 space-y-0.5">
-                                            {cat.subcategories.filter(s => s.isActive).map((sub) => {
+                                            {activeSubs.map((sub) => {
                                                 const SubIcon = ICON_MAP[sub.icon as string] || Video;
                                                 const isSubActive = activeSubcategory === sub.key;
                                                 return (
@@ -675,10 +702,12 @@ function PortfolioNav({
                                             })}
                                         </div>
                                     </div>
+                                    )}
                                 </div>
                             );
                         })}
 
+                        {howItWorksVisible && (
                         <button
                             onClick={onToggleHowItWorks}
                             className={`flex items-center px-4 py-2 rounded-full text-sm font-bold transition-all active:scale-95 border ${
@@ -689,6 +718,7 @@ function PortfolioNav({
                         >
                             How It Works
                         </button>
+                        )}
                     </div>
 
                     {/* Book Meeting */}
@@ -865,6 +895,127 @@ function VideoGrid({
     );
 }
 
+function ImageModal({
+    image,
+    onClose,
+}: {
+    image: PortfolioImage;
+    onClose: () => void;
+}) {
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', handler);
+        return () => {
+            document.body.style.overflow = '';
+            window.removeEventListener('keydown', handler);
+        };
+    }, [onClose]);
+
+    return (
+        <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={onClose}
+        >
+            <button
+                onClick={onClose}
+                className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                aria-label="Close"
+            >
+                <X className="w-5 h-5" />
+            </button>
+            <div
+                className="relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                    src={image.imageUrl}
+                    alt={image.title}
+                    className="max-h-[80vh] w-auto max-w-full object-contain rounded-xl shadow-2xl"
+                />
+                <div className="mt-4 text-center text-white px-4">
+                    <h3 className="text-lg font-semibold">{image.title}</h3>
+                    {image.description ? (
+                        <p className="text-white/70 text-sm mt-1 max-w-xl mx-auto">{image.description}</p>
+                    ) : null}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ImageGrid({
+    images,
+    loading,
+}: {
+    images: PortfolioImage[];
+    loading: boolean;
+}) {
+    const [expanded, setExpanded] = useState<PortfolioImage | null>(null);
+
+    if (loading) {
+        return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="aspect-[4/3] rounded-2xl bg-black/[0.04] animate-pulse" />
+                ))}
+            </div>
+        );
+    }
+
+    if (images.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center py-32 text-center px-4">
+                <div className="w-16 h-16 bg-black/5 rounded-2xl flex items-center justify-center mb-4">
+                    <ImageIcon className="w-7 h-7 text-black/30" />
+                </div>
+                <h3 className="text-lg font-semibold text-black/70 mb-1">
+                    Coming Soon
+                </h3>
+                <p className="text-black/40 text-sm max-w-sm">
+                    Photography for this section is being prepared. Check back soon!
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                {images.map((image) => (
+                    <button
+                        key={image.id}
+                        type="button"
+                        onClick={() => setExpanded(image)}
+                        className="group relative aspect-[4/3] rounded-2xl overflow-hidden bg-black/[0.03] border border-black/5 hover:shadow-xl hover:border-black/10 transition-all duration-300 text-left"
+                    >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={image.thumbnailUrl || image.imageUrl}
+                            alt={image.title}
+                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
+                            <p className="text-white text-sm font-semibold truncate">{image.title}</p>
+                        </div>
+                        <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow">
+                            <Maximize2 className="w-3.5 h-3.5" />
+                        </div>
+                    </button>
+                ))}
+            </div>
+            {expanded && (
+                <ImageModal image={expanded} onClose={() => setExpanded(null)} />
+            )}
+        </>
+    );
+}
+
 function ChannelGrid({
     channels,
     loading,
@@ -952,25 +1103,32 @@ function PortfolioContent() {
     const [activeSubcategory, setActiveSubcategory] = useState('');
     const [videos, setVideos] = useState<PortfolioVideo[]>([]);
     const [channels, setChannels] = useState<PortfolioChannel[]>([]);
+    const [images, setImages] = useState<PortfolioImage[]>([]);
     const [loading, setLoading] = useState(true);
     const [navLoading, setNavLoading] = useState(true);
     const [showHowItWorks, setShowHowItWorks] = useState(false);
+    const [howItWorksVisible, setHowItWorksVisible] = useState(true);
 
     const fetchSections = useCallback(async () => {
         try {
             const res = await fetch('/api/portfolio/sections');
             const data = await res.json();
             if (data.ok) {
-                const activeCats = data.sections.filter((c: Category) => c.isActive);
+                const activeCats = (data.sections as Category[])
+                    .map((c) =>
+                        c.key === PHOTOGRAPHY_CATEGORY
+                            ? { ...c, subcategories: [] }
+                            : c
+                    )
+                    .filter((c) => c.isActive);
                 setCategories(activeCats);
+                setHowItWorksVisible(data.settings?.howItWorksVisible !== false);
                 // Set default if not set
                 if (activeCats.length > 0) {
                     const firstCat = activeCats[0];
                     const firstSub = firstCat.subcategories.find((s: Subcategory) => s.isActive);
-                    if (firstSub) {
-                        setActiveCategory(firstCat.key);
-                        setActiveSubcategory(firstSub.key);
-                    }
+                    setActiveCategory(firstCat.key);
+                    setActiveSubcategory(firstSub?.key || '');
                 }
             }
         } catch (err) {
@@ -986,7 +1144,7 @@ function PortfolioContent() {
 
     const handleSelectSub = useCallback((catKey: string, subKey: string) => {
         setActiveCategory(catKey);
-        setActiveSubcategory(subKey);
+        setActiveSubcategory(catKey === PHOTOGRAPHY_CATEGORY ? '' : subKey);
         setShowHowItWorks(false);
     }, []);
 
@@ -1016,18 +1174,48 @@ function PortfolioContent() {
         }
     }, []);
 
+    const fetchImages = useCallback(async (category: string) => {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/portfolio/images?category=${category}`);
+            const data = await res.json();
+            if (data.ok) setImages(data.images);
+        } catch (err) {
+            console.error('Failed to fetch images', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
+        if (!activeCategory) return;
+        if (activeCategory === BEFORE_AFTER_CATEGORY) {
+            setLoading(false);
+            return;
+        }
+        if (activeCategory === PHOTOGRAPHY_CATEGORY) {
+            fetchImages(PHOTOGRAPHY_CATEGORY);
+            return;
+        }
         if (!activeSubcategory) return;
-        if (activeCategory === BEFORE_AFTER_CATEGORY) return;
         if (activeSubcategory === CHANNEL_CARD_SUBCATEGORY) {
             fetchChannels(activeSubcategory);
         } else {
             fetchVideos(activeSubcategory);
         }
-    }, [activeCategory, activeSubcategory, fetchVideos, fetchChannels]);
+    }, [activeCategory, activeSubcategory, fetchVideos, fetchChannels, fetchImages]);
 
-    const info = findSubcategoryInfo(activeSubcategory, categories);
+    // If How It Works was hidden while open, close it.
+    useEffect(() => {
+        if (!howItWorksVisible && showHowItWorks) {
+            setShowHowItWorks(false);
+        }
+    }, [howItWorksVisible, showHowItWorks]);
+
     const parentCat = categories.find((c) => c.key === activeCategory);
+    const parentHasSubs =
+        activeCategory !== PHOTOGRAPHY_CATEGORY &&
+        Boolean(parentCat?.subcategories.some((s) => s.isActive));
 
     if (navLoading) {
         return (
@@ -1046,6 +1234,7 @@ function PortfolioContent() {
                 categories={categories}
                 showHowItWorks={showHowItWorks}
                 onToggleHowItWorks={() => setShowHowItWorks(v => !v)}
+                howItWorksVisible={howItWorksVisible}
             />
 
             <div className="pt-14 sm:pt-16">
@@ -1056,12 +1245,18 @@ function PortfolioContent() {
                     <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pt-3 pb-2">
                         {categories.filter(c => c.isActive).map((cat) => {
                             const Icon = ICON_MAP[cat.icon as string] || Film;
-                            const firstSub = cat.subcategories.find(s => s.isActive);
+                            const firstSub =
+                                cat.key === PHOTOGRAPHY_CATEGORY
+                                    ? undefined
+                                    : cat.subcategories.find(s => s.isActive);
                             const isActive = activeCategory === cat.key && !showHowItWorks;
                             return (
                                 <button
                                     key={cat.key}
-                                    onClick={() => { if (firstSub) handleSelectSub(cat.key, firstSub.key); }}
+                                    onClick={() => {
+                                        if (firstSub) handleSelectSub(cat.key, firstSub.key);
+                                        else handleSelectSub(cat.key, '');
+                                    }}
                                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm whitespace-nowrap shrink-0 font-bold border transition-all ${
                                         isActive
                                             ? 'bg-black text-white border-black'
@@ -1073,6 +1268,7 @@ function PortfolioContent() {
                                 </button>
                             );
                         })}
+                        {howItWorksVisible && (
                         <button
                             onClick={() => setShowHowItWorks(v => !v)}
                             className={`flex items-center px-4 py-2 rounded-full text-sm whitespace-nowrap shrink-0 font-bold border transition-all ${
@@ -1083,9 +1279,10 @@ function PortfolioContent() {
                         >
                             How It Works
                         </button>
+                        )}
                     </div>
-                    {/* Subcategory row */}
-                    {parentCat && !showHowItWorks && (
+                    {/* Subcategory row — never for Photography */}
+                    {parentCat && parentHasSubs && !showHowItWorks && (
                         <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pb-3">
                             {parentCat.subcategories.filter(s => s.isActive).map((sub) => {
                                 const SubIcon = ICON_MAP[sub.icon as string] || Video;
@@ -1109,8 +1306,8 @@ function PortfolioContent() {
                     )}
                 </div>
 
-                {/* How It Works inline video OR Video Grid */}
-                {showHowItWorks ? (
+                {/* How It Works inline video OR content grids */}
+                {showHowItWorks && howItWorksVisible ? (
                     <section className="px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20 bg-white">
                         <div className="max-w-4xl mx-auto">
                             <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-xl shadow-black/10 bg-black">
@@ -1129,6 +1326,8 @@ function PortfolioContent() {
                         <div className="max-w-7xl mx-auto">
                             {activeCategory === BEFORE_AFTER_CATEGORY ? (
                                 <BeforeAfterJourney />
+                            ) : activeCategory === PHOTOGRAPHY_CATEGORY ? (
+                                <ImageGrid images={images} loading={loading} />
                             ) : activeSubcategory === CHANNEL_CARD_SUBCATEGORY ? (
                                 <ChannelGrid channels={channels} loading={loading} />
                             ) : (

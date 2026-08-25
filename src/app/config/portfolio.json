@@ -42,5 +42,12 @@
             { "key": "video-testimonials", "label": "Video Testimonials", "icon": "Video", "isActive": true },
             { "key": "who-we-work-with", "label": "Who We Work With", "icon": "Users", "isActive": true }
         ]
+    },
+    {
+        "key": "photography",
+        "label": "Photography",
+        "icon": "ImageIcon",
+        "isActive": true,
+        "subcategories": []
     }
 ]
