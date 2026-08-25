@@ -52,6 +52,8 @@ import { useClientTasks } from '../../lib/hooks/useClientTasks';
 import { useEffectiveClientId } from '../../lib/hooks/useEffectiveClientId';
 import { ClientTaskCard } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
+import { getFileUrl } from '@/lib/s3';
+import { autoThumbnailKeyForVideo, getTaskCardThumbnailUrl } from '@/lib/task-thumbnail';
 
 interface TaskFile {
   id: string;
@@ -1070,16 +1072,9 @@ export function ClientDashboard() {
   };
 
   const getTaskThumbnail = (task: ClientTask) => {
-    if (!task.files || task.files.length === 0) return null;
-    // 1. Try to find an active thumbnail
-    const thumbFile = task.files.find(f => f.folderType === 'thumbnails' && f.mimeType?.startsWith('image/') && f.isActive !== false);
-    if (thumbFile) return thumbFile.url;
-    // 2. Try to find any active image
-    const activeImage = task.files.find(f => f.mimeType?.startsWith('image/') && f.isActive !== false);
-    if (activeImage) return activeImage.url;
-    // 3. Fallback to any image
-    const anyImage = task.files.find(f => f.mimeType?.startsWith('image/'));
-    return anyImage?.url || null;
+    return getTaskCardThumbnailUrl(task.files as any, {
+      buildAutoThumbUrl: (videoS3Key) => getFileUrl(autoThumbnailKeyForVideo(videoS3Key)),
+    });
   };
 
   const isOverdue = (task: ClientTask) => new Date(task.dueDate) < new Date();

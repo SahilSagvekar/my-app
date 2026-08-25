@@ -26,6 +26,12 @@ import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calend
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
+import { getFileUrl } from '@/lib/s3';
+import {
+  autoThumbnailKeyForVideo,
+  getTaskCardThumbnailUrl,
+  taskHasThumbnailFiles,
+} from '@/lib/task-thumbnail';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
 
@@ -43,6 +49,7 @@ interface TaskFile {
   isActive?: boolean;
   replacedAt?: string;
   replacedBy?: string;
+  s3Key?: string;
   revisionNote?: string;
   s3Key?: string;
   codec?: string;
@@ -811,16 +818,9 @@ useEffect(() => {
   };
 
   const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
-    if (!task.files || task.files.length === 0) return null;
-    // 1. Try to find an active thumbnail
-    const thumbFile = task.files.find(f => f.folderType === 'thumbnails' && f.mimeType?.startsWith('image/') && f.isActive !== false);
-    if (thumbFile) return thumbFile.url;
-    // 2. Try to find any active image
-    const activeImage = task.files.find(f => f.mimeType?.startsWith('image/') && f.isActive !== false);
-    if (activeImage) return activeImage.url;
-    // 3. Fallback to any image
-    const anyImage = task.files.find(f => f.mimeType?.startsWith('image/'));
-    return anyImage?.url || null;
+    return getTaskCardThumbnailUrl(task.files, {
+      buildAutoThumbUrl: (videoS3Key) => getFileUrl(autoThumbnailKeyForVideo(videoS3Key)),
+    });
   };
 
   const isHardPostTask = (task: EnhancedWorkflowTask) => {
@@ -1467,7 +1467,7 @@ useEffect(() => {
 
                         {/* No Thumbnails Badge */}
                         {(() => {
-                          const hasThumbnails = task.files?.some(f => f.folderType === 'thumbnails');
+                          const hasThumbnails = taskHasThumbnailFiles(task.files);
                           if (!hasThumbnails) {
                             return (
                               <Badge className="bg-gray-100 text-gray-500 border-gray-200 rounded-full px-2 py-0.5 text-[10px] font-medium">
