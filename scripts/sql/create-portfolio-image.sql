@@ -2,7 +2,7 @@
 -- Apply with: prisma db execute / your usual SQL migration path
 CREATE TABLE IF NOT EXISTS "PortfolioImage" (
     "id" TEXT NOT NULL,
-    "title" TEXT NOT NULL,
+    "title" TEXT NOT NULL DEFAULT '',
     "description" TEXT NOT NULL DEFAULT '',
     "imageUrl" TEXT NOT NULL,
     "thumbnailUrl" TEXT,

@@ -1617,7 +1617,7 @@ model PortfolioVideo {
 // (no subcategories — category key is always "photography").
 model PortfolioImage {
   id           String   @id @default(cuid())
-  title        String
+  title        String   @default("")
   description  String   @default("")
   imageUrl     String
   thumbnailUrl String?
@@ -1630,6 +1630,13 @@ model PortfolioImage {
   @@index([category])
   @@index([category, order])
   @@index([isActive])
+}
+
+// Single-row UI flags for the public portfolio (e.g. How It Works visibility).
+model PortfolioUiSetting {
+  id                String   @id @default("default")
+  howItWorksVisible Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
 }
 
 // Admin-managed content for the public /portfolio "Before & After" tab —

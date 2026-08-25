@@ -937,7 +937,9 @@ function ImageModal({
                     className="max-h-[80vh] w-auto max-w-full object-contain rounded-xl shadow-2xl"
                 />
                 <div className="mt-4 text-center text-white px-4">
-                    <h3 className="text-lg font-semibold">{image.title}</h3>
+                    {image.title ? (
+                        <h3 className="text-lg font-semibold">{image.title}</h3>
+                    ) : null}
                     {image.description ? (
                         <p className="text-white/70 text-sm mt-1 max-w-xl mx-auto">{image.description}</p>
                     ) : null}
@@ -995,14 +997,16 @@ function ImageGrid({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src={image.thumbnailUrl || image.imageUrl}
-                            alt={image.title}
+                            alt={image.title || 'Portfolio photo'}
                             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                             loading="lazy"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        {image.title ? (
                         <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
                             <p className="text-white text-sm font-semibold truncate">{image.title}</p>
                         </div>
+                        ) : null}
                         <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow">
                             <Maximize2 className="w-3.5 h-3.5" />
                         </div>

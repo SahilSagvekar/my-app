@@ -43,9 +43,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { title, description, imageUrl, thumbnailUrl, category, order } = body;
 
-    if (!title || !imageUrl) {
+    if (!imageUrl) {
       return NextResponse.json(
-        { ok: false, message: 'Title and imageUrl are required' },
+        { ok: false, message: 'imageUrl is required' },
         { status: 400 }
       );
     }
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       .insert(portfolioImage)
       .values({
         id: createId(),
-        title,
+        title: typeof title === 'string' ? title : '',
         description: description || '',
         imageUrl,
         thumbnailUrl: thumbnailUrl || null,

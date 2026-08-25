@@ -1,11 +1,9 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
-import { portfolioCategory, portfolioSubcategory } from '@/lib/db/schema';
+import { portfolioCategory, portfolioSubcategory, portfolioUiSetting } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { asc, eq } from 'drizzle-orm';
-import { promises as fs } from 'fs';
-import path from 'path';
 
 interface SubcategoryPayload {
     key: string;
@@ -26,26 +24,43 @@ export interface PortfolioSettings {
     howItWorksVisible: boolean;
 }
 
-const SETTINGS_PATH = path.join(process.cwd(), 'src/app/config/portfolioSettings.json');
+const SETTINGS_ID = 'default';
 const DEFAULT_SETTINGS: PortfolioSettings = { howItWorksVisible: true };
 
-async function readSettings(): Promise<PortfolioSettings> {
+async function readSettings(db: ReturnType<typeof getDbPool>['db']): Promise<PortfolioSettings> {
     try {
-        const raw = await fs.readFile(SETTINGS_PATH, 'utf8');
-        const parsed = JSON.parse(raw);
-        return {
-            howItWorksVisible:
-                typeof parsed.howItWorksVisible === 'boolean'
-                    ? parsed.howItWorksVisible
-                    : true,
-        };
-    } catch {
+        const [row] = await db
+            .select()
+            .from(portfolioUiSetting)
+            .where(eq(portfolioUiSetting.id, SETTINGS_ID))
+            .limit(1);
+        if (!row) return { ...DEFAULT_SETTINGS };
+        return { howItWorksVisible: row.howItWorksVisible !== false };
+    } catch (err) {
+        // Table may not exist yet before SQL is applied — don't break sections GET.
+        console.warn('[portfolio/sections] settings read failed, using defaults', err);
         return { ...DEFAULT_SETTINGS };
     }
 }
 
-async function writeSettings(settings: PortfolioSettings) {
-    await fs.writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 4) + '\n', 'utf8');
+async function writeSettings(
+    db: ReturnType<typeof getDbPool>['db'],
+    settings: PortfolioSettings
+) {
+    await db
+        .insert(portfolioUiSetting)
+        .values({
+            id: SETTINGS_ID,
+            howItWorksVisible: settings.howItWorksVisible,
+            updatedAt: new Date().toISOString(),
+        })
+        .onConflictDoUpdate({
+            target: portfolioUiSetting.id,
+            set: {
+                howItWorksVisible: settings.howItWorksVisible,
+                updatedAt: new Date().toISOString(),
+            },
+        });
 }
 
 export async function GET() {
@@ -82,7 +97,7 @@ export async function GET() {
             with: { portfolioSubcategories: { orderBy: (sub, { asc }) => asc(sub.order) } },
         });
 
-        const settings = await readSettings();
+        const settings = await readSettings(db);
 
         const sections = categories.map((cat) => ({
             key: cat.key,
@@ -139,13 +154,19 @@ export async function PATCH(req: NextRequest) {
                     id: createId(),
                     key: cat.key,
                     label: cat.label,
-                    iconName: cat.icon,
+                    iconName: cat.icon || 'Film',
                     isActive: cat.isActive,
                     order: i,
                     updatedAt: new Date().toISOString(),
                 }).onConflictDoUpdate({
                     target: portfolioCategory.key,
-                    set: { label: cat.label, iconName: cat.icon, isActive: cat.isActive, order: i, updatedAt: new Date().toISOString() },
+                    set: {
+                        label: cat.label,
+                        iconName: cat.icon || 'Film',
+                        isActive: cat.isActive,
+                        order: i,
+                        updatedAt: new Date().toISOString(),
+                    },
                 }).returning();
 
                 for (let j = 0; j < subs.length; j++) {
@@ -154,31 +175,49 @@ export async function PATCH(req: NextRequest) {
                         id: createId(),
                         key: sub.key,
                         label: sub.label,
-                        iconName: sub.icon,
+                        iconName: sub.icon || 'Video',
                         isActive: sub.isActive,
                         order: j,
                         categoryId: category.id,
                         updatedAt: new Date().toISOString(),
                     }).onConflictDoUpdate({
                         target: portfolioSubcategory.key,
-                        set: { label: sub.label, iconName: sub.icon, isActive: sub.isActive, order: j, categoryId: category.id, updatedAt: new Date().toISOString() },
+                        set: {
+                            label: sub.label,
+                            iconName: sub.icon || 'Video',
+                            isActive: sub.isActive,
+                            order: j,
+                            categoryId: category.id,
+                            updatedAt: new Date().toISOString(),
+                        },
                     });
                 }
             }
         });
 
         if (settings && typeof settings.howItWorksVisible === 'boolean') {
-            const current = await readSettings();
-            await writeSettings({
-                ...current,
-                howItWorksVisible: settings.howItWorksVisible,
-            });
+            try {
+                await writeSettings(db, {
+                    howItWorksVisible: settings.howItWorksVisible,
+                });
+            } catch (settingsErr) {
+                console.error('[PATCH /api/portfolio/sections] settings write failed', settingsErr);
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        message:
+                            'Sections saved, but How It Works setting failed. Create the PortfolioUiSetting table (see scripts/sql/create-portfolio-ui-setting.sql) and try again.',
+                    },
+                    { status: 500 }
+                );
+            }
         }
 
         return NextResponse.json({ ok: true });
     } catch (err) {
         console.error('[PATCH /api/portfolio/sections]', err);
-        return NextResponse.json({ ok: false, message: 'Failed to update config' }, { status: 500 });
+        const message = err instanceof Error ? err.message : 'Failed to update config';
+        return NextResponse.json({ ok: false, message }, { status: 500 });
     }
 
   } finally {
