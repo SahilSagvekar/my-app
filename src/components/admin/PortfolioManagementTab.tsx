@@ -1665,10 +1665,6 @@ function PhotoControl() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.title.trim()) {
-            toast.error("Title is required");
-            return;
-        }
         if (!formData.imageUrl.trim()) {
             toast.error("Image URL or upload is required");
             return;
@@ -1828,7 +1824,9 @@ function PhotoControl() {
                                     <div className="p-3 space-y-2">
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
-                                                <p className="font-semibold text-sm truncate">{img.title}</p>
+                                                <p className="font-semibold text-sm truncate">
+                                                    {img.title || "Untitled photo"}
+                                                </p>
                                                 {img.description ? (
                                                     <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
                                                         {img.description}
@@ -1912,7 +1910,7 @@ function PhotoControl() {
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="photo-title">Title</Label>
+                            <Label htmlFor="photo-title">Title (optional)</Label>
                             <Input
                                 id="photo-title"
                                 value={formData.title}
@@ -1920,7 +1918,6 @@ function PhotoControl() {
                                     setFormData((p) => ({ ...p, title: e.target.value }))
                                 }
                                 placeholder="e.g. Downtown headshot session"
-                                required
                             />
                         </div>
                         <div className="space-y-2">
@@ -2062,7 +2059,8 @@ function SectionsManagement({
                 toast.success("Sections updated successfully");
                 onRefresh();
             } else {
-                toast.error("Failed to update sections");
+                const data = await res.json().catch(() => ({}));
+                toast.error(data.message || "Failed to update sections");
             }
         } catch {
             toast.error("Network error updating sections");

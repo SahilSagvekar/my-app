@@ -937,7 +937,9 @@ function ImageModal({
                     className="max-h-[80vh] w-auto max-w-full object-contain rounded-xl shadow-2xl"
                 />
                 <div className="mt-4 text-center text-white px-4">
-                    <h3 className="text-lg font-semibold">{image.title}</h3>
+                    {image.title ? (
+                        <h3 className="text-lg font-semibold">{image.title}</h3>
+                    ) : null}
                     {image.description ? (
                         <p className="text-white/70 text-sm mt-1 max-w-xl mx-auto">{image.description}</p>
                     ) : null}

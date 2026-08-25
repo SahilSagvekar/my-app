@@ -1304,7 +1304,7 @@ export const portfolioVideo = pgTable("PortfolioVideo", {
 
 export const portfolioImage = pgTable("PortfolioImage", {
 	id: text().primaryKey().notNull(),
-	title: text().notNull(),
+	title: text().default('').notNull(),
 	description: text().default('').notNull(),
 	imageUrl: text().notNull(),
 	thumbnailUrl: text(),
@@ -1318,6 +1318,12 @@ export const portfolioImage = pgTable("PortfolioImage", {
 	index("PortfolioImage_category_order_idx").using("btree", table.category.asc().nullsLast().op("int4_ops"), table.order.asc().nullsLast().op("int4_ops")),
 	index("PortfolioImage_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
 ]);
+
+export const portfolioUiSetting = pgTable("PortfolioUiSetting", {
+	id: text().primaryKey().notNull(),
+	howItWorksVisible: boolean().default(true).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+});
 
 export const portfolioCategory = pgTable("PortfolioCategory", {
 	id: text().primaryKey().notNull(),
