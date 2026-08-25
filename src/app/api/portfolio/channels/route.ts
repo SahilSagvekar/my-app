@@ -1,11 +1,11 @@
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { randomUUID } from 'crypto';
+import { getDbHttp } from '@/lib/db';
+import { portfolioChannel as portfolioChannelTable } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { and, asc, eq } from 'drizzle-orm';
 import { scrapeYoutubeChannelInfo } from '@/lib/scrapeYoutubeChannel';
-
-const CONFIG_PATH = path.join(process.cwd(), 'src/app/config/portfolioChannels.json');
 
 export interface PortfolioChannel {
     id: string;
@@ -20,30 +20,23 @@ export interface PortfolioChannel {
     updatedAt: string;
 }
 
-async function readChannels(): Promise<PortfolioChannel[]> {
-    try {
-        const data = await fs.readFile(CONFIG_PATH, 'utf8');
-        return JSON.parse(data);
-    } catch {
-        return [];
-    }
-}
-
-async function writeChannels(channels: PortfolioChannel[]) {
-    await fs.writeFile(CONFIG_PATH, JSON.stringify(channels, null, 4), 'utf8');
-}
-
 // GET /api/portfolio/channels — fetch channels, optionally filtered by category
 export async function GET(req: NextRequest) {
     try {
+        const db = getDbHttp();
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category');
         const showAll = searchParams.get('all') === 'true'; // admin: fetch all including inactive
 
-        let channels = await readChannels();
-        if (!showAll) channels = channels.filter((c) => c.isActive);
-        if (category) channels = channels.filter((c) => c.category === category);
-        channels.sort((a, b) => a.order - b.order);
+        const conditions = [];
+        if (!showAll) conditions.push(eq(portfolioChannelTable.isActive, true));
+        if (category) conditions.push(eq(portfolioChannelTable.category, category));
+
+        const channels = await db
+            .select()
+            .from(portfolioChannelTable)
+            .where(conditions.length ? and(...conditions) : undefined)
+            .orderBy(asc(portfolioChannelTable.order));
 
         return NextResponse.json({ ok: true, channels });
     } catch (err) {
@@ -60,6 +53,7 @@ export async function GET(req: NextRequest) {
 // follower count is always taken as-is (manual, not scraped).
 export async function POST(req: NextRequest) {
     try {
+        const db = getDbHttp();
         const body = await req.json();
         const { channelUrl, followerCount, category, order } = body;
         let { name, avatarUrl } = body;
@@ -79,10 +73,9 @@ export async function POST(req: NextRequest) {
             if (!scraped.name && !scraped.avatarUrl) scrapeFailed = true;
         }
 
-        const channels = await readChannels();
         const now = new Date().toISOString();
-        const channel: PortfolioChannel = {
-            id: randomUUID(),
+        const [channel] = await db.insert(portfolioChannelTable).values({
+            id: createId(),
             name: name || channelUrl,
             channelUrl,
             avatarUrl: avatarUrl || null,
@@ -92,9 +85,7 @@ export async function POST(req: NextRequest) {
             isActive: true,
             createdAt: now,
             updatedAt: now,
-        };
-        channels.push(channel);
-        await writeChannels(channels);
+        }).returning();
 
         return NextResponse.json({ ok: true, channel, scrapeFailed });
     } catch (err) {

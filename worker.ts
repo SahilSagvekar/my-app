@@ -89,6 +89,12 @@ export default {
         ctx.waitUntil(triggerCronRoute('/api/cron/billing-warnings', env, ctx));
         break;
 
+      // Auto-invoice day-before review — ≈ 10:30 AM ET (notify Eric to review settings).
+      case '30 14 * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/auto-invoice-review-reminder', env, ctx));
+        break;
+
+
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);
     }

@@ -1315,6 +1315,29 @@ export const portfolioCategory = pgTable("PortfolioCategory", {
 	uniqueIndex("PortfolioCategory_key_key").using("btree", table.key.asc().nullsLast().op("text_ops")),
 ]);
 
+// "Who We Work With" channel cards on the public portfolio page
+// (client-testimonials → who-we-work-with subcategory). Replaces the old
+// src/app/config/portfolioChannels.json + fs.readFile/writeFile approach,
+// which relied on a persistent writable local filesystem — something that
+// doesn't exist on Cloudflare Workers, so every read silently caught its
+// own error and returned [], and every write would have thrown outright.
+export const portfolioChannel = pgTable("PortfolioChannel", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	channelUrl: text().notNull(),
+	avatarUrl: text(),
+	followerCount: text().default('').notNull(),
+	category: text().notNull(),
+	order: integer().default(0).notNull(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("PortfolioChannel_category_idx").using("btree", table.category.asc().nullsLast().op("text_ops")),
+	index("PortfolioChannel_category_order_idx").using("btree", table.category.asc().nullsLast().op("text_ops"), table.order.asc().nullsLast().op("int4_ops")),
+	index("PortfolioChannel_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
+]);
+
 export const socialPost = pgTable("SocialPost", {
 	id: text().primaryKey().notNull(),
 	socialAccountId: text().notNull(),

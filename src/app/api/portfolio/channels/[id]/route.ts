@@ -1,23 +1,9 @@
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-import type { PortfolioChannel } from '../route';
-
-const CONFIG_PATH = path.join(process.cwd(), 'src/app/config/portfolioChannels.json');
-
-async function readChannels(): Promise<PortfolioChannel[]> {
-    try {
-        const data = await fs.readFile(CONFIG_PATH, 'utf8');
-        return JSON.parse(data);
-    } catch {
-        return [];
-    }
-}
-
-async function writeChannels(channels: PortfolioChannel[]) {
-    await fs.writeFile(CONFIG_PATH, JSON.stringify(channels, null, 4), 'utf8');
-}
+import { getDbHttp } from '@/lib/db';
+import { portfolioChannel as portfolioChannelTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 // PATCH /api/portfolio/channels/[id] — update a channel card
 export async function PATCH(
@@ -25,32 +11,33 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const db = getDbHttp();
         const { id } = await params;
         const body = await req.json();
 
-        const channels = await readChannels();
-        const idx = channels.findIndex((c) => c.id === id);
-        if (idx === -1) {
+        const updates: Record<string, any> = { updatedAt: new Date().toISOString() };
+        if (body.name !== undefined) updates.name = body.name;
+        if (body.channelUrl !== undefined) updates.channelUrl = body.channelUrl;
+        if (body.avatarUrl !== undefined) updates.avatarUrl = body.avatarUrl;
+        if (body.followerCount !== undefined) updates.followerCount = body.followerCount;
+        if (body.category !== undefined) updates.category = body.category;
+        if (body.order !== undefined) updates.order = body.order;
+        if (body.isActive !== undefined) updates.isActive = body.isActive;
+
+        const [channel] = await db
+            .update(portfolioChannelTable)
+            .set(updates)
+            .where(eq(portfolioChannelTable.id, id))
+            .returning();
+
+        if (!channel) {
             return NextResponse.json(
                 { ok: false, message: 'Channel not found' },
                 { status: 404 }
             );
         }
 
-        channels[idx] = {
-            ...channels[idx],
-            ...(body.name !== undefined && { name: body.name }),
-            ...(body.channelUrl !== undefined && { channelUrl: body.channelUrl }),
-            ...(body.avatarUrl !== undefined && { avatarUrl: body.avatarUrl }),
-            ...(body.followerCount !== undefined && { followerCount: body.followerCount }),
-            ...(body.category !== undefined && { category: body.category }),
-            ...(body.order !== undefined && { order: body.order }),
-            ...(body.isActive !== undefined && { isActive: body.isActive }),
-            updatedAt: new Date().toISOString(),
-        };
-        await writeChannels(channels);
-
-        return NextResponse.json({ ok: true, channel: channels[idx] });
+        return NextResponse.json({ ok: true, channel });
     } catch (err) {
         console.error('[PATCH /api/portfolio/channels/[id]]', err);
         return NextResponse.json(
@@ -66,19 +53,20 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const db = getDbHttp();
         const { id } = await params;
 
-        const channels = await readChannels();
-        const idx = channels.findIndex((c) => c.id === id);
-        if (idx === -1) {
+        const [deleted] = await db
+            .delete(portfolioChannelTable)
+            .where(eq(portfolioChannelTable.id, id))
+            .returning();
+
+        if (!deleted) {
             return NextResponse.json(
                 { ok: false, message: 'Channel not found' },
                 { status: 404 }
             );
         }
-
-        channels.splice(idx, 1);
-        await writeChannels(channels);
 
         return NextResponse.json({ ok: true });
     } catch (err) {
