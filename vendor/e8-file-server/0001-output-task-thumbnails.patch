@@ -1,0 +1,235 @@
+From 3e2438d5e250e6598750626042365d5dbf4d83f5 Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Tue, 25 Aug 2026 16:09:04 +0000
+Subject: [PATCH] Enable automatic thumbnails for task output videos
+
+Sync thumbnail helpers with the production app pipeline so output
+main videos enqueue with kind=output, write .thumbnails/{key}.jpg,
+and notify APP_URL/api/internal/thumbnail-complete with sizeBytes.
+---
+ src/thumbnail.js       | 70 ++++++++++++++++++++++++++++++++++++++++--
+ src/thumbnailQueue.js  | 14 +++++++--
+ src/thumbnailWorker.js | 48 ++++++++++++++++++++++++-----
+ 3 files changed, 119 insertions(+), 13 deletions(-)
+
+diff --git a/src/thumbnail.js b/src/thumbnail.js
+index a89d753..63d49ca 100644
+--- a/src/thumbnail.js
++++ b/src/thumbnail.js
+@@ -17,7 +17,7 @@ const crypto = require('crypto');
+ const { spawn } = require('child_process');
+ const ffmpegPath = require('ffmpeg-static');
+ 
+-const { GetObjectCommand } = require('@aws-sdk/client-s3');
++const { GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+ const { BUCKET, getS3, putObject } = require('./s3');
+ 
+ const RAW_FOOTAGE_SEGMENT = 'raw-footage';
+@@ -45,6 +45,69 @@ function shouldThumbnail(key) {
+   return isVideoKey(key) && isRawFootageKey(key);
+ }
+ 
++// ── Task-output video thumbnails ──────────────────────────────────────────
++// Separate from raw-footage above (which always thumbnails). Outputs only
++// get an auto-thumbnail when the task has no real thumbnail image already —
++// generating one is wasted ffmpeg work if an editor already uploaded a
++// proper thumbnail into the task's thumbnails/ subfolder.
++
++const OUTPUTS_SEGMENT = 'outputs';
++const MAIN_SEGMENT = 'main';
++const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
++
++/** Matches {company}/outputs/{month}/{taskTitle}/main/{video-file} */
++function isOutputMainVideoKey(key) {
++  if (!isVideoKey(key)) return false;
++  const parts = key.split('/').filter(Boolean);
++  if (parts.length < 2) return false;
++  const ancestors = parts.slice(0, -1); // exclude filename
++  return ancestors.includes(OUTPUTS_SEGMENT) && ancestors[ancestors.length - 1] === MAIN_SEGMENT;
++}
++
++/** {a}/{b}/main/{file}.mp4 -> {a}/{b}/thumbnails/ */
++function siblingThumbnailsFolder(mainVideoKey) {
++  const parts = mainVideoKey.split('/').filter(Boolean);
++  parts.pop(); // drop filename
++  parts.pop(); // drop 'main'
++  parts.push('thumbnails');
++  return parts.join('/') + '/';
++}
++
++/** True if a real (non-auto-generated) thumbnail image already exists for
++ *  this task — checked by listing the sibling thumbnails/ folder for any
++ *  image file, since e8-file-server intentionally has no DB access to check
++ *  the app's own `file` records directly. */
++async function hasExistingThumbnailImage(mainVideoKey) {
++  const s3 = getS3();
++  const prefix = siblingThumbnailsFolder(mainVideoKey);
++  const res = await s3.send(new ListObjectsV2Command({
++    Bucket: BUCKET,
++    Prefix: prefix,
++    MaxKeys: 50, // small folder, just need to know if ANY image is in it
++  }));
++  const contents = res.Contents || [];
++  return contents.some((obj) => {
++    if (!obj.Key || obj.Key === prefix) return false; // skip the folder marker itself
++    const ext = obj.Key.split('.').pop()?.toLowerCase();
++    return IMAGE_EXTENSIONS.has(ext || '');
++  });
++}
++
++/** Safety net: if anything in the eligibility check itself throws (a bad R2
++ *  call, a malformed key, etc.), treat it as "not eligible" rather than
++ *  letting the error propagate — this function is called from the upload
++ *  completion path, and a thumbnail eligibility check must never be able to
++ *  fail an actual upload. */
++async function shouldThumbnailOutput(key) {
++  try {
++    if (!isOutputMainVideoKey(key)) return false;
++    return !(await hasExistingThumbnailImage(key));
++  } catch (err) {
++    console.error(`[Thumbnail] shouldThumbnailOutput check failed for ${key} — treating as not eligible:`, err.message);
++    return false;
++  }
++}
++
+ function thumbnailKeyFor(sourceKey) {
+   return `${THUMBNAIL_PREFIX}${sourceKey}.jpg`;
+ }
+@@ -132,7 +195,7 @@ async function generateThumbnail(key) {
+     const jpegBuffer = fs.readFileSync(outTmp);
+     const destKey = thumbnailKeyFor(key);
+     await putObject(destKey, jpegBuffer, 'image/jpeg');
+-    return destKey;
++    return { destKey, sizeBytes: jpegBuffer.length };
+   } finally {
+     safeUnlink(srcTmp);
+     safeUnlink(outTmp);
+@@ -143,6 +206,9 @@ module.exports = {
+   isVideoKey,
+   isRawFootageKey,
+   shouldThumbnail,
++  isOutputMainVideoKey,
++  shouldThumbnailOutput,
++  siblingThumbnailsFolder,
+   thumbnailKeyFor,
+   generateThumbnail,
+   THUMBNAIL_PREFIX,
+diff --git a/src/thumbnailQueue.js b/src/thumbnailQueue.js
+index c3e802c..95457cd 100644
+--- a/src/thumbnailQueue.js
++++ b/src/thumbnailQueue.js
+@@ -17,6 +17,7 @@ db.exec(`
+   CREATE TABLE IF NOT EXISTS thumbnail_jobs (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     key TEXT NOT NULL UNIQUE,
++    kind TEXT NOT NULL DEFAULT 'raw-footage', -- 'raw-footage' | 'output' — output jobs webhook back to my-app on success
+     status TEXT NOT NULL DEFAULT 'pending', -- pending | processing | done | failed
+     attempts INTEGER NOT NULL DEFAULT 0,
+     error TEXT,
+@@ -26,6 +27,13 @@ db.exec(`
+   CREATE INDEX IF NOT EXISTS idx_thumbnail_jobs_status ON thumbnail_jobs(status);
+ `);
+ 
++// Migrate older DBs that predate the `kind` column.
++try {
++  db.exec(`ALTER TABLE thumbnail_jobs ADD COLUMN kind TEXT NOT NULL DEFAULT 'raw-footage'`);
++} catch {
++  // Column already exists — fine.
++}
++
+ const MAX_ATTEMPTS = 2;
+ 
+ /**
+@@ -33,10 +41,10 @@ const MAX_ATTEMPTS = 2;
+  * only re-queues if a previous attempt failed (lets a fixed bug retry on
+  * the next backfill without duplicating rows).
+  */
+-function enqueue(key) {
++function enqueue(key, kind = 'raw-footage') {
+   const existing = db.prepare(`SELECT id, status FROM thumbnail_jobs WHERE key = ?`).get(key);
+   if (!existing) {
+-    db.prepare(`INSERT INTO thumbnail_jobs (key, status) VALUES (?, 'pending')`).run(key);
++    db.prepare(`INSERT INTO thumbnail_jobs (key, kind, status) VALUES (?, ?, 'pending')`).run(key, kind);
+     return 'queued';
+   }
+   if (existing.status === 'failed') {
+@@ -52,7 +60,7 @@ function enqueue(key) {
+ /** Pull up to `limit` pending jobs and atomically mark them 'processing'. */
+ function claimBatch(limit) {
+   const rows = db.prepare(`
+-    SELECT id, key, attempts FROM thumbnail_jobs
++    SELECT id, key, kind, attempts FROM thumbnail_jobs
+     WHERE status = 'pending'
+     ORDER BY created_at ASC
+     LIMIT ?
+diff --git a/src/thumbnailWorker.js b/src/thumbnailWorker.js
+index 809d7ad..bd04429 100644
+--- a/src/thumbnailWorker.js
++++ b/src/thumbnailWorker.js
+@@ -12,23 +12,55 @@ const { invalidateStructure } = require('./cache');
+ const CONCURRENCY = parseInt(process.env.THUMBNAIL_CONCURRENCY || '2', 10);
+ const POLL_INTERVAL_MS = 5000;
+ 
++const APP_URL = process.env.APP_URL || 'https://e8productions.com';
++const CRON_SECRET = process.env.CRON_SECRET;
++
++/** Notify my-app so it can create a real `file` row for this auto-generated
++ *  thumbnail — output-video jobs only (raw-footage thumbnails don't need a
++ *  DB record; they're looked up directly from R2 by the folder tree). */
++async function notifyOutputThumbnailComplete(videoKey, thumbnailKey, sizeBytes) {
++  if (!CRON_SECRET) {
++    console.error('[ThumbnailWorker] CRON_SECRET not set — cannot notify my-app of completed output thumbnail');
++    return;
++  }
++  try {
++    const res = await fetch(`${APP_URL}/api/internal/thumbnail-complete`, {
++      method: 'POST',
++      headers: {
++        'Content-Type': 'application/json',
++        'x-internal-secret': CRON_SECRET,
++      },
++      body: JSON.stringify({ videoS3Key: videoKey, thumbnailS3Key: thumbnailKey, sizeBytes }),
++    });
++    if (!res.ok) {
++      console.error(`[ThumbnailWorker] Webhook failed (${res.status}) for ${videoKey}: ${await res.text().catch(() => '')}`);
++    }
++  } catch (err) {
++    console.error(`[ThumbnailWorker] Webhook fetch failed for ${videoKey}:`, err.message);
++  }
++}
++
+ let active = 0;
+ let stopped = false;
+ 
+ async function processJob(job) {
+   active++;
+   try {
+-    const destKey = await generateThumbnail(job.key);
++    const { destKey, sizeBytes } = await generateThumbnail(job.key);
+     queue.markDone(job.id);
+     console.log(`🖼️  Thumbnail ready: ${job.key} → ${destKey}`);
+ 
+-    // The upload's own cache invalidation (in /multipart/complete) already
+-    // fired before this ran — thumbnail generation takes several seconds
+-    // longer than the upload response. Without invalidating again here,
+-    // the folder view keeps showing "no thumbnail yet" until the 5-minute
+-    // cache TTL happens to expire on its own.
+-    const parentFolderPrefix = job.key.split('/').slice(0, -1).join('/') + '/';
+-    invalidateStructure(parentFolderPrefix);
++    if (job.kind === 'output') {
++      await notifyOutputThumbnailComplete(job.key, destKey, sizeBytes);
++    } else {
++      // The upload's own cache invalidation (in /multipart/complete) already
++      // fired before this ran — thumbnail generation takes several seconds
++      // longer than the upload response. Without invalidating again here,
++      // the folder view keeps showing "no thumbnail yet" until the 5-minute
++      // cache TTL happens to expire on its own.
++      const parentFolderPrefix = job.key.split('/').slice(0, -1).join('/') + '/';
++      invalidateStructure(parentFolderPrefix);
++    }
+   } catch (err) {
+     queue.markFailed(job.id, err.message);
+     console.warn(`⚠️  Thumbnail failed for ${job.key}: ${err.message}`);
+-- 
+2.43.0
+

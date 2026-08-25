@@ -1,0 +1,16 @@
+Copy these three files into the e8-file-server repo at src/, replacing the
+existing modules. Then commit, deploy, and restart the file-server process
+(PM2 / Docker / Cloudflare Container).
+
+  thumbnail.js
+  thumbnailQueue.js
+  thumbnailWorker.js
+
+Required env on the file-server (must match the main app):
+  APP_URL       = https://<your-app-host>   (receives /api/internal/thumbnail-complete)
+  CRON_SECRET   = same secret the app uses for internal webhooks
+
+After deploy, from the main app (admin):
+  POST /api/admin/backfill-output-thumbnails
+
+Or wait for the every-minute cron /api/cron/backfill-task-thumbnails.

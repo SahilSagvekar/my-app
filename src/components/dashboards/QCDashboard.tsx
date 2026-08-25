@@ -30,6 +30,7 @@ import { getFileUrl } from '@/lib/s3';
 import {
   autoThumbnailKeyForVideo,
   getTaskCardThumbnailUrl,
+  taskThumbnailFallbackLabel,
   taskHasThumbnailFiles,
 } from '@/lib/task-thumbnail';
 
@@ -1320,7 +1321,7 @@ useEffect(() => {
                         />
                       )}
                       <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
-                        No thumbnail
+                        {taskThumbnailFallbackLabel(task.files)}
                       </div>
 
                       {thumbnail && (
