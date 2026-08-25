@@ -1,10 +1,14 @@
-Copy these three files into the e8-file-server repo at src/, replacing the
-existing modules. Then commit, deploy, and restart the file-server process
-(PM2 / Docker / Cloudflare Container).
+Option A — apply the patch on a fresh e8-file-server checkout:
+  git checkout -b cursor/output-task-thumbnails-5528
+  git am path/to/0001-output-task-thumbnails.patch
 
+Option B — copy these three files into e8-file-server/src/ (overwrite):
   thumbnail.js
   thumbnailQueue.js
   thumbnailWorker.js
+
+Then commit, deploy, and restart the file-server process (PM2 / Docker /
+Cloudflare Container).
 
 Required env on the file-server (must match the main app):
   APP_URL       = https://<your-app-host>   (receives /api/internal/thumbnail-complete)
