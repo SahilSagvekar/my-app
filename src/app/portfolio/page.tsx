@@ -960,9 +960,13 @@ function ImageGrid({
 
     if (loading) {
         return (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                {Array.from({ length: 8 }).map((_, i) => (
-                    <div key={i} className="aspect-[4/3] rounded-2xl bg-black/[0.04] animate-pulse" />
+            <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 sm:gap-4 space-y-3 sm:space-y-4">
+                {[0.9, 1.3, 1.0, 1.45, 1.15, 0.85, 1.25, 1.05].map((ratio, i) => (
+                    <div
+                        key={i}
+                        className="break-inside-avoid mb-3 sm:mb-4 rounded-2xl bg-black/[0.04] animate-pulse"
+                        style={{ aspectRatio: `1 / ${ratio}` }}
+                    />
                 ))}
             </div>
         );
@@ -986,28 +990,29 @@ function ImageGrid({
 
     return (
         <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* Masonry: each photo keeps its natural aspect (portrait + landscape). */}
+            <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 sm:gap-4">
                 {images.map((image) => (
                     <button
                         key={image.id}
                         type="button"
                         onClick={() => setExpanded(image)}
-                        className="group relative aspect-[4/3] rounded-2xl overflow-hidden bg-black/[0.03] border border-black/5 hover:shadow-xl hover:border-black/10 transition-all duration-300 text-left"
+                        className="group relative mb-3 sm:mb-4 break-inside-avoid w-full rounded-2xl overflow-hidden bg-black/[0.03] border border-black/5 hover:shadow-xl hover:border-black/10 transition-all duration-300 text-left"
                     >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src={image.thumbnailUrl || image.imageUrl}
                             alt={image.title || 'Portfolio photo'}
-                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            className="block w-full h-auto transition-transform duration-500 group-hover:scale-[1.02]"
                             loading="lazy"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                         {image.title ? (
-                        <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
-                            <p className="text-white text-sm font-semibold truncate">{image.title}</p>
-                        </div>
+                            <div className="pointer-events-none absolute bottom-0 left-0 right-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
+                                <p className="text-white text-sm font-semibold truncate">{image.title}</p>
+                            </div>
                         ) : null}
-                        <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow">
+                        <div className="pointer-events-none absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow">
                             <Maximize2 className="w-3.5 h-3.5" />
                         </div>
                     </button>
