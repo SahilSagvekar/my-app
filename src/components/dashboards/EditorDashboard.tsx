@@ -2007,16 +2007,40 @@ export function EditorDashboard() {
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
   const startTask = useCallback(async (taskId: string) => {
-    await fetch(`/api/tasks/${taskId}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "IN_PROGRESS" }),
-    });
+    const previous = tasks.find((t) => t.id === taskId)?.status;
 
+    // Optimistic UI — reverted below if the API rejects (common for new
+    // editors with a stale/missing auth session).
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: "in_progress" } : t))
     );
-  }, []);
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "IN_PROGRESS" }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId ? { ...t, status: previous || "pending" } : t
+          )
+        );
+        toast.error(data.message || "Failed to start task. Please refresh and try again.");
+      }
+    } catch (err) {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: previous || "pending" } : t
+        )
+      );
+      toast.error("Network error starting task. Please try again.");
+      console.error("Failed to start task:", err);
+    }
+  }, [tasks]);
 
   // 🔥 Optimistic update when editor acknowledges a feedback item
   const handleAcknowledgeFeedback = useCallback((taskId: string, feedbackId: string) => {
