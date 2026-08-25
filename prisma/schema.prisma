@@ -1613,6 +1613,25 @@ model PortfolioVideo {
   @@index([isActive])
 }
 
+// Photography gallery images for the public /portfolio "Photography" section
+// (no subcategories — category key is always "photography").
+model PortfolioImage {
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @default("")
+  imageUrl     String
+  thumbnailUrl String?
+  category     String   @default("photography")
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([category])
+  @@index([category, order])
+  @@index([isActive])
+}
+
 // Admin-managed content for the public /portfolio "Before & After" tab —
 // replaces the hardcoded picsum.photos placeholder client list.
 model PortfolioJourneyClient {
