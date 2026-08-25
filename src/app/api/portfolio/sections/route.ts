@@ -24,6 +24,31 @@ export async function GET() {
   const { db, closeDb } = getDbPool();
   try {
     try {
+        // Ensure Photography section exists (no subcategories) so admins don't
+        // need a manual seed after deploy.
+        const existingPhotography = await db.query.portfolioCategory.findFirst({
+            where: eq(portfolioCategory.key, 'photography'),
+        });
+        if (!existingPhotography) {
+            const allCats = await db
+                .select({ order: portfolioCategory.order })
+                .from(portfolioCategory)
+                .orderBy(asc(portfolioCategory.order));
+            const nextOrder =
+                allCats.length > 0
+                    ? Math.max(...allCats.map((c) => c.order)) + 1
+                    : 0;
+            await db.insert(portfolioCategory).values({
+                id: createId(),
+                key: 'photography',
+                label: 'Photography',
+                iconName: 'ImageIcon',
+                isActive: true,
+                order: nextOrder,
+                updatedAt: new Date().toISOString(),
+            });
+        }
+
         const categories = await db.query.portfolioCategory.findMany({
             orderBy: asc(portfolioCategory.order),
             with: { portfolioSubcategories: { orderBy: (sub, { asc }) => asc(sub.order) } },

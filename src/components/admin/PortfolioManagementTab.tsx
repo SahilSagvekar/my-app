@@ -121,6 +121,22 @@ const LEADS_PER_PAGE = 15;
 // instead of videos — managed separately in ChannelControl below.
 const CHANNEL_CATEGORY_KEY = "who-we-work-with";
 
+// Photography section has no subcategories — images use this category key.
+const PHOTOGRAPHY_CATEGORY_KEY = "photography";
+
+interface PortfolioImage {
+    id: string;
+    title: string;
+    description: string;
+    imageUrl: string;
+    thumbnailUrl: string | null;
+    category: string;
+    order: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    LEAD MANAGEMENT TAB
    ═══════════════════════════════════════════════════════════════ */
@@ -518,9 +534,10 @@ function ContentControl({ sections }: { sections: Category[] }) {
     const [submitting, setSubmitting] = useState(false);
     const [previewVideo, setPreviewVideo] = useState<PortfolioVideo | null>(null);
 
-    // Flatten subcategories for easier select options — the channel-card
-    // section is managed separately in ChannelControl, not here.
+    // Flatten subcategories for easier select options — channel cards and
+    // photography (no subs / image gallery) are managed separately.
     const allSubcategories = sections
+        .filter((c) => c.key !== PHOTOGRAPHY_CATEGORY_KEY)
         .flatMap(c => c.subcategories.map(s => ({
             ...s,
             parentLabel: c.label
@@ -1546,6 +1563,469 @@ function ChannelControl({ category, label }: { category: string; label: string }
 /* ═══════════════════════════════════════════════════════════════
    PORTFOLIO SECTIONS MANAGEMENT
    ═══════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   PHOTOGRAPHY / IMAGE CONTROL
+   ═══════════════════════════════════════════════════════════════ */
+function PhotoControl() {
+    const [images, setImages] = useState<PortfolioImage[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showDialog, setShowDialog] = useState(false);
+    const [editingImage, setEditingImage] = useState<PortfolioImage | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [previewImage, setPreviewImage] = useState<PortfolioImage | null>(null);
+    const [formData, setFormData] = useState({
+        title: "",
+        description: "",
+        imageUrl: "",
+        order: "0",
+    });
+
+    const nextOrder = useCallback(() => {
+        return images.length > 0 ? Math.max(...images.map((i) => i.order)) + 1 : 0;
+    }, [images]);
+
+    const fetchImages = useCallback(async () => {
+        try {
+            setLoading(true);
+            const res = await fetch(
+                `/api/portfolio/images?all=true&category=${PHOTOGRAPHY_CATEGORY_KEY}`
+            );
+            const data = await res.json();
+            if (data.ok) setImages(data.images || []);
+            else toast.error("Failed to load photos");
+        } catch {
+            toast.error("Network error loading photos");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchImages();
+    }, [fetchImages]);
+
+    const resetForm = () => {
+        setFormData({
+            title: "",
+            description: "",
+            imageUrl: "",
+            order: String(nextOrder()),
+        });
+        setEditingImage(null);
+    };
+
+    const openAddDialog = () => {
+        setEditingImage(null);
+        setFormData({
+            title: "",
+            description: "",
+            imageUrl: "",
+            order: String(nextOrder()),
+        });
+        setShowDialog(true);
+    };
+
+    const openEditDialog = (img: PortfolioImage) => {
+        setEditingImage(img);
+        setFormData({
+            title: img.title,
+            description: img.description || "",
+            imageUrl: img.imageUrl,
+            order: String(img.order),
+        });
+        setShowDialog(true);
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const payload = new FormData();
+        payload.append("file", file);
+        const toastId = toast.loading("Uploading image…");
+
+        try {
+            const res = await fetch("/api/portfolio/upload", {
+                method: "POST",
+                body: payload,
+            });
+            const data = await res.json();
+            if (data.ok) {
+                setFormData((prev) => ({ ...prev, imageUrl: data.url }));
+                toast.success("Upload successful", { id: toastId });
+            } else {
+                toast.error(data.message || "Upload failed", { id: toastId });
+            }
+        } catch {
+            toast.error("Upload failed", { id: toastId });
+        } finally {
+            e.target.value = "";
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.title.trim()) {
+            toast.error("Title is required");
+            return;
+        }
+        if (!formData.imageUrl.trim()) {
+            toast.error("Image URL or upload is required");
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const body = {
+                title: formData.title.trim(),
+                description: formData.description.trim(),
+                imageUrl: formData.imageUrl.trim(),
+                category: PHOTOGRAPHY_CATEGORY_KEY,
+                order: parseInt(formData.order, 10) || 0,
+            };
+
+            if (editingImage) {
+                const res = await fetch(`/api/portfolio/images/${editingImage.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || "Update failed");
+                toast.success("Photo updated");
+            } else {
+                const res = await fetch("/api/portfolio/images", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || "Create failed");
+                toast.success("Photo added");
+            }
+            setShowDialog(false);
+            resetForm();
+            fetchImages();
+        } catch (err: any) {
+            toast.error(err.message || "Operation failed");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm("Delete this photo? This cannot be undone.")) return;
+        try {
+            const res = await fetch(`/api/portfolio/images/${id}`, { method: "DELETE" });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || "Delete failed");
+            }
+            toast.success("Photo deleted");
+            fetchImages();
+        } catch (err: any) {
+            toast.error(err.message || "Delete failed");
+        }
+    };
+
+    const handleToggleActive = async (img: PortfolioImage) => {
+        try {
+            const res = await fetch(`/api/portfolio/images/${img.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isActive: !img.isActive }),
+            });
+            if (!res.ok) throw new Error("Toggle failed");
+            fetchImages();
+        } catch {
+            toast.error("Failed to update visibility");
+        }
+    };
+
+    const handleMove = async (img: PortfolioImage, dir: "up" | "down") => {
+        const sorted = [...images].sort((a, b) => a.order - b.order);
+        const idx = sorted.findIndex((i) => i.id === img.id);
+        const swapIdx = dir === "up" ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= sorted.length) return;
+        const swap = sorted[swapIdx];
+        try {
+            await Promise.all([
+                fetch(`/api/portfolio/images/${img.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order: swap.order }),
+                }),
+                fetch(`/api/portfolio/images/${swap.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order: img.order }),
+                }),
+            ]);
+            fetchImages();
+        } catch {
+            toast.error("Failed to reorder");
+        }
+    };
+
+    const sorted = [...images].sort((a, b) => a.order - b.order);
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <CardTitle>Photography Gallery</CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Images shown on the public portfolio Photography section.
+                                Paste an external URL or upload via Cloudinary.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={fetchImages}>
+                                <RefreshCw className="h-4 w-4 mr-1" />
+                                Refresh
+                            </Button>
+                            <Button size="sm" onClick={openAddDialog}>
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add Photo
+                            </Button>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <div className="flex justify-center py-12">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                        </div>
+                    ) : sorted.length === 0 ? (
+                        <div className="text-center py-16 text-muted-foreground">
+                            <ImageIcon className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                            <p className="font-medium">No photos yet</p>
+                            <p className="text-sm mt-1">Add your first photography piece to get started.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {sorted.map((img, idx) => (
+                                <div
+                                    key={img.id}
+                                    className={`border rounded-xl overflow-hidden bg-card ${
+                                        !img.isActive ? "opacity-55" : ""
+                                    }`}
+                                >
+                                    <button
+                                        type="button"
+                                        className="relative w-full aspect-[4/3] bg-muted"
+                                        onClick={() => setPreviewImage(img)}
+                                    >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={img.thumbnailUrl || img.imageUrl}
+                                            alt={img.title}
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                        />
+                                    </button>
+                                    <div className="p-3 space-y-2">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-sm truncate">{img.title}</p>
+                                                {img.description ? (
+                                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                                        {img.description}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            <Badge variant={img.isActive ? "default" : "outline"}>
+                                                {img.isActive ? "Live" : "Hidden"}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-1 flex-wrap">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                disabled={idx === 0}
+                                                onClick={() => handleMove(img, "up")}
+                                            >
+                                                <ArrowUp className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                disabled={idx === sorted.length - 1}
+                                                onClick={() => handleMove(img, "down")}
+                                            >
+                                                <ArrowDown className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                onClick={() => handleToggleActive(img)}
+                                                title={img.isActive ? "Hide" : "Show"}
+                                            >
+                                                {img.isActive ? (
+                                                    <Eye className="h-3.5 w-3.5" />
+                                                ) : (
+                                                    <EyeOff className="h-3.5 w-3.5" />
+                                                )}
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                onClick={() => openEditDialog(img)}
+                                            >
+                                                <Edit className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-destructive"
+                                                onClick={() => handleDelete(img.id)}
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Dialog
+                open={showDialog}
+                onOpenChange={(open) => {
+                    setShowDialog(open);
+                    if (!open) resetForm();
+                }}
+            >
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>{editingImage ? "Edit Photo" : "Add Photo"}</DialogTitle>
+                        <DialogDescription>
+                            Upload a file (Cloudinary), paste an external image URL, or both.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="photo-title">Title</Label>
+                            <Input
+                                id="photo-title"
+                                value={formData.title}
+                                onChange={(e) =>
+                                    setFormData((p) => ({ ...p, title: e.target.value }))
+                                }
+                                placeholder="e.g. Downtown headshot session"
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="photo-desc">Description (optional)</Label>
+                            <Textarea
+                                id="photo-desc"
+                                value={formData.description}
+                                onChange={(e) =>
+                                    setFormData((p) => ({ ...p, description: e.target.value }))
+                                }
+                                rows={2}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="photo-url">Image URL</Label>
+                            <Input
+                                id="photo-url"
+                                value={formData.imageUrl}
+                                onChange={(e) =>
+                                    setFormData((p) => ({ ...p, imageUrl: e.target.value }))
+                                }
+                                placeholder="https://… or upload below"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="photo-file">Upload image</Label>
+                            <Input
+                                id="photo-file"
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileUpload}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Direct upload goes to Cloudinary and fills the URL above.
+                            </p>
+                        </div>
+                        {formData.imageUrl ? (
+                            <div className="relative w-full aspect-video rounded-lg overflow-hidden border bg-muted">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={formData.imageUrl}
+                                    alt="Preview"
+                                    className="absolute inset-0 w-full h-full object-contain"
+                                />
+                            </div>
+                        ) : null}
+                        <div className="space-y-2">
+                            <Label htmlFor="photo-order">Order</Label>
+                            <Input
+                                id="photo-order"
+                                type="number"
+                                value={formData.order}
+                                onChange={(e) =>
+                                    setFormData((p) => ({ ...p, order: e.target.value }))
+                                }
+                            />
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowDialog(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={submitting}>
+                                {submitting && (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                )}
+                                {editingImage ? "Save Changes" : "Add Photo"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={!!previewImage}
+                onOpenChange={(open) => {
+                    if (!open) setPreviewImage(null);
+                }}
+            >
+                <DialogContent className="sm:max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>{previewImage?.title}</DialogTitle>
+                        {previewImage?.description ? (
+                            <DialogDescription>{previewImage.description}</DialogDescription>
+                        ) : null}
+                    </DialogHeader>
+                    {previewImage ? (
+                        <div className="relative w-full max-h-[70vh] aspect-auto">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={previewImage.imageUrl}
+                                alt={previewImage.title}
+                                className="w-full max-h-[70vh] object-contain rounded-lg"
+                            />
+                        </div>
+                    ) : null}
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
 function SectionsManagement({ sections, onRefresh }: { sections: Category[], onRefresh: () => void }) {
     const [saving, setSaving] = useState(false);
     const [editingSections, setEditingSections] = useState<Category[]>([]);
@@ -1742,7 +2222,7 @@ export function PortfolioManagementTab() {
             </div>
 
             <Tabs defaultValue="leads" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+                <TabsList className="grid w-full grid-cols-5 max-w-3xl">
                     <TabsTrigger value="leads" className="flex items-center gap-2">
                         <Users className="h-4 w-4" />
                         Leads
@@ -1754,6 +2234,10 @@ export function PortfolioManagementTab() {
                     <TabsTrigger value="content" className="flex items-center gap-2">
                         <Film className="h-4 w-4" />
                         Videos
+                    </TabsTrigger>
+                    <TabsTrigger value="photos" className="flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        Photos
                     </TabsTrigger>
                     <TabsTrigger value="journey" className="flex items-center gap-2">
                         <BarChart3 className="h-4 w-4" />
@@ -1779,6 +2263,10 @@ export function PortfolioManagementTab() {
                             <ChannelControl category={CHANNEL_CATEGORY_KEY} label={channelSub.label} />
                         ) : null;
                     })()}
+                </TabsContent>
+
+                <TabsContent value="photos" className="mt-6">
+                    <PhotoControl />
                 </TabsContent>
 
                 <TabsContent value="journey" className="mt-6">
