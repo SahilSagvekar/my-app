@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 // UPDATED VERSION - Add titling trigger on QC approval
 // Replace your existing route.ts with this
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDbHttp } from "@/lib/db";
 import {
   task as taskTable,
@@ -19,7 +19,7 @@ import { startTitlingJob } from '@/lib/titling-service';
 import { notifyUser } from "@/lib/notify";
 import { triggerReviewMirror } from "@/lib/review-mirror";
 import { deleteYoutubeVideo } from "@/lib/youtube-mirror";
-import jwt from "jsonwebtoken";
+import { getCurrentUser2 } from "@/lib/auth";
 
 function sanitizeBigInt(obj: any): any {
   if (obj === null || obj === undefined) return obj;
@@ -35,40 +35,42 @@ function sanitizeBigInt(obj: any): any {
   return obj;
 }
 
-function getTokenFromCookies(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-  if (!cookieHeader) return null;
-  const match = cookieHeader.match(/authToken=([^;]+)/);
-  return match ? match[1] : null;
-}
-
-function getAuthToken(req: Request) {
-  // Cookie first (browser sessions), then Authorization: Bearer header
-  // (desktop app / any non-browser client that can't hold cookies).
-  const cookieToken = getTokenFromCookies(req);
-  if (cookieToken) return cookieToken;
-
-  const authHeader = req.headers.get("authorization");
-  return authHeader?.split(" ")[1] || null;
-}
-
 export async function PATCH(
-  req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const db = getDbHttp();
   try {
     const { id } = await params;
-    const token = getAuthToken(req);
-    if (!token)
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    const { userId } = decoded;
-    const role: string = (decoded.role || decoded.userRole || '').toLowerCase();
+    // Resolve the user from DB (authToken JWT *or* NextAuth session).
+    // Previously this route only trusted JWT payload.role — new editors who
+    // signed in via Google/Slack (NextAuth only) or who got their role
+    // assigned after login (stale JWT with role:null) could list tasks but
+    // got 401 on every status change.
+    const currentUser = await getCurrentUser2(req);
+    if (!currentUser) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+    if (
+      currentUser.employeeStatus !== 'ACTIVE' &&
+      currentUser.email !== 'sahilsagvekar230@gmail.com'
+    ) {
+      return NextResponse.json({ message: "Account deactivated" }, { status: 403 });
+    }
+
+    const userId = Number(currentUser.id);
+    const role: string = (
+      currentUser.role ||
+      (Array.isArray(currentUser.roles) && currentUser.roles[0]) ||
+      ''
+    ).toLowerCase();
 
     if (!role) {
-      return NextResponse.json({ message: 'Unauthorized — missing role' }, { status: 401 });
+      return NextResponse.json(
+        { message: 'Unauthorized — no role assigned yet. Ask an admin to set your role, then refresh.' },
+        { status: 401 }
+      );
     }
 
     // 🔥 Role-switch support: a scheduler viewing as QC (see ViewAsRoleContext)

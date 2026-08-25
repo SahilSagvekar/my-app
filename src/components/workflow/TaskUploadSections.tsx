@@ -353,16 +353,17 @@ export function TaskUploadSections({
       });
 
       if (!res.ok) {
-        throw new Error("Failed to submit to QC");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to submit to QC");
       }
 
       onUploadComplete([]);
 
       // Reload page to refresh task status
       window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to submit to QC:", error);
-      alert("Failed to submit to QC. Please try again.");
+      alert(error?.message || "Failed to submit to QC. Please try again.");
     } finally {
       setSubmitting(false);
     }

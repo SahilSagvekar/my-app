@@ -18,7 +18,7 @@ type AuthMeUser = {
   id: number;
   email: string;
   name: string | null;
-  role: string;
+  role: string | null;
   roles: string[];
   image: string | null;
   linkedClientId: string | null;
@@ -54,6 +54,55 @@ async function getClientLink(user: AuthMeUser) {
     linkedClientId: client?.id || null,
     hasPostingServices: client?.hasPostingServices ?? true,
   };
+}
+
+/** Keep authToken JWT in sync with the DB role (fixes stale role:null JWTs
+ *  after an admin assigns a role, and issues a token for NextAuth-only logins). */
+function withRefreshedAuthCookie(
+  response: NextResponse,
+  user: { id: number; email: string; role: string | null; roles: string[] | null },
+  existingToken: string | null
+) {
+  if (!process.env.JWT_SECRET) return response;
+
+  let needsRefresh = !existingToken;
+  if (existingToken) {
+    try {
+      const decoded: any = jwt.verify(existingToken, process.env.JWT_SECRET);
+      const tokenRole = (decoded.role || '').toLowerCase();
+      const dbRole = (user.role || '').toLowerCase();
+      const tokenRoles = JSON.stringify(decoded.roles || []);
+      const dbRoles = JSON.stringify(user.roles || []);
+      if (tokenRole !== dbRole || tokenRoles !== dbRoles || Number(decoded.userId) !== Number(user.id)) {
+        needsRefresh = true;
+      }
+    } catch {
+      needsRefresh = true;
+    }
+  }
+
+  if (!needsRefresh) return response;
+
+  const token = jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      roles: user.roles || [],
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  response.cookies.set('authToken', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60,
+    path: '/',
+  });
+
+  return response;
 }
 
 export async function GET(req: Request) {
@@ -97,7 +146,8 @@ export async function GET(req: Request) {
             linkedClientId: clientLink.linkedClientId,
             hasPostingServices: clientLink.hasPostingServices
           };
-          return NextResponse.json({ user: processedUser }, { status: 200 });
+          const response = NextResponse.json({ user: processedUser }, { status: 200 });
+          return withRefreshedAuthCookie(response, user, token);
         }
       } catch {
         // Fall through to NextAuth check if JWT fails
@@ -139,7 +189,9 @@ export async function GET(req: Request) {
           linkedClientId: clientLink.linkedClientId,
           hasPostingServices: clientLink.hasPostingServices
         };
-        return NextResponse.json({ user: processedUser }, { status: 200 });
+        // Issue authToken for NextAuth-only sessions so JWT-gated routes work.
+        const response = NextResponse.json({ user: processedUser }, { status: 200 });
+        return withRefreshedAuthCookie(response, user, token);
       }
     }
 
