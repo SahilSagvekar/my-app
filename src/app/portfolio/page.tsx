@@ -588,6 +588,7 @@ function PortfolioNav({
     categories,
     showHowItWorks,
     onToggleHowItWorks,
+    howItWorksVisible,
 }: {
     activeCategory: string;
     activeSubcategory: string;
@@ -595,6 +596,7 @@ function PortfolioNav({
     categories: Category[];
     showHowItWorks: boolean;
     onToggleHowItWorks: () => void;
+    howItWorksVisible: boolean;
 }) {
     const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
@@ -630,7 +632,11 @@ function PortfolioNav({
                             const Icon = ICON_MAP[cat.icon as string] || Film;
                             const isActive = activeCategory === cat.key && !showHowItWorks;
                             const isOpen = openDropdown === cat.key;
-                            const activeSubs = cat.subcategories.filter(s => s.isActive);
+                            // Photography (and any flat category) never shows a subcategory dropdown.
+                            const isFlat = cat.key === PHOTOGRAPHY_CATEGORY;
+                            const activeSubs = isFlat
+                                ? []
+                                : cat.subcategories.filter(s => s.isActive);
                             const hasSubs = activeSubs.length > 0;
 
                             return (
@@ -701,6 +707,7 @@ function PortfolioNav({
                             );
                         })}
 
+                        {howItWorksVisible && (
                         <button
                             onClick={onToggleHowItWorks}
                             className={`flex items-center px-4 py-2 rounded-full text-sm font-bold transition-all active:scale-95 border ${
@@ -711,6 +718,7 @@ function PortfolioNav({
                         >
                             How It Works
                         </button>
+                        )}
                     </div>
 
                     {/* Book Meeting */}
@@ -1099,14 +1107,22 @@ function PortfolioContent() {
     const [loading, setLoading] = useState(true);
     const [navLoading, setNavLoading] = useState(true);
     const [showHowItWorks, setShowHowItWorks] = useState(false);
+    const [howItWorksVisible, setHowItWorksVisible] = useState(true);
 
     const fetchSections = useCallback(async () => {
         try {
             const res = await fetch('/api/portfolio/sections');
             const data = await res.json();
             if (data.ok) {
-                const activeCats = data.sections.filter((c: Category) => c.isActive);
+                const activeCats = (data.sections as Category[])
+                    .map((c) =>
+                        c.key === PHOTOGRAPHY_CATEGORY
+                            ? { ...c, subcategories: [] }
+                            : c
+                    )
+                    .filter((c) => c.isActive);
                 setCategories(activeCats);
+                setHowItWorksVisible(data.settings?.howItWorksVisible !== false);
                 // Set default if not set
                 if (activeCats.length > 0) {
                     const firstCat = activeCats[0];
@@ -1128,7 +1144,7 @@ function PortfolioContent() {
 
     const handleSelectSub = useCallback((catKey: string, subKey: string) => {
         setActiveCategory(catKey);
-        setActiveSubcategory(subKey);
+        setActiveSubcategory(catKey === PHOTOGRAPHY_CATEGORY ? '' : subKey);
         setShowHowItWorks(false);
     }, []);
 
@@ -1189,10 +1205,17 @@ function PortfolioContent() {
         }
     }, [activeCategory, activeSubcategory, fetchVideos, fetchChannels, fetchImages]);
 
+    // If How It Works was hidden while open, close it.
+    useEffect(() => {
+        if (!howItWorksVisible && showHowItWorks) {
+            setShowHowItWorks(false);
+        }
+    }, [howItWorksVisible, showHowItWorks]);
+
     const parentCat = categories.find((c) => c.key === activeCategory);
-    const parentHasSubs = Boolean(
-        parentCat?.subcategories.some((s) => s.isActive)
-    );
+    const parentHasSubs =
+        activeCategory !== PHOTOGRAPHY_CATEGORY &&
+        Boolean(parentCat?.subcategories.some((s) => s.isActive));
 
     if (navLoading) {
         return (
@@ -1211,6 +1234,7 @@ function PortfolioContent() {
                 categories={categories}
                 showHowItWorks={showHowItWorks}
                 onToggleHowItWorks={() => setShowHowItWorks(v => !v)}
+                howItWorksVisible={howItWorksVisible}
             />
 
             <div className="pt-14 sm:pt-16">
@@ -1221,7 +1245,10 @@ function PortfolioContent() {
                     <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pt-3 pb-2">
                         {categories.filter(c => c.isActive).map((cat) => {
                             const Icon = ICON_MAP[cat.icon as string] || Film;
-                            const firstSub = cat.subcategories.find(s => s.isActive);
+                            const firstSub =
+                                cat.key === PHOTOGRAPHY_CATEGORY
+                                    ? undefined
+                                    : cat.subcategories.find(s => s.isActive);
                             const isActive = activeCategory === cat.key && !showHowItWorks;
                             return (
                                 <button
@@ -1241,6 +1268,7 @@ function PortfolioContent() {
                                 </button>
                             );
                         })}
+                        {howItWorksVisible && (
                         <button
                             onClick={() => setShowHowItWorks(v => !v)}
                             className={`flex items-center px-4 py-2 rounded-full text-sm whitespace-nowrap shrink-0 font-bold border transition-all ${
@@ -1251,8 +1279,9 @@ function PortfolioContent() {
                         >
                             How It Works
                         </button>
+                        )}
                     </div>
-                    {/* Subcategory row — hidden for categories with no subs (e.g. Photography) */}
+                    {/* Subcategory row — never for Photography */}
                     {parentCat && parentHasSubs && !showHowItWorks && (
                         <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pb-3">
                             {parentCat.subcategories.filter(s => s.isActive).map((sub) => {
@@ -1278,7 +1307,7 @@ function PortfolioContent() {
                 </div>
 
                 {/* How It Works inline video OR content grids */}
-                {showHowItWorks ? (
+                {showHowItWorks && howItWorksVisible ? (
                     <section className="px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20 bg-white">
                         <div className="max-w-4xl mx-auto">
                             <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-xl shadow-black/10 bg-black">

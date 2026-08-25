@@ -2026,13 +2026,26 @@ function PhotoControl() {
     );
 }
 
-function SectionsManagement({ sections, onRefresh }: { sections: Category[], onRefresh: () => void }) {
+function SectionsManagement({
+    sections,
+    settings,
+    onRefresh,
+}: {
+    sections: Category[];
+    settings: { howItWorksVisible: boolean };
+    onRefresh: () => void;
+}) {
     const [saving, setSaving] = useState(false);
     const [editingSections, setEditingSections] = useState<Category[]>([]);
+    const [howItWorksVisible, setHowItWorksVisible] = useState(true);
 
     useEffect(() => {
         setEditingSections(JSON.parse(JSON.stringify(sections)));
     }, [sections]);
+
+    useEffect(() => {
+        setHowItWorksVisible(settings.howItWorksVisible !== false);
+    }, [settings]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -2040,7 +2053,10 @@ function SectionsManagement({ sections, onRefresh }: { sections: Category[], onR
             const res = await fetch("/api/portfolio/sections", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sections: editingSections }),
+                body: JSON.stringify({
+                    sections: editingSections,
+                    settings: { howItWorksVisible },
+                }),
             });
             if (res.ok) {
                 toast.success("Sections updated successfully");
@@ -2115,7 +2131,25 @@ function SectionsManagement({ sections, onRefresh }: { sections: Category[], onR
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {editingSections.map((cat, catIdx) => (
+                    <div className="border rounded-lg p-4 bg-muted/20 flex items-center gap-4">
+                        <div className="flex-1">
+                            <p className="font-bold text-lg">How It Works</p>
+                            <p className="text-sm text-muted-foreground mt-0.5">
+                                Show or hide the How It Works button and video on the public portfolio.
+                            </p>
+                        </div>
+                        <Badge variant={howItWorksVisible ? "default" : "outline"}>
+                            {howItWorksVisible ? "Visible" : "Hidden"}
+                        </Badge>
+                        <Switch
+                            checked={howItWorksVisible}
+                            onCheckedChange={setHowItWorksVisible}
+                        />
+                    </div>
+
+                    {editingSections.map((cat, catIdx) => {
+                        const isPhotography = cat.key === PHOTOGRAPHY_CATEGORY_KEY;
+                        return (
                         <div key={cat.key} className="border rounded-lg p-4 bg-muted/20">
                             <div className="flex items-center gap-4 mb-4">
                                 <div className="flex flex-col gap-1">
@@ -2135,10 +2169,18 @@ function SectionsManagement({ sections, onRefresh }: { sections: Category[], onR
                                     <Badge variant={cat.isActive ? "default" : "outline"}>
                                         {cat.isActive ? "Visible" : "Hidden"}
                                     </Badge>
+                                    {isPhotography && (
+                                        <Badge variant="secondary">No subcategories</Badge>
+                                    )}
                                 </div>
                                 <Switch checked={cat.isActive} onCheckedChange={() => toggleMainCategory(catIdx)} />
                             </div>
 
+                            {isPhotography ? (
+                                <div className="ml-10 text-sm text-muted-foreground">
+                                    Photography shows images directly — manage photos in the Photos tab.
+                                </div>
+                            ) : (
                             <div className="ml-10 space-y-2 border-l-2 pl-6">
                                 {cat.subcategories.map((sub, subIdx) => (
                                     <div key={sub.key} className="flex items-center gap-3 p-2 rounded-md hover:bg-card transition-colors">
@@ -2160,8 +2202,10 @@ function SectionsManagement({ sections, onRefresh }: { sections: Category[], onR
                                     </div>
                                 ))}
                             </div>
+                            )}
                         </div>
-                    ))}
+                        );
+                    })}
                 </CardContent>
             </Card>
         </div>
@@ -2173,6 +2217,7 @@ function SectionsManagement({ sections, onRefresh }: { sections: Category[], onR
    ═══════════════════════════════════════════════════════════════ */
 export function PortfolioManagementTab() {
     const [sections, setSections] = useState<Category[]>([]);
+    const [settings, setSettings] = useState({ howItWorksVisible: true });
     const [loading, setLoading] = useState(true);
 
     const fetchSections = useCallback(async () => {
@@ -2180,7 +2225,14 @@ export function PortfolioManagementTab() {
             setLoading(true);
             const res = await fetch("/api/portfolio/sections");
             const data = await res.json();
-            if (data.ok) setSections(data.sections);
+            if (data.ok) {
+                setSections(data.sections);
+                if (data.settings) {
+                    setSettings({
+                        howItWorksVisible: data.settings.howItWorksVisible !== false,
+                    });
+                }
+            }
         } catch {
             toast.error("Failed to load sections configuration");
         } finally {
@@ -2250,7 +2302,11 @@ export function PortfolioManagementTab() {
                 </TabsContent>
 
                 <TabsContent value="sections" className="mt-6">
-                    <SectionsManagement sections={sections} onRefresh={fetchSections} />
+                    <SectionsManagement
+                        sections={sections}
+                        settings={settings}
+                        onRefresh={fetchSections}
+                    />
                 </TabsContent>
 
                 <TabsContent value="content" className="mt-6 space-y-6">

@@ -4,6 +4,8 @@ import { getDbPool } from '@/lib/db';
 import { portfolioCategory, portfolioSubcategory } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { asc, eq } from 'drizzle-orm';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 interface SubcategoryPayload {
     key: string;
@@ -18,6 +20,32 @@ interface CategoryPayload {
     icon: string;
     isActive: boolean;
     subcategories: SubcategoryPayload[];
+}
+
+export interface PortfolioSettings {
+    howItWorksVisible: boolean;
+}
+
+const SETTINGS_PATH = path.join(process.cwd(), 'src/app/config/portfolioSettings.json');
+const DEFAULT_SETTINGS: PortfolioSettings = { howItWorksVisible: true };
+
+async function readSettings(): Promise<PortfolioSettings> {
+    try {
+        const raw = await fs.readFile(SETTINGS_PATH, 'utf8');
+        const parsed = JSON.parse(raw);
+        return {
+            howItWorksVisible:
+                typeof parsed.howItWorksVisible === 'boolean'
+                    ? parsed.howItWorksVisible
+                    : true,
+        };
+    } catch {
+        return { ...DEFAULT_SETTINGS };
+    }
+}
+
+async function writeSettings(settings: PortfolioSettings) {
+    await fs.writeFile(SETTINGS_PATH, JSON.stringify(settings, null, 4) + '\n', 'utf8');
 }
 
 export async function GET() {
@@ -54,20 +82,26 @@ export async function GET() {
             with: { portfolioSubcategories: { orderBy: (sub, { asc }) => asc(sub.order) } },
         });
 
+        const settings = await readSettings();
+
         const sections = categories.map((cat) => ({
             key: cat.key,
             label: cat.label,
             icon: cat.iconName,
             isActive: cat.isActive,
-            subcategories: cat.portfolioSubcategories.map((sub) => ({
-                key: sub.key,
-                label: sub.label,
-                icon: sub.iconName,
-                isActive: sub.isActive,
-            })),
+            // Photography is intentionally flat — never expose subcategories.
+            subcategories:
+                cat.key === 'photography'
+                    ? []
+                    : cat.portfolioSubcategories.map((sub) => ({
+                          key: sub.key,
+                          label: sub.label,
+                          icon: sub.iconName,
+                          isActive: sub.isActive,
+                      })),
         }));
 
-        return NextResponse.json({ ok: true, sections });
+        return NextResponse.json({ ok: true, sections, settings });
     } catch (err) {
         console.error('[GET /api/portfolio/sections]', err);
         return NextResponse.json({ ok: false, message: 'Failed to read config' }, { status: 500 });
@@ -83,7 +117,10 @@ export async function PATCH(req: NextRequest) {
   try {
     try {
         const body = await req.json();
-        const { sections } = body as { sections: CategoryPayload[] };
+        const { sections, settings } = body as {
+            sections: CategoryPayload[];
+            settings?: Partial<PortfolioSettings>;
+        };
 
         if (!Array.isArray(sections)) {
             return NextResponse.json({ ok: false, message: 'Invalid data format' }, { status: 400 });
@@ -95,6 +132,9 @@ export async function PATCH(req: NextRequest) {
         await db.transaction(async (tx) => {
             for (let i = 0; i < sections.length; i++) {
                 const cat = sections[i];
+                // Photography never stores subcategories.
+                const subs = cat.key === 'photography' ? [] : (cat.subcategories || []);
+
                 const [category] = await tx.insert(portfolioCategory).values({
                     id: createId(),
                     key: cat.key,
@@ -108,8 +148,8 @@ export async function PATCH(req: NextRequest) {
                     set: { label: cat.label, iconName: cat.icon, isActive: cat.isActive, order: i, updatedAt: new Date().toISOString() },
                 }).returning();
 
-                for (let j = 0; j < cat.subcategories.length; j++) {
-                    const sub = cat.subcategories[j];
+                for (let j = 0; j < subs.length; j++) {
+                    const sub = subs[j];
                     await tx.insert(portfolioSubcategory).values({
                         id: createId(),
                         key: sub.key,
@@ -126,6 +166,14 @@ export async function PATCH(req: NextRequest) {
                 }
             }
         });
+
+        if (settings && typeof settings.howItWorksVisible === 'boolean') {
+            const current = await readSettings();
+            await writeSettings({
+                ...current,
+                howItWorksVisible: settings.howItWorksVisible,
+            });
+        }
 
         return NextResponse.json({ ok: true });
     } catch (err) {
