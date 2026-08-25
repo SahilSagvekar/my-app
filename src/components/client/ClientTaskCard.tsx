@@ -11,7 +11,11 @@ import {
   Download,
 } from 'lucide-react';
 import { getFileUrl } from '@/lib/s3';
-import { autoThumbnailKeyForVideo, getTaskCardThumbnailUrl } from '@/lib/task-thumbnail';
+import {
+  autoThumbnailKeyForVideo,
+  getTaskCardThumbnailUrl,
+  taskThumbnailFallbackLabel,
+} from '@/lib/task-thumbnail';
 
 // Shared shape for both action buttons so they stay identical.
 const PILL =
@@ -121,9 +125,9 @@ export const ClientTaskCard = memo(function ClientTaskCard({
             }}
           />
         )}
-        {/* No thumbnail text fallback - always rendered behind, visible when no image or image fails */}
+        {/* Fallback behind the image — "Generating…" while auto-thumb is pending */}
         <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
-          No thumbnail
+          {taskThumbnailFallbackLabel(task.files)}
         </div>
 
         {displayThumbnail && <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />}

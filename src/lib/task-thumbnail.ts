@@ -83,3 +83,30 @@ export function taskHasThumbnailFiles(
     (f) => f.folderType === 'thumbnails' && f.isActive !== false && (isLikelyImageFile(f) || !!f.url)
   );
 }
+
+const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv)$/i;
+
+/** True when the task has an active main video that can get an auto-thumb. */
+export function taskHasMainVideo(
+  files: ThumbnailFileLike[] | null | undefined
+): boolean {
+  if (!files?.length) return false;
+  return files.some(
+    (f) =>
+      f.folderType === 'main' &&
+      f.isActive !== false &&
+      !!f.s3Key &&
+      (f.mimeType?.startsWith('video/') || VIDEO_EXT.test(f.s3Key) || (!!f.name && VIDEO_EXT.test(f.name)))
+  );
+}
+
+/**
+ * Label under the card media plane when no image is showing.
+ * Prefer "Generating…" when a main video exists so QC/client don't read as empty.
+ */
+export function taskThumbnailFallbackLabel(
+  files: ThumbnailFileLike[] | null | undefined
+): string {
+  if (taskHasMainVideo(files) && !taskHasThumbnailFiles(files)) return 'Generating…';
+  return 'No thumbnail';
+}

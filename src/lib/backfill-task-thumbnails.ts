@@ -4,7 +4,7 @@
 
 import { getDbHttp } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
-import { and, eq, like, isNotNull, notExists } from 'drizzle-orm';
+import { and, eq, like, isNotNull, notExists, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { createId } from '@/lib/db/id';
 import { checkFileExists, getFileUrl } from '@/lib/s3';
@@ -17,6 +17,11 @@ export type EligibleVideo = {
   taskId: string;
   name: string;
 };
+
+const VIDEO_EXT_SQL = sql`(
+  ${fileTable.s3Key} ~* '\\.(mp4|mov|m4v|webm|mkv)$'
+  OR ${fileTable.name} ~* '\\.(mp4|mov|m4v|webm|mkv)$'
+)`;
 
 export async function findVideosMissingThumbnails(limit: number): Promise<EligibleVideo[]> {
   const db = getDbHttp();
@@ -34,8 +39,10 @@ export async function findVideosMissingThumbnails(limit: number): Promise<Eligib
       and(
         eq(fileTable.folderType, 'main'),
         eq(fileTable.isActive, true),
-        like(fileTable.mimeType, 'video/%'),
         isNotNull(fileTable.s3Key),
+        // Prefer mimeType, but many older uploads have null mime — still pick
+        // them up by filename / key extension so QC/client cards get thumbs.
+        or(like(fileTable.mimeType, 'video/%'), VIDEO_EXT_SQL),
         notExists(
           db
             .select()

@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { backfillMissingTaskThumbnails } from '@/lib/backfill-task-thumbnails';
 
-const BATCH_PER_TICK = 15;
+const BATCH_PER_TICK = 25;
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = req.headers.get('x-cron-secret');
