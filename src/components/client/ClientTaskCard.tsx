@@ -10,6 +10,8 @@ import {
   Share,
   Download,
 } from 'lucide-react';
+import { getFileUrl } from '@/lib/s3';
+import { autoThumbnailKeyForVideo, getTaskCardThumbnailUrl } from '@/lib/task-thumbnail';
 
 // Shared shape for both action buttons so they stay identical.
 const PILL =
@@ -24,6 +26,7 @@ interface TaskFile {
   folderType?: string;
   version?: number;
   isActive?: boolean;
+  s3Key?: string;
 }
 
 interface ClientTask {
@@ -46,19 +49,9 @@ interface ClientTaskCardProps {
 
 // Helper to get thumbnail from task files
 function getTaskThumbnailFromFiles(files?: TaskFile[]): string | null {
-  if (!files || files.length === 0) return null;
-
-  // First try to find an active thumbnail
-  const activeThumbnail = files.find(
-    (f) => f.folderType === 'thumbnails' && f.isActive !== false && f.mimeType?.startsWith('image/')
-  );
-  if (activeThumbnail?.url) return activeThumbnail.url;
-
-  // Then try any image
-  const anyImage = files.find((f) => f.mimeType?.startsWith('image/') && f.isActive !== false);
-  if (anyImage?.url) return anyImage.url;
-
-  return null;
+  return getTaskCardThumbnailUrl(files as any, {
+    buildAutoThumbUrl: (videoS3Key) => getFileUrl(autoThumbnailKeyForVideo(videoS3Key)),
+  });
 }
 
 export const ClientTaskCard = memo(function ClientTaskCard({
