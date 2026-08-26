@@ -11,6 +11,7 @@ import { updateClientStorageAfterDelete } from '@/lib/storage-service';
 import { getCurrentUser2 } from '@/lib/auth';
 import { deleteItem } from '@/lib/file-server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { roleRequiresDeleteTotp, verifyUserTotp } from '@/lib/totp';
 
 const s3Client = getS3();
 
@@ -21,11 +22,26 @@ export async function DELETE(request: NextRequest) {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { s3Key, type } = await request.json();
+    const { s3Key, type, totpCode } = await request.json();
     if (!s3Key) return NextResponse.json({ error: 'No s3Key provided' }, { status: 400 });
 
     if (user.role === 'editor') {
       return NextResponse.json({ error: 'Editors cannot delete files' }, { status: 403 });
+    }
+
+    // Staff must confirm with Google Authenticator before destructive deletes
+    if (roleRequiresDeleteTotp(user.role)) {
+      const totp = await verifyUserTotp(user.id, totpCode);
+      if (!totp.ok) {
+        const status =
+          totp.code === 'MISSING' || totp.code === 'NOT_SETUP' || totp.code === 'NOT_ENABLED'
+            ? 403
+            : 401;
+        return NextResponse.json(
+          { error: totp.error, code: totp.code, requiresTotp: true },
+          { status }
+        );
+      }
     }
 
     if (user.role === 'client') {

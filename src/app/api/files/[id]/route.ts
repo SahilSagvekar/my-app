@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDbHttp } from "@/lib/db";
 import { file as fileTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { cookies } from "next/headers";
-import jwt from "jsonwebtoken";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 import { getCurrentUser2 } from '@/lib/auth';
+import { roleRequiresDeleteTotp, verifyUserTotp } from '@/lib/totp';
 
 const s3 = new S3Client({
   region: "auto",
@@ -18,19 +17,6 @@ const s3 = new S3Client({
   },
 });
 
-async function getUser(request: NextRequest) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
-  if (!token) return null;
-  
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: number; role: string };
-    return decoded;
-  } catch {
-    return null;
-  }
-}
-
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -40,6 +26,15 @@ export async function DELETE(
     const user = await getCurrentUser2(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Optional JSON body may include totpCode for authenticator-gated deletes
+    let totpCode: string | undefined;
+    try {
+      const body = await request.json();
+      if (body && typeof body.totpCode === "string") totpCode = body.totpCode;
+    } catch {
+      // DELETE with empty body is fine for clients / legacy callers
     }
 
     const { id } = await params;
@@ -70,8 +65,23 @@ export async function DELETE(
       return NextResponse.json({ error: "Not authorized to delete this file" }, { status: 403 });
     }
 
+    // Admins must confirm with Google Authenticator before destructive deletes
+    if (roleRequiresDeleteTotp(user.role)) {
+      const totp = await verifyUserTotp(user.id, totpCode);
+      if (!totp.ok) {
+        const status =
+          totp.code === "MISSING" || totp.code === "NOT_SETUP" || totp.code === "NOT_ENABLED"
+            ? 403
+            : 401;
+        return NextResponse.json(
+          { error: totp.error, code: totp.code, requiresTotp: true },
+          { status }
+        );
+      }
+    }
+
     // Admins can delete regardless of task status (QC/Completed/Posted/Scheduled
-    // included) — the lockedStatuses check that used to block this for
+    // included) — the locked statuses check that used to block this for
     // admin+manager only applied to non-admin deletion; now that this route is
     // admin-only, there's no separate non-admin path left for it to guard.
 
