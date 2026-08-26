@@ -43,6 +43,7 @@ import { ShareDialog } from '../review/ShareDialog';
 import { Checkbox } from '../ui/checkbox';
 
 import { useAuth } from '../auth/AuthContext';
+import { isRejectedStatus } from '@/lib/task-status';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
 import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
@@ -143,7 +144,7 @@ const persistClientResult = async ({
     if (feedback) metaBody.clientFeedback = feedback;
   } else {
     // Client requested revisions → Send back to Editor
-    // Use REJECTED as the valid TaskStatus
+    // Use REJECTED_BY_CLIENT as the TaskStatus for client revision requests
     metaBody.status = "REJECTED_BY_CLIENT";
     metaBody.clientResult = "REVISION_REQUESTED";
     metaBody.route = "editor";
@@ -518,19 +519,20 @@ export function ClientDashboard() {
         postingTags,
       });
 
-      // Update task status or keep it?
-      // For revision requests, it might be better to keep it if they want to see "Revision Requested"
-      // But usually they want to move it out or keep it at the end too.
-      // Given the prompt "once approved... should be moved to the end", maybe focus only on approved.
-      // However, if I change the logic for approved, I should probably handle REJECTED too so it doesn't just disappear if they expect consistency.
-      // But the user ONLY asked for approved tasks.
-      // Let's stick strictly to the user's request for approved tasks first.
-      // Wait, if I don't remove REJECTED ones, they will also stay.
-
-      // Let's just remove REJECTED ones as before, UNLESS the user wants them to stay too.
-      // The prompt specifically said "once the client has approved a task".
-
-      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
+      // Keep the task in the list under Rejected so clients can still find
+      // REJECTED_BY_CLIENT (and REJECTED_BY_QC) items in the Rejected tab.
+      refreshTasks(
+        (prev) =>
+          prev
+            ? prev.map((t) =>
+                t.id === selectedTask.id
+                  ? { ...t, status: "REJECTED_BY_CLIENT", feedback: revisionNotes }
+                  : t
+              )
+            : prev,
+        { revalidate: true }
+      );
+      setCurrentFilter("rejected");
 
       toast.success("📝 Revision Requested – Sent to Editor", {
         description: "Your feedback has been sent to the editor.",
@@ -604,8 +606,19 @@ export function ClientDashboard() {
         postingTags,
       });
 
-      // Remove task from list - Revision requested tasks should disappear as they go back to the editor
-      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
+      // Keep under Rejected tab (REJECTED_BY_CLIENT) instead of removing
+      refreshTasks(
+        (prev) =>
+          prev
+            ? prev.map((t) =>
+                t.id === selectedTask.id
+                  ? { ...t, status: "REJECTED_BY_CLIENT", feedback: notes }
+                  : t
+              )
+            : prev,
+        { revalidate: true }
+      );
+      setCurrentFilter("rejected");
 
       toast.success("📝 Revision Requested – Sent to Editor", {
         description: "Your feedback has been sent to the editor.",
@@ -674,7 +687,19 @@ export function ClientDashboard() {
         postingTags,
       });
 
-      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
+      // Keep under Rejected tab (REJECTED_BY_CLIENT) instead of removing
+      refreshTasks(
+        (prev) =>
+          prev
+            ? prev.map((t) =>
+                t.id === selectedTask.id
+                  ? { ...t, status: "REJECTED_BY_CLIENT", feedback: notes }
+                  : t
+              )
+            : prev,
+        { revalidate: true }
+      );
+      setCurrentFilter("rejected");
 
       toast.success("📝 Revisions Requested", {
         description: "Your feedback on the thumbnail has been sent.",
@@ -1125,7 +1150,7 @@ export function ClientDashboard() {
     // Currently-pending rejections only — a task leaves this count the moment
     // the editor fixes it and resubmits (status moves on from REJECTED), not
     // a permanent history of everything ever rejected.
-    rejectedCount: tasks.filter(task => task.status === 'REJECTED_BY_QC' || task.status === 'REJECTED_BY_CLIENT' || task.status === 'REJECTED').length,
+    rejectedCount: tasks.filter(task => isRejectedStatus(task.status)).length,
     overdueReviews: tasks.filter(task => isOverdue(task)).length,
   }), [tasks]);
 
@@ -1145,7 +1170,7 @@ export function ClientDashboard() {
         return task.status === 'POSTED' || task.status === 'SCHEDULED';
       }
       if (currentFilter === 'rejected') {
-        return task.status === 'REJECTED_BY_QC' || task.status === 'REJECTED_BY_CLIENT' || task.status === 'REJECTED';
+        return isRejectedStatus(task.status);
       }
       return true;
     });
@@ -1701,7 +1726,7 @@ export function ClientDashboard() {
               userRole="client"
               // Pure playback when reopening something already rejected —
               // no comments/approve actions, just rewatch it.
-              readOnly={selectedTask.status === 'REJECTED_BY_QC' || selectedTask.status === 'REJECTED_BY_CLIENT' || selectedTask.status === 'REJECTED'}
+              readOnly={isRejectedStatus(selectedTask.status)}
               // 🔀 Switch to thumbnail review without leaving the modal — only
               // offered when this task actually has a thumbnail to review.
               onSwitchToThumbnail={
@@ -1766,7 +1791,7 @@ export function ClientDashboard() {
               userRole="client"
               // Pure playback when reopening something already rejected —
               // no comments/approve actions, just rewatch it.
-              readOnly={selectedTask.status === 'REJECTED_BY_QC' || selectedTask.status === 'REJECTED_BY_CLIENT' || selectedTask.status === 'REJECTED'}
+              readOnly={isRejectedStatus(selectedTask.status)}
               imageLabel={selectedTask && isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
               onSwitchToVideo={
                 switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined
