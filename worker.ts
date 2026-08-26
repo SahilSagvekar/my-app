@@ -64,11 +64,11 @@ export default {
 
       // Nightly — Daily Team Summary report (email + ops Slack channel).
       // Original cron-master.ts schedule was '5 19 * * *' in America/New_York
-      // (7:05 PM ET, DST-aware). Cloudflare Cron Triggers are UTC-only with
-      // no timezone option, so '0 0 * * *' is a fixed approximation — exact
-      // during EST (winter), ~1hr late during EDT (summer). Good enough to
-      // restore delivery; tighten later with two DST-split cron entries if
-      // the extra precision ever matters.
+      // (7:05 PM ET). Cloudflare Cron Triggers are UTC-only; we use 23:00 UTC
+      // to match ≈ 7:00 PM EDT (same convention as the billing crons below).
+      // During EST this fires at 6:00 PM ET — still within the report window.
+      // Keep '0 0 * * *' as a no-op-safe alias in case an old trigger remains.
+      case '0 23 * * *':
       case '0 0 * * *':
         ctx.waitUntil(triggerCronRoute('/api/reports/daily-summary', env, ctx));
         break;

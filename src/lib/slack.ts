@@ -654,7 +654,9 @@ export async function sendDailySummaryToSlack(
   csvDownloadUrl?: string
 ): Promise<void> {
   const webhookUrl = process.env.SLACKS_OPS_CHANNEL;
-  if (!webhookUrl || !csvDownloadUrl) return;
+  // Still post the pulse even if CSV upload failed — missing CSV must not
+  // silently skip the ops-channel message entirely.
+  if (!webhookUrl) return;
 
   try {
     const formattedDate = new Date(report.date + 'T12:00:00').toLocaleDateString('en-US', {
@@ -664,29 +666,32 @@ export async function sendDailySummaryToSlack(
       day: 'numeric',
     });
 
-    const blocks: any[] = [
-      {
-        type: "section",
+    const members = report.totalTeamMembers ?? 0;
+    const actions = report.totalTasksMoved ?? 0;
+    const section: any = {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `📊 *Daily Production Report — ${formattedDate}*\n${members} team member${members === 1 ? "" : "s"}, ${actions} action${actions === 1 ? "" : "s"} tracked.`
+      },
+    };
+
+    if (csvDownloadUrl) {
+      section.accessory = {
+        type: "button",
         text: {
-          type: "mrkdwn",
-          text: `📊 *Daily Production Report — ${formattedDate}*`
+          type: "plain_text",
+          text: "📥 Download CSV",
+          emoji: true
         },
-        accessory: {
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: "📥 Download CSV",
-            emoji: true
-          },
-          url: csvDownloadUrl,
-          action_id: "download_report"
-        }
-      }
-    ];
+        url: csvDownloadUrl,
+        action_id: "download_report"
+      };
+    }
 
-    await enqueueNotification({ kind: "slack-webhook", url: webhookUrl, blocks });
+    await enqueueNotification({ kind: "slack-webhook", url: webhookUrl, blocks: [section] });
 
-    console.log(`✅ [Slack Report] Minimal download link queued to dedicated channel`);
+    console.log(`✅ [Slack Report] Daily summary queued to ops channel${csvDownloadUrl ? " (with CSV)" : " (no CSV link)"}`);
   } catch (err) {
     console.error("[Slack Report] Failed to send summary link:", err);
   }
