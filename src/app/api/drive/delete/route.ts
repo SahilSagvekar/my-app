@@ -11,6 +11,7 @@ import { updateClientStorageAfterDelete } from '@/lib/storage-service';
 import { getCurrentUser2 } from '@/lib/auth';
 import { deleteItem } from '@/lib/file-server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { verifyTotpCode } from '@/lib/totp-verify';
 
 const s3Client = getS3();
 
@@ -21,11 +22,30 @@ export async function DELETE(request: NextRequest) {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { s3Key, type } = await request.json();
+    const { s3Key, type, totpCode } = await request.json();
     if (!s3Key) return NextResponse.json({ error: 'No s3Key provided' }, { status: 400 });
 
     if (user.role === 'editor') {
       return NextResponse.json({ error: 'Editors cannot delete files' }, { status: 403 });
+    }
+
+    // Admin deletes — one file or many — require a fresh Google
+    // Authenticator code, checked server-side every time. This is not a
+    // client-side gate: the code is verified here regardless of what the
+    // UI already showed the user.
+    if (user.role === 'admin') {
+      const totpResult = await verifyTotpCode(user.id, totpCode);
+      if (!totpResult.ok) {
+        const status = totpResult.reason === 'not_set_up' ? 428 : 401;
+        return NextResponse.json({
+          error: totpResult.reason === 'not_set_up'
+            ? '2FA is not set up for your account — set it up before deleting files'
+            : totpResult.reason === 'missing_code'
+            ? 'Verification code required'
+            : 'Invalid verification code',
+          totpReason: totpResult.reason,
+        }, { status });
+      }
     }
 
     if (user.role === 'client') {

@@ -18,8 +18,11 @@ export async function GET(req: Request) {
     const employees = await db.query.user.findMany({
       where: and(
         or(isNull(user.role), notInArray(user.role, ["admin", "client"] as any)),
-        // Filter by status if provided
-        status ? eq(user.employeeStatus, status as any) : undefined,
+        // Filter by a specific status if the caller asked for one; otherwise
+        // default to excluding TERMINATED so terminated people disappear
+        // from every dropdown/list app-wide without needing every caller to
+        // remember to filter explicitly.
+        status ? eq(user.employeeStatus, status as any) : ne(user.employeeStatus, 'TERMINATED'),
       ),
       columns: {
         id: true,

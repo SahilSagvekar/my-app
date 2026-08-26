@@ -79,10 +79,16 @@ async function copyToNas(r2: S3Client, nas: S3Client, key: string, expectedSize:
   }));
 }
 
-function buildPrefix(clientName: string, folderType: string, monthFolder: string, folderPath: string | null): string {
+function buildPrefix(clientName: string, folderType: string, monthFolder: string, folderPath: string | null, rawFootageRoot?: string | null): string {
   if (folderType === 'raw-footage') {
     const relPath = folderPath || monthFolder;
-    return `${clientName}/raw-footage/${relPath}/`;
+    // 🔥 Use the client's actual rawFootageFolderId when known (passed in
+    // from processJob, resolved from the DB) instead of reconstructing
+    // "<clientName>/raw-footage/" from the current display name — a client
+    // renamed after its folders were provisioned would otherwise mismatch
+    // the prefix real uploads used, same fix as /api/nas/browse-folders.
+    const root = rawFootageRoot || `${clientName}/raw-footage/`;
+    return `${root}${relPath}/`;
   }
   return `${clientName}/outputs/${monthFolder}/`;
 }
@@ -98,9 +104,25 @@ async function processJob(
   const label = folderType === 'raw-footage' ? (folderPath || monthFolder) : monthFolder;
   console.log(`[NasMirrorWorker] Starting job ${jobId}: ${clientName} / ${folderType} / ${label}`);
 
+  let rawFootageRoot: string | null = null;
+  if (folderType === 'raw-footage') {
+    const { client: clientTable } = await import('@/lib/db/schema');
+    const { or, eq } = await import('drizzle-orm');
+    const [foundClient] = await db
+      .select({ rawFootageFolderId: clientTable.rawFootageFolderId })
+      .from(clientTable)
+      .where(or(eq(clientTable.companyName, clientName), eq(clientTable.name, clientName)))
+      .limit(1);
+    if (foundClient?.rawFootageFolderId) {
+      rawFootageRoot = foundClient.rawFootageFolderId.endsWith('/')
+        ? foundClient.rawFootageFolderId
+        : `${foundClient.rawFootageFolderId}/`;
+    }
+  }
+
   const r2 = getS3();
   const nas = getNasS3();
-  const prefix = buildPrefix(clientName, folderType, monthFolder, folderPath);
+  const prefix = buildPrefix(clientName, folderType, monthFolder, folderPath, rawFootageRoot);
 
   try {
     await nas.send(new CreateBucketCommand({ Bucket: NAS_BUCKET }));

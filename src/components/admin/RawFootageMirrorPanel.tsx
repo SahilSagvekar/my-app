@@ -63,6 +63,30 @@ export default function RawFootageMirrorPanel({
       .finally(() => setLoading(false));
   }, []);
 
+  // 🔥 Resume live progress after a page refresh / navigating away and back.
+  // Without this, activeJobs starts empty every mount and any job already
+  // running server-side becomes invisible until it finishes — the polling
+  // loop below only ever tracks jobs *this* component instance started.
+  useEffect(() => {
+    fetch('/api/nas/mirror-jobs', { credentials: 'include', cache: 'no-store' })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data) return;
+        const inFlight = (data.jobs || []).filter(
+          (j: MirrorJob) => j.folderType === 'raw-footage' && (j.status === 'pending' || j.status === 'running')
+        );
+        if (inFlight.length > 0) {
+          setActiveJobs(inFlight);
+          // Jump the client selector to whichever job is in flight so the
+          // folder browser context matches what's actually running.
+          if (!clientName) setClientName(inFlight[0].clientName);
+        }
+      })
+      .catch(() => {});
+    // Only on mount — the polling effect below keeps activeJobs fresh after that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (clientName) {
       setCurrentPath('');

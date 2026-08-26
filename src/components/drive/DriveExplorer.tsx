@@ -238,6 +238,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // ─── Admin delete TOTP gate ─────────────────────────────────────────────
+  // Any admin delete — one file or a bulk batch — requires a fresh Google
+  // Authenticator code, verified server-side on every request (see
+  // /api/drive/delete and /api/drive/bulk-delete). This dialog is shared by
+  // both flows; deleteMode tracks which one is in progress.
+  const [showTotpDeleteDialog, setShowTotpDeleteDialog] = useState(false);
+  const [deleteMode, setDeleteMode] = useState<'single' | 'bulk' | null>(null);
+  const [totpCode, setTotpCode] = useState('');
+  const [totpError, setTotpError] = useState<string | null>(null);
+  const [totpNotSetUp, setTotpNotSetUp] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
   // ─── Multi-select & bulk download state ───────────────────────────────────
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
@@ -862,14 +874,25 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // Handle Delete Click
   const handleDeleteClick = (item: DriveItem) => {
     setItemToDelete(item);
-    setShowDeleteDialog(true);
+    if (role === 'admin') {
+      // Admin deletes skip the plain confirm dialog and go straight to the
+      // TOTP-gated one — entering a real code is itself the confirmation.
+      setDeleteMode('single');
+      setTotpCode('');
+      setTotpError(null);
+      setTotpNotSetUp(false);
+      setShowTotpDeleteDialog(true);
+    } else {
+      setShowDeleteDialog(true);
+    }
   };
 
   // ─── Confirm Delete — reload structure, path auto-preserved ───
-  const confirmDelete = async () => {
+  const confirmDelete = async (totpCodeForRequest?: string) => {
     if (!itemToDelete) return;
 
     setIsDeleting(true);
+    setTotpError(null);
 
     try {
       const s3Key = getS3Key(itemToDelete);
@@ -884,20 +907,36 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           type: itemToDelete.type,
           userId: user?.id?.toString(),
           role,
+          ...(totpCodeForRequest ? { totpCode: totpCodeForRequest } : {}),
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        if (errorData.totpReason) {
+          // Server-side TOTP check failed — surface it in the TOTP dialog,
+          // not as a generic toast, and let the admin retry without
+          // re-opening everything from scratch.
+          setIsDeleting(false);
+          if (errorData.totpReason === 'not_set_up') {
+            setTotpNotSetUp(true);
+          } else {
+            setTotpError(errorData.error || "Invalid verification code");
+          }
+          return;
+        }
         throw new Error(errorData.error || "Delete failed");
       }
 
       toast.success(`${itemToDelete.name} deleted successfully`);
 
-      // Close dialog first
+      // Close dialogs first
       setShowDeleteDialog(false);
+      setShowTotpDeleteDialog(false);
       setItemToDelete(null);
       setIsDeleting(false);
+      setTotpCode('');
+      setDeleteMode(null);
 
       // Reload structure — FEATURE 2 will preserve the path
       await loadDriveStructure();
@@ -919,6 +958,99 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const cancelDelete = () => {
     setShowDeleteDialog(false);
     setItemToDelete(null);
+  };
+
+  const cancelTotpDelete = () => {
+    setShowTotpDeleteDialog(false);
+    setTotpCode('');
+    setTotpError(null);
+    setTotpNotSetUp(false);
+    setDeleteMode(null);
+    if (deleteMode === 'single') setItemToDelete(null);
+  };
+
+  const submitTotpDelete = () => {
+    if (!totpCode.trim()) {
+      setTotpError('Enter the 6-digit code from Google Authenticator');
+      return;
+    }
+    if (deleteMode === 'single') {
+      confirmDelete(totpCode.trim());
+    } else if (deleteMode === 'bulk') {
+      performBulkDelete(totpCode.trim());
+    }
+  };
+
+  // ─── Bulk delete (admin only) — reuses the checkedItems selection ───────
+  const handleBulkDeleteClick = () => {
+    if (role !== 'admin' || checkedItems.size === 0) return;
+    setDeleteMode('bulk');
+    setTotpCode('');
+    setTotpError(null);
+    setTotpNotSetUp(false);
+    setShowTotpDeleteDialog(true);
+  };
+
+  const performBulkDelete = async (totpCodeForRequest: string) => {
+    const keys = Array.from(checkedItems);
+    if (keys.length === 0) return;
+
+    setIsBulkDeleting(true);
+    setTotpError(null);
+
+    try {
+      const items = keys.map((key) => {
+        const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
+        return { s3Key: key, type: (item?.type || 'file') as 'file' | 'folder' };
+      });
+
+      const response = await fetch("/api/drive/bulk-delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, totpCode: totpCodeForRequest }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.totpReason) {
+          setIsBulkDeleting(false);
+          if (data.totpReason === 'not_set_up') {
+            setTotpNotSetUp(true);
+          } else {
+            setTotpError(data.error || "Invalid verification code");
+          }
+          return;
+        }
+        throw new Error(data.error || "Bulk delete failed");
+      }
+
+      if (data.deletedCount > 0) {
+        toast.success(`Deleted ${data.deletedCount} item${data.deletedCount !== 1 ? 's' : ''}`);
+      }
+      if (data.failed?.length > 0) {
+        toast.error(`${data.failed.length} item${data.failed.length !== 1 ? 's' : ''} failed to delete`);
+      }
+
+      setShowTotpDeleteDialog(false);
+      setTotpCode('');
+      setDeleteMode(null);
+      setIsBulkDeleting(false);
+      clearChecked();
+
+      await loadDriveStructure();
+
+      if (role === 'client' && effectiveClientId) {
+        fetch(`/api/clients/${effectiveClientId}/storage`)
+          .then(res => res.json())
+          .then(setStorageInfo)
+          .catch(console.error);
+      }
+    } catch (error: any) {
+      console.error("Bulk delete error:", error);
+      toast.error(`Bulk delete failed: ${error.message}`);
+      setIsBulkDeleting(false);
+    }
   };
 
   // ─── Create Folder — reload structure, path auto-preserved ───
@@ -1551,7 +1683,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDelete}
+              onClick={() => confirmDelete()}
               disabled={isDeleting}
               className="bg-red-500 hover:bg-red-600"
             >
@@ -1564,6 +1696,82 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 "Delete"
               )}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Admin delete — TOTP (Google Authenticator) gate. Shared by the
+          single-item and bulk delete flows; deleteMode picks which. The
+          code itself is verified server-side on submit — this dialog is
+          just the UI for collecting it. */}
+      <AlertDialog open={showTotpDeleteDialog} onOpenChange={(open) => { if (!open) cancelTotpDelete(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteMode === 'bulk'
+                ? `Delete ${checkedItems.size} item${checkedItems.size !== 1 ? 's' : ''}?`
+                : `Delete ${itemToDelete?.name}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {itemToDelete?.type === "folder" && deleteMode === 'single' && (
+                  <span className="block text-destructive">
+                    This will delete the folder and all its contents permanently.
+                  </span>
+                )}
+                <span className="block">This action cannot be undone.</span>
+                {totpNotSetUp ? (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      Deleting files requires 2FA, and your account doesn't have it set up yet.
+                      Head to the Logins page to set up Google Authenticator, then come back
+                      and try again.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 pt-1">
+                    <label htmlFor="drive-delete-totp" className="text-sm font-medium text-foreground">
+                      Enter the code from Google Authenticator
+                    </label>
+                    <Input
+                      id="drive-delete-totp"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="123456"
+                      value={totpCode}
+                      onChange={(e) => { setTotpCode(e.target.value); setTotpError(null); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submitTotpDelete(); } }}
+                      autoFocus
+                    />
+                    {totpError && (
+                      <span className="block text-sm text-destructive">{totpError}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelTotpDelete} disabled={isDeleting || isBulkDeleting}>
+              Cancel
+            </AlertDialogCancel>
+            {!totpNotSetUp && (
+              <AlertDialogAction
+                onClick={(e) => { e.preventDefault(); submitTotpDelete(); }}
+                disabled={isDeleting || isBulkDeleting || !totpCode.trim()}
+                className="bg-red-500 hover:bg-red-600"
+              >
+                {(isDeleting || isBulkDeleting) ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Verify & Delete"
+                )}
+              </AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -2007,6 +2215,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     <span className="hidden sm:inline">Download</span>
                     <span className="sm:hidden">{checkedItems.size}</span>
                   </Button>
+                  {role === 'admin' && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="gap-1.5 h-9"
+                      onClick={handleBulkDeleteClick}
+                      disabled={isZipping || isBulkDeleting}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Delete</span>
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" className="h-9 px-2" onClick={clearChecked}>
                     <X className="h-3.5 w-3.5" />
                   </Button>

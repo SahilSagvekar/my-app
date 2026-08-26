@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getS3, BUCKET as R2_BUCKET } from '@/lib/s3';
 import { getCurrentUser2 } from '@/lib/auth';
+import { getDbHttp } from '@/lib/db';
+import { client as clientTable } from '@/lib/db/schema';
+import { or, eq } from 'drizzle-orm';
 
 // GET /api/nas/browse-folders?clientName=...&folderType=raw-footage&path=June-2025
 // Lists real subfolders directly from R2 (not the database) at the given
@@ -25,11 +28,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'clientName is required' }, { status: 400 });
     }
 
+    // 🔥 Resolve the ACTUAL raw-footage root, same source of truth uploads
+    // use (see taskService.ts / tasks/route.ts), instead of reconstructing
+    // "<clientName>/raw-footage/" from the client's current display name.
+    // If a client was renamed after its folders were provisioned,
+    // rawFootageFolderId still points at the OLD name — reconstructing from
+    // the current name silently looks at a prefix that was never used,
+    // which is why the browser can come up empty even though footage exists.
+    let rawFootageRoot = `${clientName}/raw-footage/`;
+    if (folderType === 'raw-footage') {
+      const db = getDbHttp();
+      const [foundClient] = await db
+        .select({ rawFootageFolderId: clientTable.rawFootageFolderId })
+        .from(clientTable)
+        .where(or(eq(clientTable.companyName, clientName), eq(clientTable.name, clientName)))
+        .limit(1);
+      if (foundClient?.rawFootageFolderId) {
+        rawFootageRoot = foundClient.rawFootageFolderId.endsWith('/')
+          ? foundClient.rawFootageFolderId
+          : `${foundClient.rawFootageFolderId}/`;
+      }
+    }
+
     // Normalize: no leading/trailing slashes on subPath, we add them ourselves.
     const cleanSubPath = subPath.replace(/^\/+|\/+$/g, '');
-    const prefix = cleanSubPath
-      ? `${clientName}/${folderType}/${cleanSubPath}/`
-      : `${clientName}/${folderType}/`;
+    const prefix = folderType === 'raw-footage'
+      ? (cleanSubPath ? `${rawFootageRoot}${cleanSubPath}/` : rawFootageRoot)
+      : (cleanSubPath ? `${clientName}/${folderType}/${cleanSubPath}/` : `${clientName}/${folderType}/`);
 
     const s3 = getS3();
     const result = await s3.send(new ListObjectsV2Command({
