@@ -405,6 +405,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                     <>
                         <video
                             ref={p.videoRef}
+                            crossOrigin="anonymous"
                             className={videoAspect === 'portrait' ? 'h-full w-auto object-contain' : 'w-full h-full object-contain'}
                             style={videoAspect === 'portrait' ? { display: 'block', margin: '0 auto' } : {}}
                             src={p.videoSource.src}

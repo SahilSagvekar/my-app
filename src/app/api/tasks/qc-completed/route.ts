@@ -1,49 +1,16 @@
 export const dynamic = 'force-dynamic';
-
-import { NextRequest, NextResponse } from 'next/server';
-
-import { getCurrentUser2 } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { task } from '@/lib/db/schema';
-import { and, or, eq, ilike, inArray, desc, count, type SQL } from 'drizzle-orm';
+import { task, user as userTable } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { getCurrentUser2 } from '@/lib/auth';
 
-const QC_COMPLETED_STATUSES = ['COMPLETED', 'REJECTED', 'CLIENT_REVIEW'] as const;
-type QcCompletedStatus = (typeof QC_COMPLETED_STATUSES)[number];
-
-const DEFAULT_LIMIT = 15;
-const MAX_LIMIT = 50;
-
-function parsePositiveInt(value: string | null, fallback: number) {
-  const parsed = Number.parseInt(value || '', 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
-  return parsed;
-}
-
-function buildBaseWhere(
-  role: string | null | undefined,
-  userId: number
-): SQL | null {
-  const normalizedRole = role?.toLowerCase();
-
-  if (normalizedRole === 'qc') {
-    return and(
-      eq(task.qcSpecialist, userId),
-      inArray(task.status, [...QC_COMPLETED_STATUSES] as any)
-    )!;
-  }
-
-  if (normalizedRole === 'admin' || normalizedRole === 'manager') {
-    return inArray(task.status, [...QC_COMPLETED_STATUSES] as any);
-  }
-
-  return null;
-}
-
-// 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts. A multi-role
-// account (e.g. Daena: editor + scheduler + qc) previewing the QC tab needs
-// this endpoint to honor x-viewing-as instead of only checking their primary
-// role, which otherwise 403s here for anyone whose primary role isn't
-// already qc/admin/manager.
+// 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts and
+// src/app/api/tasks/qc-completed/route.ts. A multi-role account (e.g.
+// Daena: editor + scheduler + qc) previewing the QC tab needs this endpoint
+// to honor x-viewing-as instead of only checking their primary role, which
+// otherwise 403s here for anyone whose primary role isn't already
+// qc/admin/manager.
 const LEGACY_ROLE_SWITCH_EMAILS = new Set([
   'eric@e8productions.com',
   'sahilsagvekar230@gmail.com',
@@ -69,122 +36,90 @@ function resolveEffectiveRole(
 
   if (!authorizedSwitchRoles.has(viewingAs)) return role;
 
-  // Viewing as QC is treated as admin-level access, same as tasks/route.ts,
-  // so the viewer sees ALL completed QC tasks rather than just their own.
+  // Viewing as QC is treated as admin-level access, same as tasks/route.ts
+  // and qc-completed/route.ts, so the viewer can reassign any QC task
+  // rather than only ones assigned to them.
   return viewingAs === 'qc' ? 'admin' : viewingAs;
 }
 
-export async function GET(request: NextRequest) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   const db = getDbHttp();
   try {
-    const user = await getCurrentUser2(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const { id } = params;
 
-    const viewingAs = request.headers.get('x-viewing-as')?.toLowerCase() || null;
-    const effectiveRole = resolveEffectiveRole(
+    const user = await getCurrentUser2(req as any);
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+    const viewingAs = (req as any).headers?.get?.('x-viewing-as')?.toLowerCase() || null;
+    const role = resolveEffectiveRole(
       user.role,
       (user as any).roles,
       user.email,
       viewingAs
-    );
+    )?.toLowerCase();
 
-    const baseWhere = buildBaseWhere(effectiveRole, Number(user.id));
-    if (!baseWhere) {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    if (!['qc', 'admin', 'manager'].includes(role || '')) {
+      return NextResponse.json({ message: 'Forbidden — QC, Admin, or Manager only' }, { status: 403 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const page = parsePositiveInt(searchParams.get('page'), 1);
-    const requestedLimit = parsePositiveInt(searchParams.get('limit'), DEFAULT_LIMIT);
-    const limit = Math.min(requestedLimit, MAX_LIMIT);
-    const status = searchParams.get('status');
-    const search = searchParams.get('search')?.trim() || '';
+    const body = await req.json();
+    const { newQcSpecialistId } = body;
 
-    const conditions: SQL[] = [baseWhere];
-
-    if (status && status !== 'all') {
-      const normalizedStatus = status.toUpperCase();
-      if (!QC_COMPLETED_STATUSES.includes(normalizedStatus as QcCompletedStatus)) {
-        return NextResponse.json(
-          { success: false, error: `Invalid status: ${status}` },
-          { status: 400 }
-        );
-      }
-
-      conditions.push(eq(task.status, normalizedStatus as any));
+    if (!newQcSpecialistId) {
+      return NextResponse.json({ message: 'newQcSpecialistId is required' }, { status: 400 });
     }
 
-    if (search) {
-      const pattern = `%${search}%`;
-      conditions.push(or(
-        ilike(task.title, pattern),
-        ilike(task.clientId, pattern),
-        ilike(task.description, pattern),
-      )!);
+    // Verify the target user exists and is a QC specialist
+    const [targetUser] = await db.select({ id: userTable.id, name: userTable.name, role: userTable.role, employeeStatus: userTable.employeeStatus })
+      .from(userTable).where(eq(userTable.id, Number(newQcSpecialistId))).limit(1);
+
+    if (!targetUser) {
+      return NextResponse.json({ message: 'Target user not found' }, { status: 404 });
     }
 
-    const where = and(...conditions)!;
+    if (targetUser.role?.toLowerCase() !== 'qc') {
+      return NextResponse.json({ message: 'Target user is not a QC specialist' }, { status: 400 });
+    }
 
-    const [[{ value: total }], rawTasks, [{ value: totalReviewed }], [{ value: approvedCount }], [{ value: rejectedCount }]] = await Promise.all([
-      db.select({ value: count() }).from(task).where(where),
-      db.query.task.findMany({
-        where,
-        orderBy: [desc(task.updatedAt), desc(task.qcReviewedAt), desc(task.createdAt)],
-        offset: (page - 1) * limit,
-        limit,
-        columns: {
-          id: true,
-          title: true,
-          description: true,
-          status: true,
-          createdAt: true,
-          dueDate: true,
-          clientId: true,
-          taskCategory: true,
-          nextDestination: true,
-          qcNotes: true,
-          feedback: true,
-          priority: true,
-          qcResult: true,
-          qcReviewedAt: true,
-        },
-        with: {
-          user_qcReviewedBy: {
-            columns: { id: true, name: true },
-          },
-        },
-      }),
-      db.select({ value: count() }).from(task).where(baseWhere),
-      db.select({ value: count() }).from(task).where(and(baseWhere, eq(task.status, 'COMPLETED'))!),
-      db.select({ value: count() }).from(task).where(and(baseWhere, eq(task.status, 'REJECTED'))!),
-    ]);
+    if (targetUser.employeeStatus !== 'ACTIVE') {
+      return NextResponse.json({ message: 'Target QC specialist is not active' }, { status: 400 });
+    }
 
-    const tasks = rawTasks.map(({ user_qcReviewedBy, ...t }: any) => ({ ...t, qcReviewer: user_qcReviewedBy }));
+    // Verify the task exists and is in a QC-relevant status
+    const [foundTask] = await db.select({ id: task.id, title: task.title, status: task.status, qcSpecialist: task.qcSpecialist })
+      .from(task).where(eq(task.id, id)).limit(1);
 
-    const totalPages = Math.max(1, Math.ceil(total / limit));
+    if (!foundTask) {
+      return NextResponse.json({ message: 'Task not found' }, { status: 404 });
+    }
+
+    // If QC role (not admin/manager), ensure they are the current qc_specialist
+    if (role === 'qc' && foundTask.qcSpecialist !== user.id) {
+      return NextResponse.json(
+        { message: 'You can only reassign tasks assigned to you' },
+        { status: 403 }
+      );
+    }
+
+    const [updated] = await db.update(task).set({
+      qcSpecialist: Number(newQcSpecialistId),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(task.id, id)).returning({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      qcSpecialist: task.qcSpecialist,
+    });
 
     return NextResponse.json({
-      success: true,
-      tasks,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-      },
-      stats: {
-        totalReviewed,
-        approved: approvedCount,
-        rejected: rejectedCount,
-      },
+      message: `Task reassigned to ${targetUser.name}`,
+      task: updated,
     });
-  } catch (error) {
-    console.error('[QC COMPLETED] Error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch completed tasks' },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error('❌ QC reassign error:', err.message);
+    return NextResponse.json({ message: 'Server error' }, { status: 500 });
   }
 }

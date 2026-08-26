@@ -664,6 +664,7 @@ export function FullScreenReviewModal({
                 ) : (
                   <video
                     ref={videoRef}
+                    crossOrigin="anonymous"
                     className="w-full h-full object-contain bg-black"
                     src={videoSource.src}
                     onTimeUpdate={handleTimeUpdate}

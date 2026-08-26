@@ -533,6 +533,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <>
                                         <video
                                             ref={p.videoRef}
+                                            crossOrigin="anonymous"
                                             className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
                                             src={p.videoSource.src}
                                             onTimeUpdate={p.handleTimeUpdate}

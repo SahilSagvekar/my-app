@@ -28,6 +28,7 @@ import {
   PlayCircle,
   UserPlus,
   Activity,
+  FolderCheck,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -35,6 +36,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'leaves', label: 'User Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
@@ -95,6 +97,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'approvals', label: 'Content Review', icon: CheckSquare },
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'social', label: 'Social Media', icon: Instagram },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'contracts', label: 'Contracts & Billing', icon: FileText },

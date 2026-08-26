@@ -73,11 +73,34 @@ export async function PATCH(
       );
     }
 
-    // 🔥 Role-switch support: a scheduler viewing as QC (see ViewAsRoleContext)
-    // must be treated as QC/admin for QC-gated behavior below — same pattern
-    // already used in /api/tasks (GET) for the queue view itself.
+    // 🔥 Role-switch support: any multi-role account viewing as QC (see
+    // ViewAsRoleContext — e.g. Daena: editor + scheduler + qc) must be
+    // treated as QC/admin for QC-gated behavior below — same pattern
+    // already used in /api/tasks (GET) and /api/tasks/qc-completed.
+    // Previously this only special-cased role === 'scheduler', so anyone
+    // whose primary role was editor (or anything else) viewing as QC fell
+    // through to their raw base role instead, which is what broke QC
+    // actions for multi-role users whose primary role isn't "scheduler".
     const viewingAs = (req.headers.get('x-viewing-as') || '').toLowerCase();
-    const effectiveRole = (role === 'scheduler' && viewingAs === 'qc') ? 'admin' : role;
+    const currentUserRoles = Array.isArray((currentUser as any).roles)
+      ? (currentUser as any).roles.map((r: string) => r.toLowerCase())
+      : [];
+    const LEGACY_ROLE_SWITCH_EMAILS = new Set([
+      'eric@e8productions.com',
+      'sahilsagvekar230@gmail.com',
+    ]);
+    const DEFAULT_ADMIN_SWITCH_ROLES = ['qc', 'sales', 'sales_manager', 'scheduler'];
+    const authorizedSwitchRoles = new Set<string>([
+      ...currentUserRoles,
+      ...(currentUser.email && LEGACY_ROLE_SWITCH_EMAILS.has(currentUser.email.toLowerCase())
+        ? DEFAULT_ADMIN_SWITCH_ROLES
+        : []),
+      ...(role === 'admin' ? DEFAULT_ADMIN_SWITCH_ROLES : []),
+    ]);
+    const effectiveRole =
+      viewingAs && viewingAs !== role && authorizedSwitchRoles.has(viewingAs)
+        ? (viewingAs === 'qc' ? 'admin' : viewingAs)
+        : role;
 
     const body = await req.json();
     const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags, forceClientReview } = body;
@@ -271,7 +294,7 @@ export async function PATCH(
     }
 
     const isSchedulerSendBack =
-      role === "scheduler" &&
+      effectiveRole === "scheduler" &&
       finalStatus === "REJECTED" &&
       schedulerFeedbackText.length > 0;
 
@@ -300,7 +323,7 @@ export async function PATCH(
     // NEW: Trigger AI titling on QC approval
     // ============================================
     const shouldTriggerTitling =
-      role === "qc" &&
+      (effectiveRole === "qc" || effectiveRole === "admin") &&
       (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW") &&
       task.titlingStatus !== 'COMPLETED' && // Don't re-trigger if already done
       task.titlingStatus !== 'PROCESSING'; // Don't re-trigger if in progress
@@ -372,8 +395,8 @@ export async function PATCH(
         await notifyUser({
           userId: task.assignedTo,
           type: "task_rejected",
-          title: role === "scheduler" ? "Content Sent Back by Scheduler" : "Content Needs Revisions",
-          body: role === "scheduler"
+          title: effectiveRole === "scheduler" ? "Content Sent Back by Scheduler" : "Content Needs Revisions",
+          body: effectiveRole === "scheduler"
             ? `Task "${task.title}" was sent back to you by the scheduler: ${schedulerFeedback || feedback || qcNotes || "Please check the feedback."}`
             : `Task "${task.title}" has been rejected: ${qcNotes || feedback || "Please check QC notes / feedback."}`,
           payload: {
@@ -384,7 +407,7 @@ export async function PATCH(
             // 🔥 Who actually rejected it — lets the Slack dispatcher tell
             // a client rejection apart from a QC one and react differently
             // (see slack.ts task_rejected handler).
-            rejectedByRole: role,
+            rejectedByRole: effectiveRole,
             schedulerId: task.scheduler ?? null,
             // Only carry the comment text through for client rejections —
             // QC-rejection Slack messages stay exactly as they are today.
