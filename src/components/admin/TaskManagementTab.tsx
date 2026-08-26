@@ -31,6 +31,12 @@ import {
 } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { TagPicker } from '../workflow/TagPicker';
+import {
+  TotpSetupDialog,
+  TotpResetDialog,
+  fetchTotpEnabled,
+} from '../auth/TotpDialogs';
+import { Smartphone, KeyRound } from 'lucide-react';
 
 // ─────────────────────────────────────────
 // Types
@@ -184,6 +190,11 @@ export function TaskManagementTab() {
   const [taskFiles, setTaskFiles] = useState<any[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+  const [filePendingDelete, setFilePendingDelete] = useState<{ id: string; name: string } | null>(null);
+  const [fileDeleteTotp, setFileDeleteTotp] = useState('');
+  const [fileDeleteTotpError, setFileDeleteTotpError] = useState('');
+  const [showFileTotpSetup, setShowFileTotpSetup] = useState(false);
+  const [showFileTotpReset, setShowFileTotpReset] = useState(false);
 
   const canManageVideos = user?.role?.toLowerCase() === 'admin';
   const isAdmin = canManageVideos;
@@ -419,14 +430,48 @@ export function TaskManagementTab() {
 
   async function handleDeleteVideo(fileId: string, fileName: string) {
     if (!canManageVideos) return;
-    if (!confirm(`Delete "${fileName}"? This removes it from storage and cannot be undone.`)) return;
-    setDeletingFileId(fileId);
+    const enabled = await fetchTotpEnabled();
+    if (!enabled) {
+      setFilePendingDelete({ id: fileId, name: fileName });
+      setShowFileTotpSetup(true);
+      return;
+    }
+    setFilePendingDelete({ id: fileId, name: fileName });
+    setFileDeleteTotp('');
+    setFileDeleteTotpError('');
+  }
+
+  async function confirmDeleteVideo() {
+    if (!filePendingDelete || !canManageVideos) return;
+    const clean = fileDeleteTotp.replace(/\s/g, '');
+    if (clean.length !== 6) {
+      setFileDeleteTotpError('Enter the 6-digit code from your authenticator app');
+      return;
+    }
+    setDeletingFileId(filePendingDelete.id);
+    setFileDeleteTotpError('');
     try {
-      const res = await fetch(`/api/files/${fileId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/files/${filePendingDelete.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ totpCode: clean }),
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to delete file');
-      setTaskFiles(prev => prev.filter(f => f.id !== fileId));
-      toast({ title: 'Video deleted', description: `"${fileName}" removed.` });
+      if (!res.ok) {
+        if (data.code === 'NOT_SETUP' || data.code === 'NOT_ENABLED') {
+          setShowFileTotpSetup(true);
+          throw new Error(data.error || 'Authenticator not set up');
+        }
+        if (data.requiresTotp || data.code === 'INVALID' || data.code === 'MISSING') {
+          setFileDeleteTotpError(data.error || 'Invalid authenticator code');
+          return;
+        }
+        throw new Error(data.error || 'Failed to delete file');
+      }
+      setTaskFiles(prev => prev.filter(f => f.id !== filePendingDelete.id));
+      toast({ title: 'Video deleted', description: `"${filePendingDelete.name}" removed.` });
+      setFilePendingDelete(null);
+      setFileDeleteTotp('');
       mutateTasks();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to delete video', variant: 'destructive' });
@@ -914,6 +959,107 @@ export function TaskManagementTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete video — authenticator required */}
+      <Dialog
+        open={!!filePendingDelete && !showFileTotpSetup && !showFileTotpReset}
+        onOpenChange={(o) => {
+          if (!o) {
+            setFilePendingDelete(null);
+            setFileDeleteTotp('');
+            setFileDeleteTotpError('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete video?
+            </DialogTitle>
+            <DialogDescription>
+              Delete <strong>{filePendingDelete?.name}</strong>? This removes it from storage and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="file-delete-totp" className="flex items-center gap-2">
+              <Smartphone className="h-4 w-4 text-blue-600" />
+              Authenticator code
+            </Label>
+            <Input
+              id="file-delete-totp"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={fileDeleteTotp}
+              onChange={(e) => {
+                setFileDeleteTotp(e.target.value.replace(/\D/g, ''));
+                setFileDeleteTotpError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !deletingFileId) confirmDeleteVideo();
+              }}
+              placeholder="000000"
+              className="text-center text-xl tracking-[0.4em] font-mono"
+              autoFocus
+            />
+            {fileDeleteTotpError && (
+              <p className="text-sm text-red-500">{fileDeleteTotpError}</p>
+            )}
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline inline-flex items-center gap-1"
+              onClick={() => setShowFileTotpReset(true)}
+            >
+              <KeyRound className="h-3 w-3" />
+              Reset authenticator &amp; set up again
+            </button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFilePendingDelete(null);
+                setFileDeleteTotp('');
+                setFileDeleteTotpError('');
+              }}
+              disabled={!!deletingFileId}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteVideo}
+              disabled={!!deletingFileId || fileDeleteTotp.length !== 6}
+            >
+              {deletingFileId ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <TotpSetupDialog
+        open={showFileTotpSetup}
+        purposeNote="After setup, you'll need this code every time you delete files."
+        onCancel={() => {
+          setShowFileTotpSetup(false);
+          setFilePendingDelete(null);
+        }}
+        onEnabled={async () => {
+          setShowFileTotpSetup(false);
+          setFileDeleteTotp('');
+          setFileDeleteTotpError('');
+        }}
+      />
+
+      <TotpResetDialog
+        open={showFileTotpReset}
+        onCancel={() => setShowFileTotpReset(false)}
+        onReset={async () => {
+          setShowFileTotpReset(false);
+          setShowFileTotpSetup(true);
+        }}
+      />
     </div>
   );
 }
