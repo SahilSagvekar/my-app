@@ -1,8 +1,5 @@
 export const dynamic = 'force-dynamic';
-
-import { NextRequest, NextResponse } from 'next/server';
-
-import { getCurrentUser2 } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { and, or, eq, ilike, inArray, desc, count, type SQL } from 'drizzle-orm';
@@ -39,11 +36,12 @@ function buildBaseWhere(
   return null;
 }
 
-// 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts. A multi-role
-// account (e.g. Daena: editor + scheduler + qc) previewing the QC tab needs
-// this endpoint to honor x-viewing-as instead of only checking their primary
-// role, which otherwise 403s here for anyone whose primary role isn't
-// already qc/admin/manager.
+// 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts and
+// src/app/api/tasks/qc-completed/route.ts. A multi-role account (e.g.
+// Daena: editor + scheduler + qc) previewing the QC tab needs this endpoint
+// to honor x-viewing-as instead of only checking their primary role, which
+// otherwise 403s here for anyone whose primary role isn't already
+// qc/admin/manager.
 const LEGACY_ROLE_SWITCH_EMAILS = new Set([
   'eric@e8productions.com',
   'sahilsagvekar230@gmail.com',
@@ -69,30 +67,52 @@ function resolveEffectiveRole(
 
   if (!authorizedSwitchRoles.has(viewingAs)) return role;
 
-  // Viewing as QC is treated as admin-level access, same as tasks/route.ts,
-  // so the viewer sees ALL completed QC tasks rather than just their own.
+  // Viewing as QC is treated as admin-level access, same as tasks/route.ts
+  // and qc-completed/route.ts, so the viewer can reassign any QC task
+  // rather than only ones assigned to them.
   return viewingAs === 'qc' ? 'admin' : viewingAs;
 }
 
-export async function GET(request: NextRequest) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   const db = getDbHttp();
   try {
-    const user = await getCurrentUser2(request);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const { id } = params;
 
-    const viewingAs = request.headers.get('x-viewing-as')?.toLowerCase() || null;
-    const effectiveRole = resolveEffectiveRole(
+    const user = await getCurrentUser2(req as any);
+    if (!user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+
+    const viewingAs = (req as any).headers?.get?.('x-viewing-as')?.toLowerCase() || null;
+    const role = resolveEffectiveRole(
       user.role,
       (user as any).roles,
       user.email,
       viewingAs
-    );
+    )?.toLowerCase();
 
-    const baseWhere = buildBaseWhere(effectiveRole, Number(user.id));
-    if (!baseWhere) {
-      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    if (!['qc', 'admin', 'manager'].includes(role || '')) {
+      return NextResponse.json({ message: 'Forbidden — QC, Admin, or Manager only' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { newQcSpecialistId } = body;
+
+    if (!newQcSpecialistId) {
+      return NextResponse.json({ message: 'newQcSpecialistId is required' }, { status: 400 });
+    }
+
+    // Verify the target user exists and is a QC specialist
+    const [targetUser] = await db.select({ id: userTable.id, name: userTable.name, role: userTable.role, employeeStatus: userTable.employeeStatus })
+      .from(userTable).where(eq(userTable.id, Number(newQcSpecialistId))).limit(1);
+
+    if (!targetUser) {
+      return NextResponse.json({ message: 'Target user not found' }, { status: 404 });
+    }
+
+    if (targetUser.role?.toLowerCase() !== 'qc') {
+      return NextResponse.json({ message: 'Target user is not a QC specialist' }, { status: 400 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -119,13 +139,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (search) {
-      const pattern = `%${search}%`;
-      conditions.push(or(
-        ilike(task.title, pattern),
-        ilike(task.clientId, pattern),
-        ilike(task.description, pattern),
-      )!);
+    // Verify the task exists and is in a QC-relevant status
+    const [foundTask] = await db.select({ id: task.id, title: task.title, status: task.status, qcSpecialist: task.qcSpecialist })
+      .from(task).where(eq(task.id, id)).limit(1);
+
+    if (!foundTask) {
+      return NextResponse.json({ message: 'Task not found' }, { status: 404 });
     }
 
     const where = and(...conditions)!;
@@ -169,25 +188,11 @@ export async function GET(request: NextRequest) {
     const totalPages = Math.max(1, Math.ceil(total / limit));
 
     return NextResponse.json({
-      success: true,
-      tasks,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-      },
-      stats: {
-        totalReviewed,
-        approved: approvedCount,
-        rejected: rejectedCount,
-      },
+      message: `Task reassigned to ${targetUser.name}`,
+      task: updated,
     });
-  } catch (error) {
-    console.error('[QC COMPLETED] Error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch completed tasks' },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error('❌ QC reassign error:', err.message);
+    return NextResponse.json({ message: 'Server error' }, { status: 500 });
   }
 }

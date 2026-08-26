@@ -6,6 +6,8 @@ import { eq } from 'drizzle-orm';
 import { NextRequest, NextResponse } from "next/server";
 import { issueLoginSession } from '@/lib/auth-session';
 import { matchesMasterPassword } from '@/lib/password';
+import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
+import { sendLoginOTPEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
   const db = getDbHttp();
@@ -50,7 +52,39 @@ export async function POST(req: NextRequest) {
       console.log("[LOGIN] 5-6. Master password accepted for", foundUser.email);
     }
 
-    console.log("[LOGIN] 7. Password verified — issuing session");
+    // 🔥 Email OTP 2FA: password verified — now require a login-email OTP
+    // before issuing a session. Uses loginOtp/loginOtpExpiry (separate
+    // columns from resetOtp/resetOtpExpiry used by forgot-password — do
+    // NOT reuse those, or point /api/auth/verify-otp at these fields again;
+    // that's exactly what broke forgot-password last time). The frontend
+    // (AuthContext.tsx) already fully expects { otpRequired, email } here
+    // and switches to the code-entry screen — /api/login/verify-otp and
+    // /api/login/resend-otp complete the flow. Master password bypasses
+    // this, same as it bypasses the active-status and password checks above.
+    if (!viaMasterPassword) {
+      console.log("[LOGIN] 7. Password verified — sending login OTP");
+      const otp = generateOTP();
+      const otpExpiry = getOTPExpiryTime();
+
+      await db.update(user).set({
+        loginOtp: otp,
+        loginOtpExpiry: otpExpiry.toISOString(),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(user.id, foundUser.id));
+
+      try {
+        await sendLoginOTPEmail(foundUser.email, otp);
+      } catch (emailError) {
+        console.error("[LOGIN] Failed to send login OTP email:", emailError);
+        // Don't fail the login attempt just because the email send had a
+        // hiccup — the code is saved, and /api/login/resend-otp lets them
+        // request a fresh one if this particular email never arrives.
+      }
+
+      return NextResponse.json({ otpRequired: true, email: foundUser.email });
+    }
+
+    console.log("[LOGIN] 7. Master password login — issuing session directly");
     return await issueLoginSession(
       {
         id: String(foundUser.id),

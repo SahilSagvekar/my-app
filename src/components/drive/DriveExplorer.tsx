@@ -253,6 +253,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const requiresDeleteTotp = role !== "client";
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // ─── Admin delete TOTP gate ─────────────────────────────────────────────
+  // Any admin delete — one file or a bulk batch — requires a fresh Google
+  // Authenticator code, verified server-side on every request (see
+  // /api/drive/delete and /api/drive/bulk-delete). This dialog is shared by
+  // both flows; deleteMode tracks which one is in progress.
+  const [showTotpDeleteDialog, setShowTotpDeleteDialog] = useState(false);
+  const [deleteMode, setDeleteMode] = useState<'single' | 'bulk' | null>(null);
+  const [totpCode, setTotpCode] = useState('');
+  const [totpError, setTotpError] = useState<string | null>(null);
+  const [totpNotSetUp, setTotpNotSetUp] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
   // ─── Multi-select & bulk download state ───────────────────────────────────
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
@@ -893,7 +905,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   };
 
   // ─── Confirm Delete — reload structure, path auto-preserved ───
-  const confirmDelete = async () => {
+  const confirmDelete = async (totpCodeForRequest?: string) => {
     if (!itemToDelete) return;
 
     if (requiresDeleteTotp) {
@@ -941,11 +953,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       toast.success(`${itemToDelete.name} deleted successfully`);
 
-      // Close dialog first
+      // Close dialogs first
       setShowDeleteDialog(false);
+      setShowTotpDeleteDialog(false);
       setItemToDelete(null);
       setDeleteTotpCode("");
       setIsDeleting(false);
+      setTotpCode('');
+      setDeleteMode(null);
 
       // Reload structure — FEATURE 2 will preserve the path
       await loadDriveStructure();
@@ -2188,6 +2203,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     <span className="hidden sm:inline">Download</span>
                     <span className="sm:hidden">{checkedItems.size}</span>
                   </Button>
+                  {role === 'admin' && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="gap-1.5 h-9"
+                      onClick={handleBulkDeleteClick}
+                      disabled={isZipping || isBulkDeleting}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Delete</span>
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" className="h-9 px-2" onClick={clearChecked}>
                     <X className="h-3.5 w-3.5" />
                   </Button>

@@ -4,42 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   HardDrive, CheckCircle, XCircle, Clock, RefreshCw,
   Server, Database, AlertTriangle, Wifi, WifiOff,
-  FolderSync, Archive, Shield, Eye, Trash2, UploadCloud,
+  FolderSync, Archive,
 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { toast } from 'sonner';
-import RawFootageMirrorPanel from '@/components/admin/RawFootageMirrorPanel';
-
-interface SweepFileResult {
-  fileId: string;
-  s3Key: string;
-  taskId: string;
-  monthFolder: string;
-  sizeBytes: number;
-  outcome: 'would_delete' | 'deleted' | 'skipped_not_on_nas' | 'failed';
-  reason?: string;
-}
-
-interface SweepSummary {
-  dryRun: boolean;
-  clientId: string | null;
-  cutoffMonthFolder: string;
-  eligibleCount: number;
-  deletedCount: number;
-  skippedCount: number;
-  failedCount: number;
-  bytesFreed: number;
-  monthsSwept: string[];
-  results: SweepFileResult[];
-}
-
-interface ClientOption {
-  id: string;
-  name: string;
-  companyName: string | null;
-}
+import ManualNasSweepPanel from '@/components/admin/ManualNasSweepPanel';
 
 interface SyncLog {
   id: string;
@@ -58,24 +26,6 @@ interface BackupStats {
   archivedFiles: number;
   pendingFiles: number;
   lastSync: SyncLog | null;
-}
-
-interface NasMirrorJob {
-  id: string;
-  clientName: string;
-  monthFolder: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  scannedCount: number;
-  copiedCount: number;
-  verifiedCount: number;
-  deletedCount: number;
-  failedCount: number;
-  currentFile: string | null;
-  errorMessage: string | null;
-  startedAt: string | null;
-  completedAt: string | null;
-  createdAt: string;
-  TriggeredBy?: { id: number; name: string | null } | null;
 }
 
 function formatBytes(bytes: number | null): string {
@@ -146,20 +96,6 @@ export function NasBackupAdmin() {
   const [stats, setStats] = useState<BackupStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [previewing, setPreviewing] = useState(false);
-  const [sweeping, setSweeping] = useState(false);
-  const [preview, setPreview] = useState<SweepSummary | null>(null);
-  const [clients, setClients] = useState<ClientOption[]>([]);
-  const [sweepClientId, setSweepClientId] = useState<string>('all');
-
-  // Copy-to-NAS (mirror job) state
-  const [mirrorClientName, setMirrorClientName] = useState<string>('');
-  const [mirrorMonths, setMirrorMonths] = useState<string[]>([]);
-  const [mirrorMonth, setMirrorMonth] = useState<string>('');
-  const [mirrorMonthsLoading, setMirrorMonthsLoading] = useState(false);
-  const [activeJob, setActiveJob] = useState<NasMirrorJob | null>(null);
-  const [jobHistory, setJobHistory] = useState<NasMirrorJob[]>([]);
-  const [startingMirror, setStartingMirror] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -186,144 +122,6 @@ export function NasBackupAdmin() {
     const interval = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [load]);
-
-  useEffect(() => {
-    fetch('/api/clients', { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => setClients((data.clients || []).map((c: any) => ({ id: c.id, name: c.name, companyName: c.companyName }))))
-      .catch(() => {/* dropdown just stays empty — not critical */});
-  }, []);
-
-  // Load available months whenever the selected client changes
-  useEffect(() => {
-    if (!mirrorClientName) {
-      setMirrorMonths([]);
-      setMirrorMonth('');
-      return;
-    }
-    setMirrorMonthsLoading(true);
-    fetch(`/api/nas/available-months?clientName=${encodeURIComponent(mirrorClientName)}`, { credentials: 'include' })
-      .then(res => res.json())
-      .then(data => {
-        const months: string[] = data.months || [];
-        setMirrorMonths(months);
-        setMirrorMonth(months[0] || '');
-      })
-      .catch(() => setMirrorMonths([]))
-      .finally(() => setMirrorMonthsLoading(false));
-  }, [mirrorClientName]);
-
-  const loadJobHistory = useCallback(async () => {
-    try {
-      const res = await fetch('/api/nas/mirror-jobs', { credentials: 'include', cache: 'no-store' });
-      if (!res.ok) return;
-      const data = await res.json();
-      setJobHistory(data.jobs || []);
-      // Resume polling if a job is already running/pending (e.g. after a page refresh)
-      const inFlight = (data.jobs || []).find((j: NasMirrorJob) => j.status === 'pending' || j.status === 'running');
-      if (inFlight && !activeJob) setActiveJob(inFlight);
-    } catch {
-      /* history is non-critical */
-    }
-  }, [activeJob]);
-
-  useEffect(() => {
-    loadJobHistory();
-  }, [loadJobHistory]);
-
-  // Poll the active job every 3 seconds while it's pending/running
-  useEffect(() => {
-    if (!activeJob || (activeJob.status !== 'pending' && activeJob.status !== 'running')) return;
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/nas/mirror-jobs/${activeJob.id}`, { credentials: 'include', cache: 'no-store' });
-        if (!res.ok) return;
-        const data = await res.json();
-        setActiveJob(data.job);
-        if (data.job.status === 'completed' || data.job.status === 'failed') {
-          toast[data.job.status === 'completed' ? 'success' : 'error'](
-            data.job.status === 'completed' ? 'Mirror job complete' : 'Mirror job failed',
-            { description: `${data.job.clientName} / ${data.job.monthFolder} — ${data.job.deletedCount} deleted, ${data.job.failedCount} failed` }
-          );
-          loadJobHistory();
-          load(); // refresh overall stats too
-        }
-      } catch {
-        /* transient poll failure — try again next tick */
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [activeJob, loadJobHistory, load]);
-
-  const startMirrorJob = useCallback(() => {
-    if (!mirrorClientName || !mirrorMonth) return;
-    const confirmed = window.confirm(
-      `This will copy "${mirrorClientName}" / ${mirrorMonth} output files to the NAS, verify each one, then permanently delete the verified copies from Cloudflare R2. This cannot be undone. Continue?`
-    );
-    if (!confirmed) return;
-
-    setStartingMirror(true);
-    fetch('/api/nas/mirror-jobs', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientName: mirrorClientName, monthFolder: mirrorMonth }),
-    })
-      .then(res => res.json().then(data => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok) throw new Error(data.error || 'Failed to start job');
-        setActiveJob(data.job);
-        toast[data.alreadyQueued ? 'info' : 'success'](
-          data.alreadyQueued ? 'Already queued' : 'Mirror job started',
-          { description: `${mirrorClientName} / ${mirrorMonth}` }
-        );
-        loadJobHistory();
-      })
-      .catch((err: any) => toast.error('Failed to start mirror job', { description: err.message }))
-      .finally(() => setStartingMirror(false));
-  }, [mirrorClientName, mirrorMonth, loadJobHistory]);
-
-  const runSweep = useCallback(async (dryRun: boolean) => {
-    const setBusy = dryRun ? setPreviewing : setSweeping;
-    setBusy(true);
-    try {
-      const clientId = sweepClientId === 'all' ? null : sweepClientId;
-      const res = await fetch('/api/cron/s3-to-nas', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dryRun, clientId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Sweep failed');
-
-      if (dryRun) {
-        setPreview(data.summary);
-      } else {
-        // Keep the result visible (not just the toast) so the skip/failure
-        // reason breakdown below is available for real runs too — this is
-        // exactly what's needed to diagnose "192 skipped" at a glance.
-        setPreview(data.summary);
-        await load();
-      }
-      toast.success(dryRun ? 'Preview ready' : 'Sweep complete', { description: data.message });
-    } catch (err: any) {
-      toast.error(dryRun ? 'Preview failed' : 'Sweep failed', { description: err.message });
-    } finally {
-      setBusy(false);
-    }
-  }, [load, sweepClientId]);
-
-  const handleRunSweep = useCallback(() => {
-    const monthLabel = preview?.cutoffMonthFolder ? ` (everything before ${preview.cutoffMonthFolder})` : '';
-    const clientLabel = sweepClientId === 'all'
-      ? 'ALL clients'
-      : clients.find(c => c.id === sweepClientId)?.companyName || clients.find(c => c.id === sweepClientId)?.name || 'this client';
-    const confirmed = window.confirm(
-      `This permanently deletes output-folder files from Cloudflare R2 for ${clientLabel}${monthLabel} once they're verified present on the NAS. This cannot be undone. Continue?`
-    );
-    if (confirmed) runSweep(false);
-  }, [preview, runSweep, sweepClientId, clients]);
 
   const lastSync = stats?.lastSync;
   const isHealthy = lastSync?.status === 'success';
@@ -446,201 +244,13 @@ export function NasBackupAdmin() {
             </div>
           </div>
 
-          <RawFootageMirrorPanel clients={clients} onJobsStarted={() => { loadJobHistory(); load(); }} />
-
-          {/* Copy to NAS — targeted client/month mirror + cleanup */}
+          {/* Manual, on-demand backup — talks to the live Cloudflare Tunnel /
+              nas-upload-server system (nas-sweep-queue.ts), same one the
+              weekly cron uses. Replaces the old RawFootageMirrorPanel /
+              Copy-Client-Month / Output-Folder-Sweep sections, which all
+              targeted the decommissioned Tailscale+MinIO setup. */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-1">
-              <UploadCloud className="h-4 w-4 text-gray-500" />
-              Copy Client Month to NAS
-            </h3>
-            <p className="text-xs text-gray-400 mb-4">
-              Copies a specific client's output files for one month from R2 to the NAS, verifies each
-              copy, then deletes the verified R2 copies. Runs in the background — safe to navigate away.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <Select value={mirrorClientName} onValueChange={setMirrorClientName}>
-                <SelectTrigger className="w-56 h-8 text-xs">
-                  <SelectValue placeholder="Select client…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map(c => (
-                    <SelectItem key={c.id} value={c.companyName || c.name}>{c.companyName || c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={mirrorMonth} onValueChange={setMirrorMonth} disabled={!mirrorClientName || mirrorMonthsLoading}>
-                <SelectTrigger className="w-40 h-8 text-xs">
-                  <SelectValue placeholder={mirrorMonthsLoading ? 'Loading…' : 'Select month…'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {mirrorMonths.map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs h-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                onClick={startMirrorJob}
-                disabled={!mirrorClientName || !mirrorMonth || startingMirror || (activeJob?.status === 'running' || activeJob?.status === 'pending')}
-              >
-                <UploadCloud className={`h-3.5 w-3.5 ${startingMirror ? 'animate-pulse' : ''}`} />
-                {startingMirror ? 'Starting…' : 'Copy, Verify & Delete'}
-              </Button>
-            </div>
-
-            {/* Live progress for the active/most recent job */}
-            {activeJob && (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 text-xs mb-2">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-semibold text-zinc-800">
-                    {activeJob.clientName} / {activeJob.monthFolder}
-                  </span>
-                  <span className={`inline-flex items-center gap-1.5 font-semibold px-2 py-0.5 rounded-full ${
-                    activeJob.status === 'completed' ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                    : activeJob.status === 'failed' ? 'text-red-700 bg-red-50 border border-red-200'
-                    : 'text-blue-700 bg-blue-50 border border-blue-200'
-                  }`}>
-                    {(activeJob.status === 'running' || activeJob.status === 'pending') && <RefreshCw className="h-3 w-3 animate-spin" />}
-                    {activeJob.status}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div><div className="text-zinc-500">Scanned</div><div className="font-semibold text-zinc-800">{activeJob.scannedCount}</div></div>
-                  <div><div className="text-zinc-500">Copied</div><div className="font-semibold text-zinc-800">{activeJob.copiedCount}</div></div>
-                  <div><div className="text-zinc-500">Verified</div><div className="font-semibold text-zinc-800">{activeJob.verifiedCount}</div></div>
-                  <div><div className="text-zinc-500">Deleted</div><div className="font-semibold text-zinc-800">{activeJob.deletedCount}</div></div>
-                  <div><div className="text-zinc-500">Failed</div><div className="font-semibold text-red-600">{activeJob.failedCount}</div></div>
-                </div>
-                {activeJob.currentFile && (activeJob.status === 'running') && (
-                  <p className="mt-3 text-zinc-400 truncate">Current: {activeJob.currentFile}</p>
-                )}
-                {activeJob.errorMessage && (
-                  <p className="mt-3 text-red-500">{activeJob.errorMessage}</p>
-                )}
-              </div>
-            )}
-
-            {/* Recent job history */}
-            {jobHistory.length > 0 && (
-              <details className="text-xs">
-                <summary className="cursor-pointer text-gray-400 hover:text-gray-600 select-none">
-                  {jobHistory.length} past mirror job{jobHistory.length !== 1 ? 's' : ''}
-                </summary>
-                <div className="mt-2 divide-y divide-gray-50 border border-gray-100 rounded-lg overflow-hidden">
-                  {jobHistory.map(j => (
-                    <div key={j.id} className="flex items-center justify-between px-3 py-2">
-                      <span className="text-gray-700">{j.clientName} / {j.monthFolder}</span>
-                      <span className="text-gray-400">{j.deletedCount} deleted, {j.failedCount} failed — {j.status}</span>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
-          </div>
-
-          {/* Monthly output-folder sweep */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <Trash2 className="h-4 w-4 text-gray-500" />
-                Output Folder Sweep
-              </h3>
-            </div>
-            <p className="text-xs text-gray-400 mb-4">
-              Runs automatically on the 1st of every month at 4 AM EST. Deletes output-folder files
-              from R2 once older than 2 months — but only after verifying the file is actually present
-              on the NAS mount. Raw footage is never touched.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <Select value={sweepClientId} onValueChange={setSweepClientId}>
-                <SelectTrigger className="w-56 h-8 text-xs">
-                  <SelectValue placeholder="All clients" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All clients</SelectItem>
-                  {clients.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={() => runSweep(true)} disabled={previewing || sweeping}>
-                <Eye className={`h-3.5 w-3.5 ${previewing ? 'animate-pulse' : ''}`} />
-                {previewing ? 'Previewing…' : 'Preview Sweep'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 text-xs h-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
-                onClick={handleRunSweep}
-                disabled={sweeping || previewing}
-              >
-                <Trash2 className={`h-3.5 w-3.5 ${sweeping ? 'animate-pulse' : ''}`} />
-                {sweeping ? 'Sweeping…' : 'Run Sweep Now'}
-              </Button>
-            </div>
-
-            {preview && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-zinc-50 border border-zinc-200 rounded-lg p-4">
-                <div>
-                  <div className="text-zinc-500">Cutoff</div>
-                  <div className="font-semibold text-zinc-800">Before {preview.cutoffMonthFolder}</div>
-                </div>
-                <div>
-                  <div className="text-zinc-500">{preview.dryRun ? 'Would delete' : 'Deleted'}</div>
-                  <div className="font-semibold text-zinc-800">{preview.deletedCount} file(s)</div>
-                </div>
-                <div>
-                  <div className="text-zinc-500">Not confirmed on NAS</div>
-                  <div className="font-semibold text-amber-600">{preview.skippedCount} file(s)</div>
-                </div>
-                <div>
-                  <div className="text-zinc-500">{preview.dryRun ? 'Would free' : 'Freed'}</div>
-                  <div className="font-semibold text-zinc-800">{formatBytes(preview.bytesFreed)}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Why files were skipped/failed — grouped, since a systemic issue
-                (e.g. NAS mount not present on this server) shows up as the
-                exact same reason repeated for every file. */}
-            {preview && preview.results.some(r => r.outcome !== 'deleted' && r.outcome !== 'would_delete') && (() => {
-              const reasonCounts = new Map<string, number>();
-              for (const r of preview.results) {
-                if (r.outcome === 'deleted' || r.outcome === 'would_delete') continue;
-                const key = r.reason || r.outcome;
-                reasonCounts.set(key, (reasonCounts.get(key) || 0) + 1);
-              }
-              const sorted = [...reasonCounts.entries()].sort((a, b) => b[1] - a[1]);
-              return (
-                <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs">
-                  <div className="font-semibold text-amber-800 mb-2 flex items-center gap-1.5">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    Why files weren't swept
-                  </div>
-                  <ul className="space-y-1">
-                    {sorted.map(([reason, count]) => (
-                      <li key={reason} className="text-amber-700">
-                        <span className="font-semibold">{count}×</span> {reason}
-                      </li>
-                    ))}
-                  </ul>
-                  {sorted.some(([r]) => r.includes('NAS mount not found')) && (
-                    <p className="mt-2 text-amber-600">
-                      This means the NAS drive isn't mounted on this server's filesystem right now —
-                      that's an infrastructure issue (check the mount on the server), not something
-                      fixable from this panel.
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
+            <ManualNasSweepPanel />
           </div>
 
           {/* Sync history */}

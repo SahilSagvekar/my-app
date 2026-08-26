@@ -454,6 +454,7 @@ export function ThumbnailReviewModal({
                                         <div className="relative group max-w-full max-h-full">
                                             <img
                                                 ref={imageRef}
+                                                crossOrigin="anonymous"
                                                 src={currentFile.url}
                                                 alt={currentFile.name}
                                                 className="max-w-full max-h-[calc(100vh-200px)] object-contain shadow-2xl rounded-sm"

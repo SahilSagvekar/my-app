@@ -35,6 +35,7 @@ import { FeedbackSystem } from "../../components/Feedbacksystem";
 import LeavesComponent from "../admin/LeavesComponent";
 import { ResetPasswordWithOTP } from "../auth/ResetPasswordWithOTP";
 import { DriveExplorer } from "../drive/DriveExplorer";
+import { FileVerification } from "../drive/FileVerification";
 import { EmploymentInfo } from "../EmploymentInfo";
 import { SocialLogins } from "../Sociallogins"
 import { PostedContentSidebar } from "../Postedcontentsidebar"
@@ -128,8 +129,12 @@ export function renderPage(
     );
   }
 
-  if (page === "drive") {
+    if (page === "drive") {
     return <DriveExplorer role={role} />;
+  }
+
+  if (page === "file-verification") {
+    return <FileVerification role={role} />;
   }
 
   if (page === "logins") {
