@@ -7,7 +7,7 @@ import { getDbHttp } from '@/lib/db';
 import { task } from '@/lib/db/schema';
 import { and, or, eq, ilike, inArray, desc, count, type SQL } from 'drizzle-orm';
 
-const QC_COMPLETED_STATUSES = ['COMPLETED', 'REJECTED', 'CLIENT_REVIEW'] as const;
+const QC_COMPLETED_STATUSES = ['COMPLETED', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW'] as const;
 type QcCompletedStatus = (typeof QC_COMPLETED_STATUSES)[number];
 
 const DEFAULT_LIMIT = 15;
@@ -106,14 +106,17 @@ export async function GET(request: NextRequest) {
 
     if (status && status !== 'all') {
       const normalizedStatus = status.toUpperCase();
-      if (!QC_COMPLETED_STATUSES.includes(normalizedStatus as QcCompletedStatus)) {
+      // Legacy "REJECTED" filter matches both new rejection statuses
+      if (normalizedStatus === 'REJECTED') {
+        conditions.push(inArray(task.status, ['REJECTED_BY_QC', 'REJECTED_BY_CLIENT'] as any));
+      } else if (!QC_COMPLETED_STATUSES.includes(normalizedStatus as QcCompletedStatus)) {
         return NextResponse.json(
           { success: false, error: `Invalid status: ${status}` },
           { status: 400 }
         );
+      } else {
+        conditions.push(eq(task.status, normalizedStatus as any));
       }
-
-      conditions.push(eq(task.status, normalizedStatus as any));
     }
 
     if (search) {
@@ -158,7 +161,7 @@ export async function GET(request: NextRequest) {
       }),
       db.select({ value: count() }).from(task).where(baseWhere),
       db.select({ value: count() }).from(task).where(and(baseWhere, eq(task.status, 'COMPLETED'))!),
-      db.select({ value: count() }).from(task).where(and(baseWhere, eq(task.status, 'REJECTED'))!),
+      db.select({ value: count() }).from(task).where(and(baseWhere, inArray(task.status, ['REJECTED_BY_QC', 'REJECTED_BY_CLIENT']))!),
     ]);
 
     const tasks = rawTasks.map(({ user_qcReviewedBy, ...t }: any) => ({ ...t, qcReviewer: user_qcReviewedBy }));

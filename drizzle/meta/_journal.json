@@ -8,6 +8,13 @@
       "when": 1786364352385,
       "tag": "0000_sad_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787760000000,
+      "tag": "0001_split_rejected_statuses",
+      "breakpoints": true
     }
   ]
 }

@@ -340,7 +340,7 @@ export function SchedulerDashboard() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          status: 'REJECTED',
+          status: 'REJECTED_BY_QC',
           schedulerFeedback: sendBackFeedback.trim(),
           route: 'editor',
         }),

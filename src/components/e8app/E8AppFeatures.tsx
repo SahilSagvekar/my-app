@@ -24,7 +24,7 @@ const features = [
     icon: Kanban,
     title: 'Editor Task Board',
     description:
-      "Kanban-style workflow: Pending → In Progress → Ready for QC → Revisions Needed. Editors upload by section (Main, Thumbnail, Music License, Tiles) and must acknowledge all revision feedback before re-submitting.",
+      "Kanban-style workflow: Pending → In Progress → Quality Control → Revisions Needed. Editors upload by section (Main, Thumbnail, Music License, Tiles) and must acknowledge all revision feedback before re-submitting.",
   },
   {
     icon: ShieldCheckIcon,

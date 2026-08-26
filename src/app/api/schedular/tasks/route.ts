@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     }
 
     // Status filter logic
-    // Valid TaskStatus values: PENDING, IN_PROGRESS, READY_FOR_QC, QC_IN_PROGRESS, COMPLETED, SCHEDULED, ON_HOLD, REJECTED, CLIENT_REVIEW, VIDEOGRAPHER_ASSIGNED, POSTED
+    // Valid TaskStatus values: PENDING, IN_PROGRESS, READY_FOR_QC, QC_IN_PROGRESS, COMPLETED, SCHEDULED, ON_HOLD, REJECTED_BY_QC, REJECTED_BY_CLIENT, CLIENT_REVIEW, VIDEOGRAPHER_ASSIGNED, POSTED
     if (status && status !== "all") {
       const upperStatus = status.toUpperCase();
       if (upperStatus === "PENDING") {

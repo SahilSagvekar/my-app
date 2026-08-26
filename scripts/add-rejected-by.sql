@@ -1,4 +1,5 @@
--- Filter metadata only: Task.status stays REJECTED.
--- Values: 'QC' | 'CLIENT' | 'SCHEDULER' | NULL
-ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "rejectedBy" TEXT;
-CREATE INDEX IF NOT EXISTS "Task_rejectedBy_idx" ON "Task" ("rejectedBy");
+-- SUPERSEDED by drizzle/0001_split_rejected_statuses.sql
+-- That migration splits TaskStatus into REJECTED_BY_QC / REJECTED_BY_CLIENT
+-- (and backfills existing REJECTED rows to REJECTED_BY_QC) instead of adding
+-- a separate rejectedBy column.
+-- Kept for historical reference only — do not run.

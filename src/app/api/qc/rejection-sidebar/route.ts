@@ -3,10 +3,7 @@ import { getDbHttp } from "@/lib/db";
 import { task as taskTable } from "@/lib/db/schema";
 import { and, eq, ne, isNotNull, gte } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
-
-const TaskStatus = {
-  REJECTED: "REJECTED",
-} as const;
+import { REJECTED_BY_CLIENT, REJECTED_BY_QC } from "@/lib/task-status";
 
 export async function GET(req: NextRequest) {
   const db = getDbHttp();
@@ -23,7 +20,7 @@ export async function GET(req: NextRequest) {
     // 1) QC rejections: same editor + same qcNotes reason rejected >= 3 times
     const rawQcRejectedTasks = await db.query.task.findMany({
       where: and(
-        eq(taskTable.status, TaskStatus.REJECTED),
+        eq(taskTable.status, REJECTED_BY_QC),
         isNotNull(taskTable.qcNotes),
         gte(taskTable.updatedAt, since.toISOString())
       ),
@@ -73,7 +70,7 @@ export async function GET(req: NextRequest) {
     // 2) Client rejections: same client + same feedback reason rejected >= 3 times
     const clientRejectedTasks = await db.query.task.findMany({
       where: and(
-        eq(taskTable.status, TaskStatus.REJECTED),
+        eq(taskTable.status, REJECTED_BY_CLIENT),
         eq(taskTable.clientReview, true),
         isNotNull(taskTable.feedback),
         gte(taskTable.updatedAt, since.toISOString())

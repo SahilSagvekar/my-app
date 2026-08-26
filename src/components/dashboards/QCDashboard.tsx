@@ -189,7 +189,7 @@ const persistQCResult = async ({
   postingTags?: { id: string; text: string }[];
   viewingAsRole?: string | null;
 }) => {
-  const newStatus = approved ? "COMPLETED" : "REJECTED";
+  const newStatus = approved ? "COMPLETED" : "REJECTED_BY_QC";
   const metaBody: any = {};
 
   if (approved && feedback) metaBody.feedback = feedback;
