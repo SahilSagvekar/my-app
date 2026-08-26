@@ -20,6 +20,12 @@ import { notifyUser } from "@/lib/notify";
 import { triggerReviewMirror } from "@/lib/review-mirror";
 import { deleteYoutubeVideo } from "@/lib/youtube-mirror";
 import { getCurrentUser2 } from "@/lib/auth";
+import {
+  isRejectedStatus,
+  normalizeIncomingTaskStatus,
+  REJECTED_BY_CLIENT,
+  REJECTED_BY_QC,
+} from "@/lib/task-status";
 
 function sanitizeBigInt(obj: any): any {
   if (obj === null || obj === undefined) return obj;
@@ -105,12 +111,13 @@ export async function PATCH(
     const body = await req.json();
     const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags, forceClientReview } = body;
 
-    let finalStatus = status;
-
     if (!status)
       return NextResponse.json({ message: "Status is required" }, { status: 400 });
 
-    console.log(`\n[StatusUpdate] User ${userId} (${role}) is updating task ${id} to status: ${status}`);
+    // Split legacy REJECTED → REJECTED_BY_QC / REJECTED_BY_CLIENT by actor role
+    let finalStatus = normalizeIncomingTaskStatus(status, role);
+
+    console.log(`\n[StatusUpdate] User ${userId} (${role}) is updating task ${id} to status: ${finalStatus} (requested: ${status})`);
     const updateData: any = {};
 
     if (feedback !== undefined) updateData.feedback = feedback;
@@ -246,8 +253,8 @@ export async function PATCH(
     if (role === "client") {
       if (status === "COMPLETED") {
         finalStatus = "COMPLETED";
-      } else if (status === "REJECTED") {
-        finalStatus = "REJECTED";
+      } else if (isRejectedStatus(status)) {
+        finalStatus = REJECTED_BY_CLIENT;
       } else if (status === "POSTED") {
         finalStatus = "POSTED";
       }
@@ -256,7 +263,7 @@ export async function PATCH(
     // Update task
     // 🔥 Track QC reviewer when QC approves/rejects
     const isQCAction = (effectiveRole === "qc" || effectiveRole === "admin") &&
-      (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW" || finalStatus === "REJECTED");
+      (finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW" || finalStatus === REJECTED_BY_QC);
 
     if (isQCAction) {
       updateData.qcReviewedBy = userId;
@@ -294,8 +301,8 @@ export async function PATCH(
     }
 
     const isSchedulerSendBack =
-      effectiveRole === "scheduler" &&
-      finalStatus === "REJECTED" &&
+      role === "scheduler" &&
+      finalStatus === REJECTED_BY_QC &&
       schedulerFeedbackText.length > 0;
 
     if (isSchedulerSendBack) {
@@ -368,7 +375,7 @@ export async function PATCH(
           await notifyUser({
             userId: task.qcSpecialist,
             type: "qc_ready",
-            title: "Content Ready for QC Review",
+            title: "Content Ready for Quality Control",
             body: `Your content "${task.title}" is ready for review.`,
             payload: {
               taskId: task.id,
@@ -390,7 +397,7 @@ export async function PATCH(
       //     payload: { taskId: task.id, clientId: task.clientId }
       //   });
       // }
-      else if (finalStatus === "REJECTED" && task.status !== "REJECTED") {
+      else if (isRejectedStatus(finalStatus) && !isRejectedStatus(task.status)) {
         // Notify Editor
         await notifyUser({
           userId: task.assignedTo,
@@ -407,7 +414,8 @@ export async function PATCH(
             // 🔥 Who actually rejected it — lets the Slack dispatcher tell
             // a client rejection apart from a QC one and react differently
             // (see slack.ts task_rejected handler).
-            rejectedByRole: effectiveRole,
+            rejectedByRole: role,
+            rejectedStatus: finalStatus,
             schedulerId: task.scheduler ?? null,
             // Only carry the comment text through for client rejections —
             // QC-rejection Slack messages stay exactly as they are today.

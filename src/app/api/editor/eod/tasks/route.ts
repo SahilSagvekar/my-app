@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
           "COMPLETED",
           "SCHEDULED",
           "POSTED",
-          "REJECTED",
+          "REJECTED_BY_QC", "REJECTED_BY_CLIENT",
         ] as any),
       ),
       with: {

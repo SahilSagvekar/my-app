@@ -423,7 +423,7 @@ export function SchedulerSpreadsheetView() {
         try {
             const res = await fetch(`/api/tasks/${sendBackTaskId}/status`, {
                 method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-                body: JSON.stringify({ status: 'REJECTED', schedulerFeedback: sendBackFeedback.trim(), route: 'editor' }),
+                body: JSON.stringify({ status: 'REJECTED_BY_QC', schedulerFeedback: sendBackFeedback.trim(), route: 'editor' }),
             });
             if (!res.ok) { const data = await res.json(); throw new Error(data.message || 'Failed to send back'); }
             toast.success('Task sent back to editor with feedback');

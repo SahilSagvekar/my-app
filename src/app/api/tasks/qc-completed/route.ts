@@ -1,9 +1,40 @@
 export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { task, user as userTable } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
-import { getCurrentUser2 } from '@/lib/auth';
+import { task } from '@/lib/db/schema';
+import { and, or, eq, ilike, inArray, desc, count, type SQL } from 'drizzle-orm';
+
+const QC_COMPLETED_STATUSES = ['COMPLETED', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW'] as const;
+type QcCompletedStatus = (typeof QC_COMPLETED_STATUSES)[number];
+
+const DEFAULT_LIMIT = 15;
+const MAX_LIMIT = 50;
+
+function parsePositiveInt(value: string | null, fallback: number) {
+  const parsed = Number.parseInt(value || '', 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+}
+
+function buildBaseWhere(
+  role: string | null | undefined,
+  userId: number
+): SQL | null {
+  const normalizedRole = role?.toLowerCase();
+
+  if (normalizedRole === 'qc') {
+    return and(
+      eq(task.qcSpecialist, userId),
+      inArray(task.status, [...QC_COMPLETED_STATUSES] as any)
+    )!;
+  }
+
+  if (normalizedRole === 'admin' || normalizedRole === 'manager') {
+    return inArray(task.status, [...QC_COMPLETED_STATUSES] as any);
+  }
+
+  return null;
+}
 
 // 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts and
 // src/app/api/tasks/qc-completed/route.ts. A multi-role account (e.g.
@@ -84,8 +115,28 @@ export async function PATCH(
       return NextResponse.json({ message: 'Target user is not a QC specialist' }, { status: 400 });
     }
 
-    if (targetUser.employeeStatus !== 'ACTIVE') {
-      return NextResponse.json({ message: 'Target QC specialist is not active' }, { status: 400 });
+    const { searchParams } = new URL(request.url);
+    const page = parsePositiveInt(searchParams.get('page'), 1);
+    const requestedLimit = parsePositiveInt(searchParams.get('limit'), DEFAULT_LIMIT);
+    const limit = Math.min(requestedLimit, MAX_LIMIT);
+    const status = searchParams.get('status');
+    const search = searchParams.get('search')?.trim() || '';
+
+    const conditions: SQL[] = [baseWhere];
+
+    if (status && status !== 'all') {
+      const normalizedStatus = status.toUpperCase();
+      // Legacy "REJECTED" filter matches both new rejection statuses
+      if (normalizedStatus === 'REJECTED') {
+        conditions.push(inArray(task.status, ['REJECTED_BY_QC', 'REJECTED_BY_CLIENT'] as any));
+      } else if (!QC_COMPLETED_STATUSES.includes(normalizedStatus as QcCompletedStatus)) {
+        return NextResponse.json(
+          { success: false, error: `Invalid status: ${status}` },
+          { status: 400 }
+        );
+      } else {
+        conditions.push(eq(task.status, normalizedStatus as any));
+      }
     }
 
     // Verify the task exists and is in a QC-relevant status
@@ -96,23 +147,45 @@ export async function PATCH(
       return NextResponse.json({ message: 'Task not found' }, { status: 404 });
     }
 
-    // If QC role (not admin/manager), ensure they are the current qc_specialist
-    if (role === 'qc' && foundTask.qcSpecialist !== user.id) {
-      return NextResponse.json(
-        { message: 'You can only reassign tasks assigned to you' },
-        { status: 403 }
-      );
-    }
+    const where = and(...conditions)!;
 
-    const [updated] = await db.update(task).set({
-      qcSpecialist: Number(newQcSpecialistId),
-      updatedAt: new Date().toISOString(),
-    }).where(eq(task.id, id)).returning({
-      id: task.id,
-      title: task.title,
-      status: task.status,
-      qcSpecialist: task.qcSpecialist,
-    });
+    const [[{ value: total }], rawTasks, [{ value: totalReviewed }], [{ value: approvedCount }], [{ value: rejectedCount }]] = await Promise.all([
+      db.select({ value: count() }).from(task).where(where),
+      db.query.task.findMany({
+        where,
+        orderBy: [desc(task.updatedAt), desc(task.qcReviewedAt), desc(task.createdAt)],
+        offset: (page - 1) * limit,
+        limit,
+        columns: {
+          id: true,
+          title: true,
+          description: true,
+          status: true,
+          createdAt: true,
+          dueDate: true,
+          clientId: true,
+          taskCategory: true,
+          nextDestination: true,
+          qcNotes: true,
+          feedback: true,
+          priority: true,
+          qcResult: true,
+          qcReviewedAt: true,
+        },
+        with: {
+          user_qcReviewedBy: {
+            columns: { id: true, name: true },
+          },
+        },
+      }),
+      db.select({ value: count() }).from(task).where(baseWhere),
+      db.select({ value: count() }).from(task).where(and(baseWhere, eq(task.status, 'COMPLETED'))!),
+      db.select({ value: count() }).from(task).where(and(baseWhere, inArray(task.status, ['REJECTED_BY_QC', 'REJECTED_BY_CLIENT']))!),
+    ]);
+
+    const tasks = rawTasks.map(({ user_qcReviewedBy, ...t }: any) => ({ ...t, qcReviewer: user_qcReviewedBy }));
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
 
     return NextResponse.json({
       message: `Task reassigned to ${targetUser.name}`,

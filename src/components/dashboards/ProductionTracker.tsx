@@ -243,7 +243,7 @@ const STATUS_FILTER_OPTIONS: {
 }[] = [
   { key: 'all', label: 'All', color: 'bg-gray-900 text-white border-gray-900' },
   { key: 'pending', label: 'Pending', color: 'bg-gray-100 text-gray-700 border-gray-200' },
-  { key: 'readyForQc', label: 'Ready for QC', color: 'bg-violet-100 text-violet-700 border-violet-200' },
+  { key: 'readyForQc', label: 'Quality Control', color: 'bg-violet-100 text-violet-700 border-violet-200' },
   { key: 'clientReview', label: 'Client Review', color: 'bg-orange-100 text-orange-700 border-orange-200' },
   { key: 'completed', label: 'Completed', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   { key: 'scheduled', label: 'Scheduled', color: 'bg-sky-100 text-sky-700 border-sky-200' },

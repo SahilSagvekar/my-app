@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
           posted: allDelTasks.filter((t) => t.status === "POSTED").length,
           clientReview: allDelTasks.filter((t) => t.status === "CLIENT_REVIEW").length,
           onHold: allDelTasks.filter(
-            (t) => t.status === "ON_HOLD" || t.status === "REJECTED"
+            (t) => t.status === "ON_HOLD" || t.status === "REJECTED_BY_QC" || t.status === "REJECTED_BY_CLIENT"
           ).length,
         };
 
@@ -318,7 +318,7 @@ function buildEditorPerformance(employees: any[], tasks: any[], role: string) {
           t.status === "POSTED"
       ).length,
       onHold: editorTasks.filter(
-        (t) => t.status === "ON_HOLD" || t.status === "REJECTED"
+        (t) => t.status === "ON_HOLD" || t.status === "REJECTED_BY_QC" || t.status === "REJECTED_BY_CLIENT"
       ).length,
       clientReview: editorTasks.filter((t) => t.status === "CLIENT_REVIEW").length,
     };
@@ -390,7 +390,7 @@ function buildQCPerformance(employees: any[], tasks: any[]) {
     ).length;
 
     const rejectedCount = reviewedTasks.filter(
-      (t) => t.status === "REJECTED" || t.status === "ON_HOLD"
+      (t) => t.status === "REJECTED_BY_QC" || t.status === "REJECTED_BY_CLIENT" || t.status === "ON_HOLD"
     ).length;
 
     let avgReviewHours = 0;

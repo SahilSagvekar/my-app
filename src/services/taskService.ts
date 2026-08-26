@@ -65,14 +65,14 @@ export class TaskService {
         return {
           AND: [
             { assignedTo: userId },
-            { status: { in: ["PENDING", "IN_PROGRESS", "READY_FOR_QC", "REJECTED"] } },
+            { status: { in: ["PENDING", "IN_PROGRESS", "READY_FOR_QC", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] } },
           ],
         };
       case "qc":
         return {
           AND: [
             { qc_specialist: userId },
-            { status: { in: ["READY_FOR_QC", "COMPLETED", "REJECTED", "CLIENT_REVIEW"] } },
+            { status: { in: ["READY_FOR_QC", "COMPLETED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT", "CLIENT_REVIEW"] } },
           ],
         };
       case "scheduler":
@@ -88,14 +88,14 @@ export class TaskService {
           return {
             AND: [
               { clientId: resolvedClientId },
-              { status: { in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED"] } },
+              { status: { in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] } },
             ],
           };
         }
         return {
           AND: [
             { clientUserId: Number(userId) },
-            { status: { in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED"] } },
+            { status: { in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] } },
           ],
         };
       }

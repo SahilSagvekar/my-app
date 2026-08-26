@@ -11,8 +11,11 @@ import { cached } from "@/lib/redis";
 
 const TaskStatus = {
   COMPLETED: "COMPLETED",
-  REJECTED: "REJECTED",
+  REJECTED_BY_QC: "REJECTED_BY_QC",
+  REJECTED_BY_CLIENT: "REJECTED_BY_CLIENT",
 } as const;
+
+const REJECTED_STATUSES = [TaskStatus.REJECTED_BY_QC, TaskStatus.REJECTED_BY_CLIENT] as const;
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get("cookie");
@@ -107,7 +110,7 @@ async function getAnalytics(
     .from(task)
     .where(and(
       eq(task.qcSpecialist, qcSpecialistId),
-      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      inArray(task.status, [TaskStatus.COMPLETED, ...REJECTED_STATUSES]),
       gte(task.updatedAt, startDate.toISOString()),
       lte(task.updatedAt, endDate.toISOString()),
     ))
@@ -121,7 +124,7 @@ async function getAnalytics(
     .from(task)
     .where(and(
       eq(task.qcSpecialist, qcSpecialistId),
-      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      inArray(task.status, [TaskStatus.COMPLETED, ...REJECTED_STATUSES]),
       gte(task.updatedAt, weekRange.startDate.toISOString()),
       lte(task.updatedAt, weekRange.endDate.toISOString()),
     ))
@@ -159,7 +162,7 @@ async function getAnalytics(
     .from(task)
     .where(and(
       eq(task.qcSpecialist, qcSpecialistId),
-      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      inArray(task.status, [TaskStatus.COMPLETED, ...REJECTED_STATUSES]),
       gte(task.updatedAt, startDate.toISOString()),
       lte(task.updatedAt, endDate.toISOString()),
     ))
@@ -206,7 +209,7 @@ async function getAnalytics(
       if (categoryStats[category]) {
         categoryStats[category].approved += statCount;
       }
-    } else if (stat.status === TaskStatus.REJECTED) {
+    } else if ((stat.status === TaskStatus.REJECTED_BY_QC || stat.status === TaskStatus.REJECTED_BY_CLIENT)) {
       totalRejected += statCount;
       if (categoryStats[category]) {
         categoryStats[category].rejected += statCount;
@@ -247,7 +250,7 @@ async function getAnalytics(
   for (const stat of weeklyStats) {
     if (stat.status === TaskStatus.COMPLETED) {
       weeklyApproved += stat._count;
-    } else if (stat.status === TaskStatus.REJECTED) {
+    } else if ((stat.status === TaskStatus.REJECTED_BY_QC || stat.status === TaskStatus.REJECTED_BY_CLIENT)) {
       weeklyRejected += stat._count;
     }
   }
@@ -469,7 +472,7 @@ async function updateRejectionReasons(qcSpecialistId: number): Promise<void> {
     .from(task)
     .where(and(
       eq(task.qcSpecialist, qcSpecialistId),
-      eq(task.status, TaskStatus.REJECTED),
+      inArray(task.status, [...REJECTED_STATUSES]),
       isNotNull(task.qcNotes),
     ))
     .orderBy(desc(task.updatedAt))
@@ -548,7 +551,7 @@ async function updateMonthlyTrend(
     .from(task)
     .where(and(
       eq(task.qcSpecialist, qcSpecialistId),
-      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      inArray(task.status, [TaskStatus.COMPLETED, ...REJECTED_STATUSES]),
       gte(task.updatedAt, monthStart.toISOString()),
       lte(task.updatedAt, monthEnd.toISOString()),
     ))
@@ -560,7 +563,7 @@ async function updateMonthlyTrend(
   for (const stat of stats) {
     if (stat.status === TaskStatus.COMPLETED) {
       approvedCount = stat._count;
-    } else if (stat.status === TaskStatus.REJECTED) {
+    } else if ((stat.status === TaskStatus.REJECTED_BY_QC || stat.status === TaskStatus.REJECTED_BY_CLIENT)) {
       rejectedCount = stat._count;
     }
   }
@@ -573,7 +576,7 @@ async function updateMonthlyTrend(
     .from(task)
     .where(and(
       eq(task.qcSpecialist, qcSpecialistId),
-      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      inArray(task.status, [TaskStatus.COMPLETED, ...REJECTED_STATUSES]),
       gte(task.updatedAt, monthStart.toISOString()),
       lte(task.updatedAt, monthEnd.toISOString()),
     ))
@@ -631,14 +634,14 @@ async function updateAchievements(qcSpecialistId: number): Promise<void> {
       .from(task)
       .where(and(
         eq(task.qcSpecialist, qcSpecialistId),
-        inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+        inArray(task.status, [TaskStatus.COMPLETED, ...REJECTED_STATUSES]),
         gte(task.updatedAt, monthStart.toISOString()),
         lte(task.updatedAt, monthEnd.toISOString()),
       ))
       .groupBy(task.status),
     db.select({ value: count() }).from(task).where(and(
       eq(task.qcSpecialist, qcSpecialistId),
-      inArray(task.status, [TaskStatus.COMPLETED, TaskStatus.REJECTED]),
+      inArray(task.status, [TaskStatus.COMPLETED, ...REJECTED_STATUSES]),
       gte(task.updatedAt, weekStart.toISOString()),
       lte(task.updatedAt, weekEnd.toISOString()),
     )),

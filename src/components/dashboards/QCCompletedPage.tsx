@@ -47,7 +47,7 @@ const safeFormatDate = (
   }
 };
 
-type TaskStatus = 'COMPLETED' | 'REJECTED' | 'CLIENT_REVIEW';
+type TaskStatus = 'COMPLETED' | 'REJECTED' | 'REJECTED_BY_QC' | 'REJECTED_BY_CLIENT' | 'CLIENT_REVIEW';
 
 interface CompletedTask {
   id: string;
@@ -389,7 +389,8 @@ export function QCCompletedPage() {
   const getStatusLabel = (status: TaskStatus) => {
     if (status === 'COMPLETED') return 'Approved';
     if (status === 'CLIENT_REVIEW') return 'Client Review';
-    return 'Rejected';
+    if (status === 'REJECTED_BY_CLIENT') return 'Rejected by Client';
+    return 'Rejected by QC';
   };
 
   return (
@@ -474,7 +475,8 @@ export function QCCompletedPage() {
                 <SelectItem value="all">All Reviews</SelectItem>
                 <SelectItem value="COMPLETED">Approved Only</SelectItem>
                 <SelectItem value="CLIENT_REVIEW">Client Review</SelectItem>
-                <SelectItem value="REJECTED">Rejected Only</SelectItem>
+                <SelectItem value="REJECTED_BY_QC">Rejected by QC</SelectItem>
+                <SelectItem value="REJECTED_BY_CLIENT">Rejected by Client</SelectItem>
               </SelectContent>
             </Select>
           </div>

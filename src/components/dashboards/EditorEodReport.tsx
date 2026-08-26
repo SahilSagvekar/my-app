@@ -159,7 +159,7 @@ export function EditorEodReport() {
         className: "bg-blue-100 text-blue-700 border-blue-200",
       },
       READY_FOR_QC: {
-        label: "Ready for QC",
+        label: "Quality Control",
         className: "bg-yellow-100 text-yellow-700 border-yellow-200",
       },
       QC_IN_PROGRESS: {
@@ -179,8 +179,16 @@ export function EditorEodReport() {
         className: "bg-teal-100 text-teal-700 border-teal-200",
       },
       REJECTED: {
-        label: "Rejected",
+        label: "Rejected by QC",
         className: "bg-red-100 text-red-700 border-red-200",
+      },
+      REJECTED_BY_QC: {
+        label: "Rejected by QC",
+        className: "bg-red-100 text-red-700 border-red-200",
+      },
+      REJECTED_BY_CLIENT: {
+        label: "Rejected by Client",
+        className: "bg-rose-100 text-rose-700 border-rose-200",
       },
     };
     const info = map[status] || {

@@ -58,7 +58,7 @@ const getSearchData = (role: string): SearchResult[] => {
     editor: [
       // Tasks
       { id: 'vid-2024-003', type: 'task', title: 'Video Campaign #VID-2024-003', description: 'Holiday promotional video for social media', url: '/editor/my-tasks', category: 'My Tasks', priority: 'high', status: 'In Progress' },
-      { id: 'sm-2024-089', type: 'task', title: 'Social Media Asset #SM-2024-089', description: 'Instagram story templates for fashion brand', url: '/editor/my-tasks', category: 'My Tasks', priority: 'medium', status: 'Ready for QC' },
+      { id: 'sm-2024-089', type: 'task', title: 'Social Media Asset #SM-2024-089', description: 'Instagram story templates for fashion brand', url: '/editor/my-tasks', category: 'My Tasks', priority: 'medium', status: 'Quality Control' },
       { id: 'bg-2024-012', type: 'task', title: 'Brand Guidelines #BG-2024-012', description: 'Logo variations and color palette for Acme Corp', url: '/editor/my-tasks', category: 'My Tasks', priority: 'medium', status: 'In Review' },
       { id: 'web-2024-005', type: 'task', title: 'Website Redesign #WEB-2024-005', description: 'Homepage mockup and wireframes', url: '/editor/my-tasks', category: 'My Tasks', priority: 'high', status: 'Due Tomorrow' },
       

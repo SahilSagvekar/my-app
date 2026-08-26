@@ -53,14 +53,24 @@ const STATUS_COLORS: Record<string, string> = {
   qc_in_progress: 'bg-purple-50 text-purple-700',
   completed: 'bg-green-50 text-green-700',
   rejected: 'bg-red-50 text-red-700',
+  rejected_by_qc: 'bg-red-50 text-red-700',
+  rejected_by_client: 'bg-rose-50 text-rose-700',
   on_hold: 'bg-orange-50 text-orange-700',
   posted: 'bg-teal-50 text-teal-700',
 };
 
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) return null;
-  const label = status.replace(/_/g, ' ');
-  const color = STATUS_COLORS[status.toLowerCase()] ?? 'bg-gray-100 text-gray-600';
+  const key = status.toLowerCase();
+  const label =
+    key === 'ready_for_qc'
+      ? 'Quality Control'
+      : key === 'rejected_by_qc'
+        ? 'Rejected by QC'
+        : key === 'rejected_by_client'
+          ? 'Rejected by Client'
+          : status.replace(/_/g, ' ');
+  const color = STATUS_COLORS[key] ?? 'bg-gray-100 text-gray-600';
   return (
     <span className={cn('text-[10px] px-1.5 py-0.5 rounded font-medium capitalize', color)}>
       {label}

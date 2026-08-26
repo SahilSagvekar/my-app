@@ -140,13 +140,13 @@ const buildRoleWhereQuery = async (role: string | null, userId: number, clientId
     case "editor":
       return and(
         eq(taskTable.assignedTo, userId),
-        inArray(taskTable.status, ["PENDING", "IN_PROGRESS", "READY_FOR_QC", "REJECTED"] as any)
+        inArray(taskTable.status, ["PENDING", "IN_PROGRESS", "READY_FOR_QC", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] as any)
       );
 
     case "qc":
       return and(
         eq(taskTable.qcSpecialist, userId),
-        inArray(taskTable.status, ["READY_FOR_QC", "COMPLETED", "REJECTED", "CLIENT_REVIEW"] as any)
+        inArray(taskTable.status, ["READY_FOR_QC", "COMPLETED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT", "CLIENT_REVIEW"] as any)
       );
 
     case "scheduler":
@@ -167,7 +167,7 @@ const buildRoleWhereQuery = async (role: string | null, userId: number, clientId
       // caller passes the target client's ID explicitly instead, already
       // authorized upstream in GET() before this function is called.
       const resolvedClientId = clientIdOverride || (await resolveClientIdForUser(userId));
-      const clientStatuses = ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED"] as any;
+      const clientStatuses = ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] as any;
 
       if (resolvedClientId) {
         // Filter by clientId — all users linked to this client see the same tasks
@@ -290,7 +290,7 @@ const effectiveRole =
     }
 
     // 🔥 ADD STATUS FILTER - ALLOW COMMA SEPARATED STATUSES
-    const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED", "PENDING", "IN_PROGRESS", "CLIENT_REVIEW", "SCHEDULED", "VIDEOGRAPHER_ASSIGNED", "POSTED"];
+    const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT", "PENDING", "IN_PROGRESS", "CLIENT_REVIEW", "SCHEDULED", "VIDEOGRAPHER_ASSIGNED", "POSTED"];
 
     if (statusFilter) {
       const statuses = statusFilter.split(",").map((s) => s.trim().toUpperCase());

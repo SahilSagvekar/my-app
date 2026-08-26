@@ -21,7 +21,7 @@ export async function GET(req: Request, { params }: { params: { employeeId: stri
     }
 
     // Active statuses — tasks that need reassignment
-    const activeStatuses = ['PENDING', 'IN_PROGRESS', 'REJECTED', 'READY_FOR_QC'];
+    const activeStatuses = ['PENDING', 'IN_PROGRESS', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'READY_FOR_QC'];
 
     // Fetch all active tasks assigned to this user
     const rawTasks = await db.query.task.findMany({

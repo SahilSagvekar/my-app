@@ -234,7 +234,7 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                     userSummary.tasksQCApproved++;
                     taskDetail.action = 'QC Approved';
                 }
-                if (newStatus === 'REJECTED') {
+                if (newStatus === 'REJECTED_BY_QC' || newStatus === 'REJECTED') {
                     userSummary.tasksQCRejected++;
                     taskDetail.action = 'QC Rejected';
                 }
@@ -246,7 +246,7 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                     userSummary.tasksClientApproved++;
                     taskDetail.action = 'Client Approved';
                 }
-                if (newStatus === 'REJECTED') {
+                if (newStatus === 'REJECTED_BY_CLIENT') {
                     userSummary.tasksClientRejected++;
                     taskDetail.action = 'Client Rejected';
                 }

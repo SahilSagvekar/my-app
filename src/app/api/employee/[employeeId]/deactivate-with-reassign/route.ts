@@ -34,7 +34,7 @@ export async function POST(req: Request, { params }: { params: { employeeId: str
     }
 
     // Active statuses
-    const activeStatuses = ['PENDING', 'IN_PROGRESS', 'REJECTED', 'READY_FOR_QC'];
+    const activeStatuses = ['PENDING', 'IN_PROGRESS', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'READY_FOR_QC'];
 
     // Get all active tasks for this user
     const activeTasks = await db.select({ id: task.id, title: task.title, status: task.status })

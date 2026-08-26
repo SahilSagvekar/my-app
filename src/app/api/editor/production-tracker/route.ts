@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
           scheduled: count(["SCHEDULED"]),
           posted: count(["POSTED"]),
           clientReview: count(["CLIENT_REVIEW"]),
-          onHold: count(["ON_HOLD", "REJECTED"]),
+          onHold: count(["ON_HOLD", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"]),
         };
 
         const doneStatuses = ["COMPLETED", "SCHEDULED", "POSTED"];

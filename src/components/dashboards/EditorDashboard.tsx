@@ -56,6 +56,8 @@ function mapStatus(status: string) {
     case "READY_FOR_QC":
       return "ready_for_qc";
     case "REJECTED":
+    case "REJECTED_BY_QC":
+    case "REJECTED_BY_CLIENT":
       return "rejected";
     default:
       return "pending";
@@ -71,7 +73,9 @@ function mapStatusToBackend(status: string) {
     case "ready_for_qc":
       return "READY_FOR_QC";
     case "rejected":
-      return "REJECTED";
+      // Editor UI uses a single "rejected" bucket; default write stays QC-side.
+      // Actual client/QC/scheduler writes go through their own dashboards.
+      return "REJECTED_BY_QC";
     default:
       return "PENDING";
   }
@@ -2109,7 +2113,7 @@ export function EditorDashboard() {
     },
     {
       id: "readyForQC",
-      title: "Ready for QC",
+      title: "Quality Control",
       status: "ready_for_qc",
       tasks: tasksByStatus.readyForQC,
     },

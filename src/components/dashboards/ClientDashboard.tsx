@@ -144,7 +144,7 @@ const persistClientResult = async ({
   } else {
     // Client requested revisions → Send back to Editor
     // Use REJECTED as the valid TaskStatus
-    metaBody.status = "REJECTED";
+    metaBody.status = "REJECTED_BY_CLIENT";
     metaBody.clientResult = "REVISION_REQUESTED";
     metaBody.route = "editor";
     if (feedback) {
@@ -1125,7 +1125,7 @@ export function ClientDashboard() {
     // Currently-pending rejections only — a task leaves this count the moment
     // the editor fixes it and resubmits (status moves on from REJECTED), not
     // a permanent history of everything ever rejected.
-    rejectedCount: tasks.filter(task => task.status === 'REJECTED').length,
+    rejectedCount: tasks.filter(task => task.status === 'REJECTED_BY_QC' || task.status === 'REJECTED_BY_CLIENT' || task.status === 'REJECTED').length,
     overdueReviews: tasks.filter(task => isOverdue(task)).length,
   }), [tasks]);
 
@@ -1145,7 +1145,7 @@ export function ClientDashboard() {
         return task.status === 'POSTED' || task.status === 'SCHEDULED';
       }
       if (currentFilter === 'rejected') {
-        return task.status === 'REJECTED';
+        return task.status === 'REJECTED_BY_QC' || task.status === 'REJECTED_BY_CLIENT' || task.status === 'REJECTED';
       }
       return true;
     });
@@ -1701,7 +1701,7 @@ export function ClientDashboard() {
               userRole="client"
               // Pure playback when reopening something already rejected —
               // no comments/approve actions, just rewatch it.
-              readOnly={selectedTask.status === 'REJECTED'}
+              readOnly={selectedTask.status === 'REJECTED_BY_QC' || selectedTask.status === 'REJECTED_BY_CLIENT' || selectedTask.status === 'REJECTED'}
               // 🔀 Switch to thumbnail review without leaving the modal — only
               // offered when this task actually has a thumbnail to review.
               onSwitchToThumbnail={
@@ -1766,7 +1766,7 @@ export function ClientDashboard() {
               userRole="client"
               // Pure playback when reopening something already rejected —
               // no comments/approve actions, just rewatch it.
-              readOnly={selectedTask.status === 'REJECTED'}
+              readOnly={selectedTask.status === 'REJECTED_BY_QC' || selectedTask.status === 'REJECTED_BY_CLIENT' || selectedTask.status === 'REJECTED'}
               imageLabel={selectedTask && isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
               onSwitchToVideo={
                 switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined

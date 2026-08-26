@@ -251,7 +251,7 @@ export default function SharedReviewPage() {
                                 method: 'PATCH',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    status: 'REJECTED',
+                                    status: 'REJECTED_BY_CLIENT',
                                     feedback: revisionData.notes,
                                     shareToken: shareToken
                                 }),
