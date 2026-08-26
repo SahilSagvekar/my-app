@@ -49,3 +49,4 @@ service-account.jsonservice-account.json
 .env.local
 .env.local
 .open-next/
+x.wrangler/

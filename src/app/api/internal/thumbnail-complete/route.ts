@@ -1,75 +1,98 @@
 // POST /api/internal/thumbnail-complete
-// Called by e8-file-server once it finishes ffmpeg-generating a thumbnail
-// for a task-output video that had no real thumbnail image. Creates a
-// normal `file` row (folderType: 'thumbnails') for the result — this is
-// deliberately a REAL file record, indistinguishable in structure from one
-// a human uploaded, so ClientTaskCard.tsx / QCDashboard.tsx's existing
-// thumbnail lookup (files.find(f => f.folderType === 'thumbnails')) picks
-// it up automatically. No frontend changes needed for this to show up.
+//
+// Called by e8-file-server's thumbnailWorker once it finishes generating a
+// thumbnail for an OUTPUT video (raw-footage thumbnails don't call this —
+// those are browsed directly from R2 by DriveExplorer, not through the
+// Task's files list). Creates the File row that getTaskThumbnail() /
+// getTaskThumbnailFromFiles() (QC and Client dashboards) actually read.
+//
+// Companion fix to e8-file-server's missing shouldThumbnailOutput() —
+// without that fix this route would never get called at all, since the
+// job that leads here would never successfully enqueue.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { file as fileTable } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
 import { createId } from '@/lib/db/id';
+import { and, eq } from 'drizzle-orm';
 import { getFileUrl } from '@/lib/s3';
 
-function isAuthorizedCallback(req: NextRequest): boolean {
+function isAuthorizedCallback(req: NextRequest) {
   const secret = req.headers.get('x-internal-secret');
-  return !!(secret && process.env.CRON_SECRET && secret === process.env.CRON_SECRET);
+  return (
+    (!!process.env.CRON_SECRET && secret === process.env.CRON_SECRET) ||
+    (!!process.env.FILE_SERVER_SECRET && secret === process.env.FILE_SERVER_SECRET)
+  );
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorizedCallback(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const db = getDbHttp();
-
   try {
-    const { videoS3Key, thumbnailS3Key, sizeBytes } = await req.json();
-
-    if (!videoS3Key || !thumbnailS3Key || typeof sizeBytes !== 'number') {
-      return NextResponse.json({ error: 'videoS3Key, thumbnailS3Key, and sizeBytes (number) are required' }, { status: 400 });
+    if (!isAuthorizedCallback(req)) {
+      console.error('[Thumbnail CB] Unauthorized callback');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Idempotency — if this webhook fires twice (retry, duplicate delivery),
-    // don't create a second row for the same thumbnail key.
-    const [existingThumb] = await db.select({ id: fileTable.id })
-      .from(fileTable).where(eq(fileTable.s3Key, thumbnailS3Key)).limit(1);
+    const { sourceS3Key, thumbnailS3Key, size } = await req.json();
+    if (!sourceS3Key || !thumbnailS3Key) {
+      return NextResponse.json({ error: 'sourceS3Key and thumbnailS3Key required' }, { status: 400 });
+    }
+
+    // The file server only knows S3 keys, not task IDs — resolve the task
+    // via the source video's own (already-existing) File row.
+    const [sourceFile] = await db.select({
+      id: fileTable.id,
+      taskId: fileTable.taskId,
+      uploadedBy: fileTable.uploadedBy,
+      name: fileTable.name,
+    }).from(fileTable)
+      .where(and(
+        eq(fileTable.s3Key, sourceS3Key),
+        eq(fileTable.folderType, 'main'),
+        eq(fileTable.isActive, true),
+      ))
+      .limit(1);
+
+    if (!sourceFile) {
+      console.error(`[Thumbnail CB] No active main File found for source key: ${sourceS3Key} — MANUAL RECOVERY NEEDED (thumbnail exists in R2 at ${thumbnailS3Key})`);
+      return NextResponse.json({ error: 'Source file not found' }, { status: 404 });
+    }
+
+    // Idempotency: a retried callback (or a second worker pass) shouldn't
+    // create a duplicate thumbnail File for the same task.
+    const [existingThumb] = await db.select({ id: fileTable.id }).from(fileTable)
+      .where(and(
+        eq(fileTable.taskId, sourceFile.taskId),
+        eq(fileTable.folderType, 'thumbnails'),
+        eq(fileTable.isActive, true),
+      ))
+      .limit(1);
+
     if (existingThumb) {
-      return NextResponse.json({ ok: true, alreadyExists: true, fileId: existingThumb.id });
+      return NextResponse.json({ ok: true, skipped: true, fileId: existingThumb.id });
     }
 
-    // Resolve the task via the original video's own file record.
-    const [videoFile] = await db.select({ taskId: fileTable.taskId })
-      .from(fileTable).where(eq(fileTable.s3Key, videoS3Key)).limit(1);
-
-    if (!videoFile) {
-      console.error(`[Thumbnail Complete] No file record found for video key: ${videoS3Key}`);
-      return NextResponse.json({ error: 'Video file record not found' }, { status: 404 });
-    }
-
-    const id = createId();
-    await db.insert(fileTable).values({
-      id,
-      taskId: videoFile.taskId,
-      name: 'auto-thumbnail.jpg',
+    const now = new Date().toISOString();
+    const [created] = await db.insert(fileTable).values({
+      id: createId(),
+      taskId: sourceFile.taskId,
+      name: `${sourceFile.name}.thumb.jpg`,
       url: getFileUrl(thumbnailS3Key),
-      mimeType: 'image/jpeg',
-      size: sizeBytes,
       s3Key: thumbnailS3Key,
+      mimeType: 'image/jpeg',
+      size: typeof size === 'number' ? size : 0,
+      uploadedBy: sourceFile.uploadedBy,
       folderType: 'thumbnails',
       isActive: true,
-      uploadedBy: null,
-      revisionNote: 'Auto-generated from video (no thumbnail was uploaded for this task)',
-    });
+      createdAt: now,
+      uploadedAt: now,
+    }).returning();
 
-    console.log(`✅ [Thumbnail Complete] Created file ${id} for auto-thumbnail: ${thumbnailS3Key} (task ${videoFile.taskId})`);
-    return NextResponse.json({ ok: true, fileId: id });
+    console.log(`✅ [Thumbnail CB] File ${created.id} created for task ${sourceFile.taskId}`);
+    return NextResponse.json({ ok: true, fileId: created.id });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[Thumbnail Complete] Error:', message);
+    console.error('[Thumbnail CB] Error:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

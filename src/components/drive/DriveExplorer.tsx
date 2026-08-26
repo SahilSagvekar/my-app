@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useRef, useCallback, DragEvent, ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, DragEvent, ReactNode, CSSProperties } from "react";
 import {
   Folder,
   FolderPlus,
@@ -45,7 +45,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/components/auth/AuthContext";
-import { useEffectiveClientId } from "@/lib/hooks/useEffectiveClientId";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,6 +87,7 @@ import {
 } from "@/components/ui/sheet";
 import MeetingNotesPanel from "../admin/MeetingNotesPanel";
 import { cn } from "@/lib/utils";
+import { formatFolderDisplayName } from "@/lib/format-folder-display-name";
 import { toast } from "sonner";
 
 interface DriveItem {
@@ -170,7 +170,6 @@ function setPathInUrl(path: string) {
 
 export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
-  const effectiveClientIdForUser = useEffectiveClientId();
   const [driveStructure, setDriveStructure] = useState<DriveItem | null>(null);
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
@@ -337,10 +336,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
 
   // Use linkedClientId when present, otherwise resolve from the visible company folder.
-  // effectiveClientIdForUser already accounts for an admin/manager previewing
-  // a specific client's portal (see useEffectiveClientId) — falls through to
-  // browsingClientId for admins not in a client preview, same as before.
-  const effectiveClientId = role === 'client' ? (effectiveClientIdForUser || browsingClientId) : browsingClientId;
+  const effectiveClientId = role === 'client' ? (user?.linkedClientId || browsingClientId) : browsingClientId;
   const effectiveCompanyName = role === 'client'
     ? (browsingCompanyName || breadcrumb[0]?.name || '')
     : browsingCompanyName;
@@ -841,36 +837,26 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return ancestors.includes("raw-footage");
   };
 
-  // ─── Folder status pill (In Progress / Completed / Not Set) ───────────────
-  const renderFolderStatusPill = (item: DriveItem) => {
-    const current = folderStatuses[item.s3Key || getS3Key(item)]?.status || "NOT_SET";
-    return (
-      <Select
-        value={current}
-        disabled={!effectiveClientId}
-        onValueChange={(value) =>
-          updateFolderStatus(item, value === "NOT_SET" ? null : (value as "IN_PROGRESS" | "COMPLETED"))
-        }
-      >
-        <SelectTrigger
-          onClick={(e) => e.stopPropagation()}
-          title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
-          className={cn(
-            "h-6 px-2 text-[10px] sm:text-xs w-auto min-w-0 gap-1 border-0",
-            current === "IN_PROGRESS" && "bg-amber-100 text-amber-800",
-            current === "COMPLETED" && "bg-green-100 text-green-800",
-            current === "NOT_SET" && "bg-muted text-muted-foreground"
-          )}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent onClick={(e) => e.stopPropagation()}>
-          <SelectItem value="NOT_SET">Not Set</SelectItem>
-          <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-          <SelectItem value="COMPLETED">Completed</SelectItem>
-        </SelectContent>
-      </Select>
-    );
+  // ─── Folder status (In Progress = orange, Completed = green) ──────────────
+  const getFolderStatus = (item: DriveItem): "IN_PROGRESS" | "COMPLETED" | undefined => {
+    const current = folderStatuses[item.s3Key || getS3Key(item)]?.status;
+    return current === "IN_PROGRESS" || current === "COMPLETED" ? current : undefined;
+  };
+
+  // A drop-shadow filter (stacked in 4 directions) traces the icon's actual
+  // rendered outline pixel-for-pixel — unlike a second larger icon stacked
+  // behind it, this can't misalign with the folder's asymmetric shape (the
+  // tab isn't centered in the icon's bounding box), since it's applied
+  // directly to the one real icon rather than a separately-sized copy.
+  const getFolderStatusOutlineStyle = (item: DriveItem): CSSProperties | undefined => {
+    const status = getFolderStatus(item);
+    if (!status) return undefined;
+    const color = status === "IN_PROGRESS" ? "#f97316" /* orange-500 */ : "#22c55e" /* green-500 */;
+    return {
+      filter:
+        `drop-shadow(1.5px 0 0 ${color}) drop-shadow(-1.5px 0 0 ${color}) ` +
+        `drop-shadow(0 1.5px 0 ${color}) drop-shadow(0 -1.5px 0 ${color})`,
+    };
   };
 
   // Handle Delete Click
@@ -1974,7 +1960,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             <div className="flex items-center gap-1 text-[11px] text-muted-foreground truncate">
                               <FolderOpen className="h-3 w-3 flex-shrink-0" />
                               <span className="truncate">
-                                {result.breadcrumbParts.join(' / ')}
+                                {result.breadcrumbParts.map(formatFolderDisplayName).join(' / ')}
                               </span>
                             </div>
                           </div>
@@ -2108,7 +2094,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     index === breadcrumb.length - 1 && "font-semibold"
                   )}
                 >
-                  {folder.name}
+                  {formatFolderDisplayName(folder.name)}
                 </Button>
               </div>
             ))}
@@ -2311,7 +2297,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
                     <div className="flex flex-col items-center text-center">
                       {item.type === "folder" ? (
-                        <Folder className="h-12 w-12 sm:h-16 sm:w-16 text-blue-500 mb-1 sm:mb-2" />
+                        <Folder
+                          className="h-12 w-12 sm:h-16 sm:w-16 text-blue-500 mb-1 sm:mb-2"
+                          style={getFolderStatusOutlineStyle(item)}
+                        />
                       ) : (
                         <div className="mb-1 sm:mb-2 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-md overflow-hidden bg-muted/40">
                           <FileThumbnail
@@ -2327,14 +2316,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       )}
 
                       <p className="text-xs sm:text-sm font-medium truncate w-full px-1">
-                        {item.name}
+                        {item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}
                       </p>
-
-                      {item.type === "folder" && isInsideRawFootage(item) && (
-                        <div className="mt-1" onClick={(e) => e.stopPropagation()}>
-                          {renderFolderStatusPill(item)}
-                        </div>
-                      )}
 
                       {item.type === "file" && (
                         <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
@@ -2365,6 +2348,34 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                               <FolderDown className="h-4 w-4 mr-2" />
                               Download folder
                             </DropdownMenuItem>
+                            {isInsideRawFootage(item) && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); updateFolderStatus(item, "IN_PROGRESS"); }}
+                                  disabled={!effectiveClientId}
+                                  title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
+                                >
+                                  <span className="h-3 w-3 mr-2 rounded-full border-2 border-orange-500 inline-block shrink-0" />
+                                  Mark In Progress
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); updateFolderStatus(item, "COMPLETED"); }}
+                                  disabled={!effectiveClientId}
+                                  title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
+                                >
+                                  <span className="h-3 w-3 mr-2 rounded-full border-2 border-green-500 inline-block shrink-0" />
+                                  Mark Completed
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); updateFolderStatus(item, null); }}
+                                  disabled={!effectiveClientId}
+                                  title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
+                                >
+                                  <span className="h-3 w-3 mr-2 rounded-full border-2 border-muted-foreground inline-block shrink-0" />
+                                  Clear Status
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             <DropdownMenuSeparator />
                           </>
                         )}
@@ -2478,22 +2489,27 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       </div>
 
                       {/* Icon */}
-                      <div className="w-8 h-8 shrink-0 flex items-center justify-center rounded overflow-hidden bg-muted/40">
+                      <div className="w-8 h-8 shrink-0 flex items-center justify-center">
                         {item.type === "folder" ? (
-                          <Folder className="h-5 w-5 text-blue-500" />
-                        ) : (
-                          <FileThumbnail
-                            thumbnailUrl={item.thumbnailUrl}
-                            className="w-full h-full object-cover"
-                            fallback={<div className="scale-90">{getFileIcon(item.name)}</div>}
+                          <Folder
+                            className="h-5 w-5 text-blue-500"
+                            style={getFolderStatusOutlineStyle(item)}
                           />
+                        ) : (
+                          <div className="w-8 h-8 flex items-center justify-center rounded overflow-hidden bg-muted/40">
+                            <FileThumbnail
+                              thumbnailUrl={item.thumbnailUrl}
+                              className="w-full h-full object-cover"
+                              fallback={<div className="scale-90">{getFileIcon(item.name)}</div>}
+                            />
+                          </div>
                         )}
                       </div>
 
                       {/* Name */}
                       <div className="flex-1 min-w-0 flex items-center gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-sm font-medium truncate">{item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}</p>
                           {/* Size shown inline on mobile since the column is hidden */}
                           {item.type === "file" && (
                             <p className="text-[11px] text-muted-foreground sm:hidden">
@@ -2501,11 +2517,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             </p>
                           )}
                         </div>
-                        {item.type === "folder" && isInsideRawFootage(item) && (
-                          <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                            {renderFolderStatusPill(item)}
-                          </div>
-                        )}
                       </div>
 
                       {/* Size */}
@@ -2543,6 +2554,34 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                   <FolderDown className="h-4 w-4 mr-2" />
                                   Download folder
                                 </DropdownMenuItem>
+                                {isInsideRawFootage(item) && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={(e) => { e.stopPropagation(); updateFolderStatus(item, "IN_PROGRESS"); }}
+                                      disabled={!effectiveClientId}
+                                      title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
+                                    >
+                                      <span className="h-3 w-3 mr-2 rounded-full border-2 border-orange-500 inline-block shrink-0" />
+                                      Mark In Progress
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={(e) => { e.stopPropagation(); updateFolderStatus(item, "COMPLETED"); }}
+                                      disabled={!effectiveClientId}
+                                      title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
+                                    >
+                                      <span className="h-3 w-3 mr-2 rounded-full border-2 border-green-500 inline-block shrink-0" />
+                                      Mark Completed
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={(e) => { e.stopPropagation(); updateFolderStatus(item, null); }}
+                                      disabled={!effectiveClientId}
+                                      title={!effectiveClientId ? "Client not identified for this folder yet" : undefined}
+                                    >
+                                      <span className="h-3 w-3 mr-2 rounded-full border-2 border-muted-foreground inline-block shrink-0" />
+                                      Clear Status
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 <DropdownMenuSeparator />
                               </>
                             )}
