@@ -124,6 +124,13 @@ const CHANNEL_CATEGORY_KEY = "who-we-work-with";
 // Photography section has no subcategories — images use this category key.
 const PHOTOGRAPHY_CATEGORY_KEY = "photography";
 
+// Short-form video carousel on the public homepage (below "What E8 Does").
+// Not part of the /portfolio sections hierarchy — managed as its own
+// standalone tab so it can't collide with portfolio-page categories.
+// Kept in sync manually with HOME_CAROUSEL_CATEGORY_KEY in
+// src/components/landing/HomeVideoCarousel.tsx.
+const HOME_CAROUSEL_CATEGORY_KEY = "home-video-carousel";
+
 interface PortfolioImage {
     id: string;
     title: string;
@@ -1561,6 +1568,404 @@ function ChannelControl({ category, label }: { category: string; label: string }
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   HOME PAGE VIDEO CAROUSEL CONTROL
+   Short-form videos shown in the autoplay-muted infinite carousel
+   on the public homepage. Fixed category, independent of the
+   /portfolio sections hierarchy — same pattern as ChannelControl.
+   ═══════════════════════════════════════════════════════════════ */
+function HomeCarouselControl() {
+    const [videos, setVideos] = useState<PortfolioVideo[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showDialog, setShowDialog] = useState(false);
+    const [editingVideo, setEditingVideo] = useState<PortfolioVideo | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [uploadingVideo, setUploadingVideo] = useState(false);
+    const [uploadingThumb, setUploadingThumb] = useState(false);
+    const [formData, setFormData] = useState({
+        title: "",
+        description: "",
+        videoUrl: "",
+        thumbnailUrl: "",
+    });
+
+    const fetchVideos = useCallback(async () => {
+        try {
+            setLoading(true);
+            const res = await fetch(
+                `/api/portfolio/videos?all=true&category=${HOME_CAROUSEL_CATEGORY_KEY}`
+            );
+            const data = await res.json();
+            if (data.ok) setVideos(data.videos || []);
+        } catch {
+            toast.error("Failed to load home carousel videos");
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchVideos();
+    }, [fetchVideos]);
+
+    const resetForm = () => {
+        setFormData({ title: "", description: "", videoUrl: "", thumbnailUrl: "" });
+        setEditingVideo(null);
+    };
+
+    const openAddDialog = () => {
+        resetForm();
+        setShowDialog(true);
+    };
+
+    const openEditDialog = (v: PortfolioVideo) => {
+        setEditingVideo(v);
+        setFormData({
+            title: v.title,
+            description: v.description,
+            videoUrl: v.videoUrl,
+            thumbnailUrl: v.thumbnailUrl || "",
+        });
+        setShowDialog(true);
+    };
+
+    const handleFileUpload = async (
+        e: React.ChangeEvent<HTMLInputElement>,
+        field: "videoUrl" | "thumbnailUrl"
+    ) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const payload = new FormData();
+        payload.append("file", file);
+        const setBusy = field === "videoUrl" ? setUploadingVideo : setUploadingThumb;
+        setBusy(true);
+        const toastId = toast.loading(`Uploading ${field === "videoUrl" ? "video" : "thumbnail"}...`);
+
+        try {
+            const res = await fetch("/api/portfolio/upload", { method: "POST", body: payload });
+            const data = await res.json();
+            if (data.ok) {
+                setFormData((prev) => ({ ...prev, [field]: data.url }));
+                toast.success("Upload successful", { id: toastId });
+            } else {
+                toast.error(data.message || "Upload failed", { id: toastId });
+            }
+        } catch {
+            toast.error("Upload failed", { id: toastId });
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.title.trim()) {
+            toast.error("Title is required");
+            return;
+        }
+        if (!formData.videoUrl.trim()) {
+            toast.error("A video file (or link) is required");
+            return;
+        }
+        setSubmitting(true);
+        try {
+            if (editingVideo) {
+                const res = await fetch(`/api/portfolio/videos/${editingVideo.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        title: formData.title.trim(),
+                        description: formData.description.trim(),
+                        videoUrl: formData.videoUrl.trim(),
+                        thumbnailUrl: formData.thumbnailUrl.trim() || null,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data.message || "Update failed");
+                toast.success("Video updated");
+            } else {
+                const nextOrder = videos.length > 0 ? Math.max(...videos.map((v) => v.order)) + 1 : 0;
+                const res = await fetch("/api/portfolio/videos", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        title: formData.title.trim(),
+                        description: formData.description.trim(),
+                        videoUrl: formData.videoUrl.trim(),
+                        thumbnailUrl: formData.thumbnailUrl.trim() || null,
+                        category: HOME_CAROUSEL_CATEGORY_KEY,
+                        order: nextOrder,
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data.message || "Create failed");
+                toast.success("Video added");
+            }
+            setShowDialog(false);
+            resetForm();
+            fetchVideos();
+        } catch (err: any) {
+            toast.error(err.message || "Operation failed");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm("Remove this video from the home carousel? This cannot be undone.")) return;
+        try {
+            const res = await fetch(`/api/portfolio/videos/${id}`, { method: "DELETE" });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.message || "Delete failed");
+            }
+            toast.success("Video removed");
+            fetchVideos();
+        } catch (err: any) {
+            toast.error(err.message || "Delete failed");
+        }
+    };
+
+    const handleToggleActive = async (video: PortfolioVideo) => {
+        try {
+            const res = await fetch(`/api/portfolio/videos/${video.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ isActive: !video.isActive }),
+            });
+            if (!res.ok) throw new Error("Toggle failed");
+            toast.success(video.isActive ? "Video hidden" : "Video visible");
+            fetchVideos();
+        } catch {
+            toast.error("Failed to toggle visibility");
+        }
+    };
+
+    const handleReorder = async (video: PortfolioVideo, direction: "up" | "down") => {
+        const sorted = [...videos].sort((a, b) => a.order - b.order);
+        const idx = sorted.findIndex((v) => v.id === video.id);
+        const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= sorted.length) return;
+        const swapVideo = sorted[swapIdx];
+        try {
+            await Promise.all([
+                fetch(`/api/portfolio/videos/${video.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order: swapVideo.order }),
+                }),
+                fetch(`/api/portfolio/videos/${swapVideo.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order: video.order }),
+                }),
+            ]);
+            fetchVideos();
+        } catch {
+            toast.error("Failed to reorder");
+        }
+    };
+
+    const sorted = [...videos].sort((a, b) => a.order - b.order);
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <Film className="h-5 w-5" />
+                            Home Page Video Carousel
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            Short-form videos shown autoplaying (muted) in the scrolling carousel
+                            on the public homepage, below "What E8 Does".
+                        </p>
+                    </div>
+                    <Button size="sm" onClick={openAddDialog}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Video
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                ) : sorted.length === 0 ? (
+                    <p className="text-sm text-muted-foreground/70 italic py-4">
+                        No videos yet. Click <strong>Add Video</strong> to upload a short-form clip —
+                        the carousel is hidden on the homepage until at least one is added.
+                    </p>
+                ) : (
+                    <div className="space-y-2">
+                        {sorted.map((video, idx) => (
+                            <div
+                                key={video.id}
+                                className={`flex items-center gap-4 p-3 rounded-lg border transition-colors ${video.isActive ? "bg-card hover:bg-muted/60" : "bg-muted/30 opacity-60"
+                                    }`}
+                            >
+                                <div className="flex flex-col gap-0.5 shrink-0">
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === 0} onClick={() => handleReorder(video, "up")}>
+                                        <ArrowUp className="h-3 w-3" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === sorted.length - 1} onClick={() => handleReorder(video, "down")}>
+                                        <ArrowDown className="h-3 w-3" />
+                                    </Button>
+                                </div>
+                                <div className="w-12 h-[72px] rounded-lg overflow-hidden bg-muted shrink-0">
+                                    {video.thumbnailUrl ? (
+                                        <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <Play className="h-4 w-4 text-muted-foreground" />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-medium truncate">{video.title}</p>
+                                        {!video.isActive && (
+                                            <Badge variant="secondary" className="text-xs shrink-0">Hidden</Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-muted-foreground truncate">
+                                        {video.description || "No description"}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <div className="flex items-center gap-1.5 mr-2" title={video.isActive ? "Visible" : "Hidden"}>
+                                        <Switch checked={video.isActive} onCheckedChange={() => handleToggleActive(video)} />
+                                    </div>
+                                    <Button variant="outline" size="icon" className="h-8 w-8" asChild title="Open video">
+                                        <a href={video.videoUrl} target="_blank" rel="noopener noreferrer">
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                        </a>
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(video)} title="Edit">
+                                        <Edit className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(video.id)} title="Delete">
+                                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </CardContent>
+
+            <Dialog open={showDialog} onOpenChange={(open) => { setShowDialog(open); if (!open) resetForm(); }}>
+                <DialogContent className="sm:max-w-[480px]">
+                    <DialogHeader>
+                        <DialogTitle>{editingVideo ? "Edit Video" : "Add Video"}</DialogTitle>
+                        <DialogDescription>
+                            Upload a short-form vertical clip. It plays autoplay-muted-loop in the
+                            homepage carousel, so a thumbnail is optional but recommended.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label>Title *</Label>
+                            <Input
+                                value={formData.title}
+                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                placeholder="e.g. StayFit305 Reel"
+                                required
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Description</Label>
+                            <Textarea
+                                value={formData.description}
+                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                placeholder="Optional short note (not shown publicly)"
+                                rows={2}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Video *</Label>
+                            <Input
+                                value={formData.videoUrl}
+                                onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
+                                placeholder="Upload below, or paste a video/YouTube/Vimeo link"
+                            />
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="file"
+                                    accept="video/*"
+                                    id="home-carousel-video-upload"
+                                    className="hidden"
+                                    onChange={(e) => handleFileUpload(e, "videoUrl")}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={uploadingVideo}
+                                    onClick={() => document.getElementById("home-carousel-video-upload")?.click()}
+                                >
+                                    {uploadingVideo ? (
+                                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                    ) : (
+                                        <Upload className="h-4 w-4 mr-1.5" />
+                                    )}
+                                    Upload Video
+                                </Button>
+                                {formData.videoUrl && (
+                                    <span className="text-xs text-muted-foreground truncate max-w-[240px]">
+                                        {formData.videoUrl}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Thumbnail (recommended)</Label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    id="home-carousel-thumb-upload"
+                                    className="hidden"
+                                    onChange={(e) => handleFileUpload(e, "thumbnailUrl")}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={uploadingThumb}
+                                    onClick={() => document.getElementById("home-carousel-thumb-upload")?.click()}
+                                >
+                                    {uploadingThumb ? (
+                                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                    ) : (
+                                        <Upload className="h-4 w-4 mr-1.5" />
+                                    )}
+                                    Upload Thumbnail
+                                </Button>
+                                {formData.thumbnailUrl && (
+                                    <img src={formData.thumbnailUrl} alt="Thumbnail preview" className="h-10 w-10 rounded object-cover" />
+                                )}
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => { setShowDialog(false); resetForm(); }}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={submitting}>
+                                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                {editingVideo ? "Save Changes" : "Add Video"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+        </Card>
+    );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    PORTFOLIO SECTIONS MANAGEMENT
    ═══════════════════════════════════════════════════════════════ */
 /* ═══════════════════════════════════════════════════════════════
@@ -2272,7 +2677,7 @@ export function PortfolioManagementTab() {
             </div>
 
             <Tabs defaultValue="leads" className="w-full">
-                <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+                <TabsList className="grid w-full grid-cols-6 max-w-4xl">
                     <TabsTrigger value="leads" className="flex items-center gap-2">
                         <Users className="h-4 w-4" />
                         Leads
@@ -2292,6 +2697,10 @@ export function PortfolioManagementTab() {
                     <TabsTrigger value="journey" className="flex items-center gap-2">
                         <BarChart3 className="h-4 w-4" />
                         Before & After
+                    </TabsTrigger>
+                    <TabsTrigger value="home-carousel" className="flex items-center gap-2">
+                        <Play className="h-4 w-4" />
+                        Home Carousel
                     </TabsTrigger>
                 </TabsList>
 
@@ -2325,6 +2734,10 @@ export function PortfolioManagementTab() {
 
                 <TabsContent value="journey" className="mt-6">
                     <PortfolioJourneyManager />
+                </TabsContent>
+
+                <TabsContent value="home-carousel" className="mt-6">
+                    <HomeCarouselControl />
                 </TabsContent>
             </Tabs>
         </div>

@@ -113,5 +113,8 @@ export function buildMetadata({
     authors: [{ name: "E8 Productions", url: PRODUCTION_URL }],
     creator: "E8 Productions",
     publisher: "E8 Productions",
+    verification: {
+      google: "4NY0KSIFIe893BUrOs11mxYaQQx74imwGVj1w6jaSZw",
+    },
   };
 }

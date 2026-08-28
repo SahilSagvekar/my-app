@@ -7,7 +7,7 @@ import { buildMetadata } from "@/lib/seo";
 import CookieConsent from "@/components/CookieConsent";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
-const GA_MEASUREMENT_ID = "G-E7HJLKVEPQ";
+const GA_MEASUREMENT_ID = "G-HYRHQ43GCE";
 
 export const metadata: Metadata = buildMetadata({
   title: "E8 Productions",

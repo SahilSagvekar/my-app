@@ -1,84 +1,74 @@
 export const dynamic = 'force-dynamic';
+// src/app/api/shared/file/[shareToken]/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { shareableFile as shareableFileTable } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { shareableFile } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { generateSignedUrl } from '@/lib/s3';
+import { checkShareAccess } from '@/lib/share-access';
 
-// GET /api/shared/file/[shareToken] - Access a shared file
+function formatBytes(bytes: number): string {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
 export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ shareToken: string }> }
+  req: NextRequest,
+  { params }: { params: Promise<{ shareToken: string }> }
 ) {
   const db = getDbHttp();
-    try {
-        const { shareToken } = await params;
+  try {
+    const { shareToken } = await params;
 
-        if (!shareToken) {
-            return NextResponse.json({ error: 'Share token required' }, { status: 400 });
-        }
-
-        // Find the shareable file
-        const [shareableFile] = await db.select().from(shareableFileTable)
-            .where(eq(shareableFileTable.shareToken, shareToken)).limit(1);
-
-        if (!shareableFile) {
-            return NextResponse.json({ error: 'Share link not found' }, { status: 404 });
-        }
-
-        // Check if the link is active
-        if (!shareableFile.isActive) {
-            return NextResponse.json({ error: 'This share link has been deactivated' }, { status: 410 });
-        }
-
-        // Check if the link has expired
-        if (shareableFile.expiresAt && new Date(shareableFile.expiresAt) < new Date()) {
-            return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
-        }
-
-        // Generate a fresh signed URL for the file (lasts 7 days)
-        const signedUrl = await generateSignedUrl(shareableFile.s3Key);
-
-        // Update view count and last viewed timestamp.
-        // ShareableFile.updatedAt is @updatedAt in Prisma (client-managed) —
-        // set explicitly here, matching that behavior.
-        await db.update(shareableFileTable).set({
-            viewCount: sql`${shareableFileTable.viewCount} + 1`,
-            lastViewedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        }).where(eq(shareableFileTable.shareToken, shareToken));
-
-        // Format file size
-        const formatBytes = (bytes: BigInt | number | null): string => {
-            if (!bytes) return 'Unknown size';
-            const b = Number(bytes);
-            if (b === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(b) / Math.log(k));
-            return Math.round((b / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
-        };
-
-        return NextResponse.json({
-            success: true,
-            fileName: shareableFile.fileName,
-            fileSize: formatBytes(shareableFile.fileSize),
-            mimeType: shareableFile.mimeType,
-            url: signedUrl,
-            // NOTE: original Prisma code returned the raw Date here (no
-            // .toISOString() call) — JSON.stringify auto-serialized it to
-            // ISO-8601. Drizzle's string-mode timestamp is in Postgres's
-            // native format instead; left as-is to match this file's
-            // original code (unlike the sibling shared/[shareToken] route,
-            // which did call .toISOString() explicitly and is preserved).
-            createdAt: shareableFile.createdAt,
-        });
-
-    } catch (error: any) {
-        console.error('Error accessing shared file:', error);
-        return NextResponse.json(
-            { error: 'Failed to load shared file' },
-            { status: 500 }
-        );
+    if (!shareToken) {
+      return NextResponse.json({ error: 'Share token required' }, { status: 400 });
     }
+
+    const [file] = await db.select().from(shareableFile).where(eq(shareableFile.shareToken, shareToken)).limit(1);
+
+    if (!file) {
+      return NextResponse.json({ error: 'Share link not found' }, { status: 404 });
+    }
+    if (!file.isActive) {
+      return NextResponse.json({ error: 'This share link has been deactivated' }, { status: 410 });
+    }
+    if (file.expiresAt && new Date(file.expiresAt) < new Date()) {
+      return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
+    }
+    if (file.mimeType === 'application/x-directory') {
+      return NextResponse.json({ error: 'This is a folder share link' }, { status: 400 });
+    }
+
+    // Recipient-gated access — see src/lib/share-access.ts. The link alone
+    // is never enough; the requester's verified email must be invited.
+    const access = await checkShareAccess(req, shareToken, file.id);
+    if (!access.authorized) {
+      return NextResponse.json(
+        { error: 'EMAIL_VERIFICATION_REQUIRED', message: 'Verify your email to view this file.' },
+        { status: 403 }
+      );
+    }
+
+    const signedUrl = await generateSignedUrl(file.s3Key, 60 * 60 * 24 * 7);
+
+    await db
+      .update(shareableFile)
+      .set({ viewCount: file.viewCount + 1, lastViewedAt: new Date().toISOString() })
+      .where(eq(shareableFile.shareToken, shareToken));
+
+    return NextResponse.json({
+      fileName: file.fileName,
+      fileSize: formatBytes(file.fileSize ?? 0),
+      mimeType: file.mimeType,
+      url: signedUrl,
+      createdAt: file.createdAt,
+    });
+  } catch (error: any) {
+    console.error('[shared/file] error:', error);
+    return NextResponse.json({ error: 'Failed to load shared file', details: error.message }, { status: 500 });
+  }
 }

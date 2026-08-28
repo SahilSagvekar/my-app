@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ShareAccessGate } from '@/components/shared/ShareAccessGate';
 
 interface SharedFileData {
     fileName: string;
@@ -31,6 +32,7 @@ export default function SharedFilePage() {
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [needsVerification, setNeedsVerification] = useState(false);
     const [fileData, setFileData] = useState<SharedFileData | null>(null);
 
     useEffect(() => {
@@ -43,11 +45,16 @@ export default function SharedFilePage() {
         try {
             setLoading(true);
             setError(null);
+            setNeedsVerification(false);
 
             const response = await fetch(`/api/shared/file/${shareToken}`);
             const data = await response.json();
 
             if (!response.ok) {
+                if (data.error === 'EMAIL_VERIFICATION_REQUIRED') {
+                    setNeedsVerification(true);
+                    return;
+                }
                 throw new Error(data.error || 'Failed to load shared file');
             }
 
@@ -76,6 +83,19 @@ export default function SharedFilePage() {
                     <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto mb-4" />
                     <p className="text-neutral-400">Locating shared file...</p>
                 </div>
+            </div>
+        );
+    }
+
+    if (needsVerification) {
+        return (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+                <ShareAccessGate
+                    shareToken={shareToken}
+                    itemType="file"
+                    dark
+                    onVerified={() => loadSharedFile()}
+                />
             </div>
         );
     }

@@ -796,6 +796,25 @@ export const shareableFile = pgTable("ShareableFile", {
 	uniqueIndex("ShareableFile_shareToken_key").using("btree", table.shareToken.asc().nullsLast().op("text_ops")),
 ]);
 
+// Recipients a ShareableFile (file or folder) was explicitly shared with.
+// Access to /api/shared/file|folder/[shareToken] requires the requester's
+// verified email to have a row here — the link alone is never sufficient.
+// See src/lib/share-access.ts for the gate that enforces this.
+export const shareRecipient = pgTable("ShareRecipient", {
+	id: text().primaryKey().notNull(),
+	shareId: text().notNull(), // ShareableFile.id
+	email: text().notNull(),
+	status: text().default('invited').notNull(), // 'invited' | 'verified'
+	otpCode: text(),
+	otpExpiresAt: timestamp({ precision: 3, mode: 'string' }),
+	lastAccessedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("ShareRecipient_shareId_idx").using("btree", table.shareId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("ShareRecipient_shareId_email_key").using("btree", table.shareId.asc().nullsLast().op("text_ops"), table.email.asc().nullsLast().op("text_ops")),
+]);
+
 export const notification = pgTable("Notification", {
 	id: text().primaryKey().notNull(),
 	userId: integer(),

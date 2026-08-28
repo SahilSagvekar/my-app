@@ -371,7 +371,10 @@ useEffect(() => {
     try {
       setLoading(true);
       // 🔥 Fetch PENDING tasks (READY_FOR_QC status)
-      const res = await fetch("/api/tasks?status=READY_FOR_QC", {
+      // No pagination in this view yet — request enough rows to cover the
+      // realistic queue size (was silently capped at the API's default of
+      // 100, dropping older tasks once the queue passed that).
+      const res = await fetch("/api/tasks?status=READY_FOR_QC&limit=500", {
   method: "GET",
   credentials: "include",
   headers: viewingAsRole && viewingAsRole !== user?.role

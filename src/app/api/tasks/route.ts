@@ -266,7 +266,7 @@ const effectiveRole =
     // recreating the unfiltered-3000+-rows memory problem this replaces).
     const requestedLimit = parseInt(searchParams.get("limit") || "", 10);
     const taskLimit = Number.isFinite(requestedLimit) && requestedLimit > 0
-      ? Math.min(requestedLimit, 200)
+      ? Math.min(requestedLimit, 500)
       : 100;
 
     // Build role-based where query. When previewing "client", pass the

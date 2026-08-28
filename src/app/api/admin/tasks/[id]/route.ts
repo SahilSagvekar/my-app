@@ -295,6 +295,24 @@ export async function PATCH(
             }
         }
 
+        // 📧 Client review email — mirrors the same transition check used in
+        // /api/tasks/[id]/status. This admin edit path (Task Management's
+        // Edit Task dialog, changing Status directly) was updating the DB
+        // status to CLIENT_REVIEW without ever sending the client the
+        // "ready for review" email, since that side effect only existed on
+        // the other status-update endpoint.
+        if (
+            updateData.status === "CLIENT_REVIEW" &&
+            existingTask.status !== "CLIENT_REVIEW"
+        ) {
+            try {
+                const { sendTaskReadyForReviewEmail } = await import("@/lib/email-notifications");
+                await sendTaskReadyForReviewEmail(id);
+            } catch (err) {
+                console.error("Failed to send client review email:", err);
+            }
+        }
+
         return NextResponse.json(updatedTask);
     } catch (err: any) {
         console.error("❌ PATCH /api/admin/tasks/[id] error:", err);

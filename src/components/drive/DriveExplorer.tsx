@@ -39,7 +39,7 @@ import {
   Smartphone,
   KeyRound,
 } from "lucide-react";
-import { ShareDialog } from "../review/ShareDialog";
+import { DriveShareDialog } from "./DriveShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
 import { RawFootageUploadDialog } from "./RawFootageUploadDialog";
 import { StorageLimitModal } from "../Storagelimitmodal";
@@ -279,10 +279,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const autoDownloadRef = useRef(false);
 
   // Share states
-  const [shareLink, setShareLink] = useState("");
+  const [shareItem, setShareItem] = useState<{
+    s3Key: string;
+    name: string;
+    size?: number;
+    mimeType?: string | null;
+    type: "file" | "folder";
+  } | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   // Folder creation states
   const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
@@ -1180,13 +1185,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // Handle Share Link
   const handleShareClick = async (item: DriveItem) => {
     setIsSharing(true);
-    setCopied(false);
 
     try {
       const s3Key = item.s3Key || getS3Key(item);
       const isFolder = item.type === "folder";
 
-      // Resolve mimeType before building the body — never fetch inside JSON.stringify
+      // Resolve mimeType before opening the dialog — never fetch inside JSON.stringify
       let mimeType: string | null = null;
       if (!isFolder && item.url) {
         try {
@@ -1197,36 +1201,17 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         }
       }
 
-      const response = await fetch("/api/drive/share", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          s3Key: isFolder ? s3Key + '/' : s3Key,
-          fileName: item.name,
-          fileSize: item.size,
-          mimeType,
-          type: isFolder ? 'folder' : 'file',
-        }),
+      setShareItem({
+        s3Key,
+        name: item.name,
+        size: item.size,
+        mimeType,
+        type: isFolder ? "folder" : "file",
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate share link");
-      }
-
-      const data = await response.json();
-      setShareLink(data.shareUrl);
       setShowShareDialog(true);
-
-      await navigator.clipboard.writeText(data.shareUrl);
-      setCopied(true);
-      toast.success(`Share link created and copied to clipboard`);
-      setTimeout(() => setCopied(false), 3000);
-
     } catch (error: any) {
       console.error("Share error:", error);
-      toast.error("Failed to generate share link");
+      toast.error("Failed to open share dialog");
     } finally {
       setIsSharing(false);
     }
@@ -1482,13 +1467,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
 
     return <FileIcon className="h-8 w-8 text-gray-500" />;
-  };
-
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(shareLink);
-    setCopied(true);
-    toast.success("Link copied to clipboard");
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const formatBytes = (bytes: number): string => {
@@ -1906,12 +1884,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       />
 
       {/* Share Dialog */}
-      <ShareDialog
+      <DriveShareDialog
         open={showShareDialog}
         onOpenChange={setShowShareDialog}
-        shareLink={shareLink}
-        onCopy={handleCopyLink}
-        copied={copied}
+        item={shareItem}
       />
 
       {/* Create Folder Dialog */}

@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { Hero } from '@/components/landing/Hero';
 import { Footer } from '@/components/landing/Footer';
 import { ClientPortalMockup } from '@/components/e8app/ClientPortalMockup';
+import { HomeVideoCarousel } from '@/components/landing/HomeVideoCarousel';
 import Link from "next/link";
 import { ArrowRight, Tv, TrendingUp, Users, Video, Target, Scissors, Send, DollarSign, Camera, Lightbulb, Share2, Cpu, Cpu as AppIcon, CheckCircle, BarChart2, ShieldCheck } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
@@ -135,6 +136,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Short-Form Content Carousel — admin-controlled via Portfolio Management */}
+      <HomeVideoCarousel />
 
       {/* Results Preview */}
       <section className="py-8 sm:py-12 lg:py-16 px-4 sm:px-6 lg:px-8 bg-white">

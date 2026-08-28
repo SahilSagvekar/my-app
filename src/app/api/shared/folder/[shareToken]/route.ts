@@ -3,8 +3,11 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/prisma';
+import { getDbHttp } from '@/lib/db';
+import { shareableFile } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { generateSignedUrl, getS3, BUCKET } from '@/lib/s3';
+import { checkShareAccess } from '@/lib/share-access';
 
 const s3 = getS3();
 
@@ -20,6 +23,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ shareToken: string }> }
 ) {
+  const db = getDbHttp();
   try {
     const { shareToken } = await params;
 
@@ -27,26 +31,42 @@ export async function GET(
       return NextResponse.json({ error: 'Share token required' }, { status: 400 });
     }
 
-    const shareableFile = await prisma.shareableFile.findUnique({
-      where: { shareToken },
-    });
+    const [folder] = await db.select().from(shareableFile).where(eq(shareableFile.shareToken, shareToken)).limit(1);
 
-    if (!shareableFile) {
+    if (!folder) {
       return NextResponse.json({ error: 'Share link not found' }, { status: 404 });
     }
-    if (!shareableFile.isActive) {
+    if (!folder.isActive) {
       return NextResponse.json({ error: 'This share link has been deactivated' }, { status: 410 });
     }
-    if (shareableFile.expiresAt && shareableFile.expiresAt < new Date()) {
+    if (folder.expiresAt && new Date(folder.expiresAt) < new Date()) {
       return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
     }
-    if (shareableFile.mimeType !== 'application/x-directory') {
+    if (folder.mimeType !== 'application/x-directory') {
       return NextResponse.json({ error: 'Not a folder share link' }, { status: 400 });
     }
 
-    const folderPrefix = shareableFile.s3Key.endsWith('/')
-      ? shareableFile.s3Key
-      : `${shareableFile.s3Key}/`;
+    // Recipient-gated access — see src/lib/share-access.ts. The link alone
+    // is never enough; the requester's verified email must be invited.
+    const access = await checkShareAccess(req, shareToken, folder.id);
+    if (!access.authorized) {
+      return NextResponse.json(
+        { error: 'EMAIL_VERIFICATION_REQUIRED', message: 'Verify your email to view this folder.' },
+        { status: 403 }
+      );
+    }
+
+    const folderRoot = folder.s3Key.endsWith('/') ? folder.s3Key : `${folder.s3Key}/`;
+
+    // Optional subpath for browsing into nested folders within the share.
+    // Sanitize hard against traversal — strip any ".." segments and leading
+    // slashes so the resolved prefix can never leave folderRoot.
+    const rawSubpath = req.nextUrl.searchParams.get('subpath') || '';
+    const safeSubpath = rawSubpath
+      .split('/')
+      .filter((seg) => seg && seg !== '..' && seg !== '.')
+      .join('/');
+    const folderPrefix = safeSubpath ? `${folderRoot}${safeSubpath}/` : folderRoot;
 
     const res = await s3.send(
       new ListObjectsV2Command({
@@ -80,19 +100,21 @@ export async function GET(
         })
     );
 
-    await prisma.shareableFile.update({
-      where: { shareToken },
-      data: { viewCount: { increment: 1 }, lastViewedAt: new Date() },
-    });
+    await db
+      .update(shareableFile)
+      .set({ viewCount: folder.viewCount + 1, lastViewedAt: new Date().toISOString() })
+      .where(eq(shareableFile.shareToken, shareToken));
 
     return NextResponse.json({
-      folderName: shareableFile.fileName,
+      folderName: folder.fileName,
+      subpath: safeSubpath,
       s3Key: folderPrefix,
       items: [...folders, ...files],
-      createdAt: shareableFile.createdAt.toISOString(),
+      createdAt: folder.createdAt,
     });
   } catch (error: any) {
     console.error('[shared/folder] error:', error);
-    return NextResponse.json({ error: 'Failed to load folder', details: error.message }, { status: 500 });
+    if (error?.cause) console.error('Root cause:', error.cause);
+    return NextResponse.json({ error: 'Failed to load folder', details: error?.cause?.message || error.message }, { status: 500 });
   }
 }
