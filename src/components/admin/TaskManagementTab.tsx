@@ -8,7 +8,6 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Checkbox } from '../ui/checkbox';
 import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { Plus } from 'lucide-react';
@@ -17,11 +16,12 @@ import { LinkLfTask } from '../tasks/LinkLfTask';
 import {
   ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight, ChevronDown,
   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
-  Calendar, User, Users, Pencil, Trash2, Edit, CloudUpload, Youtube, X,
+  Calendar, User, Users, Pencil, Trash2, Edit, CloudUpload, Youtube,
 } from 'lucide-react';
 import { EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '../auth/AuthContext';
+import { useViewAsRole } from '../auth/ViewAsRoleContext';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuSeparator,
@@ -151,6 +151,7 @@ const fetcher = (url: string) =>
 
 export function TaskManagementTab() {
   const { user } = useAuth();
+  const { viewingAsRole } = useViewAsRole();
 
   // ── Filters ───────────────────────────
   const [filters, setFilters] = useState<FilterState>({
@@ -158,18 +159,17 @@ export function TaskManagementTab() {
     client: 'all', status: 'all', deliverableType: 'all', month: 'all',
     search: '', dueDateFrom: undefined, dueDateTo: undefined, tag: 'all',
   });
-  const [allTags, setAllTags] = useState<{ id: string; name: string }[]>([]);
+  const [allTags, setAllTags] = useState<string[]>([]);
   useEffect(() => {
     fetch('/api/tags', { credentials: 'include' })
       .then((res) => res.json())
-      .then((data) => { if (data.ok) setAllTags(data.tags.map((t: any) => ({ id: t.id, name: t.name }))); })
+      .then((data) => { if (data.ok) setAllTags(data.tags.map((t: any) => t.name)); })
       .catch(() => {});
   }, []);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [showFilters, setShowFilters] = useState(true);
-  const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const limit = 25;
 
@@ -228,9 +228,25 @@ export function TaskManagementTab() {
   }, [page, filters, debouncedSearch]);
 
   // ── SWR: tasks (main data) ─────────────
+  // Sends x-viewing-as so a multi-role account (e.g. a scheduler who's also
+  // qc) viewing this tab from the QC portal resolves to their real access
+  // server-side, instead of only their primary role — see
+  // /api/admin/tasks/route.ts's resolveEffectiveRole.
+  const tasksFetcher = useCallback(
+    (url: string) =>
+      fetch(url, {
+        credentials: 'include',
+        headers: viewingAsRole ? { 'x-viewing-as': viewingAsRole } : {},
+      }).then(r => {
+        if (!r.ok) throw new Error('fetch failed');
+        return r.json();
+      }),
+    [viewingAsRole]
+  );
+
   const { data: taskData, isLoading: tasksLoading, isValidating, mutate: mutateTasks } = useSWR(
     user ? `/api/admin/tasks?${queryString}` : null,
-    fetcher,
+    tasksFetcher,
     { keepPreviousData: true, dedupingInterval: 10000 }
   );
 
@@ -341,7 +357,15 @@ export function TaskManagementTab() {
 
       if (Object.keys(updates).length === 0) { toast({ title: 'No changes' }); setEditingTask(null); return; }
 
-      const res = await fetch(`/api/admin/tasks/${editingTask.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
+      const res = await fetch(`/api/admin/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(viewingAsRole ? { 'x-viewing-as': viewingAsRole } : {}),
+        },
+        body: JSON.stringify(updates),
+      });
       if (!res.ok) { const e = await res.json(); throw new Error(e.message || 'Failed to update task'); }
       toast({ title: 'Success', description: 'Task updated successfully' });
       setEditingTask(null);
@@ -367,7 +391,15 @@ export function TaskManagementTab() {
 
       if (Object.keys(updates).length === 0) { toast({ title: 'No changes' }); setShowBulkEdit(false); return; }
 
-      const res = await fetch('/api/admin/tasks/bulk', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskIds: Array.from(selectedTasks), updates }) });
+      const res = await fetch('/api/admin/tasks/bulk', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(viewingAsRole ? { 'x-viewing-as': viewingAsRole } : {}),
+        },
+        body: JSON.stringify({ taskIds: Array.from(selectedTasks), updates }),
+      });
       if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
       const result = await res.json();
       toast({ title: 'Success', description: `Updated ${result.updated || selectedTasks.size} tasks` });
@@ -389,22 +421,6 @@ export function TaskManagementTab() {
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally { setDeleting(false); }
-  }
-
-  // Admin-only — removes the tag everywhere (all tasks it was applied to).
-  async function handleDeleteTag(tagId: string, tagName: string) {
-    if (!isAdmin) return;
-    if (!confirm(`Delete the tag "${tagName}"? It will be removed from every task that has it.`)) return;
-    try {
-      const res = await fetch(`/api/tags/${tagId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.message || 'Failed to delete tag');
-      setAllTags(prev => prev.filter(t => t.id !== tagId));
-      if (filters.tag === tagName) { setFilters(f => ({ ...f, tag: 'all' })); setPage(1); }
-      toast({ title: 'Tag Deleted', description: `"${tagName}" removed from all tasks.` });
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    }
   }
 
   async function handleBulkDelete() {
@@ -557,6 +573,7 @@ export function TaskManagementTab() {
     { label: 'Statuses', key: 'status', items: Object.entries(statusConfig).map(([k, c]) => ({ id: k, name: c.label })) },
     { label: 'Types', key: 'deliverableType', items: availableDeliverableTypes.map(t => ({ id: t, name: t.replace(/_/g, ' ') })) },
     { label: 'Months', key: 'month', items: availableMonths.map(m => ({ id: m, name: m })) },
+    { label: 'Tags', key: 'tag', items: allTags.map(t => ({ id: t, name: t })) },
   ];
 
   // ─────────────────────────────────────────
@@ -628,57 +645,6 @@ export function TaskManagementTab() {
                   </Select>
                 </div>
               ))}
-
-              {/* Tags filter — custom (not the shared Select above) so each
-                  tag row can carry an admin-only delete button. */}
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Tags</label>
-                <Popover open={tagFilterOpen} onOpenChange={setTagFilterOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="h-9 w-full justify-between font-normal text-sm px-3"
-                    >
-                      <span className="truncate">{filters.tag === 'all' ? 'Tags' : filters.tag}</span>
-                      <ChevronDown className="h-4 w-4 opacity-50 shrink-0 ml-1" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56 p-1" align="start">
-                    <button
-                      type="button"
-                      onClick={() => { setFilters(f => ({ ...f, tag: 'all' })); setPage(1); setTagFilterOpen(false); }}
-                      className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted"
-                    >
-                      Tags
-                    </button>
-                    {allTags.map(t => (
-                      <div key={t.id} className="flex items-center group rounded hover:bg-muted">
-                        <button
-                          type="button"
-                          onClick={() => { setFilters(f => ({ ...f, tag: t.name })); setPage(1); setTagFilterOpen(false); }}
-                          className="flex-1 text-left text-sm px-2 py-1.5 truncate"
-                        >
-                          {t.name}
-                        </button>
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); handleDeleteTag(t.id, t.name); }}
-                            title={`Delete tag "${t.name}"`}
-                            className="px-1.5 py-1.5 text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {allTags.length === 0 && (
-                      <p className="text-xs text-muted-foreground px-2 py-1.5">No tags yet</p>
-                    )}
-                  </PopoverContent>
-                </Popover>
-              </div>
             </div>
           )}
         </CardContent>
@@ -846,7 +812,7 @@ export function TaskManagementTab() {
 
       {/* Single Edit Dialog */}
       <Dialog open={!!editingTask} onOpenChange={o => !o && setEditingTask(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit Task</DialogTitle>
             <DialogDescription>{editingTask?.title || editingTask?.description?.slice(0, 50) || 'Untitled Task'}</DialogDescription>
@@ -854,10 +820,11 @@ export function TaskManagementTab() {
           <div className="grid gap-4 py-4">
             {[
               { label: 'Status', key: 'status', items: Object.entries(statusConfig).map(([k, c]) => ({ id: k, name: c.label })), hasNone: false },
-              { label: 'Videographer', key: 'videographer', items: videographers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Editor', key: 'assignedTo', items: editors.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: false },
-              { label: 'Quality Control', key: 'qc_specialist', items: qcMembers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
+              { label: 'QC Specialist', key: 'qc_specialist', items: qcMembers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Scheduler', key: 'scheduler', items: schedulers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
+              { label: 'Videographer', key: 'videographer', items: videographers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
+              { label: 'Priority', key: 'priority', items: ['low', 'medium', 'high', 'urgent'].map(v => ({ id: v, name: v.charAt(0).toUpperCase() + v.slice(1) })), hasNone: true },
             ].map(({ label, key, items, hasNone }) => (
               <div key={key} className="grid gap-2">
                 <Label>{label}</Label>

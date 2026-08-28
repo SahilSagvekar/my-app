@@ -73,6 +73,7 @@ export const NAVIGATION_ITEMS = {
   ],
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
+    { id: 'production-tracker', label: 'Production Tracker', icon: TrendingUp },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Target },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },

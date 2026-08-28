@@ -426,11 +426,14 @@ export async function PATCH(
         finalStatus === "CLIENT_REVIEW" &&
         task.status !== "CLIENT_REVIEW"
       ) {
-        // Email
+        // Email — awaited so it can't be silently killed mid-flight once
+        // this handler returns its response (Cloudflare Workers doesn't
+        // guarantee an un-awaited, non-waitUntil'd promise completes after
+        // the response is sent).
         console.log(`\n📧 sending email notification`);
         const { sendTaskReadyForReviewEmail } =
           await import("@/lib/email-notifications");
-        sendTaskReadyForReviewEmail(id);
+        await sendTaskReadyForReviewEmail(id);
 
         // Notify Client User
         if (task.clientUserId) {

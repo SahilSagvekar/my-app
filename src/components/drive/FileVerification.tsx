@@ -1,20 +1,27 @@
 // src/components/drive/FileVerification.tsx
 //
 // "File Verification" — compare a folder on the user's laptop against a
-// folder in the Files & Drive (R2) explorer, matching by file name.
+// folder in the Files & Drive (R2) explorer, matching by file name, with an
+// optional one-click upload of whatever's missing from R2.
 // Available to admin and client roles only (see NAVIGATION_ITEMS).
 //
 // How folder picking works:
 //  - Local folder: <input type="file" webkitdirectory> — this is the only
-//    broadly-supported way for a web page to read a folder's file names.
-//    It does NOT upload anything; the browser just hands us File objects
-//    with a relativePath. We only ever read .name off them.
+//    broadly-supported way for a web page to read a folder's contents.
+//    Selecting a folder does NOT upload anything by itself — file names are
+//    read immediately for the comparison, and the File objects are kept in
+//    memory only in case the user clicks "Upload missing files" afterward.
 //  - Remote folder: reuses the existing /api/drive/structure endpoint (same
 //    one DriveExplorer uses) to fetch the client's full R2 folder tree,
 //    then lets the user click through it to pick any folder at any depth.
 //
 // Comparison is by file name only (case-insensitive, trimmed), recursively
 // through subfolders on both sides — not by file size or content.
+//
+// Uploading missing files reuses the existing chunked/multipart upload
+// engine (see useMissingFilesUpload) and uploads flat into the root of the
+// selected remote folder — consistent with the name-only, structure-blind
+// comparison above.
 
 "use client";
 
@@ -32,10 +39,13 @@ import {
   RefreshCw,
   FolderCheck,
   ShieldAlert,
+  UploadCloud,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -46,6 +56,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/components/auth/AuthContext";
 import { cn } from "@/lib/utils";
+import { useMissingFilesUpload } from "@/hooks/useMissingFilesUpload";
 
 interface DriveItem {
   name: string;
@@ -69,6 +80,17 @@ function collectFileNames(node: DriveItem, out: string[] = []): string[] {
     collectFileNames(child, out);
   }
   return out;
+}
+
+// Find a folder node by path within a tree — used to re-select the
+// previously-selected folder after a silent post-upload refetch.
+function findNodeByPath(node: DriveItem, path: string): DriveItem | null {
+  if (node.path === path) return node;
+  for (const child of node.children || []) {
+    const found = findNodeByPath(child, path);
+    if (found) return found;
+  }
+  return null;
 }
 
 function normalizeName(name: string): string {
@@ -169,10 +191,10 @@ export function FileVerification({ role }: FileVerificationProps) {
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const [selectedRemoteFolder, setSelectedRemoteFolder] = useState<DriveItem | null>(null);
 
-  const loadRemoteTree = async (clientId?: string) => {
+  const loadRemoteTree = async (clientId?: string, opts?: { preserveSelectionPath?: string }) => {
     setRemoteLoading(true);
     setRemoteError(null);
-    setSelectedRemoteFolder(null);
+    if (!opts?.preserveSelectionPath) setSelectedRemoteFolder(null);
     try {
       const params = new URLSearchParams();
       params.append("role", role);
@@ -186,6 +208,11 @@ export function FileVerification({ role }: FileVerificationProps) {
       }
       const data = await res.json();
       setRemoteTree(data);
+      if (opts?.preserveSelectionPath) {
+        const stillThere = findNodeByPath(data, opts.preserveSelectionPath);
+        setSelectedRemoteFolder(stillThere);
+        if (stillThere) setComparisonRun(true); // re-run diff against fresh remote data
+      }
     } catch (err: any) {
       setRemoteError(err.message || "Failed to load folder structure");
       setRemoteTree(null);
@@ -214,23 +241,31 @@ export function FileVerification({ role }: FileVerificationProps) {
   const localInputRef = useRef<HTMLInputElement>(null);
   const [localFolderName, setLocalFolderName] = useState<string | null>(null);
   const [localFileNames, setLocalFileNames] = useState<string[]>([]);
+  // Keyed by normalized name — kept alongside localFileNames so we retain the
+  // actual File objects for upload (not just their names) without touching
+  // the existing name-only comparison logic below.
+  const [localFilesByKey, setLocalFilesByKey] = useState<Map<string, File>>(new Map());
 
   const handleLocalFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const names: string[] = [];
+    const byKey = new Map<string, File>();
     let rootName = "Selected folder";
     for (let i = 0; i < files.length; i++) {
       const f = files[i] as File & { webkitRelativePath?: string };
       names.push(f.name);
+      byKey.set(normalizeName(f.name), f);
       if (i === 0 && f.webkitRelativePath) {
         rootName = f.webkitRelativePath.split("/")[0] || rootName;
       }
     }
     setLocalFolderName(rootName);
     setLocalFileNames(names);
+    setLocalFilesByKey(byKey);
     setComparisonRun(false);
+    resetUpload();
   };
 
   // ── Comparison ───────────────────────────────────────────────────────────
@@ -266,6 +301,41 @@ export function FileVerification({ role }: FileVerificationProps) {
   }, [comparisonRun, selectedRemoteFolder, localFileNames]);
 
   const canCompare = !!selectedRemoteFolder && localFileNames.length > 0;
+
+  // ── Upload missing files ─────────────────────────────────────────────────
+  const resolvedClientId =
+    normalizedRole === "admin" ? selectedClientId : user?.linkedClientId || "";
+
+  const { items: uploadItems, overall: uploadOverall, startBatch, retryOne, reset: resetUpload } =
+    useMissingFilesUpload();
+
+  const handleUploadMissing = () => {
+    if (!comparison || !selectedRemoteFolder || !resolvedClientId) return;
+    const files = comparison.onlyLocal
+      .map((name) => {
+        const key = normalizeName(name);
+        const file = localFilesByKey.get(key);
+        return file ? { key, file } : null;
+      })
+      .filter((x): x is { key: string; file: File } => x !== null);
+
+    if (files.length === 0) return;
+    startBatch({
+      files,
+      clientId: resolvedClientId,
+      targetFolderPath: selectedRemoteFolder.path,
+      onBatchSettled: () => {
+        // Silently refetch the remote tree and re-run the diff, preserving
+        // the currently-selected folder so the UI reflects newly-matched files.
+        const path = selectedRemoteFolder!.path;
+        if (normalizedRole === "admin" && selectedClientId) {
+          loadRemoteTree(selectedClientId, { preserveSelectionPath: path });
+        } else if (normalizedRole === "client") {
+          loadRemoteTree(undefined, { preserveSelectionPath: path });
+        }
+      },
+    });
+  };
 
   if (!isAllowed) {
     return (
@@ -329,7 +399,8 @@ export function FileVerification({ role }: FileVerificationProps) {
           )}
 
           <p className="text-xs text-muted-foreground">
-            Nothing is uploaded — only file names are read from your browser.
+            Nothing is uploaded automatically — file names are read for comparison, and you can
+            upload anything missing afterward.
           </p>
         </Card>
 
@@ -375,6 +446,7 @@ export function FileVerification({ role }: FileVerificationProps) {
                 onSelect={(folder) => {
                   setSelectedRemoteFolder(folder);
                   setComparisonRun(false);
+                  resetUpload();
                 }}
               />
             </ScrollArea>
@@ -428,6 +500,111 @@ export function FileVerification({ role }: FileVerificationProps) {
             badgeVariant="secondary"
           />
         </div>
+      )}
+
+      {comparison && (comparison.onlyLocal.length > 0 || uploadOverall.total > 0) && (
+        <Card className="p-4 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="flex items-center gap-2 font-medium">
+                <UploadCloud className="h-4 w-4" />
+                Upload missing files
+              </div>
+              {uploadOverall.total === 0 && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Uploads the {comparison.onlyLocal.length} file
+                  {comparison.onlyLocal.length === 1 ? "" : "s"} only found on your computer into{" "}
+                  <span className="font-medium">{selectedRemoteFolder?.name}</span>.
+                </p>
+              )}
+              {uploadOverall.total > 0 && uploadOverall.completed === uploadOverall.total && (
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  All {uploadOverall.total} file{uploadOverall.total === 1 ? "" : "s"} uploaded.
+                </p>
+              )}
+            </div>
+            {uploadOverall.total === 0 && (
+              <Button onClick={handleUploadMissing} disabled={!resolvedClientId}>
+                <UploadCloud className="h-4 w-4 mr-2" />
+                Upload {comparison.onlyLocal.length} file
+                {comparison.onlyLocal.length === 1 ? "" : "s"}
+              </Button>
+            )}
+          </div>
+
+          {uploadOverall.total > 0 && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>
+                    {uploadOverall.completed} of {uploadOverall.total} uploaded
+                    {uploadOverall.failed > 0 && (
+                      <span className="text-destructive">
+                        {" "}
+                        · {uploadOverall.failed} failed
+                      </span>
+                    )}
+                  </span>
+                  <span>
+                    {Math.round((uploadOverall.completed / uploadOverall.total) * 100)}%
+                  </span>
+                </div>
+                <Progress
+                  value={(uploadOverall.completed / uploadOverall.total) * 100}
+                  className="h-2"
+                />
+              </div>
+
+              <ScrollArea className="h-64 border rounded-md p-2">
+                <ul className="space-y-2">
+                  {uploadItems.map((item) => (
+                    <li key={item.key} className="flex items-center gap-2 text-sm px-1">
+                      {item.status === "completed" && (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                      )}
+                      {item.status === "failed" && (
+                        <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                      )}
+                      {(item.status === "uploading" || item.status === "pending") && (
+                        <Loader2
+                          className={cn(
+                            "h-3.5 w-3.5 shrink-0 text-muted-foreground",
+                            item.status === "uploading" && "animate-spin"
+                          )}
+                        />
+                      )}
+                      <span className="truncate flex-1" title={item.name}>
+                        {item.name}
+                      </span>
+                      {item.status === "uploading" && (
+                        <span className="text-xs text-muted-foreground shrink-0 w-9 text-right">
+                          {item.progress}%
+                        </span>
+                      )}
+                      {item.status === "failed" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs shrink-0"
+                          onClick={() => retryOne(item.key)}
+                        >
+                          <RefreshCw className="h-3 w-3 mr-1" />
+                          Retry
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+              {uploadOverall.failed > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {uploadOverall.failed} file{uploadOverall.failed === 1 ? "" : "s"} failed —
+                  retry individually above.
+                </p>
+              )}
+            </div>
+          )}
+        </Card>
       )}
     </div>
   );

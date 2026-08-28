@@ -311,6 +311,8 @@ export function renderPage(
         return <SchedulerDashboard />;
       case "approved-queue":
         return <SchedulerSpreadsheetView />;
+      case "production-tracker":
+        return <ProductionTracker />;
       case "posting-tracker":
         return <SchedulerDailyTargetsPage />;
       case "scheduling":

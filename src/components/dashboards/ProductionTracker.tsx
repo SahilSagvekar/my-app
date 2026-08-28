@@ -49,6 +49,7 @@ import {
 import { cn } from '@/lib/utils';
 import { UploadsAndPeopleTab } from './UploadsAndPeopleTab';
 import { PersonOverviewSection } from './PersonOverviewSection';
+import { UploadHistoryView } from './UploadHistoryView';
 
 // ─── Types ───
 
@@ -168,49 +169,6 @@ interface TrackerData {
   qcPerformance: QCPerf[];
   schedulerPerformance: SchedulerPerf[];
   atRiskClients: ClientProgress[];
-  availableMonths: string[];
-}
-
-// ─── Editor breakdown types ───
-
-interface EditorDeliverableProgress {
-  deliverableId: string;
-  type: string;
-  statusCounts: StatusCounts;
-  doneCount: number;
-  totalEditorTasks: number;
-  extraCount: number;
-  extraDoneCount: number;
-  progressPercent: number;
-}
-
-interface EditorClientProgress {
-  clientId: string;
-  clientName: string;
-  deliverables: EditorDeliverableProgress[];
-  totalTasks: number;
-  totalEditorTasks: number;
-  totalDone: number;
-  totalExtraTasks: number;
-  totalExtraDone: number;
-  overallProgress: number;
-}
-
-interface EditorTrackerData {
-  month: string;
-  editor: { id: number; name: string; role: string };
-  summary: {
-    totalClients: number;
-    totalTasks: number;
-    totalEditorTasks: number;
-    totalDone: number;
-    overallProgress: number;
-    pending: number;
-    inProgress: number;
-    readyForQc: number;
-    completed: number;
-  };
-  clientProgress: EditorClientProgress[];
   availableMonths: string[];
 }
 
@@ -402,11 +360,9 @@ export function ProductionTracker() {
   >('all');
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
 
-  // Editor breakdown state
+  // Editor breakdown state — now shows upload history per editor
+  // (see UploadHistoryView); no longer fetches progress-tracker data.
   const [selectedEditorId, setSelectedEditorId] = useState<number | null>(null);
-  const [editorTrackerData, setEditorTrackerData] = useState<EditorTrackerData | null>(null);
-  const [editorTrackerLoading, setEditorTrackerLoading] = useState(false);
-  const [expandedEditorClients, setExpandedEditorClients] = useState<Set<string>>(() => new Set());
 
   const fetchData = async (month?: string) => {
     try {
@@ -426,25 +382,6 @@ export function ProductionTracker() {
     }
   };
 
-  const fetchEditorTracker = async (editorId: number, month?: string) => {
-    try {
-      setEditorTrackerLoading(true);
-      setExpandedEditorClients(new Set());
-      const m = month || selectedMonth;
-      const url = m
-        ? `/api/editor/production-tracker?editorId=${editorId}&month=${encodeURIComponent(m)}`
-        : `/api/editor/production-tracker?editorId=${editorId}`;
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Failed to fetch editor data');
-      const json = await res.json();
-      setEditorTrackerData(json);
-    } catch (err) {
-      console.error('Editor tracker fetch error:', err);
-    } finally {
-      setEditorTrackerLoading(false);
-    }
-  };
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -452,21 +389,10 @@ export function ProductionTracker() {
   const handleMonthChange = (month: string) => {
     setSelectedMonth(month);
     fetchData(month);
-    if (selectedEditorId) fetchEditorTracker(selectedEditorId, month);
   };
 
   const handleSelectEditor = (editorId: number) => {
     setSelectedEditorId(editorId);
-    fetchEditorTracker(editorId);
-  };
-
-  const toggleEditorClient = (id: string) => {
-    setExpandedEditorClients((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   };
 
   const toggleClient = (id: string) => {
@@ -846,7 +772,7 @@ export function ProductionTracker() {
           </div>
         )}
 
-        {/* ─── Editor Breakdown Tab ─── */}
+        {/* ─── Editor Tracker Tab (per-editor upload history) ─── */}
         {activeTab === 'editor-breakdown' && (
           <div className="flex gap-4 min-h-[600px]">
             <div className="w-56 shrink-0 space-y-1">
@@ -880,143 +806,26 @@ export function ProductionTracker() {
               {!selectedEditorId && (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
                   <UserCheck className="h-12 w-12 opacity-20" />
-                  <p className="text-sm font-medium">Select an editor to see their tracker</p>
-                  <p className="text-xs opacity-60">Shows exactly what the editor sees on their screen</p>
+                  <p className="text-sm font-medium">Select an editor to see their upload history</p>
+                  <p className="text-xs opacity-60">Every file they've uploaded, grouped by task</p>
                 </div>
               )}
 
-              {selectedEditorId && editorTrackerLoading && (
-                <div className="flex flex-col items-center justify-center h-full gap-3">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Loading tracker...</p>
-                </div>
-              )}
-
-              {selectedEditorId && !editorTrackerLoading && editorTrackerData && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-violet-100 flex items-center justify-center text-violet-700 font-bold text-sm">
-                        {(editorTrackerData.editor.name || '?').charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-sm">{editorTrackerData.editor.name}</p>
-                        <p className="text-[11px] text-muted-foreground capitalize">{editorTrackerData.editor.role}</p>
-                      </div>
-                    </div>
-                    <button onClick={() => fetchEditorTracker(selectedEditorId)} className="p-1.5 rounded-md hover:bg-gray-100 text-muted-foreground">
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { label: 'Overall', value: `${editorTrackerData.summary.overallProgress}%`, color: 'bg-violet-50 text-violet-700' },
-                      { label: 'Clients', value: editorTrackerData.summary.totalClients, color: 'bg-blue-50 text-blue-700' },
-                      { label: 'In Progress', value: editorTrackerData.summary.inProgress, color: 'bg-amber-50 text-amber-700' },
-                      { label: 'Done', value: editorTrackerData.summary.completed, color: 'bg-emerald-50 text-emerald-700' },
-                    ].map((s) => (
-                      <div key={s.label} className={cn('rounded-lg p-3 text-center', s.color)}>
-                        <p className="text-lg font-bold">{s.value}</p>
-                        <p className="text-[10px] font-medium opacity-70">{s.label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Overall completion</span>
-                      <span className="font-bold">{editorTrackerData.summary.overallProgress}%</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                      <div className="h-full rounded-full bg-violet-500 transition-all duration-500" style={{ width: `${editorTrackerData.summary.overallProgress}%` }} />
-                    </div>
-                  </div>
-
-                  {editorTrackerData.clientProgress.length === 0 ? (
-                    <div className="text-center py-10 text-muted-foreground">
-                      <Users className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No tasks assigned this month</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {editorTrackerData.clientProgress.sort((a, b) => a.overallProgress - b.overallProgress).map((client) => {
-                        const isExpanded = expandedEditorClients.has(client.clientId);
-                        return (
-                          <Card key={client.clientId} className={cn('transition-all',
-                            client.overallProgress < 40 && 'border-red-200',
-                            client.overallProgress >= 40 && client.overallProgress < 75 && 'border-amber-200'
-                          )}>
-                            <button onClick={() => toggleEditorClient(client.clientId)} className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50/50 transition-colors">
-                              {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm mb-1.5">{client.clientName}</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {client.deliverables.map((d) => (
-                                    <span key={d.deliverableId} className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded',
-                                      d.progressPercent >= 75 ? 'bg-emerald-100 text-emerald-700'
-                                        : d.progressPercent >= 40 ? 'bg-amber-100 text-amber-700'
-                                        : 'bg-red-100 text-red-700'
-                                    )}>
-                                      {SHORT_TYPE[d.type] || d.type.slice(0, 3)} {d.progressPercent}%
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-3 w-40 shrink-0">
-                                <div className="flex-1">
-                                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                                    <div className={cn('h-full rounded-full transition-all duration-500',
-                                      client.overallProgress >= 75 ? 'bg-emerald-500'
-                                        : client.overallProgress >= 40 ? 'bg-amber-500'
-                                        : 'bg-red-500'
-                                    )} style={{ width: `${client.overallProgress}%` }} />
-                                  </div>
-                                </div>
-                                <span className="text-xs font-bold w-9 text-right">{client.overallProgress}%</span>
-                              </div>
-                            </button>
-                            {isExpanded && (
-                              <div className="px-4 pb-4 border-t bg-gray-50/50">
-                                <div className="pt-4 space-y-3">
-                                  {client.deliverables.map((del) => (
-                                    <div key={del.deliverableId} className="bg-white rounded-lg border p-3">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2">
-                                          {TYPE_ICONS[del.type] || <Video className="h-3.5 w-3.5" />}
-                                          <span className="text-sm font-medium">{del.type}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs font-bold">{del.progressPercent}%</span>
-                                          {del.extraCount > 0 && <span className="text-[10px] font-bold text-rose-700">+{del.extraDoneCount}/{del.extraCount} extra</span>}
-                                        </div>
-                                      </div>
-                                      <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden mb-2">
-                                        <div className={cn('h-full rounded-full transition-all duration-500',
-                                          del.progressPercent >= 75 ? 'bg-emerald-500' : del.progressPercent >= 40 ? 'bg-amber-500' : 'bg-red-500'
-                                        )} style={{ width: `${del.progressPercent}%` }} />
-                                      </div>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {del.statusCounts.pending > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{del.statusCounts.pending} Pending</span>}
-                                        {del.statusCounts.inProgress > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">{del.statusCounts.inProgress} Editing</span>}
-                                        {del.statusCounts.readyForQc > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600">{del.statusCounts.readyForQc} In QC</span>}
-                                        {del.statusCounts.clientReview > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">{del.statusCounts.clientReview} Client Review</span>}
-                                        {del.statusCounts.completed > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600">{del.statusCounts.completed} Done</span>}
-                                        {del.statusCounts.scheduled > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600">{del.statusCounts.scheduled} Scheduled</span>}
-                                        {del.statusCounts.posted > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">{del.statusCounts.posted} Posted</span>}
-                                        {del.statusCounts.onHold > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600">{del.statusCounts.onHold} On Hold</span>}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+              {selectedEditorId && (
+                <UploadHistoryView
+                  key={selectedEditorId}
+                  apiUrl={`/api/admin/editor-upload-history?editorId=${selectedEditorId}`}
+                  title={
+                    data.editorPerformance.find((e) => e.id === selectedEditorId)?.name
+                      ? `${data.editorPerformance.find((e) => e.id === selectedEditorId)?.name}'s Uploads`
+                      : 'Upload History'
+                  }
+                  subtitle="Every file this editor has uploaded, grouped by task"
+                  emptyTitle="No uploads yet"
+                  emptySubtitle="Files this editor uploads to tasks will appear here"
+                  searchPlaceholder="Search task, client, or file name…"
+                  embedded
+                />
               )}
             </div>
           </div>

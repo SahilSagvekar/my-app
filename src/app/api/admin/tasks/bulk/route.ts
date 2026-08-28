@@ -5,17 +5,60 @@ import { getDbHttp } from '@/lib/db';
 import { task as taskTable } from '@/lib/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { notifyEditorTaskAssignment } from '@/lib/notify';
-// import { getServerSession } from 'next-auth';
-// import { authOptions } from '@/lib/auth';
+import { getCurrentUser2 } from '@/lib/auth';
+
+// 🔥 Role-switch support — same pattern as the sibling routes in this
+// folder (route.ts, [id]/route.ts). This endpoint previously had NO auth
+// check at all (see commented-out session check below) — anyone with a
+// valid request could bulk-edit any task's status/assignments. Restoring
+// the same admin/manager/qc gate the rest of Task Management uses.
+const LEGACY_ROLE_SWITCH_EMAILS = new Set([
+    'eric@e8productions.com',
+    'sahilsagvekar230@gmail.com',
+]);
+const DEFAULT_ADMIN_SWITCH_ROLES = ['qc', 'sales', 'sales_manager', 'scheduler'];
+
+function resolveEffectiveRole(
+    role: string | null | undefined,
+    roles: string[] | null | undefined,
+    email: string | null | undefined,
+    viewingAs: string | null
+): string | null | undefined {
+    const baseRole = role?.toLowerCase() || null;
+    if (!viewingAs || viewingAs === baseRole) return role;
+
+    const authorizedSwitchRoles = new Set<string>([
+        ...(Array.isArray(roles) ? roles.map((r) => r.toLowerCase()) : []),
+        ...(email && LEGACY_ROLE_SWITCH_EMAILS.has(email.toLowerCase())
+            ? DEFAULT_ADMIN_SWITCH_ROLES
+            : []),
+        ...(baseRole === 'admin' ? DEFAULT_ADMIN_SWITCH_ROLES : []),
+    ]);
+
+    if (!authorizedSwitchRoles.has(viewingAs)) return role;
+
+    return viewingAs === 'qc' ? 'admin' : viewingAs;
+}
 
 export async function PATCH(req: NextRequest) {
   const db = getDbHttp();
     try {
-        // const session = await getServerSession(authOptions);
+        const user = await getCurrentUser2(req);
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
-        // if (!session || session.user.role !== 'admin') {
-        //     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        // }
+        const viewingAs = req.headers.get('x-viewing-as')?.toLowerCase() || null;
+        const effectiveRole = resolveEffectiveRole(
+            user.role,
+            (user as any).roles,
+            user.email,
+            viewingAs
+        )?.toLowerCase();
+
+        if (!['admin', 'manager', 'qc'].includes(effectiveRole || '')) {
+            return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
+        }
 
         const body = await req.json();
         const { taskIds, updates } = body;
@@ -77,6 +120,7 @@ export async function PATCH(req: NextRequest) {
         // 🔥 Audit bulk update
         const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
         await createAuditLog({
+            userId: user.id,
             action: AuditAction.TASK_UPDATED,
             entity: 'Task',
             entityId: 'multiple',
