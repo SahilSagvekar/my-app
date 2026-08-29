@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/cron/s3-to-nas/route.ts
-// Monthly output-folder archival sweep. Called by cron-master.ts on the 1st
-// of every month, or manually from the NAS Backup admin panel.
-// See src/lib/nas-archival.ts for the actual sweep + NAS verification logic.
+// Read-only report of output files old enough + confirmed on NAS that could
+// be manually cleaned up from R2 — this never deletes anything itself. See
+// src/lib/nas-archival.ts.
 
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
@@ -34,20 +34,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const dryRun = body?.dryRun === true;
     const clientId = typeof body?.clientId === 'string' && body.clientId.length > 0 ? body.clientId : null;
 
-    const summary = await runNasArchivalSweep({ dryRun, clientId });
+    const summary = await runNasArchivalSweep({ clientId });
 
     return NextResponse.json({
       ok: true,
-      message: dryRun
-        ? `Preview: ${summary.eligibleCount} file(s) eligible, ${summary.deletedCount} verified on NAS and would be deleted, ${summary.skippedCount} not yet confirmed on NAS.`
-        : `Swept ${summary.deletedCount} file(s) (${summary.monthsSwept.join(', ') || 'none'}), ${summary.skippedCount} skipped (not confirmed on NAS), ${summary.failedCount} failed.`,
+      message: `${summary.confirmedOnNasCount} file(s) (${summary.monthsSwept.join(', ') || 'none'}) are confirmed on NAS and old enough for manual cleanup consideration — nothing was deleted. ${summary.skippedCount} not yet confirmed on NAS.`,
       summary,
     });
   } catch (err: any) {
-    console.error('[S3 to NAS Sweep] Error:', err.message);
-    return NextResponse.json({ error: err.message || 'Sweep failed' }, { status: 500 });
+    console.error('[S3/NAS eligibility report] Error:', err.message);
+    return NextResponse.json({ error: err.message || 'Report failed' }, { status: 500 });
   }
 }

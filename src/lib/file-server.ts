@@ -92,6 +92,16 @@ export async function presignDownload(env: CloudflareEnv, userId: number | strin
   return res.json() as Promise<{ downloadUrl: string }>;
 }
 
+// For files deleted from R2 but confirmed backed up to NAS (see the Files &
+// Drive NAS-merge feature). Unlike presignDownload, NAS has no native
+// presigning, so this returns the raw streamed Response for pass-through —
+// see /api/drive/nas-stream, which is what the browser actually hits.
+export async function nasDownloadStream(env: CloudflareEnv, userId: number | string, role: string, s3Key: string, fileName?: string): Promise<Response> {
+  const res = await fsRequest(env, 'POST', '/nas-download', userId, role, { s3Key, fileName });
+  if (!res.ok) throw new Error(`File server error: ${res.status}`);
+  return res;
+}
+
 export async function streamZip(
   env: CloudflareEnv,
   userId: number | string,

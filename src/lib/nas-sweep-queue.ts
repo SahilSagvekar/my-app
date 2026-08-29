@@ -26,7 +26,11 @@ export interface NasSweepJob {
   createdAt: string;
   attempts: number;
 
-  fileId: string;
+  // Exactly one of these is set, depending on folderType — the worker
+  // updates whichever table backs that category's "backed up" status.
+  fileId?: string;            // 'outputs' jobs — updates File.archivedToNas
+  backupRecordId?: string;    // 'raw-footage'/'elements' jobs — updates NasBackupRecord.archivedToNas
+
   s3Key: string;
   fileName: string;
   fileSize: number;

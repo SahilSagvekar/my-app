@@ -1,22 +1,18 @@
 "use client";
 
 // src/components/admin/ManualNasSweepPanel.tsx
-// Manual, on-demand version of the weekly NAS backup sweep. Pick a client
-// and either send everything eligible or select individual files, then
-// watch live per-file status until each one finishes or fails.
-//
-// Talks to /api/admin/nas-sweep/{browse,trigger,status} — the current,
-// live NAS backup system (nas-sweep-queue.ts + nas-upload-server over the
-// Cloudflare Tunnel). NOT related to the older RawFootageMirrorPanel /
-// NasBackupAdmin components, which target the now-decommissioned
-// Tailscale+MinIO setup.
+// Manual, on-demand version of the weekly NAS backup sweep. Pick a client,
+// then send specific files or a whole category (Raw Footage / Outputs /
+// Elements) to the NAS right now, instead of waiting for the weekly sweep.
+// Each category is tracked and sent independently — see
+// /api/admin/nas-sweep/{browse,trigger,status} and nas-backup-records.ts.
 
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw, UploadCloud, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { RefreshCw, UploadCloud, CheckCircle2, XCircle, Loader2, Film, FolderOutput, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ClientOption {
@@ -43,15 +39,26 @@ interface StatusEntry {
   error?: string;
 }
 
+type FolderType = 'raw-footage' | 'outputs' | 'elements';
+
+const FOLDER_SECTIONS: { type: FolderType; label: string; icon: typeof Film }[] = [
+  { type: 'raw-footage', label: 'Raw Footage', icon: Film },
+  { type: 'outputs', label: 'Outputs', icon: FolderOutput },
+  { type: 'elements', label: 'Elements', icon: Sparkles },
+];
+
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-export default function ManualNasSweepPanel() {
-  const [clients, setClients] = useState<ClientOption[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
+function NasFolderSection({ clientId, folderType, label, icon: Icon }: {
+  clientId: string;
+  folderType: FolderType;
+  label: string;
+  icon: typeof Film;
+}) {
   const [files, setFiles] = useState<FileRow[]>([]);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -59,28 +66,20 @@ export default function ManualNasSweepPanel() {
   const [liveStatuses, setLiveStatuses] = useState<Map<string, StatusEntry>>(new Map());
   const [pollingFileIds, setPollingFileIds] = useState<string[]>([]);
 
-  useEffect(() => {
-    fetch('/api/admin/nas-sweep/browse')
-      .then((r) => r.json())
-      .then((d) => setClients(d.clients || []))
-      .catch(() => toast.error('Failed to load clients'));
-  }, []);
-
-  const loadFiles = useCallback((clientId: string) => {
+  const loadFiles = useCallback(() => {
     if (!clientId) return;
     setLoadingFiles(true);
     setSelectedFileIds(new Set());
-    fetch(`/api/admin/nas-sweep/browse?clientId=${clientId}`)
+    fetch(`/api/admin/nas-sweep/browse?clientId=${clientId}&folderType=${folderType}`)
       .then((r) => r.json())
       .then((d) => setFiles(d.files || []))
-      .catch(() => toast.error('Failed to load files'))
+      .catch(() => toast.error(`Failed to load ${label.toLowerCase()} files`))
       .finally(() => setLoadingFiles(false));
-  }, []);
+  }, [clientId, folderType, label]);
 
   useEffect(() => {
-    if (selectedClientId) loadFiles(selectedClientId);
-    else setFiles([]);
-  }, [selectedClientId, loadFiles]);
+    loadFiles();
+  }, [loadFiles]);
 
   // Poll status for the active batch every 3s until every file is settled.
   useEffect(() => {
@@ -96,15 +95,14 @@ export default function ManualNasSweepPanel() {
       const stillGoing = (data.statuses || []).some((s: StatusEntry) => s.status === 'queued');
       if (!stillGoing) {
         setPollingFileIds([]);
-        // Refresh the file list so archivedToNas badges update.
-        if (selectedClientId) loadFiles(selectedClientId);
+        loadFiles(); // refresh so archivedToNas badges update
       }
     };
 
     poll();
     const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
-  }, [pollingFileIds, selectedClientId, loadFiles]);
+  }, [pollingFileIds, loadFiles]);
 
   const toggleFile = (id: string) => {
     setSelectedFileIds((prev) => {
@@ -126,7 +124,7 @@ export default function ManualNasSweepPanel() {
       const res = await fetch('/api/admin/nas-sweep/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileIds: idsToSend }),
+        body: JSON.stringify({ fileIds: idsToSend, folderType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Trigger failed');
@@ -140,14 +138,13 @@ export default function ManualNasSweepPanel() {
     }
   };
 
-  const sendWholeClient = async () => {
-    if (!selectedClientId) return;
+  const sendWhole = async () => {
     setSending(true);
     try {
       const res = await fetch('/api/admin/nas-sweep/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: selectedClientId }),
+        body: JSON.stringify({ clientId, folderType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Trigger failed');
@@ -175,38 +172,29 @@ export default function ManualNasSweepPanel() {
     return <Badge variant="secondary">Not backed up</Badge>;
   };
 
+  const notBackedUpCount = files.filter((f) => !f.archivedToNas).length;
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold">Manual NAS Backup</h3>
-        <p className="text-sm text-muted-foreground">
-          Send specific files or a whole client's outputs to the NAS right now, instead of waiting for the weekly sweep.
-        </p>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-          <SelectTrigger className="w-72">
-            <SelectValue placeholder="Select a client" />
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {selectedClientId && (
-          <Button variant="outline" size="sm" onClick={() => loadFiles(selectedClientId)} disabled={loadingFiles}>
+    <div className="space-y-3 rounded-lg border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+          <h4 className="font-medium whitespace-nowrap">{label}</h4>
+          {files.length > 0 && (
+            <Badge variant="secondary" className="text-xs whitespace-nowrap">
+              {files.length} file{files.length === 1 ? '' : 's'}
+              {notBackedUpCount > 0 && ` · ${notBackedUpCount} not backed up`}
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={loadFiles} disabled={loadingFiles}>
             <RefreshCw className={`h-4 w-4 ${loadingFiles ? 'animate-spin' : ''}`} />
           </Button>
-        )}
-
-        {selectedClientId && (
-          <Button onClick={sendWholeClient} disabled={sending || loadingFiles} className="ml-auto gap-1">
-            <UploadCloud className="h-4 w-4" /> Send all for this client
+          <Button size="sm" onClick={sendWhole} disabled={sending || loadingFiles || notBackedUpCount === 0} className="gap-1">
+            <UploadCloud className="h-4 w-4" /> Send all
           </Button>
-        )}
+        </div>
       </div>
 
       {selectedFileIds.size > 0 && (
@@ -219,25 +207,75 @@ export default function ManualNasSweepPanel() {
       )}
 
       {loadingFiles ? (
-        <div className="py-8 text-center text-sm text-muted-foreground">Loading files…</div>
-      ) : files.length === 0 && selectedClientId ? (
-        <div className="py-8 text-center text-sm text-muted-foreground">No eligible files for this client.</div>
+        <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+      ) : files.length === 0 ? (
+        <div className="py-6 text-center text-sm text-muted-foreground">No {label.toLowerCase()} files for this client.</div>
       ) : (
-        <div className="divide-y rounded-md border">
+        <div className="max-h-96 overflow-y-auto rounded-md border p-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
           {files.map((f) => (
-            <div key={f.id} className="flex items-center gap-3 px-3 py-2">
+            <div key={f.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
               <Checkbox
                 checked={selectedFileIds.has(f.id)}
                 onCheckedChange={() => toggleFile(f.id)}
               />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1" title={f.name}>
                 <div className="truncate text-sm font-medium">{f.name}</div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {f.taskTitle || 'Untitled task'} · {formatSize(f.size)}
+                  {f.taskTitle || formatSize(f.size)}{f.taskTitle ? ` · ${formatSize(f.size)}` : ''}
                 </div>
               </div>
               {statusBadge(f.id, f.archivedToNas)}
             </div>
+          ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ManualNasSweepPanel() {
+  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+
+  useEffect(() => {
+    fetch('/api/admin/nas-sweep/browse')
+      .then((r) => r.json())
+      .then((d) => setClients(d.clients || []))
+      .catch(() => toast.error('Failed to load clients'));
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Manual NAS Backup</h3>
+        <p className="text-sm text-muted-foreground">
+          Send raw footage, outputs, or elements to the NAS right now, instead of waiting for the weekly sweep. Nothing is ever deleted from R2 by this — copy only.
+        </p>
+      </div>
+
+      <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+        <SelectTrigger className="w-72">
+          <SelectValue placeholder="Select a client" />
+        </SelectTrigger>
+        <SelectContent>
+          {clients.map((c) => (
+            <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {selectedClientId && (
+        <div className="space-y-4">
+          {FOLDER_SECTIONS.map((section) => (
+            <NasFolderSection
+              key={section.type}
+              clientId={selectedClientId}
+              folderType={section.type}
+              label={section.label}
+              icon={section.icon}
+            />
           ))}
         </div>
       )}

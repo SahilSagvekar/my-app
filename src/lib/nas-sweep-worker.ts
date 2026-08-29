@@ -10,7 +10,7 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getS3, BUCKET as R2_BUCKET } from '@/lib/s3';
 import { getDbHttp } from '@/lib/db';
-import { file as fileTable } from '@/lib/db/schema';
+import { file as fileTable, nasBackupRecord } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import {
   popNasSweepJob,
@@ -79,13 +79,24 @@ async function processJob(job: NasSweepJob): Promise<void> {
       return;
     }
 
-    // Success — mark the file as archived.
+    // Success — mark the file as archived in whichever table this job's
+    // category tracks (File for outputs, NasBackupRecord for raw-footage/elements).
     const db = getDbHttp();
-    await db.update(fileTable).set({
-      archivedToNas: true,
-      nasArchivedAt: new Date().toISOString(),
-      nasPath: job.destPath,
-    }).where(eq(fileTable.id, job.fileId));
+    const now = new Date().toISOString();
+    if (job.fileId) {
+      await db.update(fileTable).set({
+        archivedToNas: true,
+        nasArchivedAt: now,
+        nasPath: job.destPath,
+      }).where(eq(fileTable.id, job.fileId));
+    } else if (job.backupRecordId) {
+      await db.update(nasBackupRecord).set({
+        archivedToNas: true,
+        nasArchivedAt: now,
+        nasPath: job.destPath,
+        updatedAt: now,
+      }).where(eq(nasBackupRecord.id, job.backupRecordId));
+    }
 
     await ackNasSweepJob(job.id);
     await recordSweepFile(job, { failed: false });

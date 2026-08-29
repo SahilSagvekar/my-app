@@ -1,18 +1,14 @@
 // src/lib/nas-archival.ts
-// Monthly output-folder sweep: once a task's output month is more than 2
-// calendar months old and the task is finalized, verify the file is really
-// present on the NAS (real check against the NAS's MinIO S3 API over
-// Tailscale — not just the `archivedToNas` flag, which is bulk-set by the
-// daily webhook in src/app/api/nas/backup-complete/route.ts without
-// per-file verification) and only then delete the R2 copy. Raw footage is
-// never touched here.
+// Read-only reporting: identifies output files old enough and verified on
+// NAS that a human might want to manually clean up from R2. This never
+// deletes anything itself — per admin decision, R2 deletion only ever
+// happens as an explicit manual action elsewhere, never automatically.
+// Raw footage/elements are out of scope here entirely (never touched).
 
 import { getDbHttp } from '@/lib/db';
-import { file as fileTable, task as taskTable, nasSyncLog } from '@/lib/db/schema';
-import { createId } from '@/lib/db/id';
+import { file as fileTable, task as taskTable } from '@/lib/db/schema';
 import { and, eq, inArray, isNotNull, not, like } from 'drizzle-orm';
-import { deleteFromS3 } from '@/lib/s3';
-import { headObjectOnNas, NAS_BUCKET } from '@/lib/nas-s3';
+import { headObjectOnNas } from '@/lib/nas-s3';
 
 const FINALIZED_STATUSES = ['COMPLETED', 'SCHEDULED', 'POSTED'] as const;
 const MONTH_NAMES = [
@@ -26,19 +22,17 @@ export interface SweepFileResult {
   taskId: string;
   monthFolder: string;
   sizeBytes: number;
-  outcome: 'deleted' | 'would_delete' | 'skipped_not_on_nas' | 'failed';
+  outcome: 'eligible_confirmed_on_nas' | 'skipped_not_on_nas';
   reason?: string;
 }
 
 export interface SweepSummary {
-  dryRun: boolean;
   clientId: string | null;
   cutoffMonthFolder: string;
   eligibleCount: number;
-  deletedCount: number;
+  confirmedOnNasCount: number;
   skippedCount: number;
-  failedCount: number;
-  bytesFreed: number;
+  bytesEligible: number;
   monthsSwept: string[];
   results: SweepFileResult[];
 }
@@ -73,7 +67,12 @@ async function verifyOnNas(s3Key: string, expectedSizeBytes: number): Promise<{ 
   return { ok: true };
 }
 
-export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: string | null }): Promise<SweepSummary> {
+/**
+ * Read-only report of output files old enough to be considered for cleanup
+ * and confirmed present on NAS. Does NOT delete anything — the caller (or a
+ * human admin) decides what, if anything, to do with this list manually.
+ */
+export async function runNasArchivalSweep(opts: { clientId?: string | null }): Promise<SweepSummary> {
   const db = getDbHttp();
   const cutoff = getCutoffDate();
   const cutoffMonthFolder = `${MONTH_NAMES[cutoff.getMonth()]}-${cutoff.getFullYear()}`;
@@ -105,10 +104,9 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
 
   const results: SweepFileResult[] = [];
   const monthsSwept = new Set<string>();
-  let deletedCount = 0;
+  let confirmedOnNasCount = 0;
   let skippedCount = 0;
-  let failedCount = 0;
-  let bytesFreed = 0;
+  let bytesEligible = 0;
 
   for (const file of eligible) {
     const s3Key = file.s3Key!;
@@ -125,60 +123,19 @@ export async function runNasArchivalSweep(opts: { dryRun: boolean; clientId?: st
       continue;
     }
 
-    if (opts.dryRun) {
-      results.push({ fileId: file.id, s3Key, taskId: file.taskId, monthFolder, sizeBytes, outcome: 'would_delete' });
-      monthsSwept.add(monthFolder);
-      bytesFreed += sizeBytes;
-      continue;
-    }
-
-    try {
-      const deleted = await deleteFromS3(s3Key);
-      if (!deleted) throw new Error('deleteFromS3 returned false');
-
-      await db.update(fileTable).set({
-        deletedFromCloud: true,
-        deletedFromCloudAt: new Date().toISOString(),
-        archivedToNas: true,
-        nasArchivedAt: new Date().toISOString(),
-        nasPath: `minio://${NAS_BUCKET}`,
-      }).where(eq(fileTable.id, file.id));
-
-      deletedCount++;
-      bytesFreed += sizeBytes;
-      monthsSwept.add(monthFolder);
-      results.push({ fileId: file.id, s3Key, taskId: file.taskId, monthFolder, sizeBytes, outcome: 'deleted' });
-    } catch (err: any) {
-      failedCount++;
-      results.push({
-        fileId: file.id, s3Key, taskId: file.taskId, monthFolder, sizeBytes,
-        outcome: 'failed', reason: err.message,
-      });
-    }
-  }
-
-  if (!opts.dryRun && eligible.length > 0) {
-    await db.insert(nasSyncLog).values({
-      id: createId(),
-      status: failedCount === 0 ? 'success' : (deletedCount > 0 ? 'partial' : 'failed'),
-      completedAt: new Date().toISOString(),
-      bucketName: NAS_BUCKET,
-      paths: Array.from(monthsSwept),
-      filesCount: deletedCount,
-      bytesCount: bytesFreed,
-      errorMessage: failedCount > 0 ? `${failedCount} file(s) failed to delete from R2` : null,
-    });
+    confirmedOnNasCount++;
+    bytesEligible += sizeBytes;
+    monthsSwept.add(monthFolder);
+    results.push({ fileId: file.id, s3Key, taskId: file.taskId, monthFolder, sizeBytes, outcome: 'eligible_confirmed_on_nas' });
   }
 
   return {
-    dryRun: opts.dryRun,
     clientId: opts.clientId || null,
     cutoffMonthFolder,
     eligibleCount: eligible.length,
-    deletedCount,
+    confirmedOnNasCount,
     skippedCount,
-    failedCount,
-    bytesFreed,
+    bytesEligible,
     monthsSwept: Array.from(monthsSwept),
     results,
   };

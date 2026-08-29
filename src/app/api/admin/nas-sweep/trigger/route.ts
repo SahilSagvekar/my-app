@@ -1,20 +1,22 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/admin/nas-sweep/trigger/route.ts
 //
-// Manual, scoped version of the weekly sweep — pushes NasSweepJobs for
-// exactly the files/client requested instead of the whole eligible backlog.
-// Same eligibility rules as /api/cron/nas-weekly-sweep, same underlying
-// queue (nas-sweep-queue.ts), drained by the same every-minute cron tick.
+// Manual, scoped version of the sweep — pushes NasSweepJobs for exactly the
+// files/client requested. Same underlying queue (nas-sweep-queue.ts),
+// drained by the same every-minute cron tick, for all three folder types.
 //
-// Body: { fileIds: string[] } — send specific files, or
-//       { clientId: string }  — send every eligible file for that client
+// Body: { fileIds: string[], folderType? }  — send specific files, or
+//       { clientId: string, folderType? }   — send every eligible file for that client
+// folderType defaults to "outputs". For "raw-footage"/"elements", fileIds
+// refer to NasBackupRecord ids (as returned by the browse route), not File ids.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { file as fileTable, task as taskTable } from '@/lib/db/schema';
+import { file as fileTable, task as taskTable, nasBackupRecord } from '@/lib/db/schema';
 import { and, eq, inArray, not, like } from 'drizzle-orm';
 import { createId } from '@/lib/db/id';
 import { pushNasSweepJob, startNasSweepBatch } from '@/lib/nas-sweep-queue';
+import { listTrackedFiles } from '@/lib/nas-backup-records';
 import { getCurrentUser2 } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
@@ -26,6 +28,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { fileIds, clientId } = body as { fileIds?: string[]; clientId?: string };
+    const folderType = (body.folderType || 'outputs') as 'outputs' | 'raw-footage' | 'elements';
 
     if (!fileIds?.length && !clientId) {
       return NextResponse.json({ error: 'Provide fileIds or clientId' }, { status: 400 });
@@ -33,6 +36,52 @@ export async function POST(req: NextRequest) {
 
     const db = getDbHttp();
 
+    // ── raw-footage / elements — tracked via NasBackupRecord ──
+    if (folderType === 'raw-footage' || folderType === 'elements') {
+      let eligible: { id: string; s3Key: string; name: string; size: number }[];
+
+      if (fileIds?.length) {
+        const rows = await db.select().from(nasBackupRecord).where(and(
+          inArray(nasBackupRecord.id, fileIds),
+          eq(nasBackupRecord.archivedToNas, false),
+        ));
+        eligible = rows.map((r) => ({ id: r.id, s3Key: r.s3Key, name: r.fileName, size: r.fileSize || 0 }));
+      } else {
+        const all = await listTrackedFiles(clientId!, folderType);
+        eligible = all
+          .filter((f) => !f.archivedToNas)
+          .map((f) => ({ id: f.backupRecordId, s3Key: f.s3Key, name: f.fileName, size: f.fileSize }));
+      }
+
+      if (eligible.length === 0) {
+        return NextResponse.json({ ok: true, message: 'Nothing eligible to send.', queued: 0, fileIds: [] });
+      }
+
+      const batchId = createId();
+      await startNasSweepBatch(batchId, eligible.length);
+
+      for (const f of eligible) {
+        await pushNasSweepJob({
+          backupRecordId: f.id,
+          s3Key: f.s3Key,
+          fileName: f.name,
+          fileSize: f.size,
+          destPath: f.s3Key,
+          batchId,
+          batchTotal: eligible.length,
+        });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        message: `Queued ${eligible.length} file(s) for NAS backup.`,
+        queued: eligible.length,
+        batchId,
+        fileIds: eligible.map((f) => f.id),
+      });
+    }
+
+    // ── outputs — tracked via File, unchanged from before ──
     let candidates;
     if (fileIds?.length) {
       candidates = await db

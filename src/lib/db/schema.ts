@@ -1931,6 +1931,29 @@ export const editorEodReportItem = pgTable("EditorEodReportItem", {
 		}).onUpdate("cascade").onDelete("restrict"),
 ]);
 
+// Tracks NAS backup status for raw-footage and elements files — these
+// can't use the File table (File.taskId is NOT NULL and these files aren't
+// tied to a task), so this is a lightweight, s3Key-keyed parallel table
+// serving the same purpose as File.archivedToNas for output files.
+export const nasBackupRecord = pgTable("NasBackupRecord", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	folderType: text().notNull(), // 'raw-footage' | 'elements'
+	s3Key: text().notNull(),
+	fileName: text().notNull(),
+	fileSize: bigint({ mode: "number" }),
+	archivedToNas: boolean().default(false).notNull(),
+	nasArchivedAt: timestamp({ precision: 3, mode: 'string' }),
+	nasPath: text(),
+	deletedFromCloud: boolean().default(false).notNull(),
+	deletedFromCloudAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("NasBackupRecord_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("NasBackupRecord_s3Key_key").using("btree", table.s3Key.asc().nullsLast().op("text_ops")),
+]);
+
 export const nasSyncLog = pgTable("NasSyncLog", {
 	id: text().primaryKey().notNull(),
 	status: text().notNull(),

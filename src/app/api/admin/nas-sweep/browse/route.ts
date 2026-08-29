@@ -1,17 +1,18 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/admin/nas-sweep/browse/route.ts
 //
-// Lists files for a client (joined via task) with their current
-// archivedToNas status, for the manual NAS backup admin panel's file
-// picker. Same eligibility filter as the weekly sweep (raw-footage
-// excluded, active + not-deleted-from-cloud only) so what's shown here
-// matches what could actually be sent.
+// Lists files for a client with their current NAS backup status, for the
+// manual NAS backup admin panel's file picker. Split by folderType:
+//   - outputs: from the File table (joined via task), same as before.
+//   - raw-footage / elements: listed directly from R2 by the client's
+//     known prefix and tracked via NasBackupRecord — see nas-backup-records.ts.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { file as fileTable, task as taskTable, client as clientTable } from '@/lib/db/schema';
 import { and, eq, not, like, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
+import { listTrackedFiles } from '@/lib/nas-backup-records';
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser2(req);
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get('clientId');
+    const folderType = (searchParams.get('folderType') || 'outputs') as 'outputs' | 'raw-footage' | 'elements';
 
     if (!clientId) {
       // No client selected yet — just return the client list for the picker.
@@ -30,6 +32,22 @@ export async function GET(req: NextRequest) {
         .from(clientTable)
         .orderBy(clientTable.name);
       return NextResponse.json({ clients });
+    }
+
+    if (folderType === 'raw-footage' || folderType === 'elements') {
+      const files = await listTrackedFiles(clientId, folderType);
+      return NextResponse.json({
+        files: files.map((f) => ({
+          id: f.backupRecordId,
+          name: f.fileName,
+          s3Key: f.s3Key,
+          size: f.fileSize,
+          archivedToNas: f.archivedToNas,
+          nasArchivedAt: f.nasArchivedAt,
+          nasPath: f.nasPath,
+          taskTitle: null,
+        })),
+      });
     }
 
     const db = getDbHttp();
