@@ -605,6 +605,14 @@ export const task = pgTable("Task", {
 	postingTags: jsonb(),
 	postingTitles: jsonb(),
 	textContent: text(),
+	// Client Review Status & Reminder System — set whenever status
+	// transitions into CLIENT_REVIEW (both /api/tasks/[id]/status and the
+	// admin Edit-Task route), overwritten each time the task re-enters
+	// review. Drives "days in review" and the 5-day auto-reminder rule.
+	clientReviewStartedAt: timestamp({ precision: 3, mode: 'string' }),
+	// Stamped whenever a reminder email actually sends (manual or auto) —
+	// gates the auto-rule's 3-day cooldown so it doesn't re-email daily.
+	lastReminderSentAt: timestamp({ precision: 3, mode: 'string' }),
 }, (table) => [
 	index("Task_assignedTo_idx").using("btree", table.assignedTo.asc().nullsLast().op("int4_ops")),
 	index("Task_assignedTo_status_idx").using("btree", table.assignedTo.asc().nullsLast().op("int4_ops"), table.status.asc().nullsLast().op("enum_ops")),
@@ -620,6 +628,7 @@ export const task = pgTable("Task", {
 	index("Task_qc_specialist_idx").using("btree", table.qcSpecialist.asc().nullsLast().op("int4_ops")),
 	index("Task_scheduler_idx").using("btree", table.scheduler.asc().nullsLast().op("int4_ops")),
 	index("Task_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
+	index("Task_clientReviewStartedAt_idx").using("btree", table.clientReviewStartedAt.asc().nullsLast().op("timestamp_ops")),
 	index("Task_videographer_idx").using("btree", table.videographer.asc().nullsLast().op("int4_ops")),
 	foreignKey({
 			columns: [table.monthlyDeliverableId],
@@ -794,25 +803,6 @@ export const shareableFile = pgTable("ShareableFile", {
 	index("ShareableFile_createdBy_idx").using("btree", table.createdBy.asc().nullsLast().op("int4_ops")),
 	index("ShareableFile_shareToken_idx").using("btree", table.shareToken.asc().nullsLast().op("text_ops")),
 	uniqueIndex("ShareableFile_shareToken_key").using("btree", table.shareToken.asc().nullsLast().op("text_ops")),
-]);
-
-// Recipients a ShareableFile (file or folder) was explicitly shared with.
-// Access to /api/shared/file|folder/[shareToken] requires the requester's
-// verified email to have a row here — the link alone is never sufficient.
-// See src/lib/share-access.ts for the gate that enforces this.
-export const shareRecipient = pgTable("ShareRecipient", {
-	id: text().primaryKey().notNull(),
-	shareId: text().notNull(), // ShareableFile.id
-	email: text().notNull(),
-	status: text().default('invited').notNull(), // 'invited' | 'verified'
-	otpCode: text(),
-	otpExpiresAt: timestamp({ precision: 3, mode: 'string' }),
-	lastAccessedAt: timestamp({ precision: 3, mode: 'string' }),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("ShareRecipient_shareId_idx").using("btree", table.shareId.asc().nullsLast().op("text_ops")),
-	uniqueIndex("ShareRecipient_shareId_email_key").using("btree", table.shareId.asc().nullsLast().op("text_ops"), table.email.asc().nullsLast().op("text_ops")),
 ]);
 
 export const notification = pgTable("Notification", {

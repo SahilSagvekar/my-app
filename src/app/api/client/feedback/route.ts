@@ -12,7 +12,7 @@ import { getDbHttp } from "@/lib/db";
 import { user as userTable, feedback as feedbackTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { eq } from "drizzle-orm";
-import { sendClientFeedbackEmail } from "@/lib/email";
+import { sendClientFeedbackEmail } from "@/lib/mail-transport";
 
 // Reasonable ceiling so a giant screenshot payload can't be abused —
 // html2canvas output for a normal viewport is well under this.

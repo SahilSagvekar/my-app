@@ -6,6 +6,7 @@ import { NasBackupAdmin } from "../admin/NasBackupAdmin";
 import { SchedulerActivityTab } from "../admin/SchedulerActivityTab";
 import { HiringTab } from "../admin/HiringTab";
 import { QCDashboard } from "../dashboards/QCDashboard";
+import { ClientReviewPanel } from "../dashboards/ClientReviewPanel";
 import { QCCompletedPage } from "../dashboards/QCCompletedPage";
 import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
 import { QCReportsPage } from "../dashboards/QCReportsPage";
@@ -282,6 +283,8 @@ export function renderPage(
     switch (page) {
       case "review-queue":
         return <QCDashboard />;
+      case "client-review":
+        return <ClientReviewPanel scope="qc" />;
       case "completed":
         return <QCCompletedPage />;
       case "guidelines":
@@ -311,8 +314,8 @@ export function renderPage(
         return <SchedulerDashboard />;
       case "approved-queue":
         return <SchedulerSpreadsheetView />;
-      case "production-tracker":
-        return <ProductionTracker />;
+      case "client-review":
+        return <ClientReviewPanel scope="scheduler" />;
       case "posting-tracker":
         return <SchedulerDailyTargetsPage />;
       case "scheduling":

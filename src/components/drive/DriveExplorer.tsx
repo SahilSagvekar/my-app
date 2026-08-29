@@ -39,7 +39,7 @@ import {
   Smartphone,
   KeyRound,
 } from "lucide-react";
-import { DriveShareDialog } from "./DriveShareDialog";
+import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
 import { RawFootageUploadDialog } from "./RawFootageUploadDialog";
 import { StorageLimitModal } from "../Storagelimitmodal";
@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/auth/AuthContext";
+import { useViewAsRole } from "@/components/auth/ViewAsRoleContext";
 import {
   TotpSetupDialog,
   TotpResetDialog,
@@ -178,6 +179,7 @@ function setPathInUrl(path: string) {
 
 export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
+  const { viewingAsClientId } = useViewAsRole();
   const [driveStructure, setDriveStructure] = useState<DriveItem | null>(null);
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
@@ -279,15 +281,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const autoDownloadRef = useRef(false);
 
   // Share states
-  const [shareItem, setShareItem] = useState<{
-    s3Key: string;
-    name: string;
-    size?: number;
-    mimeType?: string | null;
-    type: "file" | "folder";
-  } | null>(null);
+  const [shareLink, setShareLink] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Folder creation states
   const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
@@ -367,8 +364,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [browsingClientId, setBrowsingClientId] = useState<string | null>(null);
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
 
-  // Use linkedClientId when present, otherwise resolve from the visible company folder.
-  const effectiveClientId = role === 'client' ? (user?.linkedClientId || browsingClientId) : browsingClientId;
+  // Use linkedClientId when present, otherwise fall back to the client-portal
+  // preview override (an admin viewing-as a specific client — see
+  // ViewAsRoleContext's CLIENT_PREVIEW_MAP), then the visible company folder.
+  // Without the viewingAsClientId fallback, an admin previewing "client"
+  // has no linkedClientId of their own, so every /api/drive/structure call
+  // went out with no clientId at all and silently found nothing.
+  const effectiveClientId = role === 'client'
+    ? (user?.linkedClientId || viewingAsClientId || browsingClientId)
+    : browsingClientId;
   const effectiveCompanyName = role === 'client'
     ? (browsingCompanyName || breadcrumb[0]?.name || '')
     : browsingCompanyName;
@@ -595,9 +599,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }, [user]);
 
   // ── Reload structure when admin/editor selects a client ──────────────────
+  // Also covers a real client role whose effectiveClientId only becomes
+  // known after mount — e.g. an admin previewing "client" via
+  // CLIENT_PREVIEW_MAP, where viewingAsClientId is restored from
+  // localStorage in a separate effect one tick after this component's own
+  // mount effect (above) already ran with it still null. A genuine client
+  // user has user.linkedClientId synchronously, so their mount-effect
+  // fetch above was already correct — skip the redundant refetch for them.
   useEffect(() => {
     if (!user) return;
-    if (role === 'client') return; // client role handled by mount effect above
+    if (role === 'client' && user?.linkedClientId) return; // real client user — mount effect above already had the right id
     if (!effectiveClientId) return; // no selection yet, nothing to reload
     loadDriveStructure();
   }, [effectiveClientId]);
@@ -1185,12 +1196,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // Handle Share Link
   const handleShareClick = async (item: DriveItem) => {
     setIsSharing(true);
+    setCopied(false);
 
     try {
       const s3Key = item.s3Key || getS3Key(item);
       const isFolder = item.type === "folder";
 
-      // Resolve mimeType before opening the dialog — never fetch inside JSON.stringify
+      // Resolve mimeType before building the body — never fetch inside JSON.stringify
       let mimeType: string | null = null;
       if (!isFolder && item.url) {
         try {
@@ -1201,17 +1213,36 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         }
       }
 
-      setShareItem({
-        s3Key,
-        name: item.name,
-        size: item.size,
-        mimeType,
-        type: isFolder ? "folder" : "file",
+      const response = await fetch("/api/drive/share", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          s3Key: isFolder ? s3Key + '/' : s3Key,
+          fileName: item.name,
+          fileSize: item.size,
+          mimeType,
+          type: isFolder ? 'folder' : 'file',
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate share link");
+      }
+
+      const data = await response.json();
+      setShareLink(data.shareUrl);
       setShowShareDialog(true);
+
+      await navigator.clipboard.writeText(data.shareUrl);
+      setCopied(true);
+      toast.success(`Share link created and copied to clipboard`);
+      setTimeout(() => setCopied(false), 3000);
+
     } catch (error: any) {
       console.error("Share error:", error);
-      toast.error("Failed to open share dialog");
+      toast.error("Failed to generate share link");
     } finally {
       setIsSharing(false);
     }
@@ -1467,6 +1498,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
 
     return <FileIcon className="h-8 w-8 text-gray-500" />;
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true);
+    toast.success("Link copied to clipboard");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const formatBytes = (bytes: number): string => {
@@ -1884,10 +1922,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       />
 
       {/* Share Dialog */}
-      <DriveShareDialog
+      <ShareDialog
         open={showShareDialog}
         onOpenChange={setShowShareDialog}
-        item={shareItem}
+        shareLink={shareLink}
+        onCopy={handleCopyLink}
+        copied={copied}
       />
 
       {/* Create Folder Dialog */}

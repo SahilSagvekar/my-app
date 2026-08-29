@@ -65,6 +65,7 @@ export const NAVIGATION_ITEMS = {
   ],
   qc: [
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },
+    { id: 'client-review', label: 'Client Review', icon: Clock },
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'completed', label: 'Completed', icon: Archive },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
@@ -73,7 +74,7 @@ export const NAVIGATION_ITEMS = {
   ],
   scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
-    { id: 'production-tracker', label: 'Production Tracker', icon: TrendingUp },
+    { id: 'client-review', label: 'Client Review', icon: Clock },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Target },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'logins', label: 'Logins', icon: LogIn },

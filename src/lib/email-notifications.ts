@@ -25,7 +25,7 @@ const addGlobalBcc = (mailOptions: any) => {
 /**
  * Helper to get all relevant client emails from various possible sources
  */
-async function getAllClientEmails(clientId: string): Promise<string[]> {
+export async function getAllClientEmails(clientId: string): Promise<string[]> {
   const db = getDbHttp();
     const client = await db.query.client.findFirst({
         where: eq(clientTable.id, clientId),

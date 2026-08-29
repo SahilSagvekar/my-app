@@ -3,6 +3,7 @@
 import { RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { YoutubePlayer } from '../review/YoutubePlayer';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
+import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
@@ -155,6 +156,32 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
     const unresolvedCount = p.sortedComments.filter(c => !c.resolved).length;
+
+    // Vertical/short-form videos (Reels, TikTok-style) were being forced into
+    // a fixed 16:9 box with object-contain, producing large black pillars on
+    // both sides that clients sometimes mistake for part of the video itself.
+    // Deriving real orientation from the resolution lets the container match
+    // the video's actual shape instead.
+    const isVerticalVideo = useMemo(() => {
+        const res = p.measuredResolution || p.asset.resolution;
+        if (!res) return false;
+        const match = res.match(/^(\d+)x(\d+)$/i);
+        if (!match) return false;
+        const [, w, h] = match;
+        return Number(h) > Number(w);
+    }, [p.measuredResolution, p.asset.resolution]);
+
+    // Exact ratio when known, so the inner black box hugs the video tightly
+    // instead of leaving a big black margin around a narrower video. Falls
+    // back to a sensible portrait default before metadata is available.
+    const exactAspectRatio = useMemo(() => {
+        const res = p.measuredResolution || p.asset.resolution;
+        const match = res?.match(/^(\d+)x(\d+)$/i);
+        if (!match) return '9 / 16';
+        const [, w, h] = match;
+        return `${w} / ${h}`;
+    }, [p.measuredResolution, p.asset.resolution]);
+
     // 🔥 Sidebar tab switcher
     type SidebarTab = 'comments' | 'titles';
     const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
@@ -482,83 +509,176 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     {/* Video column */}
                     <div className="flex-1 flex flex-col p-4 pr-0 overflow-hidden">
                         {/* Video area */}
-                        <div className="flex-1 flex items-center justify-center min-h-0">
-                            <div className="relative w-full max-w-5xl aspect-video review-video-container">
-                                {p.videoError ? (
-                                    <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white rounded-lg">
-                                        <div className="text-center p-8">
-                                            <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
-                                            <h3 className="text-lg mb-2">Video Failed to Load</h3>
-                                            <div className="flex gap-3 justify-center">
-                                                <Button variant="outline" size="sm" onClick={() => p.setVideoError(false)} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Retry</Button>
-                                                <Button variant="outline" size="sm" onClick={() => window.open(p.asset.videoUrl, '_blank')} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Open in New Tab</Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ) : p.videoSource.type === 'iframe' ? (
-                                    <div className="relative w-full h-full rounded-lg overflow-hidden">
-                                        {!p.iframeLoaded && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
-                                                <div className="text-center">
-                                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4" />
-                                                    <p className="text-sm text-[var(--review-text-muted)]">Loading video...</p>
+                        <div className="relative flex-1 flex items-center justify-center min-h-0">
+                            {isVerticalVideo ? (
+                                // Outer layer: purely a positioning helper, guaranteed to
+                                // fill the real available panel (proven reliable — see the
+                                // !absolute !inset-0 fix). No background of its own, so it's
+                                // invisible — it only exists to give the inner box a real,
+                                // resolved height to size against.
+                                <div className="!absolute !inset-0 flex items-center justify-center">
+                                    {/* Inner layer: the actual visible black box. Sized
+                                        tightly to the video's real aspect ratio so the
+                                        black background doesn't spill out into a big
+                                        square around a narrow video. */}
+                                    <div
+                                        className="review-video-container h-full w-auto"
+                                        style={{ aspectRatio: exactAspectRatio }}
+                                    >
+                                        {p.videoError ? (
+                                            <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white rounded-lg">
+                                                <div className="text-center p-8">
+                                                    <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+                                                    <h3 className="text-lg mb-2">Video Failed to Load</h3>
+                                                    <div className="flex gap-3 justify-center">
+                                                        <Button variant="outline" size="sm" onClick={() => p.setVideoError(false)} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Retry</Button>
+                                                        <Button variant="outline" size="sm" onClick={() => window.open(p.asset.videoUrl, '_blank')} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Open in New Tab</Button>
+                                                    </div>
                                                 </div>
                                             </div>
+                                        ) : p.videoSource.type === 'iframe' ? (
+                                            <div className="relative w-full h-full rounded-lg overflow-hidden">
+                                                {!p.iframeLoaded && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
+                                                        <div className="text-center">
+                                                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4" />
+                                                            <p className="text-sm text-[var(--review-text-muted)]">Loading video...</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <iframe
+                                                    ref={p.iframeRef}
+                                                    className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
+                                                    src={p.videoSource.src}
+                                                    title={`Video player for ${p.asset.title}`}
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                    allowFullScreen
+                                                    onLoad={() => p.setIframeLoaded(true)}
+                                                    onError={() => p.setVideoError(true)}
+                                                />
+                                            </div>
+                                        ) : p.videoSource.type === 'youtube' ? (
+                                            <YoutubePlayer
+                                                ref={p.youtubePlayerRef}
+                                                videoId={p.videoSource.src}
+                                                className="w-full h-full bg-black rounded-lg border border-[var(--review-border)] overflow-hidden"
+                                                onReady={p.handleYoutubeReady}
+                                                onPlay={() => p.setIsPlaying(true)}
+                                                onPause={() => p.setIsPlaying(false)}
+                                                onEnded={() => p.setIsPlaying(false)}
+                                                onError={() => p.handleVideoError()}
+                                                onTimeUpdate={p.setCurrentTime}
+                                                onDurationChange={p.setDuration}
+                                            />
+                                        ) : (
+                                            <>
+                                                <video
+                                                    ref={p.videoRef}
+                                                    crossOrigin="anonymous"
+                                                    className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
+                                                    src={p.videoSource.src}
+                                                    onTimeUpdate={p.handleTimeUpdate}
+                                                    onLoadedMetadata={(e) => {
+                                                        p.setDuration(e.currentTarget.duration);
+                                                        if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
+                                                            p.setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
+                                                        }
+                                                    }}
+                                                    onPlay={() => p.setIsPlaying(true)}
+                                                    onPause={() => p.setIsPlaying(false)}
+                                                    onError={() => p.handleVideoError()}
+                                                    playsInline
+                                                    preload="metadata"
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={p.togglePlay}>
+                                                    {!p.isPlaying && (
+                                                        <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
+                                                            <Play className="h-12 w-12 text-white fill-white" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
                                         )}
-                                        <iframe
-                                            ref={p.iframeRef}
-                                            className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
-                                            src={p.videoSource.src}
-                                            title={`Video player for ${p.asset.title}`}
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                            allowFullScreen
-                                            onLoad={() => p.setIframeLoaded(true)}
-                                            onError={() => p.setVideoError(true)}
-                                        />
                                     </div>
-                                ) : p.videoSource.type === 'youtube' ? (
-                                    <YoutubePlayer
-                                        ref={p.youtubePlayerRef}
-                                        videoId={p.videoSource.src}
-                                        className="w-full h-full bg-black rounded-lg border border-[var(--review-border)] overflow-hidden"
-                                        onReady={p.handleYoutubeReady}
-                                        onPlay={() => p.setIsPlaying(true)}
-                                        onPause={() => p.setIsPlaying(false)}
-                                        onEnded={() => p.setIsPlaying(false)}
-                                        onError={() => p.handleVideoError()}
-                                        onTimeUpdate={p.setCurrentTime}
-                                        onDurationChange={p.setDuration}
-                                    />
-                                ) : (
-                                    <>
-                                        <video
-                                            ref={p.videoRef}
-                                            crossOrigin="anonymous"
-                                            className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
-                                            src={p.videoSource.src}
-                                            onTimeUpdate={p.handleTimeUpdate}
-                                            onLoadedMetadata={(e) => {
-                                                p.setDuration(e.currentTarget.duration);
-                                                if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
-                                                    p.setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
-                                                }
-                                            }}
-                                            onPlay={() => p.setIsPlaying(true)}
-                                            onPause={() => p.setIsPlaying(false)}
-                                            onError={() => p.handleVideoError()}
-                                            playsInline
-                                            preload="metadata"
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={p.togglePlay}>
-                                            {!p.isPlaying && (
-                                                <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
-                                                    <Play className="h-12 w-12 text-white fill-white" />
+                                </div>
+                            ) : (
+                                <div className="relative w-full max-w-5xl aspect-video review-video-container">
+                                    {p.videoError ? (
+                                        <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white rounded-lg">
+                                            <div className="text-center p-8">
+                                                <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+                                                <h3 className="text-lg mb-2">Video Failed to Load</h3>
+                                                <div className="flex gap-3 justify-center">
+                                                    <Button variant="outline" size="sm" onClick={() => p.setVideoError(false)} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Retry</Button>
+                                                    <Button variant="outline" size="sm" onClick={() => window.open(p.asset.videoUrl, '_blank')} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Open in New Tab</Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : p.videoSource.type === 'iframe' ? (
+                                        <div className="relative w-full h-full rounded-lg overflow-hidden">
+                                            {!p.iframeLoaded && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
+                                                    <div className="text-center">
+                                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4" />
+                                                        <p className="text-sm text-[var(--review-text-muted)]">Loading video...</p>
+                                                    </div>
                                                 </div>
                                             )}
+                                            <iframe
+                                                ref={p.iframeRef}
+                                                className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
+                                                src={p.videoSource.src}
+                                                title={`Video player for ${p.asset.title}`}
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                allowFullScreen
+                                                onLoad={() => p.setIframeLoaded(true)}
+                                                onError={() => p.setVideoError(true)}
+                                            />
                                         </div>
-                                    </>
-                                )}
-                            </div>
+                                    ) : p.videoSource.type === 'youtube' ? (
+                                        <YoutubePlayer
+                                            ref={p.youtubePlayerRef}
+                                            videoId={p.videoSource.src}
+                                            className="w-full h-full bg-black rounded-lg border border-[var(--review-border)] overflow-hidden"
+                                            onReady={p.handleYoutubeReady}
+                                            onPlay={() => p.setIsPlaying(true)}
+                                            onPause={() => p.setIsPlaying(false)}
+                                            onEnded={() => p.setIsPlaying(false)}
+                                            onError={() => p.handleVideoError()}
+                                            onTimeUpdate={p.setCurrentTime}
+                                            onDurationChange={p.setDuration}
+                                        />
+                                    ) : (
+                                        <>
+                                            <video
+                                                ref={p.videoRef}
+                                                crossOrigin="anonymous"
+                                                className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
+                                                src={p.videoSource.src}
+                                                onTimeUpdate={p.handleTimeUpdate}
+                                                onLoadedMetadata={(e) => {
+                                                    p.setDuration(e.currentTarget.duration);
+                                                    if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
+                                                        p.setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
+                                                    }
+                                                }}
+                                                onPlay={() => p.setIsPlaying(true)}
+                                                onPause={() => p.setIsPlaying(false)}
+                                                onError={() => p.handleVideoError()}
+                                                playsInline
+                                                preload="metadata"
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={p.togglePlay}>
+                                                {!p.isPlaying && (
+                                                    <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
+                                                        <Play className="h-12 w-12 text-white fill-white" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Timeline + controls */}

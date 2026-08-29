@@ -274,6 +274,15 @@ export async function PATCH(
     try {
       const dbUpdateData: any = { ...updateData };
       if ('qcReviewedAt' in dbUpdateData) dbUpdateData.qcReviewedAt = dbUpdateData.qcReviewedAt.toISOString();
+
+      // Client Review Status & Reminder System — stamp the moment this task
+      // enters review so "days in review" and the 5-day auto-reminder rule
+      // have something reliable to measure against. Overwritten each time
+      // the task re-enters review (not just the first time).
+      if (finalStatus === "CLIENT_REVIEW" && task.status !== "CLIENT_REVIEW") {
+        dbUpdateData.clientReviewStartedAt = new Date().toISOString();
+      }
+
       const [row] = await db.update(taskTable).set({
         ...dbUpdateData,
         status: finalStatus,
@@ -426,14 +435,11 @@ export async function PATCH(
         finalStatus === "CLIENT_REVIEW" &&
         task.status !== "CLIENT_REVIEW"
       ) {
-        // Email — awaited so it can't be silently killed mid-flight once
-        // this handler returns its response (Cloudflare Workers doesn't
-        // guarantee an un-awaited, non-waitUntil'd promise completes after
-        // the response is sent).
+        // Email
         console.log(`\n📧 sending email notification`);
         const { sendTaskReadyForReviewEmail } =
           await import("@/lib/email-notifications");
-        await sendTaskReadyForReviewEmail(id);
+        sendTaskReadyForReviewEmail(id);
 
         // Notify Client User
         if (task.clientUserId) {

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
 import { getDbHttp } from "@/lib/db";
 import {
@@ -12,63 +13,28 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { notifyEditorTaskAssignment } from '@/lib/notify';
-import { getCurrentUser2 } from '@/lib/auth';
 
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
 
-// 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts and
-// src/app/api/tasks/qc-completed/route.ts. A multi-role account (e.g. a
-// scheduler who's also qc) needs this to resolve to their real access
-// instead of only their primary `role`, which otherwise 403s here for
-// anyone whose primary role isn't already admin/manager/qc. Replaces the
-// old JWT-only `verifyAdminAccess`, which only ever saw the primary role
-// baked into the token at login and had no concept of a `roles` array or
-// x-viewing-as at all.
-const LEGACY_ROLE_SWITCH_EMAILS = new Set([
-    "eric@e8productions.com",
-    "sahilsagvekar230@gmail.com",
-]);
-const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler"];
-
-function resolveEffectiveRole(
-    role: string | null | undefined,
-    roles: string[] | null | undefined,
-    email: string | null | undefined,
-    viewingAs: string | null
-): string | null | undefined {
-    const baseRole = role?.toLowerCase() || null;
-    if (!viewingAs || viewingAs === baseRole) return role;
-
-    const authorizedSwitchRoles = new Set<string>([
-        ...(Array.isArray(roles) ? roles.map((r) => r.toLowerCase()) : []),
-        ...(email && LEGACY_ROLE_SWITCH_EMAILS.has(email.toLowerCase())
-            ? DEFAULT_ADMIN_SWITCH_ROLES
-            : []),
-        ...(baseRole === "admin" ? DEFAULT_ADMIN_SWITCH_ROLES : []),
-    ]);
-
-    if (!authorizedSwitchRoles.has(viewingAs)) return role;
-
-    return viewingAs === "qc" ? "admin" : viewingAs;
+function getTokenFromCookies(req: Request) {
+    const cookieHeader = req.headers.get("cookie");
+    if (!cookieHeader) return null;
+    const match = cookieHeader.match(/authToken=([^;]+)/);
+    return match ? match[1] : null;
 }
 
-async function resolveAuthorizedUser(req: Request): Promise<{ user: any; role: string } | null> {
-    const user = await getCurrentUser2(req as any);
-    if (!user) return null;
-
-    const viewingAs = (req as any).headers?.get?.('x-viewing-as')?.toLowerCase() || null;
-    const effectiveRole = resolveEffectiveRole(
-        user.role,
-        (user as any).roles,
-        user.email,
-        viewingAs
-    )?.toLowerCase();
-
-    if (!["admin", "manager", "qc"].includes(effectiveRole || "")) return null;
-
-    return { user, role: effectiveRole! };
+function verifyAdminAccess(token: string): { userId: number; role: string } | null {
+    try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        if (!["admin", "manager", "qc"].includes(decoded.role?.toLowerCase())) {
+            return null;
+        }
+        return { userId: decoded.userId, role: decoded.role };
+    } catch {
+        return null;
+    }
 }
 
 // ─────────────────────────────────────────
@@ -80,8 +46,13 @@ export async function GET(
 ) {
   const db = getDbHttp();
     try {
-        const authz = await resolveAuthorizedUser(req);
-        if (!authz) {
+        const token = getTokenFromCookies(req);
+        if (!token) {
+            return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        }
+
+        const auth = verifyAdminAccess(token);
+        if (!auth) {
             return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 
@@ -159,8 +130,13 @@ export async function PATCH(
 ) {
   const db = getDbHttp();
     try {
-        const authz = await resolveAuthorizedUser(req);
-        if (!authz) {
+        const token = getTokenFromCookies(req);
+        if (!token) {
+            return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        }
+
+        const auth = verifyAdminAccess(token);
+        if (!auth) {
             return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 
@@ -205,6 +181,14 @@ export async function PATCH(
                 );
             }
             updateData.status = status;
+
+            // Client Review Status & Reminder System — same stamp as the
+            // main status route, since this admin edit path is a second
+            // way a task can enter CLIENT_REVIEW (see the client-review
+            // email-trigger fix earlier in this route).
+            if (status === "CLIENT_REVIEW" && existingTask.status !== "CLIENT_REVIEW") {
+                updateData.clientReviewStartedAt = new Date().toISOString();
+            }
         }
 
         // Assignment updates - validate users exist
@@ -292,7 +276,7 @@ export async function PATCH(
 
         // Create audit log
         await createAuditLog({
-            userId: authz.user.id,
+            userId: auth.userId,
             action: AuditAction.TASK_UPDATED,
             entity: "Task",
             entityId: id,
@@ -338,8 +322,13 @@ export async function DELETE(
 ) {
   const db = getDbHttp();
     try {
-        const authz = await resolveAuthorizedUser(req);
-        if (!authz) {
+        const token = getTokenFromCookies(req);
+        if (!token) {
+            return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        }
+
+        const auth = verifyAdminAccess(token);
+        if (!auth) {
             return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 
@@ -358,7 +347,7 @@ export async function DELETE(
 
         // Create audit log
         await createAuditLog({
-            userId: authz.user.id,
+            userId: auth.userId,
             action: AuditAction.TASK_DELETED,
             entity: "Task",
             entityId: id,
