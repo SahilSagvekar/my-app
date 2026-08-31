@@ -17,6 +17,7 @@ import { and, eq, ne, isNotNull, sql as drizzleSql } from "drizzle-orm";
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 import { startTitlingJob } from '@/lib/titling-service';
 import { notifyUser } from "@/lib/notify";
+import { keepAlive } from "@/lib/keep-alive";
 import { triggerReviewMirror } from "@/lib/review-mirror";
 import { deleteYoutubeVideo } from "@/lib/youtube-mirror";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -439,7 +440,11 @@ export async function PATCH(
         console.log(`\n📧 sending email notification`);
         const { sendTaskReadyForReviewEmail } =
           await import("@/lib/email-notifications");
-        sendTaskReadyForReviewEmail(id);
+        keepAlive(
+          sendTaskReadyForReviewEmail(id).catch((err) =>
+            console.error("[TaskReadyForReview] email send failed:", err)
+          )
+        );
 
         // Notify Client User
         if (task.clientUserId) {

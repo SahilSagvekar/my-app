@@ -32,6 +32,7 @@ import {
   File as FileIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { LinkRawFootageButton } from '../shared/LinkRawFootageButton';
 
 // ─────────────────────────────────────────
 // Types
@@ -476,6 +477,15 @@ export function VideographerDashboard({ initialTab }: VideographerDashboardProps
                             {task.description}
                           </div>
                         )}
+
+                        <LinkRawFootageButton
+                          taskId={task.id}
+                          linkedPaths={task.linkedRawFootagePaths}
+                          onLinked={(paths) => {
+                            task.linkedRawFootagePaths = paths;
+                            setTasks((prev: any[]) => prev.map((t) => t.id === task.id ? { ...t, linkedRawFootagePaths: paths } : t));
+                          }}
+                        />
                       </div>
 
                       <div className="flex flex-row md:flex-col gap-2 shrink-0">

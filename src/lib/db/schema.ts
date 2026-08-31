@@ -558,6 +558,10 @@ export const task = pgTable("Task", {
 	clientId: text(),
 	monthlyDeliverableId: text(),
 	driveFolderId: text(),
+	// Set by editors/videographers linking this task to one or more raw
+	// footage folders (relative paths under the client's raw-footage root)
+	// so it's easy to find later. Not auto-derived — purely a manual link.
+	linkedRawFootagePaths: text().array(),
 	attachments: jsonb(),
 	driveLinks: text().array(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),

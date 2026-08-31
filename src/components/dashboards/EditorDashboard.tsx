@@ -36,6 +36,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
 import { FilePreviewModal } from "../FileViewerModal";
 import { toast } from "sonner";
+import { LinkRawFootageButton } from '../shared/LinkRawFootageButton';
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 import { RequestRawsButton } from "../editor/RequestRawsButton";
 import { InstructionsBanner } from "../editor/InstructionsBanner";
@@ -524,6 +525,7 @@ function TaskCard({
   isQuotaComplete,
   onToggleSponsored,
   onAcknowledgeFeedback,
+  onRawFootageLinked,
   currentUserId,
 }: {
   task: WorkflowTask;
@@ -536,6 +538,7 @@ function TaskCard({
   isQuotaComplete?: boolean;
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
+  onRawFootageLinked?: (taskId: string, paths: string[]) => void;
   currentUserId?: number;
 }) {
   // const [showFiles, setShowFiles] = useState(false);
@@ -749,6 +752,15 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                 ✓ Quota complete
               </Badge>
             )}
+            <LinkRawFootageButton
+              compact
+              taskId={task.id}
+              linkedPaths={(task as any).linkedRawFootagePaths}
+              onLinked={(paths) => {
+                (task as any).linkedRawFootagePaths = paths;
+                onRawFootageLinked?.(task.id, paths);
+              }}
+            />
             {/* 🔥 Sponsor tag pushed to the far right */}
             <div className="ml-auto">
               <button
@@ -1202,6 +1214,7 @@ interface ColumnProps {
   quotaCompleteTaskIds: Set<string>;
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
+  onRawFootageLinked?: (taskId: string, paths: string[]) => void;
   currentUserId?: number;
 }
 
@@ -1225,6 +1238,7 @@ function DroppableColumn({
   quotaCompleteTaskIds,
   onToggleSponsored,
   onAcknowledgeFeedback,
+  onRawFootageLinked,
   currentUserId,
 }: ColumnProps) {
   // Determine column styling based on drag state
@@ -1272,6 +1286,7 @@ function DroppableColumn({
             isQuotaComplete={quotaCompleteTaskIds.has(task.id)}
             onToggleSponsored={onToggleSponsored}
             onAcknowledgeFeedback={onAcknowledgeFeedback}
+            onRawFootageLinked={onRawFootageLinked}
             currentUserId={currentUserId}
           />
         ))}
@@ -2008,6 +2023,15 @@ export function EditorDashboard() {
     }
   }, []);
 
+  // The API call itself already happened inside LinkRawFootageButton — this
+  // just needs to sync the resulting paths into local task state so the
+  // card re-renders with the linked/unlinked view immediately.
+  const handleRawFootageLinked = useCallback((taskId: string, paths: string[]) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, linkedRawFootagePaths: paths } as any : t))
+    );
+  }, []);
+
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
   const startTask = useCallback(async (taskId: string) => {
@@ -2283,6 +2307,7 @@ export function EditorDashboard() {
             quotaCompleteTaskIds={quotaCompleteTaskIds}
             onToggleSponsored={handleToggleSponsored}
             onAcknowledgeFeedback={handleAcknowledgeFeedback}
+            onRawFootageLinked={handleRawFootageLinked}
             currentUserId={Number(currentUser.id) || undefined}
           />
         ))}

@@ -15,6 +15,7 @@ import { and, eq, inArray, gte, lte } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
 import jwt from "jsonwebtoken";
+import { sendToChannel } from "@/lib/slack";
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const db = getDbHttp();
@@ -161,6 +162,15 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     const additionalEmails = (emails || []).filter((e: string) => e.trim() !== "");
     const additionalPhones = (phones || []).filter((p: string) => p.trim() !== "");
 
+    // Capture pre-update hashtags so we can tell what's genuinely new after
+    // the update — the frontend sends the whole list every time, not just
+    // additions, so a diff is the only way to know what changed.
+    let previousHashtags: string[] = [];
+    if (templateHashtags !== undefined) {
+      const [existingClient] = await db.select({ templateHashtags: clientTable.templateHashtags }).from(clientTable).where(eq(clientTable.id, id)).limit(1);
+      previousHashtags = existingClient?.templateHashtags ?? [];
+    }
+
     // Update client basic info
     const [updatedClient] = await db.update(clientTable).set({
       name,
@@ -189,6 +199,25 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       }),
       updatedAt: new Date().toISOString(),
     }).where(eq(clientTable.id, id)).returning();
+
+    // Notify the scheduling channel about newly-added hashtags only —
+    // never on removals, and never when templateHashtags wasn't touched.
+    if (templateHashtags !== undefined) {
+      const newHashtags = (templateHashtags || []).map((t: string) => t.trim()).filter((t: string) => t !== "");
+      const addedHashtags = newHashtags.filter((t: string) => !previousHashtags.includes(t));
+      if (addedHashtags.length > 0) {
+        const clientDisplayName = updatedClient?.companyName || updatedClient?.name || "A client";
+        try {
+          await sendToChannel("scheduling", {
+            type: "client_hashtags_added",
+            message: `:label: *${clientDisplayName}* — ${addedHashtags.length} new hashtag${addedHashtags.length === 1 ? "" : "s"} added: ${addedHashtags.map((t: string) => `\`${t}\``).join(", ")}`,
+            payload: { clientId: id, addedHashtags },
+          });
+        } catch (slackErr) {
+          console.error("[Client Update] Failed to send hashtag Slack notification:", slackErr);
+        }
+      }
+    }
 
     // 🔥 Handle monthly deliverables
     console.log("📦 Processing monthlyDeliverables:", monthlyDeliverables.length, "items");
