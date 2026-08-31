@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
     // Determine which editor's data to return
     let targetEditorId: number;
-    const isAdminOrManager = ["admin", "manager"].includes(user.role?.toLowerCase() || "");
+    const isAdminOrManager = ["admin", "manager", "scheduler"].includes(user.role?.toLowerCase() || "");
 
     if (editorIdParam) {
       if (!isAdminOrManager) {

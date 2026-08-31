@@ -425,7 +425,7 @@ export function ThumbnailReviewModal({
                                                     onClick={() => { setCurrentFile(t); setViewMode('single'); }}
                                                 >
                                                     <div className="aspect-video relative">
-                                                        <img src={t.url} alt={t.name} className="w-full h-full object-cover" />
+                                                        <img src={t.url} alt={t.name} crossOrigin="anonymous" className="w-full h-full object-cover" />
                                                         <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
                                                             <span className="text-white font-bold text-sm">#{idx + 1}</span>
                                                         </div>
@@ -453,6 +453,7 @@ export function ThumbnailReviewModal({
                                     <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden p-8">
                                         <div className="relative group max-w-full max-h-full">
                                             <img
+                                                key={currentFile.id}
                                                 ref={imageRef}
                                                 crossOrigin="anonymous"
                                                 src={currentFile.url}

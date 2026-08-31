@@ -1,12 +1,16 @@
 // src/app/api/cron/enforce-portal-locks/route.ts
 // Daily job: the time-driven half of the existing lock system. billing/sync
-// already knows how to lock/unlock a portal based on overdue invoices — it
+// already knows how to lock/unlock a portal based on unpaid invoices — it
 // just only ever ran when an admin manually hit that endpoint. This job:
 //   1. Flags any SENT/PENDING invoice past its dueDate as OVERDUE (keeps the
-//      status label accurate for anyone viewing the invoice list).
-//   2. Locks the portal for any client with an incomplete invoice past due —
-//      checked directly (status not PAID/CANCELED/REFUNDED/DRAFT), not just
-//      the OVERDUE label, so a partial payment that's still short still locks.
+//      status label accurate for anyone viewing the invoice list — this is
+//      informational only, using each client's configurable grace period
+//      i.e. dueDays, and does NOT drive locking below).
+//   2. Locks the portal for any client with an incomplete invoice sent more
+//      than 1 day ago — checked directly by sentAt, deliberately NOT by
+//      dueDate/dueDays, per an explicit decision to lock fast regardless of
+//      each client's configured grace period. A partial payment that's
+//      still short still locks (status check, not just the OVERDUE label).
 // Unlocking on payment already happens via the Stripe webhook (invoice.paid),
 // so that path is untouched — this job only ever locks or leaves things alone.
 
@@ -18,7 +22,9 @@ import {
   invoice as invoiceTable,
   stripeCustomer as stripeCustomerTable,
 } from '@/lib/db/schema';
-import { and, eq, exists, inArray, lt, notInArray } from 'drizzle-orm';
+import { and, eq, exists, inArray, isNotNull, lt, notInArray } from 'drizzle-orm';
+
+const LOCK_AFTER_MS = 24 * 60 * 60 * 1000; // 1 day after sentAt
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = req.headers.get('x-cron-secret');
@@ -46,9 +52,11 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date();
+  const lockCutoff = new Date(now.getTime() - LOCK_AFTER_MS).toISOString();
 
   try {
-    // 1. Flag newly-overdue invoices
+    // 1. Flag newly-overdue invoices — informational label only, based on
+    // each client's own configured due date. Does not affect locking below.
     const overdueResult = await db.update(invoiceTable).set({
       status: 'OVERDUE',
       updatedAt: new Date().toISOString(),
@@ -58,9 +66,10 @@ export async function POST(req: NextRequest) {
     )).returning({ id: invoiceTable.id });
 
     // 2. Find every client with at least one incomplete (unpaid/partially-paid)
-    // invoice past its due date — checked directly, not via the OVERDUE label,
-    // so this also catches anything the flagging step above missed or that
-    // was created with a status this job doesn't manage.
+    // invoice sent more than 1 day ago — checked directly by sentAt, not the
+    // OVERDUE label or dueDate, so this also catches anything the flagging
+    // step above missed or that was created with a status this job doesn't
+    // manage, and deliberately ignores each client's grace-period setting.
     const overdueCustomers = await db.query.stripeCustomer.findMany({
       where: exists(
         db
@@ -68,7 +77,8 @@ export async function POST(req: NextRequest) {
           .from(invoiceTable)
           .where(and(
             eq(invoiceTable.stripeCustomerId, stripeCustomerTable.id),
-            lt(invoiceTable.dueDate, now.toISOString()),
+            isNotNull(invoiceTable.sentAt),
+            lt(invoiceTable.sentAt, lockCutoff),
             notInArray(invoiceTable.status, ['PAID', 'CANCELED', 'REFUNDED', 'DRAFT']),
           ))
       ),

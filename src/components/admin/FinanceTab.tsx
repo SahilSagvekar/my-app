@@ -118,6 +118,33 @@ interface PayrollRecord {
   payDate?: string;
 }
 
+type ComplianceStatus =
+  | "PAID"
+  | "LOCKED"
+  | "OVERDUE"
+  | "SENT"
+  | "NOT_INVOICED"
+  | "NOT_DUE_YET"
+  | "SKIPPED_SUBSCRIPTION";
+
+interface ComplianceRow {
+  clientId: string;
+  clientName: string;
+  complianceStatus: ComplianceStatus;
+  recurringAmount: number | null;
+  nextBillingDate: string | null;
+  portalStatus: string;
+  invoice: {
+    id: string;
+    status: string;
+    amount: number;
+    amountPaid: number;
+    sentAt: string | null;
+    dueDate: string | null;
+    paidAt: string | null;
+  } | null;
+}
+
 // ---------- Helpers ----------
 
 const centsToDisplay = (cents: number, currency = "usd") =>
@@ -157,6 +184,32 @@ const invoiceStatusColor = (status: string) => {
     case "VOID":
     case "CANCELLED": return "bg-orange-100 text-orange-800";
     default: return "bg-gray-100 text-gray-800";
+  }
+};
+
+const complianceStatusColor = (status: ComplianceStatus) => {
+  switch (status) {
+    case "PAID": return "bg-green-100 text-green-800";
+    case "SENT": return "bg-blue-100 text-blue-800";
+    case "OVERDUE": return "bg-orange-100 text-orange-800";
+    case "LOCKED": return "bg-red-100 text-red-800";
+    case "NOT_INVOICED": return "bg-red-200 text-red-900 font-semibold";
+    case "NOT_DUE_YET": return "bg-gray-100 text-gray-600";
+    case "SKIPPED_SUBSCRIPTION": return "bg-purple-100 text-purple-800";
+    default: return "bg-gray-100 text-gray-800";
+  }
+};
+
+const complianceStatusLabel = (status: ComplianceStatus) => {
+  switch (status) {
+    case "PAID": return "Paid";
+    case "SENT": return "Sent — awaiting payment";
+    case "OVERDUE": return "Overdue";
+    case "LOCKED": return "Portal locked";
+    case "NOT_INVOICED": return "Not invoiced yet";
+    case "NOT_DUE_YET": return "Not due yet";
+    case "SKIPPED_SUBSCRIPTION": return "On live subscription";
+    default: return status;
   }
 };
 
@@ -276,6 +329,27 @@ export function FinanceTab() {
     }
   }, [invoiceStatusFilter]);
 
+  const [complianceRows, setComplianceRows] = useState<ComplianceRow[]>([]);
+  const [complianceSummary, setComplianceSummary] = useState<Record<string, number>>({});
+  const [loadingCompliance, setLoadingCompliance] = useState(false);
+  const [complianceMonth, setComplianceMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  const loadCompliance = useCallback(async () => {
+    try {
+      setLoadingCompliance(true);
+      const data = await apiFetch(`/api/finance/monthly-compliance?month=${complianceMonth}`);
+      setComplianceRows(data?.rows || []);
+      setComplianceSummary(data?.summary || {});
+    } catch (err: any) {
+      toast("Error loading compliance", { description: err.message });
+    } finally {
+      setLoadingCompliance(false);
+    }
+  }, [complianceMonth]);
+
   const loadSubscriptions = useCallback(async () => {
     try {
       setLoadingSubscriptions(true);
@@ -383,6 +457,7 @@ export function FinanceTab() {
   }, [payrollYearFilter, payrollMonthFilter]);
 
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
+  useEffect(() => { loadCompliance(); }, [loadCompliance]);
   useEffect(() => { loadSubscriptions(); }, [loadSubscriptions]);
   useEffect(() => { loadEmployees(); loadPayroll(); }, [loadEmployees, loadPayroll]);
 
@@ -586,8 +661,9 @@ export function FinanceTab() {
 
         {/* Tabs */}
         <Tabs defaultValue="invoices" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="compliance">Monthly Compliance</TabsTrigger>
             <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
           </TabsList>
@@ -772,6 +848,110 @@ export function FinanceTab() {
                 </Table>
               </Card>
             )}
+          </TabsContent>
+
+          {/* ── MONTHLY COMPLIANCE TAB ── */}
+          <TabsContent value="compliance" className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <Input
+                  type="month"
+                  value={complianceMonth}
+                  onChange={e => setComplianceMonth(e.target.value)}
+                  className="w-40"
+                />
+                <Button variant="outline" size="sm" onClick={loadCompliance} disabled={loadingCompliance}>
+                  <RefreshCw className={`h-4 w-4 ${loadingCompliance ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+            </div>
+
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Paid</p>
+                  <p className="text-xl font-semibold text-green-600">{complianceSummary.PAID || 0}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Sent — awaiting payment</p>
+                  <p className="text-xl font-semibold text-blue-600">{complianceSummary.SENT || 0}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Overdue / Locked</p>
+                  <p className="text-xl font-semibold text-red-600">
+                    {(complianceSummary.OVERDUE || 0) + (complianceSummary.LOCKED || 0)}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className={complianceSummary.NOT_INVOICED ? "border-red-400" : ""}>
+                <CardContent className="pt-4 pb-4">
+                  <p className="text-xs text-muted-foreground mb-1">Not invoiced yet</p>
+                  <p className={`text-xl font-semibold ${complianceSummary.NOT_INVOICED ? "text-red-700" : "text-muted-foreground"}`}>
+                    {complianceSummary.NOT_INVOICED || 0}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {complianceSummary.NOT_INVOICED > 0 && (
+              <div className="flex items-center gap-2 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                {complianceSummary.NOT_INVOICED} client(s) were due to be invoiced this month and haven't been —
+                check that the auto-invoice cron ran successfully.
+              </div>
+            )}
+
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Sent</TableHead>
+                    <TableHead>Paid</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loadingCompliance ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ) : complianceRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No auto-invoice clients found
+                      </TableCell>
+                    </TableRow>
+                  ) : complianceRows.map(row => (
+                    <TableRow key={row.clientId}>
+                      <TableCell className="font-medium">{row.clientName}</TableCell>
+                      <TableCell>
+                        {row.invoice
+                          ? centsToDisplay(row.invoice.amount)
+                          : row.recurringAmount != null
+                            ? centsToDisplay(row.recurringAmount)
+                            : "—"}
+                      </TableCell>
+                      <TableCell>{row.invoice?.sentAt ? formatDate(row.invoice.sentAt) : "—"}</TableCell>
+                      <TableCell>{row.invoice?.paidAt ? formatDate(row.invoice.paidAt) : "—"}</TableCell>
+                      <TableCell>
+                        <Badge className={complianceStatusColor(row.complianceStatus)}>
+                          {complianceStatusLabel(row.complianceStatus)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           </TabsContent>
 
           {/* ── SUBSCRIPTIONS TAB ── */}

@@ -3,7 +3,7 @@
 // "File Verification" — compare a folder on the user's laptop against a
 // folder in the Files & Drive (R2) explorer, matching by file name, with an
 // optional one-click upload of whatever's missing from R2.
-// Available to admin and client roles only (see NAVIGATION_ITEMS).
+// Available to admin, scheduler, and client roles only (see NAVIGATION_ITEMS).
 //
 // How folder picking works:
 //  - Local folder: <input type="file" webkitdirectory> — this is the only
@@ -164,14 +164,14 @@ function RemoteFolderNode({
 export function FileVerification({ role }: FileVerificationProps) {
   const { user } = useAuth();
   const normalizedRole = role?.toLowerCase();
-  const isAllowed = normalizedRole === "admin" || normalizedRole === "client";
+  const isAllowed = normalizedRole === "admin" || normalizedRole === "client" || normalizedRole === "scheduler";
 
   // ── Admin: client selector ──────────────────────────────────────────────
   const [clientList, setClientList] = useState<{ id: string; name: string }[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
 
   useEffect(() => {
-    if (normalizedRole !== "admin") return;
+    if (normalizedRole !== "admin" && normalizedRole !== "scheduler") return;
     fetch("/api/clients")
       .then((r) => (r.ok ? r.json() : { clients: [] }))
       .then((data) => {
@@ -229,9 +229,9 @@ export function FileVerification({ role }: FileVerificationProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalizedRole]);
 
-  // Admin role: load when a client is selected.
+  // Admin/scheduler: load when a client is selected.
   useEffect(() => {
-    if (normalizedRole === "admin" && selectedClientId) {
+    if ((normalizedRole === "admin" || normalizedRole === "scheduler") && selectedClientId) {
       loadRemoteTree(selectedClientId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -304,7 +304,7 @@ export function FileVerification({ role }: FileVerificationProps) {
 
   // ── Upload missing files ─────────────────────────────────────────────────
   const resolvedClientId =
-    normalizedRole === "admin" ? selectedClientId : user?.linkedClientId || "";
+    normalizedRole === "admin" || normalizedRole === "scheduler" ? selectedClientId : user?.linkedClientId || "";
 
   const { items: uploadItems, overall: uploadOverall, startBatch, retryOne, reset: resetUpload } =
     useMissingFilesUpload();
@@ -328,7 +328,7 @@ export function FileVerification({ role }: FileVerificationProps) {
         // Silently refetch the remote tree and re-run the diff, preserving
         // the currently-selected folder so the UI reflects newly-matched files.
         const path = selectedRemoteFolder!.path;
-        if (normalizedRole === "admin" && selectedClientId) {
+        if ((normalizedRole === "admin" || normalizedRole === "scheduler") && selectedClientId) {
           loadRemoteTree(selectedClientId, { preserveSelectionPath: path });
         } else if (normalizedRole === "client") {
           loadRemoteTree(undefined, { preserveSelectionPath: path });
@@ -343,7 +343,7 @@ export function FileVerification({ role }: FileVerificationProps) {
         <ShieldAlert className="h-10 w-10 text-muted-foreground" />
         <h1 className="text-xl font-semibold">Not available</h1>
         <p className="text-muted-foreground max-w-md">
-          File Verification is only available to admin and client accounts.
+          File Verification is only available to admin, scheduler, and client accounts.
         </p>
       </div>
     );
@@ -411,7 +411,7 @@ export function FileVerification({ role }: FileVerificationProps) {
             Files &amp; Drive
           </div>
 
-          {normalizedRole === "admin" && (
+          {(normalizedRole === "admin" || normalizedRole === "scheduler") && (
             <Select value={selectedClientId} onValueChange={setSelectedClientId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a client" />

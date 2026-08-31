@@ -1,0 +1,46 @@
+diff --git a/src/app/api/editor/production-tracker/route.ts b/src/app/api/editor/production-tracker/route.ts
+index 3cb44579..69218d1b 100644
+--- a/src/app/api/editor/production-tracker/route.ts
++++ b/src/app/api/editor/production-tracker/route.ts
+@@ -5,7 +5,7 @@ import { and, eq, or, gte, lte, isNull, isNotNull, inArray } from "drizzle-orm";
+ import { getCurrentUser2 } from "@/lib/auth";
+ 
+ // GET /api/editor/production-tracker?month=April-2026&editorId=42
+-// - Admin/manager can pass any editorId
++// - Admin/manager/scheduler can pass any editorId
+ // - Editor calling without editorId gets their own data
+ export async function GET(req: NextRequest) {
+   const db = getDbHttp();
+@@ -19,15 +19,15 @@ export async function GET(req: NextRequest) {
+ 
+     // Determine which editor's data to return
+     let targetEditorId: number;
+-    const isAdminOrManager = ["admin", "manager"].includes(user.role?.toLowerCase() || "");
++    const canViewAnyEditor = ["admin", "manager", "scheduler"].includes(user.role?.toLowerCase() || "");
+ 
+     if (editorIdParam) {
+-      if (!isAdminOrManager) {
++      if (!canViewAnyEditor) {
+         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+       }
+       targetEditorId = parseInt(editorIdParam);
+     } else {
+-      if (!["editor"].includes(user.role?.toLowerCase() || "") && !isAdminOrManager) {
++      if (!["editor"].includes(user.role?.toLowerCase() || "") && !canViewAnyEditor) {
+         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+       }
+       targetEditorId = user.id;
+diff --git a/src/components/constants/navigation.ts b/src/components/constants/navigation.ts
+index 7ffaa88e..bb39fb5a 100644
+--- a/src/components/constants/navigation.ts
++++ b/src/components/constants/navigation.ts
+@@ -76,7 +76,9 @@ export const NAVIGATION_ITEMS = {
+     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
+     { id: 'client-review', label: 'Client Review', icon: Clock },
+     { id: 'posting-tracker', label: 'Posting Tracker', icon: Target },
++    { id: 'production-tracker', label: 'Production Tracker', icon: Target },
+     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
++    { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
+     { id: 'logins', label: 'Logins', icon: LogIn },
+     { id: 'guidelines', label: 'Guidelines', icon: FileText },
+     { id: 'training', label: 'Training', icon: Layout },
