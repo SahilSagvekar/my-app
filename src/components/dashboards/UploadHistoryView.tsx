@@ -341,12 +341,12 @@ export function UploadHistoryView({
       {/* Search + Refresh */}
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             placeholder={searchPlaceholder}
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-9 pr-9 h-9 text-sm bg-white"
+            className="pl-10 pr-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
           />
           {search && (
             <button

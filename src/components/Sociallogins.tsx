@@ -774,9 +774,12 @@ function LoginFormDialog({
               {/* Specific users */}
               <div className="space-y-2">
                 <Label className="text-sm">Grant access to specific people</Label>
-                <Input placeholder="Search employees by name..."
-                  value={userSearchTerm} onChange={(e) => setUserSearchTerm(e.target.value)}
-                  className="bg-white" />
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Search employees by name..."
+                    value={userSearchTerm} onChange={(e) => setUserSearchTerm(e.target.value)}
+                    className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full" />
+                </div>
 
                 {userSearchTerm && (
                   <div className="max-h-32 overflow-y-auto border rounded-md bg-white">
@@ -1198,9 +1201,9 @@ export function SocialLogins() {
         <CardContent className="pt-4 pb-4">
           <div className={`grid grid-cols-1 gap-4 ${isClient ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search logins..." value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+                onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full" />
             </div>
             {!isClient && (
               <Select value={clientFilter} onValueChange={setClientFilter}>

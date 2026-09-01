@@ -106,7 +106,7 @@ export function TaskRow({
     const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | 'all'>('all');
 
     const currentPostingDate = task.postingDate
-        ? new Date(task.postingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        ? new Date(task.postingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' })
         : null;
 
     const handleDateSave = () => {
@@ -577,7 +577,7 @@ export function TaskRow({
                                                             {link.postedAt && (
                                                                 <span className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 font-medium">
                                                                     <Clock className="h-2.5 w-2.5" />
-                                                                    {new Date(link.postedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                                    {new Date(link.postedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York' })}
                                                                 </span>
                                                             )}
                                                         </div>

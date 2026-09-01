@@ -346,7 +346,7 @@ function LeadManagement() {
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
-                                    className="pl-9 w-48"
+                                    className="pl-10 w-48 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                                     placeholder="Search leads..."
                                     value={searchQuery}
                                     onChange={(e) => {

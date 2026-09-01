@@ -33,9 +33,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { sourceS3Key, thumbnailS3Key, size } = await req.json();
+    // e8-file-server's thumbnailWorker.js sends videoS3Key/sizeBytes — keep
+    // these names in sync with notifyOutputThumbnailComplete() there.
+    const { videoS3Key: sourceS3Key, thumbnailS3Key, sizeBytes: size } = await req.json();
     if (!sourceS3Key || !thumbnailS3Key) {
-      return NextResponse.json({ error: 'sourceS3Key and thumbnailS3Key required' }, { status: 400 });
+      return NextResponse.json({ error: 'videoS3Key and thumbnailS3Key required' }, { status: 400 });
     }
 
     // The file server only knows S3 keys, not task IDs — resolve the task

@@ -678,7 +678,7 @@ export function FinanceTab() {
                     placeholder="Search invoices..."
                     value={invoiceSearch}
                     onChange={e => setInvoiceSearch(e.target.value)}
-                    className="pl-10 w-64"
+                    className="pl-10 w-64 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                   />
                 </div>
                 <Select value={invoiceStatusFilter} onValueChange={setInvoiceStatusFilter}>

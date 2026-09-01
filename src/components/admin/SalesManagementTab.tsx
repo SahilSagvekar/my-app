@@ -583,7 +583,7 @@ function CommissionManagement() {
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             placeholder="Search by rep, lead, company…"
-            className="pl-9 h-9 text-sm"
+            className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
           />
         </div>
         <div className="flex bg-gray-100/50 p-1 rounded-lg gap-0.5">

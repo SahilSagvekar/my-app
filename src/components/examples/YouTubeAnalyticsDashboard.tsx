@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Youtube, TrendingUp, Eye, ThumbsUp, MessageSquare } from "lucide-react";
+import { Youtube, TrendingUp, Eye, ThumbsUp, MessageSquare, Search } from "lucide-react";
 
 /**
  * YouTube Analytics Dashboard Component
@@ -246,12 +246,16 @@ export default function YouTubeAnalyticsDashboard({
                 </CardHeader>
                 <CardContent>
                     <div className="flex gap-2">
-                        <Input
-                            placeholder="Search for videos..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                        />
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search for videos..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                                className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
+                            />
+                        </div>
                         <Button onClick={handleSearch}>Search</Button>
                     </div>
 

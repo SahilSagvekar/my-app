@@ -341,10 +341,10 @@ export function ActivityLogReportTab() {
                         <CardContent className="p-4 sm:p-6">
                             <div className="flex flex-col lg:flex-row gap-4">
                                 <div className="relative flex-1">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         placeholder="Search by employee name or action..."
-                                        className="pl-10 bg-white border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+                                        className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />

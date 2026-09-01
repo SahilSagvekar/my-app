@@ -31,12 +31,12 @@ export function SalesPipelineToolbar({
         </div>
       )}
       <div className="relative md:absolute md:left-1/2 md:-translate-x-1/2">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           value={search}
           onChange={e => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
-          className="h-9 pl-8 pr-8 rounded-[9px] border border-gray-200 text-[13px] bg-[#F9FAFB] focus:outline-none focus:ring-2 focus:ring-[#0073EA]/30 focus:border-[#0073EA] focus:bg-white w-[220px] md:w-[280px]"
+          className="h-10 pl-10 pr-9 rounded-full border border-transparent bg-secondary/30 text-[13px] focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/20 transition-all w-[220px] md:w-[280px]"
         />
         {search && (
           <button onClick={() => onSearchChange('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">

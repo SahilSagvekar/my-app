@@ -66,7 +66,7 @@ export function FilterBar({
                     placeholder="Search by title, client or ID..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 h-9 text-xs"
+                    className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                 />
             </div>
             

@@ -351,7 +351,7 @@ export function BillingDashboard() {
                     placeholder="Search invoices..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 w-full sm:w-[200px]"
+                    className="pl-10 w-full sm:w-[200px] bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>

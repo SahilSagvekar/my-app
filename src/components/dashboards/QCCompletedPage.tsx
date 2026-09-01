@@ -459,7 +459,7 @@ export function QCCompletedPage() {
                   placeholder="Search by title or project ID..."
                   value={completedSearchTerm}
                   onChange={(e) => setCompletedSearchTerm(e.target.value)}
-                  className="pl-9"
+                  className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                 />
               </div>
             </div>

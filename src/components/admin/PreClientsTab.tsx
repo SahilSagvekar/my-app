@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Send, Eye, RefreshCw, ChevronDown, ChevronRight,
   User, Mail, Phone, Building2, FileText, CheckCircle,
-  XCircle, Clock, AlertCircle, Edit2, Trash2, ExternalLink,
+  XCircle, Clock, AlertCircle, Edit2, Trash2, ExternalLink, Search,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -695,12 +695,15 @@ export function PreClientsTab() {
       </div>
 
       {/* Search */}
-      <Input
-        placeholder="Search by name, email, or company..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by name, email, or company..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
+        />
+      </div>
 
       {/* List */}
       {loading ? (

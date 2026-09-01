@@ -337,12 +337,12 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
           {/* Left: Platform pills + Search */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by title..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 w-56 bg-white border-zinc-200 rounded-lg text-sm focus:ring-zinc-400 focus:border-zinc-400"
+                className="pl-10 w-56 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
               />
             </div>
 

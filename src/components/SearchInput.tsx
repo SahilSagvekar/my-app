@@ -120,11 +120,11 @@ export function SearchInput({ currentRole, onPageChange }: SearchInputProps) {
   return (
     <div className="relative flex-1 max-w-md mx-4" ref={searchRef}>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           ref={inputRef}
           placeholder="Search projects, tasks..."
-          className="pl-10 pr-4"
+          className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}

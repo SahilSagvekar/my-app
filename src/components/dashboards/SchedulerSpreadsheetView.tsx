@@ -539,7 +539,7 @@ export function SchedulerSpreadsheetView() {
                 <div className="flex-1 min-w-[200px] relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input placeholder="Search by title, client or ID..." value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 text-xs" />
+                        onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full" />
                 </div>
                 <div className="flex items-center gap-2 border-l pl-4">
                     <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
@@ -822,7 +822,7 @@ export function SchedulerSpreadsheetView() {
                                           <td className="px-3 py-3">
                                             <span className="text-xs">
                                               {task.dueDate
-                                                ? new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                                                ? new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })
                                                 : "-"}
                                             </span>
                                           </td>
@@ -1215,7 +1215,7 @@ export function SchedulerSpreadsheetView() {
                                                                 {link.postedAt && (
                                                                   <span className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                                                                     <Clock className="h-2.5 w-2.5" />
-                                                                    {new Date(link.postedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })}
+                                                                    {new Date(link.postedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })}
                                                                   </span>
                                                                 )}
                                                               </div>

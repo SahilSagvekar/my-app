@@ -2708,12 +2708,12 @@ export function ClientManagement() {
       {/* Filters + Add Client — single row */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search clients..."
             value={searchTerm ?? ""}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 bg-white border-gray-200 text-gray-900"
+            className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -4383,12 +4383,12 @@ export function ClientManagement() {
 
           <div className="flex flex-wrap items-center gap-2 pb-2">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search clients..."
                 value={autoInvoiceSearch}
                 onChange={(e) => setAutoInvoiceSearch(e.target.value)}
-                className="pl-8 bg-white"
+                className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
               />
             </div>
             <div className="flex gap-1">

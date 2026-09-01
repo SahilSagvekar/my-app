@@ -1127,13 +1127,13 @@ export default function LeavesComponent() {
         <CardContent>
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6 pt-7">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 bg-muted/30 px-3 rounded-md border">
-                <Search className="h-4 w-4 text-muted-foreground" />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search employees..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-56 border-0 bg-transparent focus-visible:ring-0 h-9"
+                  className="pl-10 w-56 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                 />
               </div>
 
@@ -1553,15 +1553,18 @@ export default function LeavesComponent() {
         </div>
 
         <div className="flex flex-wrap gap-2 items-center">
-          <Input
-            className="w-48 h-9"
-            placeholder="Search by employee/reason"
-            value={leaveSearch}
-            onChange={(e) => {
-              setLeaveSearch(e.target.value);
-              setPage(1);
-            }}
-          />
+          <div className="relative w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-10 w-full bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
+              placeholder="Search by employee/reason"
+              value={leaveSearch}
+              onChange={(e) => {
+                setLeaveSearch(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
           <Input
             type="date"
             className="w-36 h-9"
