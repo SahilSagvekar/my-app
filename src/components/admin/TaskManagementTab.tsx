@@ -178,7 +178,7 @@ export function TaskManagementTab() {
 
   // ── Edit / delete dialogs ─────────────
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [editForm, setEditForm] = useState({ status: '', assignedTo: '', qc_specialist: '', scheduler: '', videographer: '', priority: '', dueDate: '' });
+  const [editForm, setEditForm] = useState({ status: '', assignedTo: '', qc_specialist: '', scheduler: '', videographer: '', dueDate: '' });
   const [editTags, setEditTags] = useState<string[]>([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [bulkEditForm, setBulkEditForm] = useState({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' });
@@ -335,7 +335,6 @@ export function TaskManagementTab() {
       qc_specialist: task.qc_specialist?.toString() || 'none',
       scheduler: task.scheduler?.toString() || 'none',
       videographer: task.videographer?.toString() || 'none',
-      priority: task.priority || 'none',
       dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
     });
     setEditTags((task.tags || []).map(t => t.name));
@@ -351,7 +350,6 @@ export function TaskManagementTab() {
       if (editForm.qc_specialist !== (editingTask.qc_specialist?.toString() || 'none')) updates.qc_specialist = editForm.qc_specialist !== 'none' ? parseInt(editForm.qc_specialist) : null;
       if (editForm.scheduler !== (editingTask.scheduler?.toString() || 'none')) updates.scheduler = editForm.scheduler !== 'none' ? parseInt(editForm.scheduler) : null;
       if (editForm.videographer !== (editingTask.videographer?.toString() || 'none')) updates.videographer = editForm.videographer !== 'none' ? parseInt(editForm.videographer) : null;
-      if (editForm.priority !== (editingTask.priority || 'none')) updates.priority = editForm.priority !== 'none' ? editForm.priority : null;
       const currentDue = editingTask.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : '';
       if (editForm.dueDate !== currentDue) updates.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
 
@@ -812,7 +810,10 @@ export function TaskManagementTab() {
 
       {/* Single Edit Dialog */}
       <Dialog open={!!editingTask} onOpenChange={o => !o && setEditingTask(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto"
+          style={{ width: 'min(calc(100vw - 2rem), 900px)', maxWidth: 'none' }}
+        >
           <DialogHeader>
             <DialogTitle>Edit Task</DialogTitle>
             <DialogDescription>{editingTask?.title || editingTask?.description?.slice(0, 50) || 'Untitled Task'}</DialogDescription>
@@ -824,7 +825,6 @@ export function TaskManagementTab() {
               { label: 'QC Specialist', key: 'qc_specialist', items: qcMembers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Scheduler', key: 'scheduler', items: schedulers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Videographer', key: 'videographer', items: videographers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
-              { label: 'Priority', key: 'priority', items: ['low', 'medium', 'high', 'urgent'].map(v => ({ id: v, name: v.charAt(0).toUpperCase() + v.slice(1) })), hasNone: true },
             ].map(({ label, key, items, hasNone }) => (
               <div key={key} className="grid gap-2">
                 <Label>{label}</Label>

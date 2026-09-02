@@ -66,13 +66,19 @@ export const BUCKET = process.env.AWS_S3_BUCKET || "e8-app-r2-prod";
  * Note: This URL may not be accessible without signing.
  */
 export function getFileUrl(key: string): string {
-  const IS_R2 = !!process.env.R2_ENDPOINT;
   const BUCKET_NAME = process.env.AWS_S3_BUCKET || "e8-app-r2-prod";
-  
-  if (IS_R2 && process.env.R2_PUBLIC_URL) {
+
+  // R2_PUBLIC_URL alone is sufficient signal we're on R2 — don't gate it
+  // behind R2_ENDPOINT also being set. my-app doesn't talk to R2 directly
+  // (it delegates through e8-file-server via the FILE_SERVER service
+  // binding), so R2_ENDPOINT may never be configured as a var here even
+  // when R2_PUBLIC_URL is. The old `IS_R2 && R2_PUBLIC_URL` gate silently
+  // fell through to the amazonaws.com fallback below whenever that was
+  // the case, producing broken URLs like "...s3.undefined.amazonaws.com".
+  if (process.env.R2_PUBLIC_URL) {
     return `${process.env.R2_PUBLIC_URL}/${key}`;
   }
-  if (IS_R2) {
+  if (process.env.R2_ENDPOINT) {
     // No public URL configured — return a placeholder that will be signed
     return `${process.env.R2_ENDPOINT}/${BUCKET_NAME}/${key}`;
   }

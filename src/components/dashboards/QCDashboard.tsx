@@ -26,7 +26,6 @@ import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calend
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
-import { getFileUrl } from '@/lib/s3';
 import {
   autoThumbnailKeyForVideo,
   getTaskCardThumbnailUrl,
@@ -820,7 +819,7 @@ useEffect(() => {
 
   const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
     return getTaskCardThumbnailUrl(task.files, {
-      buildAutoThumbUrl: (videoS3Key) => getFileUrl(autoThumbnailKeyForVideo(videoS3Key)),
+      buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-url?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
     });
   };
 

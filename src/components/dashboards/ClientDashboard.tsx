@@ -53,7 +53,6 @@ import { useClientTasks } from '../../lib/hooks/useClientTasks';
 import { useEffectiveClientId } from '../../lib/hooks/useEffectiveClientId';
 import { ClientTaskCard } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
-import { getFileUrl } from '@/lib/s3';
 import { autoThumbnailKeyForVideo, getTaskCardThumbnailUrl } from '@/lib/task-thumbnail';
 
 interface TaskFile {
@@ -232,6 +231,13 @@ export function ClientDashboard() {
   const [showTextPostReview, setShowTextPostReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted' | 'rejected'>('pending');
+  // 🔥 Client-side batching — render CLIENT_TASK_PAGE_SIZE cards per tab, "Load
+  // more" adds another batch. Reset back to one batch whenever the tab changes.
+  const CLIENT_TASK_PAGE_SIZE = 25;
+  const [visibleCount, setVisibleCount] = useState(CLIENT_TASK_PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(CLIENT_TASK_PAGE_SIZE);
+  }, [currentFilter]);
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1098,7 +1104,7 @@ export function ClientDashboard() {
 
   const getTaskThumbnail = (task: ClientTask) => {
     return getTaskCardThumbnailUrl(task.files as any, {
-      buildAutoThumbUrl: (videoS3Key) => getFileUrl(autoThumbnailKeyForVideo(videoS3Key)),
+      buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-url?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
     });
   };
 
@@ -1175,6 +1181,13 @@ export function ClientDashboard() {
       return true;
     });
   }, [tasks, currentFilter]);
+
+  // 🔥 Only the current batch is rendered; "Load more" reveals the next 25.
+  const visibleTasks = useMemo(
+    () => filteredTasks.slice(0, visibleCount),
+    [filteredTasks, visibleCount]
+  );
+  const remainingTaskCount = Math.max(0, filteredTasks.length - visibleCount);
 
   /* -------------------------------------------------------------------------- */
 
@@ -1328,6 +1341,7 @@ export function ClientDashboard() {
               </p>
             </div>
           ) : (
+            <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
               {/* 🚀 Show subtle revalidating indicator */}
               {isValidating && (
@@ -1336,7 +1350,7 @@ export function ClientDashboard() {
                   <span className="text-xs text-muted-foreground">Refreshing...</span>
                 </div>
               )}
-              {filteredTasks.map((task) => (
+              {visibleTasks.map((task) => (
                 /* 🚀 Memoized task card component */
                 <ClientTaskCard
                   key={task.id}
@@ -1350,6 +1364,17 @@ export function ClientDashboard() {
                 />
               ))}
             </div>
+            {remainingTaskCount > 0 && (
+              <div className="flex justify-center mt-8">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((c) => c + CLIENT_TASK_PAGE_SIZE)}
+                >
+                  Load more ({remainingTaskCount} remaining)
+                </Button>
+              </div>
+            )}
+            </>
           )}
         </div>
 

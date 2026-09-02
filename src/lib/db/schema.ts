@@ -558,10 +558,6 @@ export const task = pgTable("Task", {
 	clientId: text(),
 	monthlyDeliverableId: text(),
 	driveFolderId: text(),
-	// Set by editors/videographers linking this task to one or more raw
-	// footage folders (relative paths under the client's raw-footage root)
-	// so it's easy to find later. Not auto-derived — purely a manual link.
-	linkedRawFootagePaths: text().array(),
 	attachments: jsonb(),
 	driveLinks: text().array(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -1935,29 +1931,6 @@ export const editorEodReportItem = pgTable("EditorEodReportItem", {
 		}).onUpdate("cascade").onDelete("restrict"),
 ]);
 
-// Tracks NAS backup status for raw-footage and elements files — these
-// can't use the File table (File.taskId is NOT NULL and these files aren't
-// tied to a task), so this is a lightweight, s3Key-keyed parallel table
-// serving the same purpose as File.archivedToNas for output files.
-export const nasBackupRecord = pgTable("NasBackupRecord", {
-	id: text().primaryKey().notNull(),
-	clientId: text().notNull(),
-	folderType: text().notNull(), // 'raw-footage' | 'elements'
-	s3Key: text().notNull(),
-	fileName: text().notNull(),
-	fileSize: bigint({ mode: "number" }),
-	archivedToNas: boolean().default(false).notNull(),
-	nasArchivedAt: timestamp({ precision: 3, mode: 'string' }),
-	nasPath: text(),
-	deletedFromCloud: boolean().default(false).notNull(),
-	deletedFromCloudAt: timestamp({ precision: 3, mode: 'string' }),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("NasBackupRecord_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
-	uniqueIndex("NasBackupRecord_s3Key_key").using("btree", table.s3Key.asc().nullsLast().op("text_ops")),
-]);
-
 export const nasSyncLog = pgTable("NasSyncLog", {
 	id: text().primaryKey().notNull(),
 	status: text().notNull(),
@@ -2105,6 +2078,71 @@ export const contract = pgTable("Contract", {
 			foreignColumns: [contractTemplate.id],
 			name: "Contract_templateId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+export const clientExpenseStatus = pgEnum("ClientExpenseStatus", ['PENDING', 'INVOICED', 'PAID'])
+
+// A trip is just a named grouping so expenses from different trips never
+// mix together in the UI or get batched into the same invoice by accident.
+export const expenseTrip = pgTable("ExpenseTrip", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	name: text().notNull(),
+	createdById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("ExpenseTrip_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "ExpenseTrip_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "ExpenseTrip_createdById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+// One row per uploaded receipt. amount is in cents, matching every other
+// money column in the schema (invoice.amount, payment.amount, etc.) — never
+// float dollars, see the payments audit for why that matters. status starts
+// PENDING, flips to INVOICED when batched into a Stripe invoice (see
+// /api/clients/[id]/expense-trips/[tripId]/invoice), and to PAID via the
+// stripe webhook's handleInvoicePaid cascade once that invoice is paid.
+export const clientExpense = pgTable("ClientExpense", {
+	id: text().primaryKey().notNull(),
+	tripId: text().notNull(),
+	description: text().notNull(),
+	amount: integer().notNull(),
+	expenseDate: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	receiptS3Key: text().notNull(),
+	receiptUrl: text().notNull(),
+	receiptFileName: text().notNull(),
+	status: clientExpenseStatus().default('PENDING').notNull(),
+	invoiceId: text(),
+	createdById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("ClientExpense_tripId_idx").using("btree", table.tripId.asc().nullsLast().op("text_ops")),
+	index("ClientExpense_invoiceId_idx").using("btree", table.invoiceId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.tripId],
+			foreignColumns: [expenseTrip.id],
+			name: "ClientExpense_tripId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.invoiceId],
+			foreignColumns: [invoice.id],
+			name: "ClientExpense_invoiceId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "ClientExpense_createdById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
 ]);
 
 export const employeeDocument = pgTable("EmployeeDocument", {

@@ -75,6 +75,7 @@ import {
   FaLinkedin,
   FaSnapchat,
 } from "react-icons/fa";
+import { ClientExpenseTracker } from "../client/ClientExpenseTracker";
 import { ClientContractsInvoices } from "../client/ClientContractsInvoices";
 import { formatPhone } from "@/lib/formatPhone";
 
@@ -3948,8 +3949,11 @@ export function ClientManagement() {
                   monthlyFee={newClient.billing?.monthlyFee}
                   hasPostingServices={newClient.hasPostingServices ?? true}
                 />
+                <Separator className="my-6" />
+                <ClientExpenseTracker clientId={editingClient.id} />
               </>
             )}
+            {/* )} */}
           </div>
 
           <DialogFooter>

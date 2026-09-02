@@ -1,0 +1,2 @@
+#!/bin/bash
+curl -X POST "https://e8productions.com/api/admin/repair-thumbnail-urls" -H "Cookie: authToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIzOSIsImVtYWlsIjoic2FoaWxzYWd2ZWthcjIzMEBnbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJyb2xlcyI6WyJlZGl0b3IiXSwiaWF0IjoxNzg4MjU5NjYwLCJleHAiOjE3ODg4NjQ0NjB9.fDZhcZErV8KCtr9j82yyKPE2FGNZxLfCSVxXqEKTkKY"

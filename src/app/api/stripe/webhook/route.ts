@@ -12,7 +12,9 @@ import {
   clientPortalAccess,
   client as clientTable,
   stripeWebhookEvent,
+  clientExpense,
 } from '@/lib/db/schema';
+
 import { createId } from '@/lib/db/id';
 import { eq, sql as drizzleSql } from 'drizzle-orm';
 import Stripe from 'stripe';
@@ -276,6 +278,13 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
       paidAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }).where(eq(invoice.id, foundInvoice.id));
+
+    // If this invoice was created from one or more client expenses (see
+    // /api/clients/[id]/expense-trips/[tripId]/invoice), mark them PAID too.
+    await db.update(clientExpense).set({
+      status: 'PAID',
+      updatedAt: new Date().toISOString(),
+    }).where(eq(clientExpense.invoiceId, foundInvoice.id));
 
     // ── Portal unlock logic ────────────────────────────────────────────────
     // When auto-invoice owns the schedule, do NOT rewrite nextBillingDate —
