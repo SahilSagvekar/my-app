@@ -559,6 +559,14 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           Videographer Management
         </DropdownMenuItem>
 
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('social-analytics')}
+          className="gap-2 cursor-pointer"
+        >
+          <BarChart3 className="h-4 w-4 text-purple-500" />
+          Social Media Analytics
+        </DropdownMenuItem>
+
         <div className="h-px bg-muted my-1" />
         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Operations & Finance

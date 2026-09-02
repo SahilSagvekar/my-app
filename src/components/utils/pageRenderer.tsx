@@ -47,6 +47,7 @@ import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 // import { ProductionTracker } from "../dashboards/ProductionTracker";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
+import { AdminSocialAnalyticsDashboard } from "@/components/admin/AdminSocialAnalyticsDashboard";
 import { FolderRepairTool } from "../admin/Folderrepairtool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
 import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
@@ -197,6 +198,20 @@ export function renderPage(
               </div>
             </div>
             <TrainingManagementTab />
+          </div>
+        );
+      case "social-analytics":
+        return (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Social Media Analytics</h1>
+                <p className="text-muted-foreground mt-1 text-lg">
+                  Performance across all connected client social accounts
+                </p>
+              </div>
+            </div>
+            <AdminSocialAnalyticsDashboard />
           </div>
         );
       case "logins":

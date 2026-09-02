@@ -13,7 +13,7 @@ import {
 import { 
   Youtube, Instagram, Facebook, Music2, 
   TrendingUp, Users, Eye, Heart, MessageCircle,
-  Plus, RefreshCw, AlertCircle
+  Plus, RefreshCw, AlertCircle, Loader2, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -86,6 +86,7 @@ export function SocialAnalyticsDashboard({ clientId, initialOpen = false }: { cl
   const [dateRange, setDateRange] = useState('28d');
   const [syncing, setSyncing] = useState(false);
   const [showConnectDialog, setShowConnectDialog] = useState(initialOpen);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   const { data, error, isLoading, mutate } = useSWR(
     `/api/social/analytics?clientId=${clientId}&range=${dateRange}`,
