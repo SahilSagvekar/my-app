@@ -202,6 +202,22 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                 </div>
             )}
 
+            {comment.audioUrl && (
+                <div className="mb-3">
+                    <audio src={comment.audioUrl} controls className="w-full h-8" />
+                </div>
+            )}
+
+            {comment.attachmentUrl && (
+                <a
+                    href={comment.attachmentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mb-3 inline-flex items-center gap-1.5 text-xs text-[var(--review-accent-purple)] hover:underline"
+                >
+                    📎 {comment.attachmentName || 'Attachment'}
+                </a>
+            )}
 
             {/* Footer */}
             <div className="flex items-center justify-between">

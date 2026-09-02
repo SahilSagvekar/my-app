@@ -3,6 +3,11 @@
 
 export * from './types';
 export { ReviewCommentCard } from './ReviewCommentCard';
-export { CommentInput } from './CommentInput';
+export { CommentInput, captureFullFrameFromSource } from './CommentInput';
+export type { CommentInputHandle } from './CommentInput';
 export { ReviewTimeline } from './ReviewTimeline';
+export { ReviewCompactTransport } from './ReviewCompactTransport';
+export { ReviewModePills } from './ReviewModePills';
+export type { ReviewMode } from './ReviewModePills';
+export { ReviewDrawOverlay } from './ReviewDrawOverlay';
 export { StatusDropdown } from './StatusDropdown';
