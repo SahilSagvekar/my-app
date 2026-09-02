@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { ReviewComment, COMMENT_CATEGORIES, CommentCategory } from './types';
 import {
-    Plus, Send, X, Camera, Clock, Mic, Square, Paperclip, FileIcon,
+    Plus, Send, X, Camera, Clock, Mic, Square, FileIcon,
 } from 'lucide-react';
 
 import { Button } from '../ui/button';
@@ -613,34 +613,9 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-2 border-t border-[var(--review-border)]">
-                <div className="flex items-center gap-1">
-                    {!hideInlineTools && (
-                        <>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => void startVoiceRecording()}
-                                disabled={isRecording}
-                                className="h-7 w-7 p-0 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)]"
-                                title="Record voice note"
-                            >
-                                <Mic className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={openFilePicker}
-                                className="h-7 w-7 p-0 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)]"
-                                title="Attach file"
-                            >
-                                <Paperclip className="h-3.5 w-3.5" />
-                            </Button>
-                        </>
-                    )}
-                    <span className="text-xs text-[var(--review-text-muted)] ml-1">
-                        ⌘/Ctrl + Enter to submit
-                    </span>
-                </div>
+                <span className="text-xs text-[var(--review-text-muted)]">
+                    ⌘/Ctrl + Enter to submit
+                </span>
                 <div className="flex items-center gap-2">
                     <Button
                         variant="ghost"
