@@ -833,6 +833,14 @@ export function FullScreenReviewModalFrameIO({
                     feedback: c.content,
                     timestamp: c.timestamp,
                     category: Array.isArray(c.category) ? c.category.join(',') : c.category,
+                    // 🔥 NEW: forward already-uploaded attachment URLs so they
+                    // actually reach the database — CommentInput uploads these
+                    // to R2 at submit time before the comment ever lands here.
+                    screenshotUrl: c.screenshotUrl,
+                    annotations: c.annotations,
+                    voiceUrl: c.voiceUrl,
+                    voiceDurationSec: c.voiceDurationSec,
+                    attachments: c.attachments,
                 };
             });
             

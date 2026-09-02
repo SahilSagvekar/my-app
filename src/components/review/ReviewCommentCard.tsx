@@ -2,7 +2,7 @@
 
 import { useState, memo } from 'react';
 import { ReviewComment as ReviewCommentType, COMMENT_CATEGORIES, CommentCategory } from './types';
-import { MessageSquare, Check, Reply, MoreHorizontal, Trash2 } from 'lucide-react';
+import { MessageSquare, Check, Reply, MoreHorizontal, Trash2, Mic, File as FileIcon, Image as ImageIcon, Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import {
@@ -57,6 +57,12 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         return `${diffDays}d ago`;
+    };
+
+    const formatFileSize = (bytes: number) => {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     };
 
     return (
@@ -190,7 +196,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                 </p>
             )}
 
-            {/* Captured Screenshot */}
+            {/* Captured Screenshot (may include a hand-drawn annotation flattened in) */}
             {comment.screenshotUrl && (
                 <div className="mb-4 rounded-lg overflow-hidden border border-white/5 bg-black/20 group cursor-zoom-in">
                     <img
@@ -199,6 +205,57 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                         className="w-full h-auto object-cover max-h-[200px] transition-transform duration-500 group-hover:scale-105"
                         onClick={() => window.open(comment.screenshotUrl, '_blank')}
                     />
+                </div>
+            )}
+
+            {/* Voice comment */}
+            {comment.voiceUrl && (
+                <div className="mb-3 flex items-center gap-2 bg-black/20 border border-white/5 rounded-lg px-2 py-1.5">
+                    <Mic className="h-3.5 w-3.5 text-[var(--review-accent-purple)] shrink-0" />
+                    <audio controls src={comment.voiceUrl} className="h-8 w-full" />
+                    {!!comment.voiceDurationSec && (
+                        <span className="text-[10px] text-[var(--review-text-muted)] font-mono shrink-0">
+                            {Math.floor(comment.voiceDurationSec / 60)}:{(comment.voiceDurationSec % 60).toString().padStart(2, '0')}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* File / image attachments */}
+            {comment.attachments && comment.attachments.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                    {comment.attachments.map((att, idx) => {
+                        const isImage = att.mimeType?.startsWith('image/');
+                        if (isImage) {
+                            return (
+                                <a
+                                    key={`${att.url}-${idx}`}
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block w-16 h-16 rounded border border-white/10 overflow-hidden hover:border-[var(--review-accent-purple)] transition-colors"
+                                    title={att.name}
+                                >
+                                    <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                                </a>
+                            );
+                        }
+                        return (
+                            <a
+                                key={`${att.url}-${idx}`}
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 bg-black/20 border border-white/5 hover:border-[var(--review-accent-purple)] rounded-lg pl-2 pr-2 py-1 transition-colors"
+                                title={`Download ${att.name}`}
+                            >
+                                <FileIcon className="h-3.5 w-3.5 text-[var(--review-text-muted)] shrink-0" />
+                                <span className="text-xs text-[var(--review-text-secondary)] max-w-[120px] truncate">{att.name}</span>
+                                <span className="text-[10px] text-[var(--review-text-muted)] shrink-0">{formatFileSize(att.size)}</span>
+                                <Download className="h-3 w-3 text-[var(--review-text-muted)] shrink-0" />
+                            </a>
+                        );
+                    })}
                 </div>
             )}
 

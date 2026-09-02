@@ -15,8 +15,13 @@ export interface ReviewComment {
     content: string;
     category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles')[];
 
-    screenshotUrl?: string; // Base64 or URL of captured video frame
-    annotations?: Annotation[];
+    screenshotUrl?: string; // R2 URL of captured (optionally drawn-on) video frame
+    annotations?: Annotation[]; // Raw drawn strokes/shapes, relative (0-1) coords, tied to screenshotUrl
+
+    voiceUrl?: string; // R2 URL of a recorded voice comment
+    voiceDurationSec?: number; // Length of the voice note, for the player UI
+
+    attachments?: CommentAttachment[]; // General file/image attachments
 
     replies?: ReviewComment[];
     resolved: boolean;
@@ -75,6 +80,13 @@ export interface Annotation {
     color: string;
     strokeWidth: number;
     timestampSeconds: number;
+}
+
+export interface CommentAttachment {
+    url: string;
+    name: string;
+    mimeType: string;
+    size: number; // bytes
 }
 
 export interface ReviewStatus {

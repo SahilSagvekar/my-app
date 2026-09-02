@@ -36,7 +36,6 @@ import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
 import { FilePreviewModal } from "../FileViewerModal";
 import { toast } from "sonner";
-import { LinkRawFootageButton } from '../shared/LinkRawFootageButton';
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 import { RequestRawsButton } from "../editor/RequestRawsButton";
 import { InstructionsBanner } from "../editor/InstructionsBanner";
@@ -525,7 +524,6 @@ function TaskCard({
   isQuotaComplete,
   onToggleSponsored,
   onAcknowledgeFeedback,
-  onRawFootageLinked,
   currentUserId,
 }: {
   task: WorkflowTask;
@@ -538,7 +536,6 @@ function TaskCard({
   isQuotaComplete?: boolean;
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
-  onRawFootageLinked?: (taskId: string, paths: string[]) => void;
   currentUserId?: number;
 }) {
   // const [showFiles, setShowFiles] = useState(false);
@@ -752,15 +749,6 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                 ✓ Quota complete
               </Badge>
             )}
-            <LinkRawFootageButton
-              compact
-              taskId={task.id}
-              linkedPaths={(task as any).linkedRawFootagePaths}
-              onLinked={(paths) => {
-                (task as any).linkedRawFootagePaths = paths;
-                onRawFootageLinked?.(task.id, paths);
-              }}
-            />
             {/* 🔥 Sponsor tag pushed to the far right */}
             <div className="ml-auto">
               <button
@@ -1214,7 +1202,6 @@ interface ColumnProps {
   quotaCompleteTaskIds: Set<string>;
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
-  onRawFootageLinked?: (taskId: string, paths: string[]) => void;
   currentUserId?: number;
 }
 
@@ -1238,7 +1225,6 @@ function DroppableColumn({
   quotaCompleteTaskIds,
   onToggleSponsored,
   onAcknowledgeFeedback,
-  onRawFootageLinked,
   currentUserId,
 }: ColumnProps) {
   // Determine column styling based on drag state
@@ -1271,7 +1257,7 @@ function DroppableColumn({
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, status)}
         onDragLeave={onDragLeave}
-        className={`space-y-3 sm:space-y-4 min-h-[200px] sm:min-h-[400px] p-2 rounded-lg transition-all duration-200 ${getDropZoneStyles()}`}
+        className={`space-y-3 sm:space-y-4 min-h-[200px] max-h-[70vh] overflow-y-auto p-2 rounded-lg transition-all duration-200 ${getDropZoneStyles()}`}
       >
         {tasks.map((task) => (
           <TaskCard
@@ -1286,7 +1272,6 @@ function DroppableColumn({
             isQuotaComplete={quotaCompleteTaskIds.has(task.id)}
             onToggleSponsored={onToggleSponsored}
             onAcknowledgeFeedback={onAcknowledgeFeedback}
-            onRawFootageLinked={onRawFootageLinked}
             currentUserId={currentUserId}
           />
         ))}
@@ -1593,107 +1578,10 @@ export function EditorDashboard() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [tasks]);
 
-  // 🔥 WEEKLY TASK DISTRIBUTION LOGIC
-  // This calculates which tasks should be visible based on weekly quotas
-  const weeklyVisibleTasks = useMemo(() => {
-    // Group tasks by deliverable (clientId + deliverableType combo)
-    const tasksByDeliverable: Record<string, WorkflowTask[]> = {};
-
-    tasks.forEach((task) => {
-      // Create a unique key for each deliverable per client
-      // 🔥 One-off tasks should not be grouped/quota'd together; they are separate projects.
-      // By using a unique key (task.id), each one-off will be visible as it won't exceed quota.
-      const deliverableKey = task.isOneOff
-        ? `oneoff-${task.id}`
-        : `${task.clientId}-${task.monthlyDeliverableId || task.deliverableType || "default"
-        }`;
-
-      if (!tasksByDeliverable[deliverableKey]) {
-        tasksByDeliverable[deliverableKey] = [];
-      }
-      tasksByDeliverable[deliverableKey].push(task);
-    });
-
-    const visibleTasks: WorkflowTask[] = [];
-
-    // For each deliverable, calculate weekly quota and determine visible tasks
-    Object.keys(tasksByDeliverable).forEach((deliverableKey) => {
-      const deliverableTasks = tasksByDeliverable[deliverableKey];
-
-      // Sort tasks by task number (ascending order)
-      deliverableTasks.sort((a, b) => {
-        const numA = a.taskNumber || 0;
-        const numB = b.taskNumber || 0;
-        return numA - numB;
-      });
-
-      // Get monthly quantity from first task (all tasks in same deliverable should have same quantity)
-      const monthlyQuantity = deliverableTasks[0]?.monthlyQuantity || 4;
-
-      // Calculate weekly quota: tasks per month / 4 weeks (minimum 1)
-      const weeklyQuota = Math.max(1, Math.ceil(monthlyQuantity / 4));
-
-      // Separate tasks by status
-      const pendingTasks = deliverableTasks.filter(
-        (t) => t.status === "pending"
-      );
-      const inProgressTasks = deliverableTasks.filter(
-        (t) => t.status === "in_progress"
-      );
-      const rejectedTasks = deliverableTasks.filter(
-        (t) => t.status === "rejected"
-      );
-      const qcTasks = deliverableTasks.filter(
-        (t) => t.status === "ready_for_qc"
-      );
-      const completedTasks = deliverableTasks.filter(
-        (t) => t.status === "completed" || t.status === "approved"
-      );
-
-      // 🔥 VISIBILITY RULES:
-      // 1. Always show in_progress tasks (editor is working on them)
-      // 2. Always show rejected tasks (need revision)
-      // 3. Always show ready_for_qc tasks (in QC review)
-      // 4. Show pending tasks up to weekly quota (minus in_progress count)
-
-      // Add all active work tasks
-      visibleTasks.push(...inProgressTasks);
-      visibleTasks.push(...rejectedTasks);
-      visibleTasks.push(...qcTasks);
-
-      // Calculate how many more pending tasks to show
-      // Weekly quota minus tasks currently being worked on
-      const activeWorkCount = inProgressTasks.length + rejectedTasks.length;
-      const pendingToShow = Math.max(0, weeklyQuota - activeWorkCount);
-
-      // Add pending tasks up to the quota
-      const pendingToAdd = pendingTasks.slice(0, pendingToShow);
-      visibleTasks.push(...pendingToAdd);
-
-      // Log for debugging
-      console.log(`📊 Deliverable: ${deliverableKey}`, {
-        monthlyQuantity,
-        weeklyQuota,
-        totalTasks: deliverableTasks.length,
-        pending: pendingTasks.length,
-        inProgress: inProgressTasks.length,
-        rejected: rejectedTasks.length,
-        qc: qcTasks.length,
-        pendingShown: pendingToAdd.length,
-        totalVisible:
-          inProgressTasks.length +
-          rejectedTasks.length +
-          qcTasks.length +
-          pendingToAdd.length,
-      });
-    });
-
-    return visibleTasks;
-  }, [tasks]);
-
-  // Apply deliverable type filter on top of weekly visible tasks
+  // Apply deliverable type / client / tag filters directly on all tasks —
+  // no weekly quota gating; every task the editor is assigned is shown.
   const filteredTasks = useMemo(() => {
-    let result = weeklyVisibleTasks;
+    let result = tasks;
 
     if (deliverableTypeFilter !== "all") {
       result = result.filter(
@@ -1714,12 +1602,7 @@ export function EditorDashboard() {
     }
 
     return result;
-  }, [weeklyVisibleTasks, deliverableTypeFilter, clientFilter, tagFilter]);
-
-  // 🔥 Calculate hidden task count for UI feedback
-  const hiddenTaskCount = useMemo(() => {
-    return tasks.length - weeklyVisibleTasks.length;
-  }, [tasks, weeklyVisibleTasks]);
+  }, [tasks, deliverableTypeFilter, clientFilter, tagFilter]);
 
   // 🔥 Compute which task IDs belong to a fully-submitted deliverable group
   // A group is complete when every task in it is ready_for_qc / completed / approved
@@ -2023,15 +1906,6 @@ export function EditorDashboard() {
     }
   }, []);
 
-  // The API call itself already happened inside LinkRawFootageButton — this
-  // just needs to sync the resulting paths into local task state so the
-  // card re-renders with the linked/unlinked view immediately.
-  const handleRawFootageLinked = useCallback((taskId: string, paths: string[]) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, linkedRawFootagePaths: paths } as any : t))
-    );
-  }, []);
-
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
   const startTask = useCallback(async (taskId: string) => {
@@ -2283,8 +2157,8 @@ export function EditorDashboard() {
             )} */}
       </div>
 
-      {/* Kanban Board with Drag & Drop */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      {/* Kanban Board with Drag & Drop — each column scrolls independently */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-start">
         {columns.map((column) => (
           <DroppableColumn
             key={column.id}
@@ -2307,7 +2181,6 @@ export function EditorDashboard() {
             quotaCompleteTaskIds={quotaCompleteTaskIds}
             onToggleSponsored={handleToggleSponsored}
             onAcknowledgeFeedback={handleAcknowledgeFeedback}
-            onRawFootageLinked={handleRawFootageLinked}
             currentUserId={Number(currentUser.id) || undefined}
           />
         ))}

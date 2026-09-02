@@ -72,7 +72,15 @@ export async function POST(
       timestamp,
       category,
       createdBy,
-      status = "needs_revision"
+      status = "needs_revision",
+      // 🔥 NEW: voice notes, general file/image attachments, and a
+      // captured/drawn-on screenshot — all uploaded beforehand via
+      // POST /api/tasks/[id]/feedback/attachments, URLs passed here.
+      screenshotUrl,
+      annotations,
+      voiceUrl,
+      voiceDurationSec,
+      attachments,
     } = body;
 
     if (!folderType || !feedback || !createdBy) {
@@ -92,6 +100,11 @@ export async function POST(
       category: category || null,
       status,
       createdBy,
+      screenshotUrl: screenshotUrl || null,
+      annotations: annotations || null,
+      voiceUrl: voiceUrl || null,
+      voiceDurationSec: voiceDurationSec ?? null,
+      attachments: attachments || null,
     }).returning();
 
     const newFeedback = await db.query.taskFeedback.findFirst({
@@ -238,6 +251,13 @@ export async function PATCH(
           category: item.category || null,
           status: "needs_revision",
           createdBy: finalCreatedBy,
+          // 🔥 NEW: carried over from the in-session ReviewComment object
+          // (already-uploaded R2 URLs — see CommentInput's handleSubmit)
+          screenshotUrl: item.screenshotUrl || null,
+          annotations: item.annotations || null,
+          voiceUrl: item.voiceUrl || null,
+          voiceDurationSec: item.voiceDurationSec ?? null,
+          attachments: item.attachments || null,
         }))
       ).returning();
 
