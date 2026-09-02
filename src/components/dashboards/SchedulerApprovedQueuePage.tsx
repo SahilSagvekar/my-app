@@ -12,6 +12,7 @@ import { Calendar, Clock, FileText, Eye, Search, Filter, CheckCircle, MapPin, Li
 import { toast } from 'sonner';
 import { Toaster } from '../ui/sonner';
 import { FilePreviewModal } from '../FileViewerModal';
+import { formatInEST } from '@/lib/timezone';
 
 type SchedulerTask = {
   id: string;
@@ -376,12 +377,12 @@ export function SchedulerApprovedQueuePage() {
         <Card>
           <CardContent className="p-4 flex gap-3">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by title or ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
+                className="pl-9"
               />
             </div>
             <button
@@ -723,7 +724,7 @@ export function SchedulerApprovedQueuePage() {
                                 {link.url}
                               </p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                Posted: {new Date(link.postedAt).toLocaleString()}
+                                Posted: {formatInEST(link.postedAt)}
                               </p>
                             </div>
                             <Button

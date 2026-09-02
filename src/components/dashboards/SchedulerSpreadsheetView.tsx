@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TagPicker } from '../workflow/TagPicker';
+import { formatInEST, utcToESTWallClock, estWallClockToUTC } from '@/lib/timezone';
 
 const TikTokIcon = ({ className }: { className?: string }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -321,7 +322,7 @@ export function SchedulerSpreadsheetView() {
         try {
             setSubmittingLink(true);
             const isEdit = linkDialog.mode === 'edit';
-            const postedAtValue = linkPostedAt ? new Date(linkPostedAt).toISOString() : new Date().toISOString();
+            const postedAtValue = linkPostedAt ? estWallClockToUTC(linkPostedAt) : new Date().toISOString();
             const res = await fetch(`/api/tasks/${linkDialog.taskId}/social-media-link`, {
                 method: isEdit ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -539,7 +540,7 @@ export function SchedulerSpreadsheetView() {
                 <div className="flex-1 min-w-[200px] relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input placeholder="Search by title, client or ID..." value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full" />
+                        onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9 text-xs" />
                 </div>
                 <div className="flex items-center gap-2 border-l pl-4">
                     <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
@@ -822,7 +823,7 @@ export function SchedulerSpreadsheetView() {
                                           <td className="px-3 py-3">
                                             <span className="text-xs">
                                               {task.dueDate
-                                                ? new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" })
+                                                ? new Date(task.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })
                                                 : "-"}
                                             </span>
                                           </td>
@@ -1215,7 +1216,7 @@ export function SchedulerSpreadsheetView() {
                                                                 {link.postedAt && (
                                                                   <span className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                                                                     <Clock className="h-2.5 w-2.5" />
-                                                                    {new Date(link.postedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })}
+                                                                    {formatInEST(link.postedAt, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })}
                                                                   </span>
                                                                 )}
                                                               </div>
@@ -1225,8 +1226,7 @@ export function SchedulerSpreadsheetView() {
                                                                     e.stopPropagation();
                                                                     setLinkUrl(link.url);
                                                                     if (link.postedAt) {
-                                                                      const dt = new Date(link.postedAt);
-                                                                      setLinkPostedAt(new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+                                                                      setLinkPostedAt(utcToESTWallClock(link.postedAt));
                                                                     }
                                                                     setLinkDialog({ open: true, taskId: task.id, platform: pk, mode: "edit", existingUrl: link.url, existingPostedAt: link.postedAt });
                                                                   }}
@@ -1371,9 +1371,9 @@ export function SchedulerSpreadsheetView() {
                             <Input placeholder="https://..." value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} disabled={submittingLink} />
                         </div>
                         <div>
-                            <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5"><Clock className="h-3 w-3" />Posted / Scheduled Time</label>
+                            <label className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1.5"><Clock className="h-3 w-3" />Posted / Scheduled Time (Eastern Time)</label>
                             <Input type="datetime-local" value={linkPostedAt} onChange={(e) => setLinkPostedAt(e.target.value)} disabled={submittingLink} className="text-sm" />
-                            <p className="text-[10px] text-muted-foreground mt-1">Leave empty to use the current time</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">Enter the time in US Eastern (ET) — leave empty to use the current time</p>
                         </div>
                         <div className="flex justify-end gap-2">
                             <Button variant="outline" onClick={() => { setLinkDialog(null); setLinkUrl(""); setLinkPostedAt(""); }} disabled={submittingLink}>Cancel</Button>
