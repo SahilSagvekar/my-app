@@ -47,12 +47,10 @@ import { YouTubeAnalyticsWrapper } from "../youtube/YouTubeAnalyticsWrapper";
 import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 // import { ProductionTracker } from "../dashboards/ProductionTracker";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
-import { AdminSocialAnalyticsDashboard } from "@/components/admin/AdminSocialAnalyticsDashboard";
 import { FolderRepairTool } from "../admin/Folderrepairtool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
 import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
 import { ClientHelpVideos } from "../client/ClientHelpVideos";
-import { ClientExpensesPage } from "../client/ClientExpensesPage";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -199,20 +197,6 @@ export function renderPage(
               </div>
             </div>
             <TrainingManagementTab />
-          </div>
-        );
-      case "social-analytics":
-        return (
-          <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Social Media Analytics</h1>
-                <p className="text-muted-foreground mt-1 text-lg">
-                  Performance across all connected client social accounts
-                </p>
-              </div>
-            </div>
-            <AdminSocialAnalyticsDashboard />
           </div>
         );
       case "logins":
@@ -411,8 +395,6 @@ export function renderPage(
         // (falls back to the ?clientId= URL param, then the caller's own
         // session) — just wasn't being passed one before.
         return <ClientPortalPage clientId={linkedClientId} />;
-      case "expenses":
-        return <ClientExpensesPage />;
       case "help-videos":
         return <ClientHelpVideos />;
       default:
@@ -432,6 +414,8 @@ export function renderPage(
         return <VideographerDashboard initialTab="equipment" />;
       case "calendar":
         return <VideographerDashboard initialTab="calendar" />;
+      case "drive":
+        return <DriveExplorer role={role} />;
       case "training":
         return <TrainingPortalPage />;
       case "employment-info":

@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/components/auth/AuthContext";
+import { useViewAsRole } from "@/components/auth/ViewAsRoleContext";
 import {
   TotpSetupDialog,
   TotpResetDialog,
@@ -109,7 +110,6 @@ interface DriveItem {
   url?: string;
   thumbnailUrl?: string | null;
   lastModified?: string;
-  source?: "nas" | "r2"; // set to "nas" when the file's been deleted from R2 but is confirmed backed up
 }
 
 interface SearchResult {
@@ -179,6 +179,7 @@ function setPathInUrl(path: string) {
 
 export function DriveExplorer({ role }: DriveExplorerProps) {
   const { user } = useAuth();
+  const { viewingAsClientId } = useViewAsRole();
   const [driveStructure, setDriveStructure] = useState<DriveItem | null>(null);
   const [currentFolder, setCurrentFolder] = useState<DriveItem | null>(null);
   const [breadcrumb, setBreadcrumb] = useState<DriveItem[]>([]);
@@ -363,8 +364,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [browsingClientId, setBrowsingClientId] = useState<string | null>(null);
   const [browsingCompanyName, setBrowsingCompanyName] = useState<string>("");
 
-  // Use linkedClientId when present, otherwise resolve from the visible company folder.
-  const effectiveClientId = role === 'client' ? (user?.linkedClientId || browsingClientId) : browsingClientId;
+  // Use linkedClientId when present, otherwise fall back to the client-portal
+  // preview override (an admin viewing-as a specific client — see
+  // ViewAsRoleContext's CLIENT_PREVIEW_MAP), then the visible company folder.
+  // Without the viewingAsClientId fallback, an admin previewing "client"
+  // has no linkedClientId of their own, so every /api/drive/structure call
+  // went out with no clientId at all and silently found nothing.
+  const effectiveClientId = role === 'client'
+    ? (user?.linkedClientId || viewingAsClientId || browsingClientId)
+    : browsingClientId;
   const effectiveCompanyName = role === 'client'
     ? (browsingCompanyName || breadcrumb[0]?.name || '')
     : browsingCompanyName;
@@ -377,7 +385,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     // breadcrumb[1] is a company-name folder) stomp on it once we've
     // navigated into a subfolder like "raw-footage" whose name isn't a
     // company name at all.
-    if ((role === 'admin' || role === 'manager' || role === 'scheduler') && adminSelectedClientId) return;
+    if ((role === 'admin' || role === 'manager' || role === 'scheduler' || role === 'videographer') && adminSelectedClientId) return;
     if (role === 'editor' && editorSelectedClientId) return;
 
     // For clients: breadcrumb[0] IS the company name (no "Root" prefix)
@@ -536,7 +544,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   // ── Load client list for admin/manager selector ──────────────────────────
   useEffect(() => {
-    if (role !== 'admin' && role !== 'manager' && role !== 'scheduler') return;
+    if (role !== 'admin' && role !== 'manager' && role !== 'scheduler' && role !== 'videographer') return;
     fetch('/api/clients')
       .then(r => r.ok ? r.json() : { clients: [] })
       .then(data => {
@@ -591,9 +599,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   }, [user]);
 
   // ── Reload structure when admin/editor selects a client ──────────────────
+  // Also covers a real client role whose effectiveClientId only becomes
+  // known after mount — e.g. an admin previewing "client" via
+  // CLIENT_PREVIEW_MAP, where viewingAsClientId is restored from
+  // localStorage in a separate effect one tick after this component's own
+  // mount effect (above) already ran with it still null. A genuine client
+  // user has user.linkedClientId synchronously, so their mount-effect
+  // fetch above was already correct — skip the redundant refetch for them.
   useEffect(() => {
     if (!user) return;
-    if (role === 'client') return; // client role handled by mount effect above
+    if (role === 'client' && user?.linkedClientId) return; // real client user — mount effect above already had the right id
     if (!effectiveClientId) return; // no selection yet, nothing to reload
     loadDriveStructure();
   }, [effectiveClientId]);
@@ -660,7 +675,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
-  const canAddFootageLinks = ['admin', 'manager', 'editor', 'client'].includes(role?.toLowerCase() ?? '');
+  const canAddFootageLinks = ['admin', 'manager', 'editor', 'client', 'videographer'].includes(role?.toLowerCase() ?? '');
 
   // ─── FEATURE 2: Navigate to folder by path string ───
   const navigateToPathInTree = useCallback((tree: DriveItem, targetPath: string) => {
@@ -2223,7 +2238,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
             )}
 
             {/* ─── Admin/Manager: Client Selector ─── */}
-            {(role === 'admin' || role === 'manager' || role === 'scheduler') && adminClientList.length > 0 && (
+            {(role === 'admin' || role === 'manager' || role === 'scheduler' || role === 'videographer') && adminClientList.length > 0 && (
               <Select value={adminSelectedClientId} onValueChange={setAdminSelectedClientId}>
                 <SelectTrigger className="w-[200px] h-10 shrink-0">
                   <SelectValue placeholder="Select client..." />
@@ -2689,16 +2704,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       </div>
                     )}
 
-                    {/* NAS badge — admin-only, marks items deleted from R2 but backed up */}
-                    {role === 'admin' && item.source === 'nas' && (
-                      <div
-                        className="absolute top-2 right-2 z-10 h-5 w-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center shadow"
-                        title="On NAS — deleted from Cloudflare, backed up on NAS"
-                      >
-                        N
-                      </div>
-                    )}
-
                     <div className="flex flex-col items-center text-center">
                       {item.type === "folder" ? (
                         <Folder
@@ -2913,17 +2918,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       {/* Name */}
                       <div className="flex-1 min-w-0 flex items-center gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate flex items-center gap-1.5">
-                            {item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}
-                            {role === 'admin' && item.source === 'nas' && (
-                              <span
-                                className="shrink-0 h-4 w-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center"
-                                title="On NAS — deleted from Cloudflare, backed up on NAS"
-                              >
-                                N
-                              </span>
-                            )}
-                          </p>
+                          <p className="text-sm font-medium truncate">{item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}</p>
                           {/* Size shown inline on mobile since the column is hidden */}
                           {item.type === "file" && (
                             <p className="text-[11px] text-muted-foreground sm:hidden">
