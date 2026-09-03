@@ -1,9 +1,8 @@
 'use client';
 
-import { RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { YoutubePlayer } from '../review/YoutubePlayer';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
-import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
@@ -26,16 +25,43 @@ import {
     TooltipTrigger,
 } from '../ui/tooltip';
 import {
-    X, Download, Share, Play, Pause, Volume2, VolumeX,
+    X, Download, Share, Play,
     CheckCircle2, MessageSquare, Calendar, ChevronRight,
-    AlertCircle, SkipBack, SkipForward, ArrowLeft,
+    AlertCircle, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
     PenLine, ImageIcon,
-} from 'lucide-react';import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
+} from 'lucide-react';
+import {
+    ReviewCommentCard,
+    CommentInput,
+    ReviewCompactTransport,
+    ReviewModePills,
+    ReviewDrawOverlay,
+    ReviewInstagramOverlay,
+    captureFullFrameFromSource,
+} from '../review';
+import type { CommentInputHandle, ReviewMode } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
 // import { ReviewConnectionIndicator, type ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
+
+/** Map folder / deliverable labels to a short file-code badge. */
+function resolveFileCode(folderType?: string | null, deliverableType?: string | null): string {
+    const raw = (folderType || deliverableType || '').trim();
+    if (!raw) return 'MAIN';
+    const n = raw.toLowerCase().replace(/[_\s-]+/g, '');
+    if (n === 'sf' || n.includes('shortform')) return 'SF';
+    if (n === 'lf' || n.includes('longform')) return 'LF';
+    if (n === 'sqf' || n.includes('square')) return 'SQF';
+    if (n.includes('thumb')) return 'THUMB';
+    if (n.includes('tile')) return 'TILE';
+    if (n.includes('cover')) return 'COVER';
+    if (n.includes('music') || n.includes('license')) return 'LIC';
+    if (n === 'main' || n === 'mainfile') return 'MAIN';
+    // Fall back to a short uppercase token
+    return raw.slice(0, 6).toUpperCase();
+}
 
 /* ─── Shared prop type ─────────────────────────────────────────── */
 export interface ReviewScreenProps {
@@ -156,6 +182,127 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
     const unresolvedCount = p.sortedComments.filter(c => !c.resolved).length;
+    const commentInputRef = useRef<CommentInputHandle>(null);
+    const [activeMode, setActiveMode] = useState<ReviewMode | null>(null);
+    const [drawBaseUrl, setDrawBaseUrl] = useState<string | null>(null);
+    const [showInstagramOverlay, setShowInstagramOverlay] = useState(false);
+    const videoShellRef = useRef<HTMLDivElement>(null);
+    type SidebarTab = 'comments' | 'titles';
+    const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
+
+    const fileCode = useMemo(
+        () => resolveFileCode(
+            p.currentFileSection?.folderType,
+            typeof (p.asset as { deliverableType?: string; taskType?: string })?.deliverableType === 'string'
+                ? (p.asset as { deliverableType?: string }).deliverableType
+                : (p.asset as { taskType?: string })?.taskType
+        ),
+        [p.currentFileSection?.folderType, p.asset]
+    );
+
+    // Instagram preview only makes sense on short-form deliverables — reuses
+    // the same folderType/deliverableType resolution as the SF/LF file badge.
+    const isShortFormTask = fileCode === 'SF';
+
+    useEffect(() => {
+        if (!isShortFormTask) setShowInstagramOverlay(false);
+    }, [isShortFormTask]);
+
+    const exitDrawMode = useCallback(() => {
+        setDrawBaseUrl(null);
+        setActiveMode(prev => (prev === 'draw' ? null : prev));
+    }, []);
+
+    const handleModeSelect = useCallback((mode: ReviewMode) => {
+        // Instagram preview is a standalone toggle — it doesn't open the
+        // comment composer or touch the sidebar, just overlays reels-style
+        // chrome on top of the still-playing video.
+        if (mode === 'instagram') {
+            if (!isShortFormTask) return;
+            setShowInstagramOverlay(v => !v);
+            return;
+        }
+
+        // Always switch sidebar to comments when interacting with modes
+        setSidebarTab('comments');
+
+        if (mode === 'draw') {
+            // Capture current frame silently and enter draw overlay (skip snip step)
+            if (p.isPlaying) p.togglePlay();
+            const source = p.videoRef.current;
+            if (!source) {
+                setActiveMode('comment');
+                p.setShowCommentInput(true);
+                commentInputRef.current?.openComment();
+                return;
+            }
+            window.requestAnimationFrame(() => {
+                const dataUrl = captureFullFrameFromSource(source);
+                if (dataUrl) {
+                    setActiveMode('draw');
+                    setDrawBaseUrl(dataUrl);
+                } else {
+                    setActiveMode('comment');
+                    p.setShowCommentInput(true);
+                    commentInputRef.current?.openComment();
+                }
+            });
+            return;
+        }
+
+        // Leaving draw without completing
+        if (drawBaseUrl) setDrawBaseUrl(null);
+
+        // Range pill toggles on/off when clicked again
+        if (mode === 'range' && activeMode === 'range') {
+            p.setShowCommentInput(true);
+            window.requestAnimationFrame(() => commentInputRef.current?.toggleRange());
+            setActiveMode(null);
+            return;
+        }
+
+        setActiveMode(mode);
+        p.setShowCommentInput(true);
+
+        // Defer imperative calls until CommentInput has expanded
+        window.requestAnimationFrame(() => {
+            const api = commentInputRef.current;
+            if (!api) return;
+            switch (mode) {
+                case 'comment':
+                    api.openComment();
+                    break;
+                case 'voice':
+                    api.startVoice();
+                    break;
+                case 'attach':
+                    api.openAttach();
+                    break;
+                case 'range':
+                    api.toggleRange();
+                    break;
+            }
+        });
+    }, [activeMode, drawBaseUrl, p.isPlaying, p.togglePlay, p.videoRef, p.setShowCommentInput]);
+
+    const handleDrawComplete = useCallback((composedDataUrl: string) => {
+        setDrawBaseUrl(null);
+        setActiveMode('comment');
+        p.setShowCommentInput(true);
+        window.requestAnimationFrame(() => {
+            commentInputRef.current?.setScreenshot(composedDataUrl);
+        });
+    }, [p.setShowCommentInput]);
+
+    const handleExpandPlayer = useCallback(() => {
+        const el = videoShellRef.current;
+        if (!el) return;
+        if (document.fullscreenElement) {
+            void document.exitFullscreen();
+        } else {
+            void el.requestFullscreen?.();
+        }
+    }, []);
 
     // Vertical/short-form videos (Reels, TikTok-style) were being forced into
     // a fixed 16:9 box with object-contain, producing large black pillars on
@@ -183,8 +330,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     }, [p.measuredResolution, p.asset.resolution]);
 
     // 🔥 Sidebar tab switcher
-    type SidebarTab = 'comments' | 'titles';
-    const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
     // inline-edit state: which item id is currently being edited, per type
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState('');
@@ -509,7 +654,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     {/* Video column */}
                     <div className="flex-1 flex flex-col p-4 pr-0 overflow-hidden">
                         {/* Video area */}
-                        <div className="relative flex-1 flex items-center justify-center min-h-0">
+                        <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0">
                             {isVerticalVideo ? (
                                 // Outer layer: purely a positioning helper, guaranteed to
                                 // fill the real available panel (proven reliable — see the
@@ -679,90 +824,72 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     )}
                                 </div>
                             )}
+
+                            {/* Draw-on-frame overlay (Desktop Draw pill) */}
+                            {drawBaseUrl && videoShellRef.current && (
+                                <ReviewDrawOverlay
+                                    baseImageUrl={drawBaseUrl}
+                                    container={videoShellRef.current}
+                                    onComplete={handleDrawComplete}
+                                    onCancel={exitDrawMode}
+                                />
+                            )}
+
+                            {/* Instagram Reels-style preview (Desktop Instagram pill, short-form tasks only) */}
+                            {showInstagramOverlay && isShortFormTask && (
+                                <ReviewInstagramOverlay
+                                    defaultUsername={p.asset.client}
+                                    commentCount={p.comments.length}
+                                />
+                            )}
                         </div>
 
-                        {/* Timeline + controls */}
-                        <div className="flex-shrink-0 px-4 pt-3 pb-2">
+                        {/* Compact transport + mode pills (Desktop only redesign) */}
+                        <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-3">
                             {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
-                                <ReviewTimeline
+                                <ReviewCompactTransport
                                     duration={p.duration}
                                     currentTime={p.currentTime}
+                                    isPlaying={p.isPlaying}
+                                    isMuted={p.isMuted}
+                                    playbackSpeed={p.playbackSpeed}
                                     comments={p.comments}
                                     activeCommentId={p.activeCommentId}
                                     currentVersionNumber={p.currentVersionNumber}
+                                    fileCode={fileCode}
+                                    formatTime={p.formatTime}
+                                    onTogglePlay={p.togglePlay}
+                                    onToggleMute={p.toggleMute}
                                     onSeek={p.handleSeek}
+                                    onPlaybackSpeedChange={p.handlePlaybackSpeedChange}
                                     onMarkerClick={p.handleMarkerClick}
                                     onDragStart={() => p.setIsDragging(true)}
                                     onDragEnd={() => p.setIsDragging(false)}
+                                    onExpand={handleExpandPlayer}
                                 />
                             )}
-                            <div className="flex items-center justify-between mt-3">
-                                <div className="flex items-center gap-1">
-                                    {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
-                                        <>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.seekBackward} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
-                                                        <SkipBack className="h-5 w-5" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>−10s (J)</TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.togglePlay} className="text-white hover:bg-[var(--review-bg-tertiary)] h-10 w-10 p-0">
-                                                        {p.isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Play/Pause (Space)</TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.seekForward} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
-                                                        <SkipForward className="h-5 w-5" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>+10s (L)</TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="sm" onClick={p.toggleMute} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-9 w-9 p-0">
-                                                        {p.isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Mute (M)</TooltipContent>
-                                            </Tooltip>
-                                            <span className="text-sm text-white font-mono ml-2">
-                                                {p.formatTime(p.currentTime)} / {p.formatTime(p.duration)}
-                                            </span>
-                                            <div className="ml-3">
-                                                <Select value={p.playbackSpeed.toString()} onValueChange={p.handlePlaybackSpeedChange}>
-                                                    <SelectTrigger className="w-16 h-7 bg-transparent border-[var(--review-border)] text-white text-xs">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
-                                                        {['0.5', '0.75', '1', '1.25', '1.5', '2'].map(s => (
-                                                            <SelectItem key={s} value={s}>{s}×</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </>
-                                    )}
+
+                            {!p.readOnly && (p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
+                                <ReviewModePills
+                                    activeMode={activeMode}
+                                    onSelect={handleModeSelect}
+                                    instagramActive={showInstagramOverlay}
+                                    showInstagram={isShortFormTask}
+                                />
+                            )}
+
+                            {p.onNextAsset && (
+                                <div className="flex justify-end">
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="sm" onClick={p.onNextAsset} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] text-sm">
+                                                Next Asset <ChevronRight className="h-4 w-4 ml-1" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Next file</TooltipContent>
+                                    </Tooltip>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    {p.onNextAsset && (
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button variant="ghost" size="sm" onClick={p.onNextAsset} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] text-sm">
-                                                    Next Asset <ChevronRight className="h-4 w-4 ml-1" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Next file</TooltipContent>
-                                        </Tooltip>
-                                    )}
-                                </div>
-                            </div>
+                            )}
                         </div>
                     </div>
 
@@ -799,17 +926,29 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         {sidebarTab === 'comments' && (<>
                             <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
                                 <CommentInput
+                                    ref={commentInputRef}
                                     taskId={p.asset.id}
                                     currentTime={p.currentTime}
                                     currentTimestamp={p.formatTime(p.currentTime)}
                                     authorId="current-user"
                                     authorName={p.userName}
                                     videoRef={p.videoRef}
+                                    duration={p.duration}
                                     currentVersionNumber={p.currentVersionNumber}
-                                    onSubmit={p.handleCommentSubmit}
-                                    onCancel={() => p.setShowCommentInput(false)}
+                                    onSubmit={(c) => {
+                                        p.handleCommentSubmit(c);
+                                        setActiveMode(null);
+                                    }}
+                                    onCancel={() => {
+                                        p.setShowCommentInput(false);
+                                        setActiveMode(null);
+                                    }}
                                     isExpanded={p.showCommentInput}
-                                    onToggleExpand={() => p.setShowCommentInput(true)}
+                                    onToggleExpand={() => {
+                                        setActiveMode('comment');
+                                        p.setShowCommentInput(true);
+                                    }}
+                                    hideInlineTools
                                 />
                             </div>
                             <div ref={p.commentsRef} className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
@@ -820,7 +959,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         <p className="text-xs mt-1 opacity-70">
                                             {p.isClientViewer
                                                 ? 'Add a comment to leave feedback on this version'
-                                                : 'Press C or click "Add comment"'
+                                                : 'Use Comment / Draw / Voice pills below the player'
                                             }
                                         </p>
                                     </div>

@@ -47,11 +47,11 @@ export const NAVIGATION_ITEMS = {
     { id: 'contracts', label: 'Contracts', icon: PenLine },
     { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
     { id: 'scheduler-activity', label: 'Scheduler Activity', icon: Activity },
     { id: 'hiring', label: 'Editor Hiring', icon: UserPlus },
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
