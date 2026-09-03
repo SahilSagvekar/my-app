@@ -52,6 +52,7 @@ import { FolderRepairTool } from "../admin/Folderrepairtool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
 import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
 import { ClientHelpVideos } from "../client/ClientHelpVideos";
+import { ClientExpensesPage } from "../client/ClientExpensesPage";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -410,6 +411,8 @@ export function renderPage(
         // (falls back to the ?clientId= URL param, then the caller's own
         // session) — just wasn't being passed one before.
         return <ClientPortalPage clientId={linkedClientId} />;
+      case "expenses":
+        return <ClientExpensesPage />;
       case "help-videos":
         return <ClientHelpVideos />;
       default:

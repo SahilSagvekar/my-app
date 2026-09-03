@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Users,
   FileText,
+  Receipt,
   Calendar,
   CheckSquare,
   Clock,
@@ -105,6 +106,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'social', label: 'Social Media', icon: Instagram },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'contracts', label: 'Contracts & Billing', icon: FileText },
+    { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'help-videos', label: 'E8 Help', icon: PlayCircle },
   ],
   videographer: [

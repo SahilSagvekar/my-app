@@ -215,7 +215,8 @@ export async function createStripeInvoice(
   lineItems: Array<{ description: string; amount: number; quantity?: number }>,
   daysUntilDue: number = 30,
   metadata?: Record<string, string>,
-  invoiceDescription?: string
+  invoiceDescription?: string,
+  idempotencyKey?: string
 ): Promise<Stripe.Invoice> {
   console.log('🔵 Creating Stripe invoice for customer:', customerId);
   console.log('🔵 Line items:', JSON.stringify(lineItems));
@@ -230,12 +231,12 @@ export async function createStripeInvoice(
     description: invoiceDescription || undefined, // Invoice-level description shown to customer
     auto_advance: false, // Don't auto-finalize, we'll do it manually after adding items
     pending_invoice_items_behavior: 'include', // sweep in any pending Tech Fee items for this customer
-  });
+  }, idempotencyKey ? { idempotencyKey } : undefined);
   
   console.log('🔵 Created draft invoice:', invoice.id);
   
   // Add invoice items TO THIS SPECIFIC INVOICE
-  for (const item of lineItems) {
+  for (const [index, item] of lineItems.entries()) {
     if (item.amount <= 0) {
       console.warn('⚠️ Skipping line item with zero/negative amount:', item);
       continue;
@@ -247,7 +248,7 @@ export async function createStripeInvoice(
       amount: item.amount,
       currency: 'usd',
       description: item.description,
-    });
+    }, idempotencyKey ? { idempotencyKey: `${idempotencyKey}:item:${index}` } : undefined);
     
     console.log('🔵 Added invoice item:', invoiceItem.id, 'amount:', item.amount);
   }

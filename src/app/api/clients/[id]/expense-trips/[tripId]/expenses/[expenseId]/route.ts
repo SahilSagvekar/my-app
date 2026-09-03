@@ -10,6 +10,7 @@ import { getDbHttp } from '@/lib/db';
 import { clientExpense } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
+import { deleteFromS3 } from '@/lib/s3';
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string; tripId: string; expenseId: string }> }) {
   const db = getDbHttp();
@@ -30,6 +31,9 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Only pending (not yet invoiced) expenses can be deleted' }, { status: 400 });
     }
 
+    // Delete the object after authorizing the row; if storage is unavailable,
+    // retain the row so an administrator can retry rather than orphaning it.
+    await deleteFromS3(expense.receiptS3Key);
     await db.delete(clientExpense).where(eq(clientExpense.id, expenseId));
 
     return NextResponse.json({ success: true });

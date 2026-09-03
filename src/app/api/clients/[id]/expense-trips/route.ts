@@ -65,7 +65,12 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       const tripExpenses = expensesByTrip.get(trip.id) || [];
       return {
         ...trip,
-        expenses: tripExpenses,
+        // Do not expose object-storage URLs. The receipt endpoint verifies
+        // the administrator's access and issues a short-lived URL instead.
+        expenses: tripExpenses.map(({ receiptS3Key: _receiptS3Key, receiptUrl: _receiptUrl, ...expense }) => ({
+          ...expense,
+          receiptUrl: `/api/clients/${clientId}/expense-trips/${trip.id}/expenses/${expense.id}/receipt`,
+        })),
         totalAmount: tripExpenses.reduce((sum, e) => sum + e.amount, 0),
         pendingAmount: tripExpenses.filter((e) => e.status === 'PENDING').reduce((sum, e) => sum + e.amount, 0),
         status: computeTripStatus(tripExpenses),

@@ -290,7 +290,9 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
     // When auto-invoice owns the schedule, do NOT rewrite nextBillingDate —
     // the cron already advanced it when the invoice was created.
     const client = (foundInvoice.stripeCustomer as any)?.client;
-    if (client?.portalAccess) {
+    // Expense reimbursement invoices must not change subscription/portal
+    // access: they are independent, one-off invoices.
+    if (client?.portalAccess && (foundInvoice.metadata as any)?.invoiceType !== 'EXPENSE') {
       const portalAccess = client.portalAccess;
       const updateData = portalUnlockUpdate({
         autoInvoiceActive: !!portalAccess.autoInvoiceActive,

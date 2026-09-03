@@ -107,9 +107,16 @@ export async function GET(req: NextRequest) {
         }
 
         const enabledIds = permissions.navigationItems as string[];
+        // Expenses is a client-facing billing record, scoped server-side to
+        // the signed-in client's own account. Existing role-permission rows
+        // predate this item, so keep it visible without requiring a manual
+        // permission migration for every client role.
+        const requiredClientItems = new Set(['expenses']);
         // Keep dynamically injected items (they were granted via allowedUserIds/allowedRoles)
         const filteredItems = finalItems.filter(item => 
-            enabledIds.includes(item.id) || dynamicallyInjectedIds.has(item.id)
+            enabledIds.includes(item.id) ||
+            dynamicallyInjectedIds.has(item.id) ||
+            (role === 'client' && requiredClientItems.has(item.id))
         );
 
         return NextResponse.json(filteredItems);

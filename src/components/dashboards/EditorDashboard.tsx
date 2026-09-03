@@ -1401,6 +1401,15 @@ export function EditorDashboard() {
       const params = new URLSearchParams();
       // if (monthFilter !== "all") params.set("month", monthFilter);
       if (monthFilter !== "all") params.set("monthFolder", monthFilter);
+      // 🔥 FIX: the API's default row cap (100) applies across ALL statuses
+      // combined, ordered by newest-first. An editor's Pending tasks are
+      // typically the newest (untouched), so they silently fill the entire
+      // cap and starve In Progress/QC/Revisions out of the response even
+      // though those tasks exist. Request the API's max (500) instead —
+      // this query is already scoped to just this editor's own assigned
+      // tasks, so 500 comfortably covers any single editor's real backlog
+      // without reintroducing the old company-wide unscoped-query problem.
+      params.set("limit", "500");
       const queryString = params.toString();
       const res = await fetch(`/api/tasks${queryString ? `?${queryString}` : ""}`);
       const data = await res.json();

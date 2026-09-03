@@ -73,12 +73,16 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const stripeCustomer = await getOrCreateStripeCustomer(clientId, dbClient.email, dbClient.companyName || dbClient.name);
 
     const lineItems = expenses.map((e) => ({ description: e.description, amount: e.amount }));
+    // Stripe idempotency prevents a network retry from issuing the same
+    // selected receipts as a second invoice.
+    const idempotencyKey = `expense:${tripId}:${[...expenseIds].sort().join(':')}`;
     const draftInvoice = await createStripeInvoice(
       stripeCustomer.id,
       lineItems,
       DAYS_UNTIL_DUE,
       { invoiceType: 'EXPENSE', tripId },
-      `Expense reimbursement — ${trip.name}`
+      `Expense reimbursement — ${trip.name}`,
+      idempotencyKey
     );
     const sentInvoice = await sendStripeInvoice(draftInvoice.id);
 

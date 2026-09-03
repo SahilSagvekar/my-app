@@ -44,6 +44,11 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     if (!file) {
       return NextResponse.json({ error: 'Receipt file is required' }, { status: 400 });
     }
+    const allowedTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
+    const maxFileBytes = 10 * 1024 * 1024;
+    if (!allowedTypes.has(file.type) || file.size > maxFileBytes) {
+      return NextResponse.json({ error: 'Receipts must be a JPG, PNG, WebP, or PDF up to 10 MB' }, { status: 400 });
+    }
     if (!description) {
       return NextResponse.json({ error: 'Description is required' }, { status: 400 });
     }
@@ -70,11 +75,17 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       receiptUrl: uploaded.url,
       receiptFileName: file.name,
       status: 'PENDING',
-      createdById: Number(currentUser!.id),
+      createdById: Number(currentUser!.userId),
       updatedAt: new Date().toISOString(),
     }).returning();
 
-    return NextResponse.json({ expense });
+    return NextResponse.json({
+      expense: {
+        ...expense,
+        receiptS3Key: undefined,
+        receiptUrl: `/api/clients/${clientId}/expense-trips/${tripId}/expenses/${expense.id}/receipt`,
+      },
+    });
   } catch (err: any) {
     console.error('[expenses POST] Fatal error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
