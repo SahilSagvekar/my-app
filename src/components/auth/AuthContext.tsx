@@ -14,6 +14,10 @@ interface User {
   roles?: string[];
   linkedClientId?: string; // Client ID for users with client role
   hasPostingServices?: boolean;
+  // "Google" | "Slack" | "email" — which auth method created/last verified
+  // this session. Used by the pending-role screen's "created via {provider}"
+  // copy; not otherwise relied on for auth decisions.
+  provider?: string;
 }
 
 interface AuthContextType {
@@ -27,6 +31,10 @@ interface AuthContextType {
   verifyTwoFactor: (code: string) => Promise<void>;
   resendTwoFactorCode: () => Promise<void>;
   handleSessionExpired: () => void;
+  // Re-fetches /api/auth/me and updates `user` in place — e.g. so the
+  // pending-role screen's "Check status" can pick up a newly-assigned
+  // role without a full page reload. Returns the refreshed role (or null).
+  refreshUser: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,23 +54,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, user]);
 
   // Check auth status on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch("/api/auth/me");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.user) {
-            setUser(data.user);
-            setIsAuthenticated(true);
-          }
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    checkAuth();
+  const refreshUser = React.useCallback(async (): Promise<string | null> => {
+    const res = await fetch("/api/auth/me");
+    if (!res.ok) throw new Error(`auth/me failed: ${res.status}`);
+    const data = await res.json();
+    if (data.user) {
+      setUser(data.user);
+      setIsAuthenticated(true);
+      return data.user.role ?? null;
+    }
+    setUser(null);
+    setIsAuthenticated(false);
+    return null;
   }, []);
+
+  useEffect(() => {
+    refreshUser().catch((err) => {
+      console.warn("⚠️ Initial auth check failed:", err);
+    }).finally(() => {
+      setLoading(false);
+    });
+  }, [refreshUser]);
 
   // Global fetch interceptor for JWT expiration
   useEffect(() => {
@@ -269,7 +281,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         resetPassword,
         verifyTwoFactor,
         resendTwoFactorCode,
-        handleSessionExpired
+        handleSessionExpired,
+        refreshUser
       }}
     >
       {children}

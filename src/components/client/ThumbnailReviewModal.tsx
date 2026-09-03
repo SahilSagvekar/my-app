@@ -386,7 +386,7 @@ export function ThumbnailReviewModal({
                                             <Button
                                                 variant="ghost" size="sm"
                                                 onClick={handleDownload}
-                                                className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0"
+                                                className="text-white hover:text-white bg-blue-600 hover:bg-blue-700 h-8 w-8 p-0"
                                             >
                                                 <Download className="h-4 w-4" />
                                             </Button>
@@ -397,7 +397,7 @@ export function ThumbnailReviewModal({
                                     <Button
                                         variant="ghost" size="sm"
                                         onClick={() => onOpenChange(false)}
-                                        className="text-red-500 hover:text-red-400 hover:bg-red-500/10 h-8 w-8 p-0"
+                                        className="text-black hover:text-black bg-red-500 hover:bg-red-600 h-8 w-8 p-0"
                                     >
                                         <X className="h-4 w-4" />
                                     </Button>
@@ -425,7 +425,7 @@ export function ThumbnailReviewModal({
                                                     onClick={() => { setCurrentFile(t); setViewMode('single'); }}
                                                 >
                                                     <div className="aspect-video relative">
-                                                        <img src={t.url} alt={t.name} crossOrigin="anonymous" className="w-full h-full object-cover" />
+                                                        <img src={t.url} alt={t.name} className="w-full h-full object-cover" />
                                                         <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
                                                             <span className="text-white font-bold text-sm">#{idx + 1}</span>
                                                         </div>
@@ -453,7 +453,6 @@ export function ThumbnailReviewModal({
                                     <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden p-8">
                                         <div className="relative group max-w-full max-h-full">
                                             <img
-                                                key={currentFile.id}
                                                 ref={imageRef}
                                                 crossOrigin="anonymous"
                                                 src={currentFile.url}

@@ -146,6 +146,14 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
       setSlackLinking(true);
       setSlackMessage('');
       const res = await fetch('/api/slack/link', { method: 'POST', credentials: 'include' });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        // Server returned an HTML error page (route crashed / not found)
+        // instead of JSON — don't let res.json() throw a raw parse error.
+        console.error('[Slack Link] Non-JSON response:', res.status, await res.text());
+        setSlackMessage(`Failed to link Slack (server error ${res.status}). Try again shortly.`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setSlackUserId(data.slackUserId);
@@ -167,6 +175,12 @@ export function Settings({ currentRole, onClose }: SettingsProps) {
     try {
       setSlackLinking(true);
       const res = await fetch('/api/slack/link', { method: 'DELETE', credentials: 'include' });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        console.error('[Slack Unlink] Non-JSON response:', res.status, await res.text());
+        setSlackMessage(`Failed to unlink Slack (server error ${res.status}). Try again shortly.`);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         setSlackUserId(null);

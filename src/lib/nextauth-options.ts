@@ -133,11 +133,13 @@ export const authOptions: NextAuthConfig = {
                     token.id = dbUser.id.toString();
                     token.role = dbUser.role;
                     token.roles = dbUser.roles;
+                    token.provider = account.provider; // "google" | "slack"
                 } else {
                     // Credentials login already has correct data from authorize()
                     token.id = user.id;
                     token.role = (user as any).role;
                     token.roles = (user as any).roles;
+                    token.provider = "credentials";
                 }
             } else if (token.id) {
                 // Periodically verify user status for existing JWTs
@@ -160,6 +162,7 @@ export const authOptions: NextAuthConfig = {
                 session.user.id = token.id as string;
                 session.user.role = token.role;
                 session.user.roles = token.roles || [];
+                session.user.provider = token.provider;
             }
             return session;
         },

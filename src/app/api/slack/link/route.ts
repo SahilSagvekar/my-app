@@ -10,8 +10,8 @@ export const dynamic = "force-dynamic";
 
 // POST — link user's Slack account by looking up their email
 export async function POST(req: NextRequest) {
-  const db = getDbHttp();
   try {
+    const db = getDbHttp();
     const user = await getCurrentUser2(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -69,8 +69,8 @@ export async function POST(req: NextRequest) {
 
 // DELETE — unlink Slack account
 export async function DELETE(req: NextRequest) {
-  const db = getDbHttp();
   try {
+    const db = getDbHttp();
     const user = await getCurrentUser2(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

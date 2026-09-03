@@ -144,7 +144,11 @@ export async function GET(req: Request) {
             image: user.image,
             employeeStatus: user.employeeStatus,
             linkedClientId: clientLink.linkedClientId,
-            hasPostingServices: clientLink.hasPostingServices
+            hasPostingServices: clientLink.hasPostingServices,
+            // Custom JWT (authToken cookie) is only ever issued for
+            // credentials (email/password) sign-in — OAuth users go
+            // through the NextAuth session branch below instead.
+            provider: 'email' as const,
           };
           const response = NextResponse.json({ user: processedUser }, { status: 200 });
           return withRefreshedAuthCookie(response, user, token);
@@ -178,6 +182,7 @@ export async function GET(req: Request) {
 
       if (user && (user.employeeStatus === 'ACTIVE' || user.email === 'sahilsagvekar230@gmail.com')) {
         const clientLink = await getClientLink(user);
+        const sessionProvider = (session.user as any).provider as string | undefined;
         const processedUser = {
           id: user.id,
           email: user.email,
@@ -187,7 +192,10 @@ export async function GET(req: Request) {
           image: user.image,
           employeeStatus: user.employeeStatus,
           linkedClientId: clientLink.linkedClientId,
-          hasPostingServices: clientLink.hasPostingServices
+          hasPostingServices: clientLink.hasPostingServices,
+          provider: sessionProvider === 'google' ? 'Google'
+            : sessionProvider === 'slack' ? 'Slack'
+            : 'email',
         };
         // Issue authToken for NextAuth-only sessions so JWT-gated routes work.
         const response = NextResponse.json({ user: processedUser }, { status: 200 });

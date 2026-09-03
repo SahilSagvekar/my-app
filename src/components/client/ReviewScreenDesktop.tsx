@@ -200,9 +200,14 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         [p.currentFileSection?.folderType, p.asset]
     );
 
-    // Instagram preview only makes sense on short-form deliverables — reuses
-    // the same folderType/deliverableType resolution as the SF/LF file badge.
-    const isShortFormTask = fileCode === 'SF';
+    // Instagram preview only makes sense on short-form deliverables. Prefer
+    // the folderType/deliverableType resolution (same as the SF/LF file
+    // badge), but that field isn't always populated on older/imported
+    // tasks — fall back to the asset title's naming convention (e.g.
+    // "CoinLaundryAssociation_08-01-2026_SF37"), which reliably carries an
+    // "SF" token even when the metadata doesn't. Word-bounded so it
+    // doesn't false-positive on "BSF" (Beta Short Form).
+    const isShortFormTask = fileCode === 'SF' || /(^|[_\s-])SF(\d|[_\s-]|$)/i.test(p.asset?.title || '');
 
     useEffect(() => {
         if (!isShortFormTask) setShowInstagramOverlay(false);
@@ -744,6 +749,17 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 </div>
                                             </>
                                         )}
+
+                                        {/* Instagram Reels-style preview — nested inside the
+                                            tightly-sized video box (not the wider letterboxed
+                                            panel) so the chrome hugs the actual video edges,
+                                            same as real Reels with no pillarboxing. */}
+                                        {showInstagramOverlay && isShortFormTask && (
+                                            <ReviewInstagramOverlay
+                                                defaultUsername={p.asset.client}
+                                                commentCount={p.comments.length}
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -832,14 +848,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     container={videoShellRef.current}
                                     onComplete={handleDrawComplete}
                                     onCancel={exitDrawMode}
-                                />
-                            )}
-
-                            {/* Instagram Reels-style preview (Desktop Instagram pill, short-form tasks only) */}
-                            {showInstagramOverlay && isShortFormTask && (
-                                <ReviewInstagramOverlay
-                                    defaultUsername={p.asset.client}
-                                    commentCount={p.comments.length}
                                 />
                             )}
                         </div>

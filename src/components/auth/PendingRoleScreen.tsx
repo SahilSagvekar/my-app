@@ -1,79 +1,259 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ShieldAlert, LogOut, Clock } from "lucide-react";
-import Image from "next/image";
-import logo from "../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png";
+import { useState } from "react";
+import { Inter } from "next/font/google";
+import { Clock, Check, RefreshCw, LogOut } from "lucide-react";
+import { useAuth } from "./AuthContext";
+
+// Design handoff calls for Inter specifically; the rest of the app uses a
+// system-ui stack, so this is scoped to just this screen rather than
+// changing the global font.
+const inter = Inter({ subsets: ["latin"], weight: ["400", "600", "700"] });
 
 interface PendingRoleScreenProps {
     user: {
         email: string;
         name?: string;
+        provider?: string;
     };
     onLogout: () => void;
 }
 
-export function PendingRoleScreen({ user, onLogout }: PendingRoleScreenProps) {
-    return (
-        <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-            <div className="w-full max-w-md space-y-6">
-                {/* Logo */}
-                <div className="flex justify-center">
-                    <div className="w-12 h-12 flex items-center justify-center">
-                        <Image
-                            src={logo}
-                            alt="E8 Logo"
-                            className="w-12 h-12 object-contain"
-                        />
-                    </div>
-                </div>
+const GRAY = {
+    950: "#0a0a0b",
+    800: "#222225",
+    500: "#6b6b72",
+    200: "#d3d3d6",
+    50: "#f4f4f5",
+};
+const TEXT_SECONDARY = "#505056";
 
-                <Card className="border-yellow-200 bg-yellow-50/30">
-                    <CardHeader className="text-center pb-2">
-                        <div className="mx-auto w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
-                            <Clock className="h-6 w-6 text-yellow-600" />
-                        </div>
-                        <CardTitle className="text-xl font-bold text-yellow-900">
-                            Account Pending Assignment
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4 text-center">
-                        <p className="text-yellow-800 text-sm">
-                            Hi <span className="font-semibold">{user.name || user.email}</span>, your account has been successfully created via Google.
-                        </p>
-                        <p className="text-gray-600 text-sm">
-                            To access the dashboard, an administrator needs to assign you a role (Admin, Editor, Client, etc.).
-                        </p>
-                        <div className="bg-white/50 p-3 rounded-lg border border-yellow-100 text-xs text-left">
-                            <div className="flex items-center gap-2 text-yellow-700 font-medium mb-1">
-                                <ShieldAlert className="h-3 w-3" />
-                                Next Steps:
-                            </div>
-                            <ul className="list-disc list-inside space-y-1 text-gray-500">
-                                <li>Contact your team administrator</li>
-                                <li>Provide them with your email: <span className="font-mono text-[10px]">{user.email}</span></li>
-                                <li>Refresh this page once your role is assigned</li>
-                            </ul>
-                        </div>
-
-                        <Separator className="my-4" />
-
-                        <Button
-                            variant="outline"
-                            onClick={onLogout}
-                            className="w-full flex items-center justify-center gap-2"
-                        >
-                            <LogOut className="h-4 w-4" />
-                            Sign Out
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
-    );
+function providerLabel(provider?: string): string {
+    // "Google" | "Slack" | "email" — see AuthContext's User.provider.
+    // Falls back to "email" (credentials login) when unset.
+    if (provider === "Google" || provider === "Slack") return provider;
+    return "email";
 }
 
-function Separator({ className }: { className?: string }) {
-    return <div className={`h-[1px] bg-gray-200 ${className}`} />;
+/**
+ * Post-signup gate: an authenticated user with no role assigned yet lands
+ * here instead of the dashboard. Confirms the account exists, states that
+ * E8 has been notified, and offers "Check status" / "Sign out".
+ *
+ * Design handoff: Account Pending Assignment (E8 neutral token set, high
+ * fidelity — see design_handoff_account_pending/README.md).
+ */
+export function PendingRoleScreen({ user, onLogout }: PendingRoleScreenProps) {
+    const { refreshUser } = useAuth();
+    const [checking, setChecking] = useState(false);
+    const [checkError, setCheckError] = useState<string | null>(null);
+    const [noRoleYet, setNoRoleYet] = useState(false);
+
+    const displayName = user.name || user.email;
+    const provider = providerLabel(user.provider);
+
+    const handleCheckStatus = async () => {
+        if (checking) return;
+        setChecking(true);
+        setCheckError(null);
+        setNoRoleYet(false);
+        try {
+            const role = await refreshUser();
+            if (!role) {
+                // Still unassigned — App.tsx keeps rendering this screen;
+                // just surface a brief inline confirmation.
+                setNoRoleYet(true);
+                setTimeout(() => setNoRoleYet(false), 4000);
+            }
+            // If a role IS now present, App.tsx's `!user.role` guard stops
+            // rendering this screen on the next render — no redirect needed here.
+        } catch {
+            setCheckError("Status check failed — retry in 30s");
+        } finally {
+            setChecking(false);
+        }
+    };
+
+    return (
+        <div
+            className={inter.className}
+            style={{
+                minHeight: "100vh",
+                background: GRAY[50],
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "48px 24px",
+                boxSizing: "border-box",
+                gap: 32,
+                color: GRAY[950],
+            }}
+        >
+            {/* Logo lockup */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                <img src="/assets/e8-logo-black.png" alt="E8 Productions, LLC" style={{ height: 40, width: "auto", display: "block" }} />
+                <div
+                    style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        letterSpacing: ".14em",
+                        textTransform: "uppercase",
+                        color: GRAY[500],
+                    }}
+                >
+                    E8 Productions, LLC
+                </div>
+            </div>
+
+            {/* Card */}
+            <div
+                style={{
+                    width: "100%",
+                    maxWidth: 480,
+                    background: "#ffffff",
+                    borderRadius: 16,
+                    boxShadow: "0 1px 2px rgba(10,10,11,.04), 0 8px 24px rgba(10,10,11,.06)",
+                    overflow: "hidden",
+                }}
+            >
+                {/* Header block */}
+                <div style={{ padding: "32px 32px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <Clock size={20} color={GRAY[950]} strokeWidth={1.5} style={{ flex: "none" }} />
+                        <span
+                            style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                letterSpacing: ".12em",
+                                textTransform: "uppercase",
+                                color: GRAY[950],
+                            }}
+                        >
+                            Pending role assignment
+                        </span>
+                    </div>
+
+                    <h1
+                        style={{
+                            margin: 0,
+                            fontSize: 28,
+                            lineHeight: 1.2,
+                            fontWeight: 700,
+                            letterSpacing: "-.02em",
+                        }}
+                    >
+                        Your account is waiting on a role
+                    </h1>
+
+                    <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: TEXT_SECONDARY }}>
+                        Hi <strong style={{ color: GRAY[950], fontWeight: 600 }}>{displayName}</strong>, your
+                        account was created successfully via {provider}. An administrator assigns your role
+                        before the dashboard opens.
+                    </p>
+                </div>
+
+                {/* Status block */}
+                <div style={{ padding: "0 32px 24px" }}>
+                    <div
+                        style={{
+                            border: `${checkError ? 2 : 1}px solid ${checkError ? GRAY[950] : GRAY[200]}`,
+                            borderRadius: 12,
+                            padding: 16,
+                            display: "grid",
+                            gridTemplateColumns: "20px 1fr",
+                            gap: 12,
+                            alignItems: "start",
+                        }}
+                    >
+                        <Check size={20} color={GRAY[950]} strokeWidth={1.5} style={{ flex: "none", marginTop: 1 }} />
+                        <span style={{ fontSize: 14, lineHeight: 1.6, color: GRAY[800] }}>
+                            {checkError
+                                ? checkError
+                                : "E8 has been notified. You will get an email once your role has been updated."}
+                        </span>
+                    </div>
+                    {noRoleYet && !checkError && (
+                        <div style={{ marginTop: 8, fontSize: 12, color: GRAY[500] }}>No role yet</div>
+                    )}
+                </div>
+
+                {/* Action bar */}
+                <div
+                    style={{
+                        padding: "20px 32px",
+                        borderTop: `1px solid ${GRAY[200]}`,
+                        background: GRAY[50],
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 16,
+                        flexWrap: "wrap",
+                    }}
+                >
+                    <button
+                        type="button"
+                        onClick={handleCheckStatus}
+                        disabled={checking}
+                        className="max-[380px]:w-full"
+                        style={{
+                            fontFamily: "inherit",
+                            fontWeight: 600,
+                            fontSize: 14,
+                            borderRadius: 8,
+                            border: "1px solid transparent",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                            lineHeight: 1,
+                            padding: "10px 16px",
+                            transition: "opacity .12s ease",
+                            cursor: checking ? "not-allowed" : "pointer",
+                            background: checking ? "#e7e7e9" : GRAY[950],
+                            color: checking ? "#b0b0b5" : "#ffffff",
+                        }}
+                        onMouseEnter={(e) => { if (!checking) e.currentTarget.style.opacity = ".85"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = "1"; }}
+                    >
+                        <RefreshCw size={16} strokeWidth={1.5} className={checking ? "animate-spin" : undefined} />
+                        {checking ? "Checking…" : "Check status"}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={onLogout}
+                        className="max-[380px]:w-full"
+                        style={{
+                            fontFamily: "inherit",
+                            fontWeight: 600,
+                            fontSize: 14,
+                            borderRadius: 8,
+                            border: `1px solid ${GRAY[950]}`,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                            lineHeight: 1,
+                            padding: "10px 16px",
+                            transition: "opacity .12s ease, background .12s ease",
+                            cursor: "pointer",
+                            background: "transparent",
+                            color: GRAY[950],
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = GRAY[50]; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                        <LogOut size={16} strokeWidth={1.5} />
+                        Sign out
+                    </button>
+                </div>
+            </div>
+
+            {/* Footer note */}
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: GRAY[500], textAlign: "center", maxWidth: 420 }}>
+                Access is granted per role. Questions about permissions contact E8.
+            </p>
+        </div>
+    );
 }

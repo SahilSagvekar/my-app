@@ -8,9 +8,11 @@ import {
     forwardRef,
     useCallback,
 } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { ReviewComment, COMMENT_CATEGORIES, CommentCategory } from './types';
 import {
-    Plus, Send, X, Camera, Clock, Mic, Square, FileIcon,
+    Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon,
 } from 'lucide-react';
 
 import { Button } from '../ui/button';
@@ -88,6 +90,54 @@ export function captureFullFrameFromSource(
     }
 }
 
+/**
+ * Capture a (possibly cropped) region from a video/image element. `area` is
+ * in the element's on-screen display coordinates (e.g. from a drag
+ * selection) — mapped into the source's intrinsic pixel space before
+ * cropping. Used by the Snip tool; omit `area` for a full-frame capture.
+ */
+function captureAreaFromSource(
+    source: CaptureSource,
+    area?: { x: number; y: number; w: number; h: number }
+): string | null {
+    const canvas = document.createElement('canvas');
+    const isVideo = source instanceof HTMLVideoElement;
+
+    const sourceW = isVideo
+        ? ((source as HTMLVideoElement).videoWidth || source.clientWidth)
+        : ((source as HTMLImageElement).naturalWidth || source.clientWidth);
+    const sourceH = isVideo
+        ? ((source as HTMLVideoElement).videoHeight || source.clientHeight)
+        : ((source as HTMLImageElement).naturalHeight || source.clientHeight);
+    const displayW = source.clientWidth;
+    const displayH = source.clientHeight;
+    if (!sourceW || !sourceH || !displayW || !displayH) return null;
+
+    const scaleX = sourceW / displayW;
+    const scaleY = sourceH / displayH;
+
+    const hasArea = area && area.w > 5 && area.h > 5;
+    const cropX = hasArea ? area!.x * scaleX : 0;
+    const cropY = hasArea ? area!.y * scaleY : 0;
+    const cropW = hasArea ? area!.w * scaleX : sourceW;
+    const cropH = hasArea ? area!.h * scaleY : sourceH;
+
+    const scale = Math.min(MAX_SCREENSHOT_WIDTH / cropW, MAX_SCREENSHOT_HEIGHT / cropH, 1);
+    const targetW = Math.max(1, Math.round(cropW * scale));
+    const targetH = Math.max(1, Math.round(cropH * scale));
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    try {
+        ctx.drawImage(source, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+        return canvas.toDataURL('image/jpeg', 0.7);
+    } catch (err) {
+        console.error('Failed to capture screenshot:', err);
+        return null;
+    }
+}
+
 interface CommentInputProps {
     taskId: string;
     currentTime: number;
@@ -129,6 +179,11 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
     const [category, setCategory] = useState<CommentCategory['value']>('design');
     const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Snip (drag-select a partial region to screenshot)
+    const [isSelectingArea, setIsSelectingArea] = useState(false);
+    const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+    const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
     // Timestamp range state
     const [useEndTimestamp, setUseEndTimestamp] = useState(false);
@@ -224,6 +279,60 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             if (dataUrl) setScreenshotUrl(dataUrl);
         });
     }, [videoRef, imageRef]);
+
+    const handleStartSnip = useCallback(() => {
+        ensureExpanded();
+        setIsSelectingArea(true);
+        setSelectionRect(null);
+    }, [ensureExpanded]);
+
+    const handleSnipMouseDown = (e: ReactMouseEvent) => {
+        const container = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - container.left;
+        const y = e.clientY - container.top;
+        setSelectionStart({ x, y });
+        setSelectionRect({ x, y, w: 0, h: 0 });
+    };
+
+    const handleSnipMouseMove = (e: ReactMouseEvent) => {
+        if (!selectionStart) return;
+        const container = e.currentTarget.getBoundingClientRect();
+        const curX = e.clientX - container.left;
+        const curY = e.clientY - container.top;
+        const x = Math.min(curX, selectionStart.x);
+        const y = Math.min(curY, selectionStart.y);
+        const w = Math.abs(curX - selectionStart.x);
+        const h = Math.abs(curY - selectionStart.y);
+        setSelectionRect({ x, y, w, h });
+    };
+
+    const handleSnipMouseUp = () => {
+        const source = getCaptureSource();
+        if (!selectionRect || !source) {
+            setIsSelectingArea(false);
+            setSelectionStart(null);
+            return;
+        }
+        // Tiny drag — treat as a click/cancel rather than a selection.
+        if (selectionRect.w < 10 || selectionRect.h < 10) {
+            setIsSelectingArea(false);
+            setSelectionStart(null);
+            return;
+        }
+        const rect = selectionRect;
+        window.requestAnimationFrame(() => {
+            const dataUrl = captureAreaFromSource(source, rect);
+            if (dataUrl) setScreenshotUrl(dataUrl);
+        });
+        setIsSelectingArea(false);
+        setSelectionStart(null);
+    };
+
+    const cancelSnip = useCallback(() => {
+        setIsSelectingArea(false);
+        setSelectionStart(null);
+        setSelectionRect(null);
+    }, []);
 
     const startVoiceRecording = useCallback(async () => {
         ensureExpanded();
@@ -474,7 +583,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                             </Button>
                         )}
                     </div>
-                    {!hideInlineTools && hasCaptureSource && (
+                    {hasCaptureSource && (
                         <div className="flex items-center gap-1">
                             <Button
                                 variant="ghost"
@@ -485,6 +594,16 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                             >
                                 <Camera className="h-3.5 w-3.5" />
                                 <span className="text-[10px] uppercase font-bold tracking-wider">Full</span>
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleStartSnip}
+                                className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
+                                title="Select area to snip"
+                            >
+                                <Crop className="h-3.5 w-3.5" />
+                                <span className="text-[10px] uppercase font-bold tracking-wider">Snip</span>
                             </Button>
                         </div>
                     )}
@@ -636,6 +755,41 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                     </Button>
                 </div>
             </div>
+
+            {/* Snip: drag-to-select overlay portal, positioned over the video/image */}
+            {isSelectingArea && (videoRef?.current?.parentElement || imageRef?.current?.parentElement) && createPortal(
+                <div
+                    className="absolute inset-0 z-[100] cursor-crosshair bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center"
+                    onMouseDown={handleSnipMouseDown}
+                    onMouseMove={handleSnipMouseMove}
+                    onMouseUp={handleSnipMouseUp}
+                >
+                    <div className="absolute top-4 bg-black/80 text-white px-3 py-1 rounded text-xs border border-white/20 select-none animate-bounce">
+                        Drag to select area
+                    </div>
+                    {selectionRect && (
+                        <div
+                            className="absolute border-2 border-dashed border-[var(--review-accent-purple)] bg-[var(--review-accent-purple)]/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]"
+                            style={{
+                                left: selectionRect.x,
+                                top: selectionRect.y,
+                                width: selectionRect.w,
+                                height: selectionRect.h,
+                            }}
+                        />
+                    )}
+                    <button
+                        className="absolute bottom-4 bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-lg select-none"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            cancelSnip();
+                        }}
+                    >
+                        Cancel
+                    </button>
+                </div>,
+                (videoRef?.current?.parentElement || imageRef?.current?.parentElement)!
+            )}
         </div>
     );
 });
