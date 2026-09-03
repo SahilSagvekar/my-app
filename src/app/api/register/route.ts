@@ -6,6 +6,7 @@ import { user, auditLog } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getGeoLocation, formatLocation } from '@/lib/geo';
 import { NextRequest, NextResponse } from "next/server";
+import { validatePassword, buildPasswordContext, checkPasswordPwnedSafe, PASSWORD_RULES } from '@/lib/password-policy';
 
 export async function POST(req: NextRequest) {
   const db = getDbHttp();
@@ -28,6 +29,30 @@ export async function POST(req: NextRequest) {
 
     if (!acceptTerms) {
       return NextResponse.json({ message: "You must accept the terms and conditions" }, { status: 400 });
+    }
+
+    // 🔒 Enforce password policy server-side — this is the authoritative
+    // check; the register form's live checklist is just UX, never trust it.
+    const [firstName, ...lastNameParts] = String(name || '').trim().split(/\s+/);
+    const passwordContext = buildPasswordContext({ email, firstName, lastName: lastNameParts.join(' ') });
+    const { valid, failedRuleIds } = validatePassword(password, passwordContext);
+    if (!valid) {
+      const failedLabels = PASSWORD_RULES.filter((r) => failedRuleIds.includes(r.id)).map((r) => r.label);
+      return NextResponse.json(
+        { message: `Password doesn't meet requirements: ${failedLabels.join('; ')}`, failedRules: failedRuleIds },
+        { status: 400 }
+      );
+    }
+
+    // Check against known-breach database (HaveIBeenPwned k-anonymity API).
+    // Soft-fails open on network error — a third-party outage shouldn't
+    // block registration entirely.
+    const pwnedCount = await checkPasswordPwnedSafe(password);
+    if (pwnedCount && pwnedCount > 0) {
+      return NextResponse.json(
+        { message: "This password has appeared in known data breaches. Please choose a different password." },
+        { status: 400 }
+      );
     }
 
     // Check if user exists

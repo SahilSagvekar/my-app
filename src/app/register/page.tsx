@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import logo from "../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png";
+import { Eye, EyeOff, Check, X } from "lucide-react";
+import { PASSWORD_RULES, validatePassword, buildPasswordContext } from "@/lib/password-policy";
 
 export default function RegisterPage() {
   const [firstName, setFirstName] = useState("");
@@ -10,29 +12,47 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const passwordContext = useMemo(
+    () => buildPasswordContext({ email, firstName, lastName }),
+    [email, firstName, lastName]
+  );
+  const { valid: passwordValid, failedRuleIds } = useMemo(
+    () => validatePassword(password, passwordContext),
+    [password, passwordContext]
+  );
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setPasswordTouched(true);
     setError("");
     setSuccess("");
 
+    if (!passwordValid) {
+      setError("Please meet all password requirements before continuing.");
+      return;
+    }
+
+    setLoading(true);
+
     try {
       const fullName = `${firstName} ${lastName}`.trim();
-      
+
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          name: fullName, 
-          email, 
+        body: JSON.stringify({
+          name: fullName,
+          email,
           phone,
-          password, 
-          acceptTerms 
+          password,
+          acceptTerms
         }),
       });
 
@@ -135,20 +155,47 @@ export default function RegisterPage() {
         </div>
 
         {/* Password Field */}
-        <div className="mb-3 sm:mb-4">
+        <div className="mb-2">
           <label className="block text-xs sm:text-sm font-medium mb-1">Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg p-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="Enter your password"
-            required
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => setPasswordTouched(true)}
+              className="w-full border border-gray-300 rounded-lg p-2 pr-10 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Enter your password"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              tabIndex={-1}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+
+          {/* Live password requirements checklist */}
+          {(passwordTouched || password.length > 0) && (
+            <ul className="mt-2 space-y-1">
+              {PASSWORD_RULES.map((rule) => {
+                const met = !failedRuleIds.includes(rule.id);
+                return (
+                  <li key={rule.id} className={`flex items-center gap-1.5 text-xs ${met ? "text-green-600" : "text-gray-400"}`}>
+                    {met ? <Check className="h-3 w-3 shrink-0" /> : <X className="h-3 w-3 shrink-0" />}
+                    {rule.label}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         {/* Terms Checkbox */}
-        <div className="flex items-start mb-4 sm:mb-5">
+        <div className="flex items-start mb-4 sm:mb-5 mt-3">
           <input
             type="checkbox"
             checked={acceptTerms}
@@ -172,7 +219,7 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-primary text-white font-semibold py-2.5 sm:py-3 text-sm sm:text-base rounded-lg hover:bg-primary-dark transition"
+          className="w-full bg-primary text-white font-semibold py-2.5 sm:py-3 text-sm sm:text-base rounded-lg hover:bg-primary-dark transition disabled:opacity-60"
         >
           {loading ? "Registering..." : "Register"}
         </button>
