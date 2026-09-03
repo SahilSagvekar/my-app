@@ -70,7 +70,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-0.5">Phone</p>
-                    <p className="text-sm sm:text-base text-black group-hover:underline">(843) 267-2841</p>
+                    <p className="text-sm sm:text-base text-black group-hover:underline">(954) 305-8028</p>
                   </div>
                 </a>
 

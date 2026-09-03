@@ -35,6 +35,7 @@ import {
     ReviewCommentCard,
     CommentInput,
     ReviewCompactTransport,
+    ReviewPlaybackControls,
     ReviewModePills,
     ReviewDrawOverlay,
     ReviewInstagramOverlay,
@@ -298,16 +299,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
             commentInputRef.current?.setScreenshot(composedDataUrl);
         });
     }, [p.setShowCommentInput]);
-
-    const handleExpandPlayer = useCallback(() => {
-        const el = videoShellRef.current;
-        if (!el) return;
-        if (document.fullscreenElement) {
-            void document.exitFullscreen();
-        } else {
-            void el.requestFullscreen?.();
-        }
-    }, []);
 
     // Vertical/short-form videos (Reels, TikTok-style) were being forced into
     // a fixed 16:9 box with object-contain, producing large black pillars on
@@ -852,38 +843,45 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             )}
                         </div>
 
-                        {/* Compact transport + mode pills (Desktop only redesign) */}
+                        {/* Full-width timeline, then controls directly left of centered review actions. */}
                         <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-3">
                             {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
                                 <ReviewCompactTransport
                                     duration={p.duration}
                                     currentTime={p.currentTime}
-                                    isPlaying={p.isPlaying}
-                                    isMuted={p.isMuted}
-                                    playbackSpeed={p.playbackSpeed}
                                     comments={p.comments}
                                     activeCommentId={p.activeCommentId}
                                     currentVersionNumber={p.currentVersionNumber}
-                                    fileCode={fileCode}
-                                    formatTime={p.formatTime}
-                                    onTogglePlay={p.togglePlay}
-                                    onToggleMute={p.toggleMute}
                                     onSeek={p.handleSeek}
-                                    onPlaybackSpeedChange={p.handlePlaybackSpeedChange}
                                     onMarkerClick={p.handleMarkerClick}
                                     onDragStart={() => p.setIsDragging(true)}
                                     onDragEnd={() => p.setIsDragging(false)}
-                                    onExpand={handleExpandPlayer}
                                 />
                             )}
 
-                            {!p.readOnly && (p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
-                                <ReviewModePills
-                                    activeMode={activeMode}
-                                    onSelect={handleModeSelect}
-                                    instagramActive={showInstagramOverlay}
-                                    showInstagram={isShortFormTask}
-                                />
+                            {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
+                                <div className={`grid items-center gap-3 ${p.readOnly ? 'grid-cols-1' : 'grid-cols-[1fr_auto_1fr]'}`}>
+                                    <div className={`flex ${p.readOnly ? 'justify-center' : 'justify-end'}`}>
+                                        <ReviewPlaybackControls
+                                            currentTime={p.currentTime}
+                                            duration={p.duration}
+                                            isPlaying={p.isPlaying}
+                                            playbackSpeed={p.playbackSpeed}
+                                            onTogglePlay={p.togglePlay}
+                                            onSeek={p.handleSeek}
+                                            onPlaybackSpeedChange={p.handlePlaybackSpeedChange}
+                                        />
+                                    </div>
+                                    {!p.readOnly && <>
+                                        <ReviewModePills
+                                            activeMode={activeMode}
+                                            onSelect={handleModeSelect}
+                                            instagramActive={showInstagramOverlay}
+                                            showInstagram={isShortFormTask}
+                                        />
+                                        <div aria-hidden="true" />
+                                    </>}
+                                </div>
                             )}
 
                             {p.onNextAsset && (

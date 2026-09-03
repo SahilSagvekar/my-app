@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   Users,
   FileText,
-  Receipt,
   Calendar,
   CheckSquare,
   Clock,
@@ -47,11 +46,11 @@ export const NAVIGATION_ITEMS = {
     { id: 'contracts', label: 'Contracts', icon: PenLine },
     { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
+    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
     { id: 'scheduler-activity', label: 'Scheduler Activity', icon: Activity },
     { id: 'hiring', label: 'Editor Hiring', icon: UserPlus },
-    { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
@@ -73,13 +72,11 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
   ],
-    scheduler: [
+  scheduler: [
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
     { id: 'client-review', label: 'Client Review', icon: Clock },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Target },
-    { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'training', label: 'Training', icon: Layout },
@@ -106,19 +103,20 @@ export const NAVIGATION_ITEMS = {
     { id: 'social', label: 'Social Media', icon: Instagram },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'contracts', label: 'Contracts & Billing', icon: FileText },
-    { id: 'expenses', label: 'Expenses', icon: Receipt },
     { id: 'help-videos', label: 'E8 Help', icon: PlayCircle },
   ],
+  
   videographer: [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'shoots', label: 'Shooting Schedule', icon: Camera },
-    { id: 'uploads', label: 'File Uploads', icon: Upload },
-    { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
-    { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    { id: 'training', label: 'Training', icon: Layout },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
+    { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
+    { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
+    { id: 'production-tracker', label: 'Production Tracker', icon: Target },
+    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
   ],
+
   sales: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },
@@ -141,7 +139,7 @@ export const getDefaultPage = (role: string): string => {
     case 'scheduler': return 'approved-queue';
     case 'manager': return 'dashboard';
     case 'client': return 'approvals';
-    case 'videographer': return 'dashboard';
+    case 'videographer': return 'shoots';
     case 'sales': return 'dashboard';
     case 'sales_manager': return 'dashboard';
     default: return 'dashboard';

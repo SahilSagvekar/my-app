@@ -27,6 +27,8 @@ import { ManagerDashboard } from "../dashboards/ManagerDashboard";
 import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
 import { VideographerDashboard } from "../dashboards/VideographerDashboard";
+import { ShootingSchedulePage } from "../dashboards/ShootingSchedulePage";
+import { EquipmentPage } from "../dashboards/EquipmentPage";
 import { SalesDashboard } from "../dashboards/SalesDashboard";
 import { AffiliateSection } from "../dashboards/AffiliateSection";
 import { SalesManagementTab } from "../admin/SalesManagementTab";
@@ -404,14 +406,16 @@ export function renderPage(
 
   if (role === "videographer") {
     switch (page) {
-      case "dashboard":
+      case "jobs":
         return <VideographerDashboard initialTab="jobs" />;
+      case "reports":
+        return <TaskManagementTab />;
       case "shoots":
-        return <VideographerDashboard initialTab="shoots" />;
+        return <ShootingSchedulePage />;
       case "uploads":
         return <VideographerDashboard initialTab="uploads" />;
       case "equipment":
-        return <VideographerDashboard initialTab="equipment" />;
+        return <EquipmentPage />;
       case "calendar":
         return <VideographerDashboard initialTab="calendar" />;
       case "drive":
@@ -425,7 +429,7 @@ export function renderPage(
       case "logins":
         return <SocialLogins />;
       default:
-        return <VideographerDashboard initialTab="jobs" />;
+        return <ShootingSchedulePage />;
     }
   }
 

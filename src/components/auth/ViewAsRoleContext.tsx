@@ -7,11 +7,11 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 // Kept as-is for backward compatibility — don't add new people here.
 const ROLE_SWITCH_MAP: Record<string, string[]> = {
     // Specific Users - ALWAYS allowed to switch to these
-    "eric@e8productions.com": ["qc", "sales", "sales_manager", "scheduler"],
-    "sahilsagvekar230@gmail.com": ["qc", "sales", "sales_manager", "scheduler"],
+    "eric@e8productions.com": ["qc", "sales", "sales_manager", "scheduler", "videographer"],
+    "sahilsagvekar230@gmail.com": ["qc", "sales", "sales_manager", "scheduler", "videographer"],
 };
 
-const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler"];
+const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler", "videographer"];
 
 // 🔥 Client-portal preview: lets a specific admin account switch into ONE
 // specific client's portal (not just the generic "client" role shell).

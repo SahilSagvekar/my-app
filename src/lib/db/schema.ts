@@ -951,6 +951,12 @@ export const shootDetail = pgTable("ShootDetail", {
 	exclusions: text(),
 	videographerNotes: text(),
 	videographerId: integer(),
+	// Shooting Schedule fields
+	hostName: text(),
+	equipmentIds: text().array(),
+	equipmentReturnedAt: timestamp({ precision: 3, mode: 'string' }),
+	equipmentReturnedPhotoUrl: text(),
+	equipmentReturnedBy: integer(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
@@ -964,6 +970,25 @@ export const shootDetail = pgTable("ShootDetail", {
 			columns: [table.videographerId],
 			foreignColumns: [user.id],
 			name: "ShootDetail_videographerId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+// Equipment E8 owns — selectable on a shoot (ShootDetail.equipmentIds) and
+// managed (add/edit/delete) from the videographer portal's Equipment page.
+export const equipment = pgTable("Equipment", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	category: text(),
+	notes: text(),
+	isActive: boolean().default(true).notNull(),
+	createdById: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "Equipment_createdById_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
