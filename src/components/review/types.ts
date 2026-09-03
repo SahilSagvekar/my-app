@@ -16,6 +16,9 @@ export interface ReviewComment {
     category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles')[];
 
     screenshotUrl?: string; // Base64 or URL of captured video frame
+    audioUrl?: string; // Object URL / data URL for a voice note
+    attachmentUrl?: string; // Object URL / data URL for an attached file
+    attachmentName?: string;
     annotations?: Annotation[];
 
     replies?: ReviewComment[];

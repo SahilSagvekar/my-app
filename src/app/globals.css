@@ -644,6 +644,24 @@ html {
   padding: 16px;
 }
 
+/* Desktop compact transport + mode pills */
+.review-compact-transport {
+  min-height: 36px;
+}
+
+.review-compact-scrub:hover .review-compact-scrub-thumb {
+  opacity: 1;
+}
+
+.review-mode-pills button:focus-visible {
+  outline: 2px solid var(--review-accent-purple);
+  outline-offset: 2px;
+}
+
+.review-file-code-badge {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+}
+
 /* Scrollbar Styling for Review Components */
 .review-scrollbar::-webkit-scrollbar {
   width: 6px;
