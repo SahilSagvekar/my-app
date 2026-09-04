@@ -1,7 +1,6 @@
 'use client';
 
 import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { YoutubePlayer } from '../review/YoutubePlayer';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
 import { Button } from '../ui/button';
@@ -27,9 +26,7 @@ import {
 } from '../ui/tooltip';
 import {
     X, Download, Share, Play,
-    X, Download, Share, Play,
     CheckCircle2, MessageSquare, Calendar, ChevronRight,
-    AlertCircle, ArrowLeft,
     AlertCircle, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
     PenLine, ImageIcon,
@@ -47,10 +44,8 @@ import {
 import type { CommentInputHandle, ReviewMode } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
-// import { ReviewConnectionIndicator, type ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 
-/** Map folder / deliverable labels to a short file-code badge. */
 function resolveFileCode(folderType?: string | null, deliverableType?: string | null): string {
     const raw = (folderType || deliverableType || '').trim();
     if (!raw) return 'MAIN';
@@ -63,52 +58,25 @@ function resolveFileCode(folderType?: string | null, deliverableType?: string | 
     if (n.includes('cover')) return 'COVER';
     if (n.includes('music') || n.includes('license')) return 'LIC';
     if (n === 'main' || n === 'mainfile') return 'MAIN';
-    // Fall back to a short uppercase token
     return raw.slice(0, 6).toUpperCase();
 }
 
-/** Map folder / deliverable labels to a short file-code badge. */
-function resolveFileCode(folderType?: string | null, deliverableType?: string | null): string {
-    const raw = (folderType || deliverableType || '').trim();
-    if (!raw) return 'MAIN';
-    const n = raw.toLowerCase().replace(/[_\s-]+/g, '');
-    if (n === 'sf' || n.includes('shortform')) return 'SF';
-    if (n === 'lf' || n.includes('longform')) return 'LF';
-    if (n === 'sqf' || n.includes('square')) return 'SQF';
-    if (n.includes('thumb')) return 'THUMB';
-    if (n.includes('tile')) return 'TILE';
-    if (n.includes('cover')) return 'COVER';
-    if (n.includes('music') || n.includes('license')) return 'LIC';
-    if (n === 'main' || n === 'mainfile') return 'MAIN';
-    // Fall back to a short uppercase token
-    return raw.slice(0, 6).toUpperCase();
-}
-
-/* ─── Shared prop type ─────────────────────────────────────────── */
 export interface ReviewScreenProps {
-    /* asset */
     asset: any;
-    // Pure playback mode — hides the entire sidebar (comments/titles tabs,
-    // approve/reject actions). Used for the client's "Rejected" section.
     readOnly?: boolean;
     currentFileSection?: { folderType: string; fileId: string; version: number };
     userRole: 'client' | 'qc';
     requiresClientReview: boolean;
-    // 🔥 QC manual override — lets QC force this specific video into client
-    // review even when the client's account doesn't require it generally.
     forceClientReviewOverride?: boolean;
     onForceClientReviewOverrideChange?: (value: boolean) => void;
-    // 🔥 Multi-item posting content — composed in the review sidebar, batched on approve
     postingTitles: { id: string; text: string }[];
     postingDescriptions: { id: string; text: string }[];
     postingTags: { id: string; text: string }[];
     onPostingTitlesChange: (items: { id: string; text: string }[]) => void;
     onPostingDescriptionsChange: (items: { id: string; text: string }[]) => void;
     onPostingTagsChange: (items: { id: string; text: string }[]) => void;
-    // 🔥 Client's template hashtags — selectable chips above the freeform tags box
     templateHashtags?: string[];
 
-    /* video state */
     videoRef: RefObject<HTMLVideoElement | null>;
     iframeRef: RefObject<HTMLIFrameElement | null>;
     youtubePlayerRef: RefObject<YoutubePlayerHandle | null>;
@@ -127,7 +95,6 @@ export interface ReviewScreenProps {
     iframeLoaded: boolean;
     isDragging: boolean;
 
-    /* review state */
     comments: ReviewComment[];
     sortedComments: ReviewComment[];
     allClientComments: ReviewComment[];
@@ -140,7 +107,6 @@ export interface ReviewScreenProps {
     currentVersionNumber: number;
     isClientViewer: boolean;
 
-    /* info & share */
     showInfoPanel: boolean;
     shareLink: string;
     generatingLink: boolean;
@@ -148,10 +114,8 @@ export interface ReviewScreenProps {
     showShareDialog: boolean;
     connectionInsight: ReviewConnectionInsight;
 
-    /* user */
     userName: string;
 
-    /* video handlers */
     togglePlay: () => void;
     toggleMute: () => void;
     seekBackward: () => void;
@@ -164,7 +128,6 @@ export interface ReviewScreenProps {
     handleTimestampClick: (ts: number) => void;
     onJumpToClientComment: (c: ReviewComment) => void;
 
-    /* review handlers */
     handleCommentSubmit: (c: Omit<ReviewComment, 'id' | 'createdAt'>) => void;
     handleCommentResolve: (id: string, resolved: boolean) => void;
     handleCommentDelete: (id: string) => void;
@@ -172,7 +135,6 @@ export interface ReviewScreenProps {
     handleStatusChange: (s: 'approved' | 'needs_changes') => void;
     handleRejectWithComment?: (comment: string) => Promise<void>;
 
-    /* ui handlers */
     setShowCommentInput: (v: boolean) => void;
     setConfirmFinal: (v: boolean) => void;
     setShowInfoPanel: (v: boolean) => void;
@@ -192,13 +154,11 @@ export interface ReviewScreenProps {
     onNextAsset?: () => void;
     formatTime: (t: number) => string;
 
-    /* view toggle */
     onSwitchToMobile: () => void;
     onSwitchToDesktop?: () => void;
     onSwitchToThumbnail?: () => void;
 }
 
-/* ─────────────────────────────────────────────────────────────── */
 export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
@@ -221,13 +181,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         [p.currentFileSection?.folderType, p.asset]
     );
 
-    // Instagram preview only makes sense on short-form deliverables. Prefer
-    // the folderType/deliverableType resolution (same as the SF/LF file
-    // badge), but that field isn't always populated on older/imported
-    // tasks — fall back to the asset title's naming convention (e.g.
-    // "CoinLaundryAssociation_08-01-2026_SF37"), which reliably carries an
-    // "SF" token even when the metadata doesn't. Word-bounded so it
-    // doesn't false-positive on "BSF" (Beta Short Form).
     const isShortFormTask = fileCode === 'SF' || /(^|[_\s-])SF(\d|[_\s-]|$)/i.test(p.asset?.title || '');
 
     useEffect(() => {
@@ -240,20 +193,15 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     }, []);
 
     const handleModeSelect = useCallback((mode: ReviewMode) => {
-        // Instagram preview is a standalone toggle — it doesn't open the
-        // comment composer or touch the sidebar, just overlays reels-style
-        // chrome on top of the still-playing video.
         if (mode === 'instagram') {
             if (!isShortFormTask) return;
             setShowInstagramOverlay(v => !v);
             return;
         }
 
-        // Always switch sidebar to comments when interacting with modes
         setSidebarTab('comments');
 
         if (mode === 'draw') {
-            // Capture current frame silently and enter draw overlay (skip snip step)
             if (p.isPlaying) p.togglePlay();
             const source = p.videoRef.current;
             if (!source) {
@@ -276,10 +224,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
             return;
         }
 
-        // Leaving draw without completing
         if (drawBaseUrl) setDrawBaseUrl(null);
 
-        // Range pill toggles on/off when clicked again
         if (mode === 'range' && activeMode === 'range') {
             p.setShowCommentInput(true);
             window.requestAnimationFrame(() => commentInputRef.current?.toggleRange());
@@ -290,7 +236,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setActiveMode(mode);
         p.setShowCommentInput(true);
 
-        // Defer imperative calls until CommentInput has expanded
         window.requestAnimationFrame(() => {
             const api = commentInputRef.current;
             if (!api) return;
@@ -320,11 +265,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         });
     }, [p.setShowCommentInput]);
 
-    // Vertical/short-form videos (Reels, TikTok-style) were being forced into
-    // a fixed 16:9 box with object-contain, producing large black pillars on
-    // both sides that clients sometimes mistake for part of the video itself.
-    // Deriving real orientation from the resolution lets the container match
-    // the video's actual shape instead.
     const isVerticalVideo = useMemo(() => {
         const res = p.measuredResolution || p.asset.resolution;
         if (!res) return false;
@@ -334,9 +274,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         return Number(h) > Number(w);
     }, [p.measuredResolution, p.asset.resolution]);
 
-    // Exact ratio when known, so the inner black box hugs the video tightly
-    // instead of leaving a big black margin around a narrower video. Falls
-    // back to a sensible portrait default before metadata is available.
     const exactAspectRatio = useMemo(() => {
         const res = p.measuredResolution || p.asset.resolution;
         const match = res?.match(/^(\d+)x(\d+)$/i);
@@ -345,17 +282,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         return `${w} / ${h}`;
     }, [p.measuredResolution, p.asset.resolution]);
 
-    // 🔥 Sidebar tab switcher
-    // inline-edit state: which item id is currently being edited, per type
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState('');
-    // new-item input per list type (titles still uses the add-button list UI)
     const [newTexts, setNewTexts] = useState({ titles: '', descriptions: '', tags: '' });
-    // freeform tags textbox — local string so commas/newlines aren't eaten mid-type;
-    // parsed into p.postingTags on every change
     const [tagsText, setTagsText] = useState(() => p.postingTags.map(t => t.text).join(', '));
 
-    // caps per type (titles only now — descriptions/tags are freeform boxes)
     const CAPS = { titles: 3, descriptions: 3, tags: 10 };
 
     const addItem = (type: 'titles'|'descriptions'|'tags') => {
@@ -372,7 +303,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const deleteItem = (type: 'titles'|'descriptions'|'tags', id: string) => {
         const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
         const setCurrentList = type === 'titles' ? p.onPostingTitlesChange : type === 'descriptions' ? p.onPostingDescriptionsChange : p.onPostingTagsChange;
-        // Floor-of-one: client cannot delete last title
         if (type === 'titles' && p.userRole === 'client' && currentList.length <= 1) return;
         setCurrentList(currentList.filter(i => i.id !== id));
     };
@@ -393,7 +323,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setEditingText('');
     };
 
-    // toggle a client template hashtag in/out of the tags list (chip picker)
     const toggleTemplateHashtag = (tag: string) => {
         const isSelected = p.postingTags.some(t => t.text === tag);
         const nextItems = isSelected
@@ -403,8 +332,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setTagsText(nextItems.map(t => t.text).join(', '));
     };
 
-    // auto-select every client tag by default the first time they load,
-    // so the panel doesn't open with all chips unselected
     const hasSeededTags = useRef(false);
     useEffect(() => {
         if (hasSeededTags.current) return;
@@ -416,7 +343,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         hasSeededTags.current = true;
     }, [p.templateHashtags, p.postingTags, p.onPostingTagsChange]);
 
-    // clear new-item inputs and editing state when tab changes
     const handleTabChange = (tab: SidebarTab) => {
         setSidebarTab(tab);
         setNewTexts({ titles: '', descriptions: '', tags: '' });
@@ -425,9 +351,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setTagsText(p.postingTags.map(t => t.text).join(', '));
     };
 
-    // Two-step approve: first click switches to the Titles tab so the
-    // titles get reviewed before anything is approved; second click (once
-    // already on Titles) is the real, final approval.
     const isReadyToApprove = sidebarTab === 'titles';
     const handleApproveClick = () => {
         if (!isReadyToApprove) {
@@ -456,7 +379,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                 className="relative w-full h-full flex flex-col"
                 style={{ background: 'var(--review-bg-primary)' }}
             >
-                {/* ── Success overlays ── */}
                 {p.showApprovalSuccess && (
                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
                         <Card className="bg-green-900/50 border-green-500/50 backdrop-blur-xl">
@@ -492,10 +414,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     </div>
                 )}
 
-                {/* ── HEADER ── */}
                 <div className="flex-shrink-0 review-header px-6 py-3">
                     <div className="flex items-center justify-between">
-                        {/* Left */}
                         <div className="flex items-center gap-4">
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -511,11 +431,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h1 className="text-lg font-medium text-white">{p.asset.title}</h1>
-                                    {/* {p.currentFileSection && (
-                                        <Badge className={`${p.asset.status === 'approved' ? 'bg-green-600' : 'bg-purple-600'} text-xs`}>
-                                            v{p.currentFileSection.version}
-                                        </Badge>
-                                    )} */}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
                                     <span className="text-sm text-white">
@@ -524,16 +439,10 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <span className="text-white">•</span>
                                     <span className="text-sm text-white">{p.measuredResolution || p.asset.resolution}</span>
                                 </div>
-                                {/*
-                                    Internet speed / recommendation indicator hidden for now.
-                                    <ReviewConnectionIndicator insight={p.connectionInsight} />
-                                */}
                             </div>
                         </div>
 
-                        {/* Right */}
                         <div className="flex items-center gap-2">
-                            {/* 🖼️ Switch to thumbnail review — only shown when the task has thumbnails */}
                             {p.onSwitchToThumbnail && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -551,7 +460,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 </Tooltip>
                             )}
 
-                            {/* Version selector */}
                             {p.asset.versions.length > 1 ? (
                                 <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
                                     <SelectTrigger className="h-8 w-auto min-w-[130px] bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-xs">
@@ -594,7 +502,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 </Tooltip>
                             )}
 
-                            {/* 💬 All client comments, across every version — only shown if a client has commented */}
                             {p.allClientComments.length > 0 && (
                                 <DropdownMenu>
                                     <Tooltip>
@@ -642,7 +549,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 <TooltipContent side="bottom">Asset info</TooltipContent>
                             </Tooltip>
 
-                            {/* 📱 Switch to mobile view */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
@@ -664,25 +570,12 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     </div>
                 </div>
 
-                {/* ── BODY ── */}
                 <div className="flex-1 flex overflow-hidden min-h-0">
 
-                    {/* Video column */}
                     <div className="flex-1 flex flex-col p-4 pr-0 overflow-hidden">
-                        {/* Video area */}
-                        <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0">
                         <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0">
                             {isVerticalVideo ? (
-                                // Outer layer: purely a positioning helper, guaranteed to
-                                // fill the real available panel (proven reliable — see the
-                                // !absolute !inset-0 fix). No background of its own, so it's
-                                // invisible — it only exists to give the inner box a real,
-                                // resolved height to size against.
                                 <div className="!absolute !inset-0 flex items-center justify-center">
-                                    {/* Inner layer: the actual visible black box. Sized
-                                        tightly to the video's real aspect ratio so the
-                                        black background doesn't spill out into a big
-                                        square around a narrow video. */}
                                     <div
                                         className="review-video-container h-full w-auto"
                                         style={{ aspectRatio: exactAspectRatio }}
@@ -762,10 +655,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             </>
                                         )}
 
-                                        {/* Instagram Reels-style preview — nested inside the
-                                            tightly-sized video box (not the wider letterboxed
-                                            panel) so the chrome hugs the actual video edges,
-                                            same as real Reels with no pillarboxing. */}
                                         {showInstagramOverlay && isShortFormTask && (
                                             <ReviewInstagramOverlay
                                                 defaultUsername={p.asset.client}
@@ -853,17 +742,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 </div>
                             )}
 
-                            {/* Draw-on-frame overlay (Desktop Draw pill) */}
-                            {drawBaseUrl && videoShellRef.current && (
-                                <ReviewDrawOverlay
-                                    baseImageUrl={drawBaseUrl}
-                                    container={videoShellRef.current}
-                                    onComplete={handleDrawComplete}
-                                    onCancel={exitDrawMode}
-                                />
-                            )}
-
-                            {/* Draw-on-frame overlay (Desktop Draw pill) */}
                             {drawBaseUrl && videoShellRef.current && (
                                 <ReviewDrawOverlay
                                     baseImageUrl={drawBaseUrl}
@@ -874,10 +752,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             )}
                         </div>
 
-                        {/* Full-width timeline, then controls directly left of centered review actions. */}
                         <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-3">
                             {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
-                                <ReviewCompactTransport
                                 <ReviewCompactTransport
                                     duration={p.duration}
                                     currentTime={p.currentTime}
@@ -939,13 +815,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         </div>
                     </div>
 
-                    {/* ── SIDEBAR — hidden entirely in read-only playback mode ── */}
                     {!p.readOnly && (
                     <div
                         className="w-96 flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
                         style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
                     >
-                        {/* ── SIDEBAR HEADER — tab switcher ── */}
                         <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
                             <div className="grid grid-cols-2 gap-2">
                                 {(['comments', 'titles'] as const).map(tab => {
@@ -968,11 +842,9 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </div>
                         </div>
 
-                        {/* ── COMMENTS TAB ── */}
                         {sidebarTab === 'comments' && (<>
                             <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
                                 <CommentInput
-                                    ref={commentInputRef}
                                     ref={commentInputRef}
                                     taskId={p.asset.id}
                                     currentTime={p.currentTime}
@@ -980,7 +852,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     authorId="current-user"
                                     authorName={p.userName}
                                     videoRef={p.videoRef}
-                                    duration={p.duration}
                                     duration={p.duration}
                                     currentVersionNumber={p.currentVersionNumber}
                                     onSubmit={(c) => {
@@ -991,20 +862,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         p.setShowCommentInput(false);
                                         setActiveMode(null);
                                     }}
-                                    onSubmit={(c) => {
-                                        p.handleCommentSubmit(c);
-                                        setActiveMode(null);
-                                    }}
-                                    onCancel={() => {
-                                        p.setShowCommentInput(false);
-                                        setActiveMode(null);
-                                    }}
                                     isExpanded={p.showCommentInput}
-                                    onToggleExpand={() => {
-                                        setActiveMode('comment');
-                                        p.setShowCommentInput(true);
-                                    }}
-                                    hideInlineTools
                                     onToggleExpand={() => {
                                         setActiveMode('comment');
                                         p.setShowCommentInput(true);
@@ -1020,7 +878,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         <p className="text-xs mt-1 opacity-70">
                                             {p.isClientViewer
                                                 ? 'Add a comment to leave feedback on this version'
-                                                : 'Use Comment / Draw / Voice pills below the player'
                                                 : 'Use Comment / Draw / Voice pills below the player'
                                             }
                                         </p>
@@ -1052,7 +909,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </div>
                         </>)}
 
-                        {/* ── TITLES / DESCRIPTIONS / TAGS TABS ── */}
                         {sidebarTab === 'titles' && (
                             <div className="flex-1 overflow-y-auto review-scrollbar min-h-0">
                                 {(['titles', 'descriptions', 'tags'] as const).map(type => {
@@ -1066,7 +922,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     };
                                     const { singular, placeholder } = labels[type];
 
-                                    // ── DESCRIPTIONS & TAGS: single freeform textbox — no add button, no cap ──
                                     if (type === 'descriptions' || type === 'tags') {
                                         const isTags = type === 'tags';
                                         return (
@@ -1237,7 +1092,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </div>
                         )}
 
-                        {/* Action footer */}
                         <div className="p-4 pb-6 border-t border-[var(--review-border)] flex flex-col gap-2.5 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
                             {p.userRole === 'qc' ? (
                                 <>
@@ -1290,7 +1144,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     </div>
                     )}
 
-                    {/* ── INFO PANEL ── */}
                     {p.showInfoPanel && (
                         <div className="w-64 flex-shrink-0 flex flex-col bg-[var(--review-bg-secondary)] border-l border-[var(--review-border)] p-4 review-animate-slide-in review-scrollbar overflow-y-auto">
                             <div className="flex items-center justify-between mb-4">
@@ -1339,7 +1192,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     )}
                 </div>
 
-                {/* Share dialog */}
                 <ShareDialog
                     open={p.showShareDialog}
                     onOpenChange={p.setShowShareDialog}

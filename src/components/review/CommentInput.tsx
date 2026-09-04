@@ -40,21 +40,6 @@ export type CommentInputHandle = {
     captureFullFrame: () => void;
 };
 
-export type CommentInputHandle = {
-    /** Expand the comment composer (Comment pill). */
-    openComment: () => void;
-    /** Expand and enable timestamp-range mode. */
-    toggleRange: () => void;
-    /** Expand and start voice recording immediately. */
-    startVoice: () => void;
-    /** Expand and open the file picker immediately. */
-    openAttach: () => void;
-    /** Set / clear the screenshot attached to the draft comment. */
-    setScreenshot: (url: string | null) => void;
-    /** Capture the full current frame into the draft (no snip). */
-    captureFullFrame: () => void;
-};
-
 // Helper to format seconds to timestamp string (e.g., 90 -> "1:30")
 function formatSecondsToTimestamp(seconds: number): string {
     const mins = Math.floor(seconds / 60);
@@ -163,8 +148,6 @@ interface CommentInputProps {
     imageRef?: React.RefObject<HTMLImageElement | null>;
     duration?: number;
     currentVersionNumber?: number;
-    duration?: number;
-    currentVersionNumber?: number;
     onSubmit: (comment: Omit<ReviewComment, 'id' | 'createdAt'>) => void;
     onCancel?: () => void;
     isExpanded?: boolean;
@@ -174,14 +157,8 @@ interface CommentInputProps {
      * drive those actions via the imperative API instead.
      */
     hideInlineTools?: boolean;
-    /**
-     * When true, hide the inline Range / Full-capture chrome — Desktop pills
-     * drive those actions via the imperative API instead.
-     */
-    hideInlineTools?: boolean;
 }
 
-export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(function CommentInput({
 export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(function CommentInput({
     taskId,
     currentTime,
@@ -196,8 +173,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
     onCancel,
     isExpanded = false,
     onToggleExpand,
-    hideInlineTools = false,
-}, ref) {
     hideInlineTools = false,
 }, ref) {
     const [content, setContent] = useState('');
@@ -215,18 +190,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
     const [endTimestampInput, setEndTimestampInput] = useState('');
     const [endTimestampError, setEndTimestampError] = useState<string | null>(null);
     const [rangeStartSeconds, setRangeStartSeconds] = useState<number | null>(null);
-    const [isEndTracking, setIsEndTracking] = useState(false);
-
-    // Voice recording
-    const [isRecording, setIsRecording] = useState(false);
-    const [audioUrl, setAudioUrl] = useState<string | null>(null);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const audioChunksRef = useRef<Blob[]>([]);
-    const mediaStreamRef = useRef<MediaStream | null>(null);
-
-    // File attachment
-    const [attachment, setAttachment] = useState<{ name: string; url: string; type: string } | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const [isEndTracking, setIsEndTracking] = useState(false);
 
     // Voice recording
@@ -257,18 +220,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
     useEffect(() => () => stopRecordingCleanup(), [stopRecordingCleanup]);
 
-    const stopRecordingCleanup = useCallback(() => {
-        try {
-            mediaRecorderRef.current?.stop();
-        } catch { /* ignore */ }
-        mediaRecorderRef.current = null;
-        mediaStreamRef.current?.getTracks().forEach(t => t.stop());
-        mediaStreamRef.current = null;
-        setIsRecording(false);
-    }, []);
-
-    useEffect(() => () => stopRecordingCleanup(), [stopRecordingCleanup]);
-
     // Live-track end timestamp as video plays
     useEffect(() => {
         if (!isEndTracking || !useEndTimestamp) return;
@@ -281,7 +232,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             setEndTimestampError(null);
             return;
         }
-
 
         const endSeconds = parseTimestampToSeconds(endTimestampInput);
         const startSecs = rangeStartSeconds ?? currentTime;
@@ -323,35 +273,11 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
     const captureFullFrame = useCallback(() => {
         const source = videoRef?.current || imageRef?.current || null;
-    const ensureExpanded = useCallback(() => {
-        if (!isExpanded) onToggleExpand?.();
-    }, [isExpanded, onToggleExpand]);
-
-    const enableRangeMode = useCallback(() => {
-        ensureExpanded();
-        setUseEndTimestamp(true);
-        setRangeStartSeconds(currentTime);
-        setEndTimestampInput(formatSecondsToTimestamp(currentTime));
-        setIsEndTracking(true);
-    }, [ensureExpanded, currentTime]);
-
-    const disableRangeMode = useCallback(() => {
-        setUseEndTimestamp(false);
-        setEndTimestampInput('');
-        setIsEndTracking(false);
-        setRangeStartSeconds(null);
-    }, []);
-
-    const captureFullFrame = useCallback(() => {
-        const source = videoRef?.current || imageRef?.current || null;
         if (!source) return;
         window.requestAnimationFrame(() => {
             const dataUrl = captureFullFrameFromSource(source);
             if (dataUrl) setScreenshotUrl(dataUrl);
-            const dataUrl = captureFullFrameFromSource(source);
-            if (dataUrl) setScreenshotUrl(dataUrl);
         });
-    }, [videoRef, imageRef]);
     }, [videoRef, imageRef]);
 
     const handleStartSnip = useCallback(() => {
@@ -499,15 +425,12 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
     const handleSubmit = async () => {
         if (!content.trim() && !audioUrl && !attachment && !screenshotUrl) return;
 
-        if (!content.trim() && !audioUrl && !attachment && !screenshotUrl) return;
-
         const startSecs = (useEndTimestamp && rangeStartSeconds !== null) ? rangeStartSeconds : currentTime;
         const startTimestamp = formatSecondsToTimestamp(startSecs);
 
         if (useEndTimestamp && endTimestampInput) {
             const endSeconds = parseTimestampToSeconds(endTimestampInput);
             if (endSeconds === null || endSeconds <= startSecs) {
-                return;
                 return;
             }
         }
@@ -516,16 +439,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
         const endSeconds = useEndTimestamp && endTimestampInput
             ? parseTimestampToSeconds(endTimestampInput)
-
-        const endSeconds = useEndTimestamp && endTimestampInput
-            ? parseTimestampToSeconds(endTimestampInput)
             : undefined;
-
-        // If content is empty but we have media, invent a short label
-        const body = content.trim()
-            || (audioUrl ? 'Voice note' : '')
-            || (attachment ? `Attached: ${attachment.name}` : '')
-            || (screenshotUrl ? 'Frame annotation' : '');
 
         // If content is empty but we have media, invent a short label
         const body = content.trim()
@@ -543,12 +457,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             endTimestampSeconds: endSeconds ?? undefined,
             content: body,
             category: [category] as ReviewComment['category'],
-            content: body,
-            category: [category] as ReviewComment['category'],
             screenshotUrl: screenshotUrl || undefined,
-            audioUrl: audioUrl || undefined,
-            attachmentUrl: attachment?.url,
-            attachmentName: attachment?.name,
             audioUrl: audioUrl || undefined,
             attachmentUrl: attachment?.url,
             attachmentName: attachment?.name,
@@ -560,9 +469,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
         await onSubmit(newComment);
         setContent('');
         setScreenshotUrl(null);
-        setAudioUrl(null);
-        setAttachment(null);
-        disableRangeMode();
         setAudioUrl(null);
         setAttachment(null);
         disableRangeMode();
@@ -578,11 +484,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
         if (e.key === 'Escape') {
             onCancel?.();
         }
-    };
-
-    const handleCancel = () => {
-        stopRecordingCleanup();
-        onCancel?.();
     };
 
     const handleCancel = () => {
@@ -612,24 +513,12 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 onChange={handleFileChange}
             />
 
-            {/* Hidden file input for Attach mode */}
-            <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={handleFileChange}
-            />
-
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-2 flex-wrap">
                     {/* Timestamp display with optional range */}
                     <div className="flex items-center gap-1">
                         <span className="review-comment-timestamp flex items-center gap-1">
-                            {useEndTimestamp && rangeStartSeconds !== null
-                                ? formatSecondsToTimestamp(rangeStartSeconds)
-                                : currentTimestamp}
                             {useEndTimestamp && rangeStartSeconds !== null
                                 ? formatSecondsToTimestamp(rangeStartSeconds)
                                 : currentTimestamp}
@@ -644,13 +533,10 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                                             value={endTimestampInput}
                                             onChange={(e) => {
                                                 setIsEndTracking(false);
-                                                setIsEndTracking(false);
                                                 setEndTimestampInput(e.target.value);
                                             }}
                                             placeholder="M:SS"
                                             className={`w-16 h-6 px-1.5 text-xs bg-[var(--review-bg-elevated)] border rounded text-center font-mono ${
-                                                endTimestampError
-                                                    ? 'border-red-500 text-red-400'
                                                 endTimestampError
                                                     ? 'border-red-500 text-red-400'
                                                     : isEndTracking
@@ -677,7 +563,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                                     variant="ghost"
                                     size="sm"
                                     onClick={disableRangeMode}
-                                    onClick={disableRangeMode}
                                     className="h-5 w-5 p-0 text-[var(--review-text-muted)] hover:text-red-400"
                                     title="Remove end time"
                                 >
@@ -686,11 +571,9 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                             </>
                         )}
                         {!hideInlineTools && !useEndTimestamp && videoRef && (
-                        {!hideInlineTools && !useEndTimestamp && videoRef && (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={enableRangeMode}
                                 onClick={enableRangeMode}
                                 className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
                                 title="Add end time for a range (e.g., 1:00 - 1:28)"
@@ -700,12 +583,11 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                             </Button>
                         )}
                     </div>
-                    {!hideInlineTools && hasCaptureSource && (
+                    {hasCaptureSource && (
                         <div className="flex items-center gap-1">
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={captureFullFrame}
                                 onClick={captureFullFrame}
                                 className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
                                 title={videoRef ? 'Capture full frame' : 'Capture full image'}
@@ -713,13 +595,22 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                                 <Camera className="h-3.5 w-3.5" />
                                 <span className="text-[10px] uppercase font-bold tracking-wider">Full</span>
                             </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleStartSnip}
+                                className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
+                                title="Select area to snip"
+                            >
+                                <Crop className="h-3.5 w-3.5" />
+                                <span className="text-[10px] uppercase font-bold tracking-wider">Snip</span>
+                            </Button>
                         </div>
                     )}
                 </div>
                 <Button
                     variant="ghost"
                     size="sm"
-                    onClick={handleCancel}
                     onClick={handleCancel}
                     className="h-6 w-6 p-0 text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-elevated)]"
                 >
@@ -748,66 +639,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 </div>
             )}
 
-            {/* Voice recording / playback */}
-            {(isRecording || audioUrl) && (
-                <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-elevated)]/60 px-2.5 py-2">
-                    {isRecording ? (
-                        <>
-                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                            <span className="text-xs text-red-300 font-medium flex-1">Recording…</span>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={stopVoiceRecording}
-                                className="h-7 gap-1 px-2 text-red-300 hover:text-white hover:bg-red-500/20"
-                            >
-                                <Square className="h-3 w-3 fill-current" />
-                                <span className="text-[10px] uppercase font-bold">Stop</span>
-                            </Button>
-                        </>
-                    ) : audioUrl ? (
-                        <>
-                            <Mic className="h-3.5 w-3.5 text-[var(--review-accent-purple)]" />
-                            <audio src={audioUrl} controls className="h-7 flex-1 max-w-[220px]" />
-                            <button
-                                onClick={() => {
-                                    URL.revokeObjectURL(audioUrl);
-                                    setAudioUrl(null);
-                                }}
-                                className="text-[var(--review-text-muted)] hover:text-red-400"
-                                title="Remove voice note"
-                            >
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        </>
-                    ) : null}
-                </div>
-            )}
-
-            {/* Attachment preview */}
-            {attachment && (
-                <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-elevated)]/60 px-2.5 py-2">
-                    <FileIcon className="h-3.5 w-3.5 text-[var(--review-accent-purple)] shrink-0" />
-                    <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-white truncate flex-1 hover:underline"
-                    >
-                        {attachment.name}
-                    </a>
-                    <button
-                        onClick={() => {
-                            URL.revokeObjectURL(attachment.url);
-                            setAttachment(null);
-                        }}
-                        className="text-[var(--review-text-muted)] hover:text-red-400"
-                        title="Remove attachment"
-                    >
-                        <X className="h-3.5 w-3.5" />
-                    </button>
-                </div>
-            )}
             {/* Voice recording / playback */}
             {(isRecording || audioUrl) && (
                 <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-elevated)]/60 px-2.5 py-2">
@@ -909,7 +740,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                         variant="ghost"
                         size="sm"
                         onClick={handleCancel}
-                        onClick={handleCancel}
                         className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-elevated)]"
                     >
                         Cancel
@@ -917,7 +747,6 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                     <Button
                         size="sm"
                         onClick={handleSubmit}
-                        disabled={(!content.trim() && !audioUrl && !attachment && !screenshotUrl) || isSubmitting || isRecording}
                         disabled={(!content.trim() && !audioUrl && !attachment && !screenshotUrl) || isSubmitting || isRecording}
                         className="bg-[var(--review-accent-purple)] hover:bg-[var(--review-accent-purple)]/90 text-white"
                     >
