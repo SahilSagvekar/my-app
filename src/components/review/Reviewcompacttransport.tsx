@@ -2,13 +2,18 @@
 
 import { useMemo, useRef } from 'react';
 import { memo } from 'react';
-import { Pause, Play, RotateCcw, RotateCw, ChevronDown } from 'lucide-react';
+import {
+    Play, Pause, Volume2, VolumeX, Settings, Maximize2,
+    FileCode2,
+} from 'lucide-react';
 import { Button } from '../ui/button';
 import {
     DropdownMenu,
     DropdownMenuTrigger,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
 import {
     Tooltip,
@@ -20,35 +25,44 @@ import { ReviewComment } from './types';
 interface ReviewCompactTransportProps {
     duration: number;
     currentTime: number;
+    isPlaying: boolean;
+    isMuted: boolean;
+    playbackSpeed: number;
     comments: ReviewComment[];
     activeCommentId?: string;
     currentVersionNumber?: number;
+    /** Short code shown in the file-code badge (e.g. SF, MAIN, V2). */
+    fileCode?: string;
+    formatTime: (t: number) => string;
+    onTogglePlay: () => void;
+    onToggleMute: () => void;
     onSeek: (time: number) => void;
+    onPlaybackSpeedChange: (speed: string) => void;
     onMarkerClick: (comment: ReviewComment) => void;
     onDragStart?: () => void;
     onDragEnd?: () => void;
-}
-
-interface ReviewPlaybackControlsProps {
-    currentTime: number;
-    duration: number;
-    isPlaying: boolean;
-    playbackSpeed: number;
-    onTogglePlay: () => void;
-    onSeek: (time: number) => void;
-    onPlaybackSpeedChange: (speed: string) => void;
+    onExpand?: () => void;
 }
 
 export const ReviewCompactTransport = memo(function ReviewCompactTransport({
     duration,
     currentTime,
+    isPlaying,
+    isMuted,
+    playbackSpeed,
     comments,
     activeCommentId,
     currentVersionNumber,
+    fileCode,
+    formatTime,
+    onTogglePlay,
+    onToggleMute,
     onSeek,
+    onPlaybackSpeedChange,
     onMarkerClick,
     onDragStart,
     onDragEnd,
+    onExpand,
 }: ReviewCompactTransportProps) {
     const trackRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
@@ -93,8 +107,59 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
     };
 
     return (
-        <div className="review-compact-transport w-full min-w-0 py-1">
-            <div
+        <div className="review-compact-transport flex items-center gap-2 w-full min-w-0">
+            {/* Play */}
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onTogglePlay}
+                        className="text-white hover:bg-white/10 h-8 w-8 p-0 shrink-0 rounded-full"
+                        aria-label={isPlaying ? 'Pause' : 'Play'}
+                    >
+                        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-white" />}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>Play/Pause (Space)</TooltipContent>
+            </Tooltip>
+
+            {/* Mute */}
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onToggleMute}
+                        className="text-[var(--review-text-secondary)] hover:text-white hover:bg-white/10 h-8 w-8 p-0 shrink-0 rounded-full"
+                        aria-label={isMuted ? 'Unmute' : 'Mute'}
+                    >
+                        {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>Mute (M)</TooltipContent>
+            </Tooltip>
+
+            {/* Time */}
+            <span className="text-[11px] text-white/90 font-mono tabular-nums shrink-0 whitespace-nowrap">
+                {formatTime(currentTime)}
+                <span className="text-white/40"> / {formatTime(duration)}</span>
+            </span>
+
+            {/* File-code badge */}
+            {fileCode && (
+                <span
+                    className="review-file-code-badge inline-flex items-center gap-1 shrink-0 rounded-md border border-[var(--review-accent-purple)]/40 bg-[var(--review-accent-purple)]/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--review-accent-purple)]"
+                    title="Deliverable / file code"
+                >
+                    <FileCode2 className="h-3 w-3" />
+                    {fileCode}
+                </span>
+            )}
+
+            {/* Thin purple scrub bar with markers */}
+            <div className="flex-1 min-w-[80px] px-1">
+                <div
                     ref={trackRef}
                     className="review-compact-scrub relative h-4 flex items-center cursor-pointer group"
                     onMouseDown={handleMouseDown}
@@ -103,16 +168,16 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
                     aria-valuemax={duration || 0}
                     aria-valuenow={currentTime}
                     aria-label="Seek"
-            >
-                <div className="absolute inset-x-0 h-[3px] rounded-full bg-white/15 overflow-hidden">
+                >
+                    <div className="absolute inset-x-0 h-[3px] rounded-full bg-white/15 overflow-hidden">
                         <div
                             className="h-full rounded-full bg-[var(--review-accent-purple)] transition-[width] duration-75 ease-linear"
                             style={{ width: `${progressPct}%` }}
                         />
-                </div>
+                    </div>
 
-                {/* Comment markers */}
-                {versionFilteredComments.map((comment) => {
+                    {/* Comment markers */}
+                    {versionFilteredComments.map((comment) => {
                         if (duration <= 0) return null;
                         const left = (comment.timestampSeconds / duration) * 100;
                         const isActive = comment.id === activeCommentId;
@@ -133,41 +198,72 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
                                 }}
                             />
                         );
-                })}
+                    })}
 
-                {/* Playhead thumb */}
-                <div
+                    {/* Playhead thumb */}
+                    <div
                         className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-[3] pointer-events-none"
                         style={{ left: `${progressPct}%` }}
-                />
+                    />
+                </div>
             </div>
+
+            {/* Settings gear — playback speed */}
+            <DropdownMenu>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-[var(--review-text-secondary)] hover:text-white hover:bg-white/10 h-8 w-8 p-0 shrink-0 rounded-full"
+                                aria-label="Settings"
+                            >
+                                <Settings className="h-3.5 w-3.5" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Playback settings</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent
+                    align="end"
+                    className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white min-w-[140px]"
+                >
+                    <DropdownMenuLabel className="text-[var(--review-text-muted)] text-[10px] uppercase tracking-wider">
+                        Speed
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator className="bg-[var(--review-border)]" />
+                    {['0.5', '0.75', '1', '1.25', '1.5', '2'].map((s) => (
+                        <DropdownMenuItem
+                            key={s}
+                            onClick={() => onPlaybackSpeedChange(s)}
+                            className={`text-xs cursor-pointer focus:bg-white/10 focus:text-white ${
+                                playbackSpeed.toString() === s ? 'text-[var(--review-accent-purple)]' : 'text-[var(--review-text-secondary)]'
+                            }`}
+                        >
+                            {s}× {playbackSpeed.toString() === s ? '✓' : ''}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Expand */}
+            {onExpand && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onExpand}
+                            className="text-[var(--review-text-secondary)] hover:text-white hover:bg-white/10 h-8 w-8 p-0 shrink-0 rounded-full"
+                            aria-label="Expand"
+                        >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Expand player</TooltipContent>
+                </Tooltip>
+            )}
         </div>
     );
 });
-
-/** Playback controls positioned directly left of the centered review actions. */
-export function ReviewPlaybackControls({
-    currentTime,
-    duration,
-    isPlaying,
-    playbackSpeed,
-    onTogglePlay,
-    onSeek,
-    onPlaybackSpeedChange,
-}: ReviewPlaybackControlsProps) {
-    const seekBy = (seconds: number) => onSeek(Math.max(0, Math.min(duration, currentTime + seconds)));
-
-    return (
-        <div className="flex items-center gap-1.5" aria-label="Playback controls">
-            <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={() => seekBy(-15)} className="h-8 w-8 rounded-full p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white" aria-label="Back 15 seconds"><RotateCcw className="h-3.5 w-3.5" /></Button></TooltipTrigger><TooltipContent>Back 15 seconds</TooltipContent></Tooltip>
-            <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={onTogglePlay} className="h-8 w-8 rounded-full p-0 text-white hover:bg-white/10" aria-label={isPlaying ? 'Pause' : 'Play'}>{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-white" />}</Button></TooltipTrigger><TooltipContent>Play/Pause</TooltipContent></Tooltip>
-            <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="sm" onClick={() => seekBy(15)} className="h-8 w-8 rounded-full p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white" aria-label="Forward 15 seconds"><RotateCw className="h-3.5 w-3.5" /></Button></TooltipTrigger><TooltipContent>Forward 15 seconds</TooltipContent></Tooltip>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild><Button variant="ghost" size="sm" className="h-8 gap-1 rounded-full px-2 text-xs text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white" aria-label="Playback speed">{playbackSpeed}×<ChevronDown className="h-3 w-3" /></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[104px] border-[var(--review-border)] bg-[var(--review-bg-elevated)] text-white">
-                    {['0.5', '0.75', '1', '1.25', '1.5', '2'].map((speed) => <DropdownMenuItem key={speed} onClick={() => onPlaybackSpeedChange(speed)} className="cursor-pointer text-xs focus:bg-white/10 focus:text-white">{speed}× {playbackSpeed.toString() === speed ? '✓' : ''}</DropdownMenuItem>)}
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
-    );
-}
