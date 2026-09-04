@@ -95,7 +95,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import MeetingNotesPanel from "../admin/MeetingNotesPanel";
-import { DriveNotesPopover, type DriveNoteEntry } from "./DriveNotesPopover";
+import { DriveNotesPopover, type DriveNoteEntry } from "./Drivenotespopover";
 import { cn } from "@/lib/utils";
 import { formatFolderDisplayName } from "@/lib/format-folder-display-name";
 import { toast } from "sonner";
