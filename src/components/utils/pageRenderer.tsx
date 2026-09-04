@@ -53,7 +53,7 @@ import { FolderRepairTool } from "../admin/Folderrepairtool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
 import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
 import { ClientHelpVideos } from "../client/ClientHelpVideos";
-import { ClientShootScriptsPage } from "../dashboards/ClientShootScriptsPage";
+import { ClientShootScriptsPage } from "../dashboards/Clientshootscriptspage";  
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
