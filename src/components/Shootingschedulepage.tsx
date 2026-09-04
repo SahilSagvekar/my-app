@@ -54,7 +54,7 @@ interface Shoot {
   exclusions?: string | null;
   videographerNotes?: string | null;
   equipmentReturnedAt: string | null;
-  equipmentReturnedPhotoUrl: string | null;
+  equipmentReturnedPhotoUrls: string[];
 }
 
 const SHOOT_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const;
@@ -106,8 +106,8 @@ export function ShootingSchedulePage() {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
 
-  const [returnDialogShootId, setReturnDialogShootId] = useState<string | null>(null);
-  const [returnPhotoFile, setReturnPhotoFile] = useState<File | null>(null);
+  const [returnDialogShoot, setReturnDialogShoot] = useState<Shoot | null>(null);
+  const [returnPhotoFiles, setReturnPhotoFiles] = useState<Record<string, File | null>>({});
   const [confirmingReturn, setConfirmingReturn] = useState(false);
 
   // Filters — all applied client-side over the already-fetched list.
@@ -267,19 +267,25 @@ export function ShootingSchedulePage() {
   };
 
   const submitEquipmentReturn = async () => {
-    if (!returnDialogShootId || !returnPhotoFile) return;
+    if (!returnDialogShoot) return;
+    const allFilled = returnDialogShoot.equipmentIds.every(id => !!returnPhotoFiles[id]);
+    if (!allFilled) return;
     setConfirmingReturn(true);
     try {
       const formData = new FormData();
-      formData.append('photo', returnPhotoFile);
-      const res = await fetch(`/api/shoots/${returnDialogShootId}/equipment-return`, {
+      // Order matches equipmentIds — the backend expects exactly one photo
+      // per equipment item, count-checked against the shoot's equipmentIds.
+      for (const id of returnDialogShoot.equipmentIds) {
+        formData.append('photos', returnPhotoFiles[id]!);
+      }
+      const res = await fetch(`/api/shoots/${returnDialogShoot.id}/equipment-return`, {
         method: 'POST',
         body: formData,
       });
       if (res.ok) {
         toast.success('Equipment return confirmed');
-        setReturnDialogShootId(null);
-        setReturnPhotoFile(null);
+        setReturnDialogShoot(null);
+        setReturnPhotoFiles({});
         fetchAll();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -427,15 +433,21 @@ export function ShootingSchedulePage() {
                         </div>
                       )}
 
-                      {equipmentReturned && shoot.equipmentReturnedPhotoUrl && (
-                        <a
-                          href={shoot.equipmentReturnedPhotoUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs text-green-700 hover:underline"
-                        >
-                          <ImageIcon className="h-3.5 w-3.5" /> View return photo
-                        </a>
+                      {equipmentReturned && shoot.equipmentReturnedPhotoUrls.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {shoot.equipmentReturnedPhotoUrls.map((url, idx) => (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs text-green-700 hover:underline"
+                            >
+                              <ImageIcon className="h-3.5 w-3.5" />
+                              {equipmentName(shoot.equipmentIds[idx])}
+                            </a>
+                          ))}
+                        </div>
                       )}
                     </div>
 
@@ -454,12 +466,12 @@ export function ShootingSchedulePage() {
                       <Button variant="outline" size="sm" onClick={() => openEditForm(shoot)} className="gap-1.5">
                         <Pencil className="h-3.5 w-3.5" /> Edit
                       </Button>
-                      {!equipmentReturned && (
+                      {!equipmentReturned && shoot.equipmentIds.length > 0 && (
                         <Button
                           variant="outline"
                           size="sm"
                           className="gap-1.5 border-green-200 hover:bg-green-50 text-green-700"
-                          onClick={() => setReturnDialogShootId(shoot.id)}
+                          onClick={() => { setReturnDialogShoot(shoot); setReturnPhotoFiles({}); }}
                         >
                           <PackageCheck className="h-3.5 w-3.5" /> Confirm Equipment Back
                         </Button>
@@ -625,31 +637,43 @@ export function ShootingSchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Equipment Return Photo Dialog */}
-      <Dialog open={!!returnDialogShootId} onOpenChange={(open) => { if (!open) { setReturnDialogShootId(null); setReturnPhotoFile(null); } }}>
-        <DialogContent className="max-w-sm">
+      {/* Equipment Return Photo Dialog — one photo required per equipment item */}
+      <Dialog open={!!returnDialogShoot} onOpenChange={(open) => { if (!open) { setReturnDialogShoot(null); setReturnPhotoFiles({}); } }}>
+        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Confirm Equipment Returned</DialogTitle>
-            <DialogDescription>Take or upload a photo showing the equipment put back.</DialogDescription>
+            <DialogDescription>
+              A photo is required for each piece of equipment on this shoot
+              {returnDialogShoot ? ` (${Object.values(returnPhotoFiles).filter(Boolean).length}/${returnDialogShoot.equipmentIds.length})` : ''}.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <Input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => setReturnPhotoFile(e.target.files?.[0] || null)}
-            />
-            {returnPhotoFile && (
-              <img
-                src={URL.createObjectURL(returnPhotoFile)}
-                alt="Equipment returned"
-                className="w-full h-40 object-cover rounded-lg border"
-              />
-            )}
+          <div className="space-y-4 py-2">
+            {returnDialogShoot?.equipmentIds.map(id => (
+              <div key={id} className="space-y-1.5">
+                <Label className="text-xs">{equipmentName(id)}</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => setReturnPhotoFiles(prev => ({ ...prev, [id]: e.target.files?.[0] || null }))}
+                />
+                {returnPhotoFiles[id] && (
+                  <img
+                    src={URL.createObjectURL(returnPhotoFiles[id]!)}
+                    alt={`${equipmentName(id)} returned`}
+                    className="w-full h-32 object-cover rounded-lg border"
+                  />
+                )}
+              </div>
+            ))}
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setReturnDialogShootId(null); setReturnPhotoFile(null); }}>Cancel</Button>
-            <Button onClick={submitEquipmentReturn} disabled={!returnPhotoFile || confirmingReturn} className="gap-1.5">
+            <Button variant="outline" onClick={() => { setReturnDialogShoot(null); setReturnPhotoFiles({}); }}>Cancel</Button>
+            <Button
+              onClick={submitEquipmentReturn}
+              disabled={!returnDialogShoot || !returnDialogShoot.equipmentIds.every(id => !!returnPhotoFiles[id]) || confirmingReturn}
+              className="gap-1.5"
+            >
               {confirmingReturn ? 'Uploading...' : (<><CheckCircle2 className="h-4 w-4" /> Confirm</>)}
             </Button>
           </div>

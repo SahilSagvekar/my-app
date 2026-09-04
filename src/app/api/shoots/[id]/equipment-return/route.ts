@@ -1,18 +1,15 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { task as taskTable, shootDetail as shootDetailTable } from '@/lib/db/schema';
+import { shootDetail as shootDetailTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
+import { uploadBufferToS3 } from '@/lib/s3';
 
-const CAN_EDIT = ['admin', 'manager', 'videographer'];
+const CAN_CONFIRM = ['admin', 'manager', 'videographer'];
 
-// Same subset used in ../route.ts's POST — kept in sync manually since
-// there's no shared schema-level enum for just these three.
-const SHOOT_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const;
-
-// PATCH — edit a shoot day's details (location, time, host, equipment, etc.)
-export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+// POST — upload a photo confirming equipment was put back, for this shoot
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const db = getDbHttp();
   const params = await props.params;
   try {
@@ -20,53 +17,53 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!CAN_EDIT.includes((user.role || '').toLowerCase())) {
+    if (!CAN_CONFIRM.includes((user.role || '').toLowerCase())) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { id: taskId } = params;
-    const body = await req.json();
-    const {
-      title, videographerId, location, shootDate, hostName, equipmentIds,
-      camera, quality, frameRate, lighting, exclusions, notes, status,
-    } = body;
-
-    if (status !== undefined && !SHOOT_STATUSES.includes(status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-
-    const [existingShoot] = await db.select({ id: shootDetailTable.id })
+    const [existingShoot] = await db.select({ id: shootDetailTable.id, equipmentIds: shootDetailTable.equipmentIds })
       .from(shootDetailTable).where(eq(shootDetailTable.taskId, taskId)).limit(1);
     if (!existingShoot) {
       return NextResponse.json({ error: 'Shoot not found' }, { status: 404 });
     }
 
-    const taskUpdate: Record<string, any> = { updatedAt: new Date().toISOString() };
-    if (title !== undefined) taskUpdate.title = title;
-    if (videographerId !== undefined) taskUpdate.videographer = Number(videographerId);
-    if (shootDate !== undefined) taskUpdate.dueDate = new Date(shootDate).toISOString();
-    if (status !== undefined) taskUpdate.status = status;
-    const [updatedTask] = await db.update(taskTable).set(taskUpdate).where(eq(taskTable.id, taskId)).returning();
+    const equipmentCount = (existingShoot.equipmentIds || []).length;
+    if (equipmentCount === 0) {
+      return NextResponse.json({ error: 'This shoot has no equipment to confirm' }, { status: 400 });
+    }
 
-    const shootUpdate: Record<string, any> = { updatedAt: new Date().toISOString() };
-    if (location !== undefined) shootUpdate.location = location || null;
-    if (shootDate !== undefined) shootUpdate.shootDate = new Date(shootDate).toISOString();
-    if (hostName !== undefined) shootUpdate.hostName = hostName || null;
-    if (equipmentIds !== undefined) shootUpdate.equipmentIds = Array.isArray(equipmentIds) ? equipmentIds : [];
-    if (camera !== undefined) shootUpdate.camera = camera || null;
-    if (quality !== undefined) shootUpdate.quality = quality || null;
-    if (frameRate !== undefined) shootUpdate.frameRate = frameRate || null;
-    if (lighting !== undefined) shootUpdate.lighting = lighting || null;
-    if (exclusions !== undefined) shootUpdate.exclusions = exclusions || null;
-    if (notes !== undefined) shootUpdate.videographerNotes = notes || null;
-    if (videographerId !== undefined) shootUpdate.videographerId = Number(videographerId);
+    const formData = await req.formData();
+    const photos = formData.getAll('photos').filter((p): p is File => p instanceof File);
+    if (photos.length !== equipmentCount) {
+      return NextResponse.json({
+        error: `Expected ${equipmentCount} photo${equipmentCount === 1 ? '' : 's'} (one per equipment item), got ${photos.length}`,
+      }, { status: 400 });
+    }
 
-    const [updatedShoot] = await db.update(shootDetailTable).set(shootUpdate)
-      .where(eq(shootDetailTable.taskId, taskId)).returning();
+    const uploadedUrls: string[] = [];
+    for (const photo of photos) {
+      const buffer = Buffer.from(await photo.arrayBuffer());
+      const ext = (photo.name.split('.').pop() || 'jpg').toLowerCase();
+      const uploaded = await uploadBufferToS3({
+        buffer,
+        folderPrefix: `equipment-returns/${taskId}/`,
+        filename: `returned-${Date.now()}-${uploadedUrls.length}.${ext}`,
+        mimeType: photo.type || 'image/jpeg',
+      });
+      uploadedUrls.push(uploaded.url);
+    }
 
-    return NextResponse.json({ shootDetail: updatedShoot, task: updatedTask });
+    const [updated] = await db.update(shootDetailTable).set({
+      equipmentReturnedPhotoUrls: uploadedUrls,
+      equipmentReturnedAt: new Date().toISOString(),
+      equipmentReturnedBy: user.id,
+      updatedAt: new Date().toISOString(),
+    }).where(eq(shootDetailTable.taskId, taskId)).returning();
+
+    return NextResponse.json({ shootDetail: updated });
   } catch (error: any) {
-    console.error('[Shoots] PATCH error:', error);
-    return NextResponse.json({ error: 'Failed to update shoot' }, { status: 500 });
+    console.error('[Shoots] Equipment return error:', error);
+    return NextResponse.json({ error: 'Failed to confirm equipment return' }, { status: 500 });
   }
 }

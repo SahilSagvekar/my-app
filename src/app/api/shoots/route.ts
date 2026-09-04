@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
       exclusions: r.shoot.exclusions,
       videographerNotes: r.shoot.videographerNotes,
       equipmentReturnedAt: r.shoot.equipmentReturnedAt,
-      equipmentReturnedPhotoUrl: r.shoot.equipmentReturnedPhotoUrl,
+      equipmentReturnedPhotoUrls: r.shoot.equipmentReturnedPhotoUrls || [],
     }));
 
     return NextResponse.json({ shoots });

@@ -3,7 +3,6 @@ import { sql } from "drizzle-orm"
 
 export const bidStatus = pgEnum("BidStatus", ['PENDING', 'ACCEPTED', 'REJECTED'])
 export const contractStatus = pgEnum("ContractStatus", ['DRAFT', 'SENT', 'PARTIALLY_SIGNED', 'COMPLETED', 'CANCELLED', 'EXPIRED'])
-export const clientExpenseStatus = pgEnum("ClientExpenseStatus", ['PENDING', 'INVOICED', 'PAID'])
 export const employeeStatus = pgEnum("EmployeeStatus", ['ACTIVE', 'INACTIVE', 'TERMINATED'])
 export const feedbackCategory = pgEnum("FeedbackCategory", ['GENERAL', 'TECHNICAL', 'WORKFLOW', 'SUGGESTION', 'BUG_REPORT'])
 export const feedbackPriority = pgEnum("FeedbackPriority", ['LOW', 'MEDIUM', 'HIGH'])
@@ -497,13 +496,6 @@ export const taskFeedback = pgTable("TaskFeedback", {
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	acknowledgedAt: timestamp({ precision: 3, mode: 'string' }),
 	acknowledgedBy: integer(),
-	// 🔥 NEW: rich comment attachments — voice notes, general file/image
-	// attachments, and a frame.io-style drawn/annotated screenshot.
-	screenshotUrl: text(),
-	annotations: jsonb(),
-	voiceUrl: text(),
-	voiceDurationSec: integer(),
-	attachments: jsonb(),
 }, (table) => [
 	index("TaskFeedback_fileId_idx").using("btree", table.fileId.asc().nullsLast().op("text_ops")),
 	index("TaskFeedback_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
@@ -956,6 +948,10 @@ export const shootDetail = pgTable("ShootDetail", {
 	equipmentIds: text().array(),
 	equipmentReturnedAt: timestamp({ precision: 3, mode: 'string' }),
 	equipmentReturnedPhotoUrl: text(),
+	// One photo per equipment item on the shoot (ShootDetail.equipmentIds) —
+	// added after equipmentReturnedPhotoUrl (single-photo) was already in
+	// use; that column is left in place, unused, rather than dropped.
+	equipmentReturnedPhotoUrls: text().array(),
 	equipmentReturnedBy: integer(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
@@ -2111,45 +2107,6 @@ export const contract = pgTable("Contract", {
 			foreignColumns: [contractTemplate.id],
 			name: "Contract_templateId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
-]);
-
-// A named trip keeps receipts for separate client engagements from being
-// accidentally invoiced together.
-export const expenseTrip = pgTable("ExpenseTrip", {
-	id: text().primaryKey().notNull(),
-	clientId: text().notNull(),
-	name: text().notNull(),
-	createdById: integer().notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("ExpenseTrip_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
-	foreignKey({ columns: [table.clientId], foreignColumns: [client.id], name: "ExpenseTrip_clientId_fkey" }).onUpdate("cascade").onDelete("cascade"),
-	foreignKey({ columns: [table.createdById], foreignColumns: [user.id], name: "ExpenseTrip_createdById_fkey" }).onUpdate("cascade").onDelete("restrict"),
-]);
-
-// Amounts are stored as integer cents. Receipt objects are accessed through
-// authorized, short-lived signed URLs rather than their storage URLs.
-export const clientExpense = pgTable("ClientExpense", {
-	id: text().primaryKey().notNull(),
-	tripId: text().notNull(),
-	description: text().notNull(),
-	amount: integer().notNull(),
-	expenseDate: timestamp({ precision: 3, mode: 'string' }).notNull(),
-	receiptS3Key: text().notNull(),
-	receiptUrl: text().notNull(),
-	receiptFileName: text().notNull(),
-	status: clientExpenseStatus().default('PENDING').notNull(),
-	invoiceId: text(),
-	createdById: integer().notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("ClientExpense_tripId_idx").using("btree", table.tripId.asc().nullsLast().op("text_ops")),
-	index("ClientExpense_invoiceId_idx").using("btree", table.invoiceId.asc().nullsLast().op("text_ops")),
-	foreignKey({ columns: [table.tripId], foreignColumns: [expenseTrip.id], name: "ClientExpense_tripId_fkey" }).onUpdate("cascade").onDelete("cascade"),
-	foreignKey({ columns: [table.invoiceId], foreignColumns: [invoice.id], name: "ClientExpense_invoiceId_fkey" }).onUpdate("cascade").onDelete("set null"),
-	foreignKey({ columns: [table.createdById], foreignColumns: [user.id], name: "ClientExpense_createdById_fkey" }).onUpdate("cascade").onDelete("restrict"),
 ]);
 
 export const employeeDocument = pgTable("EmployeeDocument", {
