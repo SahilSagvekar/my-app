@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask } from "./schema";
+import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask, driveNote } from "./schema";
 
 export const monthlyDeliverableRelations = relations(monthlyDeliverable, ({one, many}) => ({
 	client: one(client, {
@@ -43,6 +43,7 @@ export const clientRelations = relations(client, ({one, many}) => ({
 	folderStatuses: many(folderStatus),
 	meetingNotes: many(meetingNote),
 	clientPortalAccesses: many(clientPortalAccess),
+	driveNotes: many(driveNote),
 }));
 
 export const brandAssetRelations = relations(brandAsset, ({one}) => ({
@@ -137,6 +138,7 @@ export const userRelations = relations(user, ({one, many}) => ({
 	salesRepPayoutProfiles: many(salesRepPayoutProfile),
 	commissionPayouts: many(commissionPayout),
 	folderStatuses: many(folderStatus),
+	driveNotes: many(driveNote),
 	hiringCandidates_createdById: many(hiringCandidate, {
 		relationName: "hiringCandidate_createdById_user_id"
 	}),
@@ -821,6 +823,17 @@ export const folderStatusRelations = relations(folderStatus, ({one}) => ({
 	}),
 	user: one(user, {
 		fields: [folderStatus.updatedById],
+		references: [user.id]
+	}),
+}));
+
+export const driveNoteRelations = relations(driveNote, ({one}) => ({
+	client: one(client, {
+		fields: [driveNote.clientId],
+		references: [client.id]
+	}),
+	user: one(user, {
+		fields: [driveNote.createdById],
 		references: [user.id]
 	}),
 }));

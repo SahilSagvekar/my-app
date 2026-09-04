@@ -95,6 +95,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import MeetingNotesPanel from "../admin/MeetingNotesPanel";
+import { DriveNotesPopover, type DriveNoteEntry } from "./DriveNotesPopover";
 import { cn } from "@/lib/utils";
 import { formatFolderDisplayName } from "@/lib/format-folder-display-name";
 import { toast } from "sonner";
@@ -441,6 +442,37 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   useEffect(() => {
     loadFolderStatuses();
   }, [loadFolderStatuses]);
+
+  // ─── Fetch Drive notes for the current client — admin/videographer/editor
+  // only, matches the API's own role gate so other roles never even issue
+  // the request (and never see the note icon rendered at all). ──────────
+  const canSeeDriveNotes = ['admin', 'videographer', 'editor'].includes(role);
+  const canCreateDriveNotes = ['admin', 'videographer'].includes(role);
+  const [driveNotes, setDriveNotes] = useState<Record<string, DriveNoteEntry[]>>({});
+
+  const loadDriveNotes = useCallback(() => {
+    if (!effectiveClientId || !canSeeDriveNotes) {
+      setDriveNotes({});
+      return;
+    }
+    fetch(`/api/drive/notes?clientId=${effectiveClientId}`)
+      .then(res => res.ok ? res.json() : { notes: {} })
+      .then(data => setDriveNotes(data.notes || {}))
+      .catch(() => setDriveNotes({}));
+  }, [effectiveClientId, canSeeDriveNotes]);
+
+  useEffect(() => {
+    loadDriveNotes();
+  }, [loadDriveNotes]);
+
+  const handleDriveNotesChange = (s3Key: string, notes: DriveNoteEntry[]) => {
+    setDriveNotes(prev => {
+      const next = { ...prev };
+      if (notes.length === 0) delete next[s3Key];
+      else next[s3Key] = notes;
+      return next;
+    });
+  };
 
   const updateFolderStatus = async (item: DriveItem, status: "IN_PROGRESS" | "COMPLETED" | null) => {
     if (!effectiveClientId) {
@@ -2735,6 +2767,21 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       )}
                     </div>
 
+                    {/* Notes */}
+                    {canSeeDriveNotes && effectiveClientId && (
+                      <div className="absolute top-2 right-10">
+                        <DriveNotesPopover
+                          clientId={effectiveClientId}
+                          s3Key={item.s3Key || getS3Key(item)}
+                          isFolder={item.type === 'folder'}
+                          itemName={item.type === 'folder' ? formatFolderDisplayName(item.name) : item.name}
+                          canCreate={canCreateDriveNotes}
+                          notes={driveNotes[item.s3Key || getS3Key(item)] || []}
+                          onNotesChange={handleDriveNotesChange}
+                        />
+                      </div>
+                    )}
+
                     {/* Actions Menu */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -2939,6 +2986,21 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           ? new Date(item.lastModified).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                           : "—"}
                       </div>
+
+                      {/* Notes */}
+                      {canSeeDriveNotes && effectiveClientId && (
+                        <div className="w-8 shrink-0 flex items-center justify-center">
+                          <DriveNotesPopover
+                            clientId={effectiveClientId}
+                            s3Key={item.s3Key || getS3Key(item)}
+                            isFolder={item.type === 'folder'}
+                            itemName={item.type === 'folder' ? formatFolderDisplayName(item.name) : item.name}
+                            canCreate={canCreateDriveNotes}
+                            notes={driveNotes[item.s3Key || getS3Key(item)] || []}
+                            onNotesChange={handleDriveNotesChange}
+                          />
+                        </div>
+                      )}
 
                       {/* Actions Menu */}
                       <div className="w-8 shrink-0 flex items-center justify-end">
