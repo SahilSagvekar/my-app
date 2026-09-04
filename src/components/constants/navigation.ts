@@ -50,7 +50,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
     // { id: 'scheduler-activity', label: 'Scheduler Activity', icon: Activity },
-    // { id: 'hiring', label: 'Editor Hiring', icon: UserPlus },
+    { id: 'hiring', label: 'Editor Hiring', icon: UserPlus },
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
@@ -105,18 +105,19 @@ export const NAVIGATION_ITEMS = {
     { id: 'contracts', label: 'Contracts & Billing', icon: FileText },
     { id: 'help-videos', label: 'E8 Help', icon: PlayCircle },
   ],
-  
   videographer: [
     { id: 'shoots', label: 'Shooting Schedule', icon: Camera },
-    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'jobs', label: 'Job Board', icon: LayoutDashboard },
+    { id: 'uploads', label: 'File Uploads', icon: Upload },
     { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
+    { id: 'calendar', label: 'Calendar', icon: Calendar },
+    { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
-    { id: 'production-tracker', label: 'Production Tracker', icon: Target },
-    { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
+    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
   ],
-
   sales: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },

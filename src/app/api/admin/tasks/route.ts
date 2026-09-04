@@ -274,7 +274,7 @@ export async function GET(req: NextRequest) {
             viewingAs
         )?.toLowerCase();
 
-        if (!["admin", "qc"].includes(effectiveRole || "")) {
+        if (!["admin", "qc", "videographer"].includes(effectiveRole || "")) {
             return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
         }
 

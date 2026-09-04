@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest) {
             viewingAs
         )?.toLowerCase();
 
-        if (!['admin', 'manager', 'qc'].includes(effectiveRole || '')) {
+        if (!['admin', 'manager', 'qc', 'videographer'].includes(effectiveRole || '')) {
             return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
         }
 

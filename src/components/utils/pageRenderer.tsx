@@ -424,6 +424,10 @@ export function renderPage(
         return <EquipmentPage canManage={canManageEquipment} />;
       case "calendar":
         return <VideographerDashboard initialTab="calendar" />;
+      case "production-tracker":
+        return <ProductionTracker />;
+      case "reports":
+        return <TaskManagementTab />;
       case "drive":
         return <DriveExplorer role={role} />;
       case "training":

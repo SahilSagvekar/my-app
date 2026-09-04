@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
-    if (!user || !["admin", "manager"].includes(user.role?.toLowerCase() || "")) {
+    if (!user || !["admin", "manager", "videographer"].includes(user.role?.toLowerCase() || "")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

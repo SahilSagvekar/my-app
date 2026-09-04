@@ -28,7 +28,7 @@ function getTokenFromCookies(req: Request) {
 function verifyAdminAccess(token: string): { userId: number; role: string } | null {
     try {
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!["admin", "manager", "qc"].includes(decoded.role?.toLowerCase())) {
+        if (!["admin", "manager", "qc", "videographer"].includes(decoded.role?.toLowerCase())) {
             return null;
         }
         return { userId: decoded.userId, role: decoded.role };
