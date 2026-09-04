@@ -43,13 +43,13 @@ export const NAVIGATION_ITEMS = {
     { id: 'finance', label: 'Financials', icon: DollarSign },
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'portfolio', label: 'Portfolio', icon: Film },
-    // { id: 'contracts', label: 'Contracts', icon: PenLine },
+    { id: 'contracts', label: 'Contracts', icon: PenLine },
     { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
-    // { id: 'scheduler-activity', label: 'Scheduler Activity', icon: Activity },
+    { id: 'scheduler-activity', label: 'Scheduler Activity', icon: Activity },
     { id: 'hiring', label: 'Editor Hiring', icon: UserPlus },
   ],
   editor: [
@@ -98,6 +98,7 @@ export const NAVIGATION_ITEMS = {
   client: [
     { id: 'approvals', label: 'Content Review', icon: CheckSquare },
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
+    { id: 'scripts', label: 'Scripts', icon: FileText },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'social', label: 'Social Media', icon: Instagram },

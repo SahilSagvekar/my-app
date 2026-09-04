@@ -63,6 +63,9 @@ export async function GET(req: NextRequest) {
       videographerNotes: r.shoot.videographerNotes,
       equipmentReturnedAt: r.shoot.equipmentReturnedAt,
       equipmentReturnedPhotoUrls: r.shoot.equipmentReturnedPhotoUrls || [],
+      scriptContent: r.shoot.scriptContent,
+      scriptStatus: r.shoot.scriptStatus,
+      scriptSentAt: r.shoot.scriptSentAt,
     }));
 
     return NextResponse.json({ shoots });

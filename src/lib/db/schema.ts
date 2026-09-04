@@ -953,6 +953,15 @@ export const shootDetail = pgTable("ShootDetail", {
 	// use; that column is left in place, unused, rather than dropped.
 	equipmentReturnedPhotoUrls: text().array(),
 	equipmentReturnedBy: integer(),
+	// Script feature — one live document per shoot. "sent" makes it visible
+	// (and stays live/updated) in the client's portal; editing after sending
+	// does NOT require re-sending, the client always sees current content.
+	scriptContent: text(),
+	scriptStatus: text().default('draft').notNull(),
+	scriptSentAt: timestamp({ precision: 3, mode: 'string' }),
+	scriptSentBy: integer(),
+	scriptLastEditedAt: timestamp({ precision: 3, mode: 'string' }),
+	scriptLastEditedBy: integer(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
