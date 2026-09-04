@@ -5,6 +5,8 @@ export * from './types';
 export { ReviewCommentCard } from './ReviewCommentCard';
 export { CommentInput, captureFullFrameFromSource } from './CommentInput';
 export type { CommentInputHandle } from './CommentInput';
+export { CommentInput, captureFullFrameFromSource } from './CommentInput';
+export type { CommentInputHandle } from './CommentInput';
 export { ReviewTimeline } from './ReviewTimeline';
 export { ReviewCompactTransport, ReviewPlaybackControls } from './Reviewcompacttransport';
 export { ReviewModePills } from './ReviewModePills';

@@ -1,6 +1,7 @@
 'use client';
 
 import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { YoutubePlayer } from '../review/YoutubePlayer';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
 import { Button } from '../ui/button';
@@ -26,7 +27,9 @@ import {
 } from '../ui/tooltip';
 import {
     X, Download, Share, Play,
+    X, Download, Share, Play,
     CheckCircle2, MessageSquare, Calendar, ChevronRight,
+    AlertCircle, ArrowLeft,
     AlertCircle, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
     PenLine, ImageIcon,
@@ -46,6 +49,23 @@ import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
 // import { ReviewConnectionIndicator, type ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
+
+/** Map folder / deliverable labels to a short file-code badge. */
+function resolveFileCode(folderType?: string | null, deliverableType?: string | null): string {
+    const raw = (folderType || deliverableType || '').trim();
+    if (!raw) return 'MAIN';
+    const n = raw.toLowerCase().replace(/[_\s-]+/g, '');
+    if (n === 'sf' || n.includes('shortform')) return 'SF';
+    if (n === 'lf' || n.includes('longform')) return 'LF';
+    if (n === 'sqf' || n.includes('square')) return 'SQF';
+    if (n.includes('thumb')) return 'THUMB';
+    if (n.includes('tile')) return 'TILE';
+    if (n.includes('cover')) return 'COVER';
+    if (n.includes('music') || n.includes('license')) return 'LIC';
+    if (n === 'main' || n === 'mainfile') return 'MAIN';
+    // Fall back to a short uppercase token
+    return raw.slice(0, 6).toUpperCase();
+}
 
 /** Map folder / deliverable labels to a short file-code badge. */
 function resolveFileCode(folderType?: string | null, deliverableType?: string | null): string {
@@ -651,6 +671,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     <div className="flex-1 flex flex-col p-4 pr-0 overflow-hidden">
                         {/* Video area */}
                         <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0">
+                        <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0">
                             {isVerticalVideo ? (
                                 // Outer layer: purely a positioning helper, guaranteed to
                                 // fill the real available panel (proven reliable — see the
@@ -841,18 +862,37 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     onCancel={exitDrawMode}
                                 />
                             )}
+
+                            {/* Draw-on-frame overlay (Desktop Draw pill) */}
+                            {drawBaseUrl && videoShellRef.current && (
+                                <ReviewDrawOverlay
+                                    baseImageUrl={drawBaseUrl}
+                                    container={videoShellRef.current}
+                                    onComplete={handleDrawComplete}
+                                    onCancel={exitDrawMode}
+                                />
+                            )}
                         </div>
 
                         {/* Full-width timeline, then controls directly left of centered review actions. */}
                         <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-3">
                             {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
                                 <ReviewCompactTransport
+                                <ReviewCompactTransport
                                     duration={p.duration}
                                     currentTime={p.currentTime}
+                                    isPlaying={p.isPlaying}
+                                    isMuted={p.isMuted}
+                                    playbackSpeed={p.playbackSpeed}
                                     comments={p.comments}
                                     activeCommentId={p.activeCommentId}
                                     currentVersionNumber={p.currentVersionNumber}
+                                    fileCode={fileCode}
+                                    formatTime={p.formatTime}
+                                    onTogglePlay={p.togglePlay}
+                                    onToggleMute={p.toggleMute}
                                     onSeek={p.handleSeek}
+                                    onPlaybackSpeedChange={p.handlePlaybackSpeedChange}
                                     onMarkerClick={p.handleMarkerClick}
                                     onDragStart={() => p.setIsDragging(true)}
                                     onDragEnd={() => p.setIsDragging(false)}
@@ -933,12 +973,14 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
                                 <CommentInput
                                     ref={commentInputRef}
+                                    ref={commentInputRef}
                                     taskId={p.asset.id}
                                     currentTime={p.currentTime}
                                     currentTimestamp={p.formatTime(p.currentTime)}
                                     authorId="current-user"
                                     authorName={p.userName}
                                     videoRef={p.videoRef}
+                                    duration={p.duration}
                                     duration={p.duration}
                                     currentVersionNumber={p.currentVersionNumber}
                                     onSubmit={(c) => {
@@ -949,7 +991,20 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         p.setShowCommentInput(false);
                                         setActiveMode(null);
                                     }}
+                                    onSubmit={(c) => {
+                                        p.handleCommentSubmit(c);
+                                        setActiveMode(null);
+                                    }}
+                                    onCancel={() => {
+                                        p.setShowCommentInput(false);
+                                        setActiveMode(null);
+                                    }}
                                     isExpanded={p.showCommentInput}
+                                    onToggleExpand={() => {
+                                        setActiveMode('comment');
+                                        p.setShowCommentInput(true);
+                                    }}
+                                    hideInlineTools
                                     onToggleExpand={() => {
                                         setActiveMode('comment');
                                         p.setShowCommentInput(true);
@@ -965,6 +1020,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         <p className="text-xs mt-1 opacity-70">
                                             {p.isClientViewer
                                                 ? 'Add a comment to leave feedback on this version'
+                                                : 'Use Comment / Draw / Voice pills below the player'
                                                 : 'Use Comment / Draw / Voice pills below the player'
                                             }
                                         </p>
