@@ -1,25 +1,30 @@
 'use client';
 
-import { Pencil, Mic, Clock, Paperclip, Instagram } from 'lucide-react';
+import { MessageSquare, Pencil, Mic, Clock, Paperclip, Instagram, Grid3x3 } from 'lucide-react';
 
-export type ReviewMode = 'comment' | 'draw' | 'voice' | 'range' | 'attach' | 'instagram';
+export type ReviewMode = 'comment' | 'draw' | 'voice' | 'range' | 'attach' | 'instagram' | 'grid';
 
 interface ReviewModePillsProps {
     activeMode: ReviewMode | null;
     onSelect: (mode: ReviewMode) => void;
     disabled?: boolean;
     /**
-     * Instagram is a standalone overlay toggle, not part of the
-     * comment/draw/voice/range/attach mutual-exclusivity group — it can
-     * stay highlighted while one of those is also active, so it's tracked
-     * separately from `activeMode`.
+     * Instagram and Grid are standalone overlay toggles, not part of the
+     * comment/draw/voice/range/attach mutual-exclusivity group — either can
+     * stay highlighted while one of those is also active, so they're
+     * tracked separately from `activeMode`. Instagram and Grid ARE mutually
+     * exclusive with each other, but that's enforced by the caller (only
+     * one of instagramActive/gridActive should ever be true at once).
      */
     instagramActive?: boolean;
-    /** Only short-form tasks get an Instagram preview — hidden otherwise. */
+    gridActive?: boolean;
+    /** Only short-form tasks get these Reels-check tools — hidden otherwise. */
     showInstagram?: boolean;
+    showGrid?: boolean;
 }
 
-const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
+const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof MessageSquare }[] = [
+    { id: 'comment', label: 'Comment', Icon: MessageSquare },
     { id: 'draw', label: 'Draw', Icon: Pencil },
     { id: 'voice', label: 'Voice', Icon: Mic },
     { id: 'range', label: 'Range', Icon: Clock },
@@ -27,9 +32,14 @@ const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
 ];
 
 const INSTAGRAM_MODE = { id: 'instagram' as const, label: 'Instagram', Icon: Instagram };
+const GRID_MODE = { id: 'grid' as const, label: 'Grid', Icon: Grid3x3 };
 
-export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, showInstagram }: ReviewModePillsProps) {
-    const MODES = showInstagram ? [...BASE_MODES, INSTAGRAM_MODE] : BASE_MODES;
+export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, gridActive, showInstagram, showGrid }: ReviewModePillsProps) {
+    const MODES = [
+        ...BASE_MODES,
+        ...(showInstagram ? [INSTAGRAM_MODE] : []),
+        ...(showGrid ? [GRID_MODE] : []),
+    ];
     return (
         <div className="review-mode-pills flex justify-center w-full px-2">
             <div
@@ -38,7 +48,7 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                 className="inline-flex items-stretch rounded-full border border-[var(--review-border)] bg-[var(--review-bg-tertiary)]/80 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
             >
                 {MODES.map(({ id, label, Icon }, index) => {
-                    const isActive = id === 'instagram' ? !!instagramActive : activeMode === id;
+                    const isActive = id === 'instagram' ? !!instagramActive : id === 'grid' ? !!gridActive : activeMode === id;
                     return (
                         <button
                             key={id}
