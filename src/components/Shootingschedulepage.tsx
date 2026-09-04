@@ -7,12 +7,14 @@ import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
-import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem,
+} from '../ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   Camera, MapPin, Clock, User, Plus, Pencil, Loader, CheckCircle2,
-  PackageCheck, Image as ImageIcon,
+  PackageCheck, Image as ImageIcon, ChevronDown, X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -55,6 +57,19 @@ interface Shoot {
   equipmentReturnedPhotoUrl: string | null;
 }
 
+const SHOOT_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const;
+type ShootStatus = typeof SHOOT_STATUSES[number];
+
+const STATUS_META: Record<ShootStatus, { label: string; className: string }> = {
+  PENDING: { label: 'Pending', className: 'bg-amber-100 text-amber-800' },
+  IN_PROGRESS: { label: 'In Progress', className: 'bg-blue-100 text-blue-800' },
+  COMPLETED: { label: 'Completed', className: 'bg-green-100 text-green-800' },
+};
+
+function statusMeta(status: string) {
+  return STATUS_META[status as ShootStatus] || { label: status.replace(/_/g, ' '), className: 'bg-slate-100 text-slate-700' };
+}
+
 const EMPTY_FORM = {
   title: '',
   clientId: '',
@@ -69,6 +84,7 @@ const EMPTY_FORM = {
   lighting: '',
   exclusions: '',
   notes: '',
+  status: 'PENDING' as ShootStatus,
 };
 
 function toDatetimeLocal(iso: string | null): string {
@@ -93,6 +109,12 @@ export function ShootingSchedulePage() {
   const [returnDialogShootId, setReturnDialogShootId] = useState<string | null>(null);
   const [returnPhotoFile, setReturnPhotoFile] = useState<File | null>(null);
   const [confirmingReturn, setConfirmingReturn] = useState(false);
+
+  // Filters — all applied client-side over the already-fetched list.
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [clientFilter, setClientFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const fetchAll = useCallback(async () => {
     try {
@@ -123,6 +145,47 @@ export function ShootingSchedulePage() {
 
   const equipmentName = (id: string) => equipment.find(e => e.id === id)?.name || '(removed)';
 
+  const filteredShoots = shoots.filter(shoot => {
+    if (statusFilter !== 'all' && shoot.status !== statusFilter) return false;
+    if (clientFilter !== 'all' && shoot.client?.id !== clientFilter) return false;
+    if (shoot.shootDate) {
+      const shootDay = shoot.shootDate.slice(0, 10); // YYYY-MM-DD
+      if (dateFrom && shootDay < dateFrom) return false;
+      if (dateTo && shootDay > dateTo) return false;
+    } else if (dateFrom || dateTo) {
+      return false; // no date on the shoot, but a date filter is active
+    }
+    return true;
+  });
+
+  const clearFilters = () => {
+    setStatusFilter('all');
+    setClientFilter('all');
+    setDateFrom('');
+    setDateTo('');
+  };
+  const filtersActive = statusFilter !== 'all' || clientFilter !== 'all' || !!dateFrom || !!dateTo;
+
+  const updateStatus = async (shootId: string, status: ShootStatus) => {
+    // Optimistic update so the badge/select feels instant.
+    setShoots(prev => prev.map(s => s.id === shootId ? { ...s, status } : s));
+    try {
+      const res = await fetch(`/api/shoots/${shootId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || 'Failed to update status');
+        fetchAll(); // revert to server truth
+      }
+    } catch {
+      toast.error('Failed to update status');
+      fetchAll();
+    }
+  };
+
   const openCreateForm = () => {
     setEditingShootId(null);
     setForm({ ...EMPTY_FORM });
@@ -145,6 +208,7 @@ export function ShootingSchedulePage() {
       lighting: shoot.lighting || '',
       exclusions: shoot.exclusions || '',
       notes: shoot.videographerNotes || '',
+      status: (SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? shoot.status : 'PENDING') as ShootStatus,
     });
     setIsFormOpen(true);
   };
@@ -184,6 +248,7 @@ export function ShootingSchedulePage() {
           lighting: form.lighting,
           exclusions: form.exclusions,
           notes: form.notes,
+          status: form.status,
         }),
       });
       if (res.ok) {
@@ -250,15 +315,63 @@ export function ShootingSchedulePage() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3 bg-slate-50 border border-slate-100 rounded-xl p-3">
+        <div className="space-y-1 flex-1 min-w-[140px]">
+          <Label className="text-[11px] text-muted-foreground">Status</Label>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {SHOOT_STATUSES.map(s => (
+                <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1 flex-1 min-w-[160px]">
+          <Label className="text-[11px] text-muted-foreground">Client</Label>
+          <Select value={clientFilter} onValueChange={setClientFilter}>
+            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All clients</SelectItem>
+              {clients.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1 flex-1 min-w-[130px]">
+          <Label className="text-[11px] text-muted-foreground">From</Label>
+          <Input type="date" className="h-9" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        </div>
+        <div className="space-y-1 flex-1 min-w-[130px]">
+          <Label className="text-[11px] text-muted-foreground">To</Label>
+          <Input type="date" className="h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        </div>
+
+        {filtersActive && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground h-9">
+            <X className="h-3.5 w-3.5" /> Clear
+          </Button>
+        )}
+      </div>
+
       <div className="space-y-4">
-        {shoots.length === 0 ? (
+        {filteredShoots.length === 0 ? (
           <div className="text-center py-16 bg-slate-50 rounded-xl border border-dashed border-slate-200">
             <Camera className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500 font-medium">No shoot days scheduled yet</p>
-            <p className="text-sm text-slate-400 mt-1">Tap "New Shoot" to add one</p>
+            <p className="text-slate-500 font-medium">
+              {shoots.length === 0 ? 'No shoot days scheduled yet' : 'No shoots match these filters'}
+            </p>
+            <p className="text-sm text-slate-400 mt-1">
+              {shoots.length === 0 ? 'Tap "New Shoot" to add one' : 'Try clearing a filter'}
+            </p>
           </div>
         ) : (
-          shoots.map((shoot) => {
+          filteredShoots.map((shoot) => {
             const equipmentReturned = !!shoot.equipmentReturnedAt;
             return (
               <Card key={shoot.id} className="overflow-hidden">
@@ -269,7 +382,7 @@ export function ShootingSchedulePage() {
                         <h3 className="font-bold text-lg truncate">
                           {shoot.client?.companyName || shoot.client?.name || shoot.title || 'Shoot'}
                         </h3>
-                        <Badge className="bg-blue-100 text-blue-800">{shoot.status.replace(/_/g, ' ')}</Badge>
+                        <Badge className={statusMeta(shoot.status).className}>{statusMeta(shoot.status).label}</Badge>
                         {equipmentReturned && (
                           <Badge className="bg-green-100 text-green-800 gap-1">
                             <PackageCheck className="h-3 w-3" /> Equipment returned
@@ -327,6 +440,17 @@ export function ShootingSchedulePage() {
                     </div>
 
                     <div className="flex flex-row md:flex-col gap-2 shrink-0">
+                      <Select
+                        value={SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? shoot.status : 'PENDING'}
+                        onValueChange={(v) => updateStatus(shoot.id, v as ShootStatus)}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-full md:w-[140px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {SHOOT_STATUSES.map(s => (
+                            <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Button variant="outline" size="sm" onClick={() => openEditForm(shoot)} className="gap-1.5">
                         <Pencil className="h-3.5 w-3.5" /> Edit
                       </Button>
@@ -384,6 +508,18 @@ export function ShootingSchedulePage() {
             </div>
 
             <div className="space-y-1.5">
+              <Label className="text-xs">Status</Label>
+              <Select value={form.status} onValueChange={(v) => setForm(f => ({ ...f, status: v as ShootStatus }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SHOOT_STATUSES.map(s => (
+                    <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-xs">Date & Time</Label>
               <Input
                 type="datetime-local"
@@ -418,17 +554,47 @@ export function ShootingSchedulePage() {
                   No equipment logged yet — add some from the Equipment page first.
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded-lg p-3">
-                  {equipment.map(item => (
-                    <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <Checkbox
-                        checked={form.equipmentIds.includes(item.id)}
-                        onCheckedChange={() => toggleEquipment(item.id)}
-                      />
-                      {item.name}
-                    </label>
-                  ))}
-                </div>
+                <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between font-normal">
+                        {form.equipmentIds.length > 0
+                          ? `${form.equipmentIds.length} item${form.equipmentIds.length > 1 ? 's' : ''} selected`
+                          : 'Select equipment...'}
+                        <ChevronDown className="h-4 w-4 opacity-50" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] max-h-60 overflow-y-auto">
+                      {equipment.map(item => (
+                        <DropdownMenuCheckboxItem
+                          key={item.id}
+                          checked={form.equipmentIds.includes(item.id)}
+                          onSelect={(e) => e.preventDefault()}
+                          onCheckedChange={() => toggleEquipment(item.id)}
+                        >
+                          {item.name}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {form.equipmentIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {form.equipmentIds.map(id => (
+                        <Badge key={id} variant="secondary" className="gap-1 pr-1">
+                          {equipmentName(id)}
+                          <button
+                            type="button"
+                            onClick={() => toggleEquipment(id)}
+                            className="hover:bg-slate-300 rounded-full p-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

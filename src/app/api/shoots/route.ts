@@ -6,6 +6,12 @@ import { createId } from '@/lib/db/id';
 import { eq, isNotNull, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
+// Shoot-day status is a focused subset of the broader TaskStatus enum —
+// all three values are valid TaskStatus members already, so no schema
+// change is needed to store them on Task.status.
+const SHOOT_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const;
+type ShootStatus = typeof SHOOT_STATUSES[number];
+
 // Admin/manager/videographer all get full visibility here, matching the
 // "videographer has access similar to admin" access level already granted
 // elsewhere in the portal (Drive, etc.) — this is a shared team schedule,
@@ -93,11 +99,14 @@ export async function POST(req: NextRequest) {
       lighting,
       exclusions,
       notes,
+      status,
     } = body;
 
     if (!shootDate) {
       return NextResponse.json({ error: 'Shoot date/time is required' }, { status: 400 });
     }
+
+    const shootStatus: ShootStatus = SHOOT_STATUSES.includes(status) ? status : 'PENDING';
 
     const assignedVideographerId = videographerId ? Number(videographerId) : user.id;
 
@@ -119,7 +128,7 @@ export async function POST(req: NextRequest) {
       videographer: assignedVideographerId,
       createdBy: user.id,
       clientId: clientId || null,
-      status: 'VIDEOGRAPHER_ASSIGNED',
+      status: shootStatus,
       dueDate: new Date(shootDate).toISOString(),
       updatedAt: new Date().toISOString(),
     }).returning();

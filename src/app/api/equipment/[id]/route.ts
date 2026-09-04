@@ -5,7 +5,10 @@ import { equipment as equipmentTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
-const CAN_MANAGE = ['admin', 'manager', 'videographer'];
+// Edit/Delete are admin-only in practice (manager included for parity with
+// other management surfaces) — videographer can create equipment (see
+// POST in ../route.ts) but not edit or remove it.
+const CAN_EDIT_DELETE = ['admin', 'manager'];
 
 // PATCH — edit an equipment item
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -16,7 +19,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!CAN_MANAGE.includes((user.role || '').toLowerCase())) {
+    if (!CAN_EDIT_DELETE.includes((user.role || '').toLowerCase())) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -58,7 +61,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!CAN_MANAGE.includes((user.role || '').toLowerCase())) {
+    if (!CAN_EDIT_DELETE.includes((user.role || '').toLowerCase())) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

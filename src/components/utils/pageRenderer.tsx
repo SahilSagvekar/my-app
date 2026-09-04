@@ -405,17 +405,23 @@ export function renderPage(
   }
 
   if (role === "videographer") {
+    // Edit/Delete on equipment is admin-only. originalRole is always the
+    // real DB role (set unconditionally in App.tsx), unlike `role` here
+    // which is the preview/display role — so a real videographer gets
+    // originalRole === 'videographer' (add-only), while an admin
+    // previewing "as" videographer keeps originalRole === 'admin' (full
+    // CRUD), same pattern as isAdminViewingAsSales above.
+    const canManageEquipment = originalRole?.toLowerCase() === 'admin';
+
     switch (page) {
       case "jobs":
         return <VideographerDashboard initialTab="jobs" />;
-      case "reports":
-        return <TaskManagementTab />;
       case "shoots":
         return <ShootingSchedulePage />;
       case "uploads":
         return <VideographerDashboard initialTab="uploads" />;
       case "equipment":
-        return <EquipmentPage />;
+        return <EquipmentPage canManage={canManageEquipment} />;
       case "calendar":
         return <VideographerDashboard initialTab="calendar" />;
       case "drive":

@@ -21,7 +21,14 @@ interface EquipmentItem {
 
 const EMPTY_FORM = { name: '', category: '', notes: '' };
 
-export function EquipmentPage() {
+interface EquipmentPageProps {
+  /** Edit/Delete are admin-only. Real videographers can add equipment
+   * but not edit or remove it — defaults to true (full access) so any
+   * other caller of this page isn't accidentally locked down. */
+  canManage?: boolean;
+}
+
+export function EquipmentPage({ canManage = true }: EquipmentPageProps) {
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -142,14 +149,16 @@ export function EquipmentPage() {
                   {item.category && <Badge variant="secondary" className="text-[10px] shrink-0">{item.category}</Badge>}
                 </div>
                 {item.notes && <p className="text-xs text-muted-foreground line-clamp-2">{item.notes}</p>}
-                <div className="flex gap-2 pt-1">
-                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs flex-1" onClick={() => openEditForm(item)}>
-                    <Pencil className="h-3 w-3" /> Edit
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs text-red-600 hover:bg-red-50 border-red-200" onClick={() => handleDelete(item.id)}>
-                    <Trash2 className="h-3 w-3" /> Delete
-                  </Button>
-                </div>
+                {canManage && (
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="outline" size="sm" className="h-7 gap-1 text-xs flex-1" onClick={() => openEditForm(item)}>
+                      <Pencil className="h-3 w-3" /> Edit
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-7 gap-1 text-xs text-red-600 hover:bg-red-50 border-red-200" onClick={() => handleDelete(item.id)}>
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
