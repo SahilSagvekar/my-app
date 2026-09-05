@@ -5,6 +5,7 @@ import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/sch
 import { and, eq, desc } from 'drizzle-orm';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
+import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 
 // GET — the logged-in client's own shoots with a script that's been made
 // visible ("sent"). Content is always current — sending doesn't snapshot
@@ -88,9 +89,14 @@ export async function PATCH(req: NextRequest) {
       scriptContent: writeShootScriptDocument(document),
       updatedAt: new Date().toISOString(),
     }).where(eq(shootDetailTable.taskId, taskId));
+
+    // If changes_requested (rejected), unlinks from task; if approved, maintains link
+    await syncShootScriptsToTasks(taskId, db);
+
     return NextResponse.json({ script });
   } catch (error: unknown) {
     console.error('[Client Shoot Scripts] PATCH error:', error);
     return NextResponse.json({ error: 'Failed to save response' }, { status: 500 });
   }
 }
+

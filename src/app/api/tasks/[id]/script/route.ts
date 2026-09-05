@@ -66,6 +66,12 @@ export async function GET(
   const script = document.scripts.find((s) => s.id === ref.scriptId);
   if (!script) return NextResponse.json({ error: 'Script not found' }, { status: 404 });
 
+  // Rejected scripts are not attached to tasks
+  if (script.status === 'changes_requested') {
+    await db.update(taskTable).set({ shootScriptRef: null }).where(eq(taskTable.id, taskId));
+    return NextResponse.json({ script: null });
+  }
+
   return NextResponse.json({
     script: {
       id: script.id,

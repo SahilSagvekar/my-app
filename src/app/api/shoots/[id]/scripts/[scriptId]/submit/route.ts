@@ -7,6 +7,7 @@ import { getDbHttp } from '@/lib/db';
 import { createId } from '@/lib/db/id';
 import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/schema';
 import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
+import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 
 const CAN_SUBMIT = ['admin', 'manager', 'videographer'];
 
@@ -68,53 +69,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   script.updatedAt = now;
   await db.update(shootDetailTable).set({ scriptContent: writeShootScriptDocument(document), scriptStatus: 'sent', scriptSentAt: now, scriptSentBy: user.id, updatedAt: now }).where(eq(shootDetailTable.taskId, shootTaskId));
 
-  // ── Link this script to a matching editor production task ──────────────────
-  // Find production tasks for this client that are not review tasks and don't
-  // yet have a script linked. Match by "Video N" number in the script title,
-  // falling back to the first available unlinked task.
-  try {
-    const scriptRef = JSON.stringify({ shootTaskId, scriptId, scriptTitle: script.title || '' });
-
-    // Fetch unlinked production tasks for the client
-    const candidateTasks = await db
-      .select({ id: taskTable.id, title: taskTable.title })
-      .from(taskTable)
-      .where(
-        and(
-          eq(taskTable.clientId, shoot.clientId),
-          isNull(taskTable.shootScriptRef),
-          ne(taskTable.taskCategory ?? 'none', 'review'),
-          inArray(taskTable.status, ['PENDING', 'IN_PROGRESS']),
-        )
-      )
-      .limit(50);
-
-    if (candidateTasks.length > 0) {
-      // Try to match by number at end of script title (e.g. "Video 3" → task ending in "3")
-      const scriptNumberMatch = (script.title || '').match(/(\d+)$/);
-      const scriptNumber = scriptNumberMatch ? parseInt(scriptNumberMatch[1]) : null;
-
-      let targetTaskId: string | null = null;
-      if (scriptNumber !== null) {
-        const matched = candidateTasks.find((t) => {
-          const tMatch = (t.title || '').match(/(\d+)$/);
-          return tMatch && parseInt(tMatch[1]) === scriptNumber;
-        });
-        targetTaskId = matched?.id ?? null;
-      }
-      // Fallback to first unlinked task
-      if (!targetTaskId) {
-        targetTaskId = candidateTasks[0].id;
-      }
-
-      if (targetTaskId) {
-        await db.update(taskTable).set({ shootScriptRef: scriptRef, updatedAt: now }).where(eq(taskTable.id, targetTaskId));
-      }
-    }
-  } catch (linkErr) {
-    // Non-fatal — script submission itself succeeded; linking is best-effort
-    console.error('[Scripts] Failed to link script to production task:', linkErr);
-  }
+  // ── Sync shoot scripts to production tasks ──────────────────────────────
+  await syncShootScriptsToTasks(shootTaskId, db);
 
   return NextResponse.json({ taskId: reviewTaskId, script });
 }
+

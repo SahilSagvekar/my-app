@@ -6,6 +6,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { getDbHttp } from '@/lib/db';
 import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/schema';
 import { readShootScriptDocument, writeShootScriptDocument, type ShootScriptDocument } from '@/lib/shoot-scripts';
+import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 
 const CAN_EDIT = ['admin', 'manager', 'videographer'];
 
@@ -62,5 +63,11 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     updatedAt: new Date().toISOString(),
   }).where(eq(shootDetailTable.taskId, id)).returning({ scriptContent: shootDetailTable.scriptContent });
   if (!updated) return NextResponse.json({ error: 'Shoot not found' }, { status: 404 });
+
+  // Attach all non-rejected scripts (including drafts / not yet sent) to tasks,
+  // and detach any rejected scripts
+  await syncShootScriptsToTasks(id);
+
   return NextResponse.json({ document: readShootScriptDocument(updated.scriptContent) });
 }
+
