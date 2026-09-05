@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Info,
   Play,
+  ScrollText,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -338,6 +339,8 @@ interface WorkflowTask {
   isOneOff?: boolean; // 🔥 Added for visibility logic
   isSponsored?: boolean;
   tags?: { id: string; name: string }[];
+  // Linked shoot script reference — JSON string { shootTaskId, scriptId, scriptTitle }
+  shootScriptRef?: string | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -556,6 +559,27 @@ const [showGuidelines, setShowGuidelines] = useState(false);
   const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | null>(null);
   const activeVersion = feedbackVersionFilter ?? currentVersion;
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+  // Script viewer state
+  const [scriptOpen, setScriptOpen] = useState(false);
+  const [scriptLoading, setScriptLoading] = useState(false);
+  const [scriptData, setScriptData] = useState<{ title: string; content: string; status: string; clientFeedback?: string; template: string } | null>(null);
+
+  const loadScript = async () => {
+    if (scriptData) { setScriptOpen(true); return; }
+    setScriptLoading(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/script`);
+      if (!res.ok) throw new Error('Could not load script');
+      const { script } = await res.json();
+      setScriptData(script);
+      setScriptOpen(true);
+    } catch {
+      toast.error('Could not load script');
+    } finally {
+      setScriptLoading(false);
+    }
+  };
+
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [guidelinesLoading, setGuidelinesLoading] = useState(false);
   const [guidelines, setGuidelines] = useState<{
@@ -690,13 +714,33 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                       G
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" sideOffset={6}>
+                 <TooltipContent side="bottom" sideOffset={6}>
                     Guidelines – click to view
                   </TooltipContent>
                 </Tooltip>
               )}
 
+              {/* 📄 Script button — shows when a shoot script is linked */}
+              {task.shootScriptRef && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); loadScript(); }}
+                      disabled={scriptLoading}
+                      className="h-5 w-5 rounded-full border border-dashed border-violet-400 text-[9px] font-semibold flex items-center justify-center text-violet-500 hover:bg-violet-50 disabled:opacity-50"
+                    >
+                      {scriptLoading ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : <ScrollText className="h-2.5 w-2.5" />}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" sideOffset={6}>
+                    Shoot script – click to view
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
               {/* 🔥 Info icon — shows video description popup */}
+
               {task.description && (
                 <Popover>
                   <PopoverTrigger asChild>
@@ -1049,7 +1093,43 @@ const [showGuidelines, setShowGuidelines] = useState(false);
         </CardContent>
       </Card>
 
+      {/* 📄 Script Viewer Dialog — read-only for editors */}
+      <Dialog open={scriptOpen} onOpenChange={setScriptOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <ScrollText className="h-4 w-4 text-violet-500" />
+              {scriptData?.title || 'Shoot Script'}
+              {scriptData?.status && (
+                <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                  scriptData.status === 'approved' ? 'bg-green-50 text-green-700 border-green-200' :
+                  scriptData.status === 'changes_requested' ? 'bg-red-50 text-red-700 border-red-200' :
+                  scriptData.status === 'sent' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                  'bg-slate-100 text-slate-600 border-slate-200'
+                }`}>
+                  {scriptData.status === 'approved' ? '✓ Approved' :
+                   scriptData.status === 'changes_requested' ? 'Changes requested' :
+                   scriptData.status === 'sent' ? 'Awaiting client' : 'Draft'}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+            {scriptData?.clientFeedback && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[11px] font-semibold text-amber-800 mb-1">Client Feedback</p>
+                <p className="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed">{scriptData.clientFeedback}</p>
+              </div>
+            )}
+            <article className="whitespace-pre-wrap font-mono text-sm leading-7 text-slate-800 bg-slate-50 rounded-xl border p-5 min-h-[200px]">
+              {scriptData?.content || 'No content yet.'}
+            </article>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Revision Comment Detail Popup */}
+
 <Dialog open={!!selectedFeedback} onOpenChange={(open) => !open && setSelectedFeedback(null)}>
   <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
     <DialogHeader>

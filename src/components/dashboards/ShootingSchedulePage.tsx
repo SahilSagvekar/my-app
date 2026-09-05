@@ -107,6 +107,8 @@ export function ShootingSchedulePage() {
   const [editingShootId, setEditingShootId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+  // Auto-fill tracking: null means user hasn't auto-filled, number = the auto-filled count
+  const [autoFilledVideos, setAutoFilledVideos] = useState<number | null>(null);
 
   const [returnDialogShoot, setReturnDialogShoot] = useState<Shoot | null>(null);
   const [returnPhotoFiles, setReturnPhotoFiles] = useState<Record<string, File | null>>({});
@@ -146,6 +148,28 @@ export function ShootingSchedulePage() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // When a client is chosen in the form, fetch their deliverable total and
+  // auto-fill videosPlanned so scripts = tasks = deliverables.
+  const fetchClientVideosPlanned = async (clientId: string) => {
+    if (!clientId) return;
+    try {
+      const res = await fetch(`/api/clients/${clientId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const deliverables: { type?: string; quantity?: number }[] = data.monthlyDeliverables || [];
+      // Sum video-type deliverables, fall back to all deliverables if none match
+      const videoTypes = deliverables.filter(d => /(video|videos)/i.test(d.type || ''));
+      const source = videoTypes.length > 0 ? videoTypes : deliverables;
+      const total = source.reduce((acc, d) => acc + (d.quantity || 0), 0);
+      if (total > 0) {
+        setForm(prev => ({ ...prev, videosPlanned: String(total) }));
+        setAutoFilledVideos(total);
+      }
+    } catch {
+      // ignore — auto-fill is best-effort
+    }
+  };
 
   const equipmentName = (id: string) => equipment.find(e => e.id === id)?.name || '(removed)';
 
@@ -438,7 +462,7 @@ export function ShootingSchedulePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Client</Label>
-                <Select value={form.clientId} onValueChange={(v) => setForm(f => ({ ...f, clientId: v }))}>
+                <Select value={form.clientId} onValueChange={(v) => { setForm(f => ({ ...f, clientId: v })); setAutoFilledVideos(null); fetchClientVideosPlanned(v); }}>
                   <SelectTrigger><SelectValue placeholder="Select client (optional)" /></SelectTrigger>
                   <SelectContent>
                     {clients.map(c => (
@@ -483,7 +507,16 @@ export function ShootingSchedulePage() {
 
             <div className="space-y-1.5">
               <Label className="text-xs">Videos planned</Label>
-              <Input type="number" min="1" max="99" value={form.videosPlanned} onChange={(e) => setForm(f => ({ ...f, videosPlanned: e.target.value }))} />
+              <Input
+                type="number" min="1" max="99"
+                value={form.videosPlanned}
+                onChange={(e) => { setForm(f => ({ ...f, videosPlanned: e.target.value })); setAutoFilledVideos(null); }}
+              />
+              {autoFilledVideos !== null && (
+                <p className="text-[11px] text-muted-foreground">
+                  Auto-filled from client's monthly deliverables ({autoFilledVideos}). Adjust if needed.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

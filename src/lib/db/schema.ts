@@ -605,6 +605,10 @@ export const task = pgTable("Task", {
 	postingTags: jsonb(),
 	postingTitles: jsonb(),
 	textContent: text(),
+	// JSON ref to a shoot script linked to this production task —
+	// set by the script-submit flow so editors can read the script.
+	// Shape: { shootTaskId: string, scriptId: string, scriptTitle: string }
+	shootScriptRef: text(),
 	// Client Review Status & Reminder System — set whenever status
 	// transitions into CLIENT_REVIEW (both /api/tasks/[id]/status and the
 	// admin Edit-Task route), overwritten each time the task re-enters
