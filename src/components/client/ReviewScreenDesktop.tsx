@@ -35,6 +35,7 @@ import {
     ReviewCommentCard,
     CommentInput,
     ReviewCompactTransport,
+    ReviewPlaybackControls,
     ReviewModePills,
     ReviewDrawOverlay,
     ReviewInstagramOverlay,
@@ -756,37 +757,38 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 <ReviewCompactTransport
                                     duration={p.duration}
                                     currentTime={p.currentTime}
-                                    isPlaying={p.isPlaying}
-                                    isMuted={p.isMuted}
-                                    playbackSpeed={p.playbackSpeed}
                                     comments={p.comments}
                                     activeCommentId={p.activeCommentId}
                                     currentVersionNumber={p.currentVersionNumber}
-                                    fileCode={fileCode}
-                                    formatTime={p.formatTime}
-                                    onTogglePlay={p.togglePlay}
-                                    onToggleMute={p.toggleMute}
                                     onSeek={p.handleSeek}
-                                    onPlaybackSpeedChange={p.handlePlaybackSpeedChange}
                                     onMarkerClick={p.handleMarkerClick}
                                     onDragStart={() => p.setIsDragging(true)}
                                     onDragEnd={() => p.setIsDragging(false)}
                                 />
                             )}
 
-                            {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && !p.readOnly && (
-                                <div className="grid items-center gap-3 grid-cols-[1fr_auto_1fr]">
-                                    {/* Left spacer — keeps ReviewModePills centered. Play/pause
-                                        and speed controls already live in ReviewCompactTransport
-                                        above; no need to duplicate them here. */}
-                                    <div aria-hidden="true" />
-                                    <ReviewModePills
-                                        activeMode={activeMode}
-                                        onSelect={handleModeSelect}
-                                        instagramActive={showInstagramOverlay}
-                                        showInstagram={isShortFormTask}
-                                    />
-                                    <div aria-hidden="true" />
+                            {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
+                                <div className={`grid items-center gap-3 ${p.readOnly ? 'grid-cols-1' : 'grid-cols-[1fr_auto_1fr]'}`}>
+                                    <div className={`flex ${p.readOnly ? 'justify-center' : 'justify-end'}`}>
+                                        <ReviewPlaybackControls
+                                            currentTime={p.currentTime}
+                                            duration={p.duration}
+                                            isPlaying={p.isPlaying}
+                                            playbackSpeed={p.playbackSpeed}
+                                            onTogglePlay={p.togglePlay}
+                                            onSeek={p.handleSeek}
+                                            onPlaybackSpeedChange={p.handlePlaybackSpeedChange}
+                                        />
+                                    </div>
+                                    {!p.readOnly && <>
+                                        <ReviewModePills
+                                            activeMode={activeMode}
+                                            onSelect={handleModeSelect}
+                                            instagramActive={showInstagramOverlay}
+                                            showInstagram={isShortFormTask}
+                                        />
+                                        <div aria-hidden="true" />
+                                    </>}
                                 </div>
                             )}
 

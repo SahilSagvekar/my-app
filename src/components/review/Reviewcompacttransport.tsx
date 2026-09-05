@@ -145,6 +145,7 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
     );
 });
 
+/** Controls placed immediately to the left of the centered review actions. */
 export function ReviewPlaybackControls({ currentTime, duration, isPlaying, playbackSpeed, onTogglePlay, onSeek, onPlaybackSpeedChange }: ReviewPlaybackControlsProps) {
     const seekBy = (seconds: number) => onSeek(Math.max(0, Math.min(duration, currentTime + seconds)));
 

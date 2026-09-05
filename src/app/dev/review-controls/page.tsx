@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react';
 import {
     ReviewCompactTransport,
+    ReviewPlaybackControls,
     ReviewModePills,
     type ReviewMode,
 } from '@/components/review';
@@ -50,7 +51,6 @@ const MOCK_COMMENTS: ReviewComment[] = [
 
 export default function ReviewControlsPreviewPage() {
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isMuted, setIsMuted] = useState(false);
     const [currentTime, setCurrentTime] = useState(18);
     const [playbackSpeed, setPlaybackSpeed] = useState(1);
     const [activeMode, setActiveMode] = useState<ReviewMode | null>('comment');
@@ -90,36 +90,16 @@ export default function ReviewControlsPreviewPage() {
                             onSeek={setCurrentTime}
                             onMarkerClick={(c) => setCurrentTime(c.timestampSeconds)}
                         />
-                        <div className="flex items-center gap-3 text-sm">
-                            <button
-                                type="button"
-                                onClick={() => setIsPlaying(v => !v)}
-                                className="rounded px-2 py-1 hover:bg-white/10"
-                            >
-                                {isPlaying ? 'Pause' : 'Play'}
-                            </button>
-                            <input
-                                type="range"
-                                min={0}
-                                max={duration}
-                                value={currentTime}
-                                onChange={(event) => setCurrentTime(Number(event.target.value))}
-                                className="min-w-0 flex-1"
-                                aria-label="Playback position"
+                        <div className="flex justify-center">
+                            <ReviewPlaybackControls
+                                currentTime={currentTime}
+                                duration={duration}
+                                isPlaying={isPlaying}
+                                playbackSpeed={playbackSpeed}
+                                onTogglePlay={() => setIsPlaying(value => !value)}
+                                onSeek={setCurrentTime}
+                                onPlaybackSpeedChange={(speed) => setPlaybackSpeed(Number(speed))}
                             />
-                            <span className="font-mono text-xs text-[var(--review-text-muted)]">
-                                {formatTime(currentTime)} / {formatTime(duration)}
-                            </span>
-                            <select
-                                value={playbackSpeed}
-                                onChange={(event) => setPlaybackSpeed(Number(event.target.value))}
-                                className="rounded bg-transparent px-1 py-1"
-                                aria-label="Playback speed"
-                            >
-                                {[0.5, 1, 1.5, 2].map((speed) => (
-                                    <option key={speed} value={speed}>{speed}×</option>
-                                ))}
-                            </select>
                         </div>
                         <ReviewModePills
                             activeMode={activeMode}
@@ -129,7 +109,7 @@ export default function ReviewControlsPreviewPage() {
                 </div>
 
                 <div className="text-xs text-[var(--review-text-muted)] font-mono">
-                    mode={activeMode ?? 'none'} · t={formatTime(currentTime)} · {isPlaying ? 'playing' : 'paused'} · {isMuted ? 'muted' : 'sound'} · {playbackSpeed}×
+                    mode={activeMode ?? 'none'} · t={formatTime(currentTime)} · {isPlaying ? 'playing' : 'paused'} · {playbackSpeed}×
                 </div>
             </div>
         </TooltipProvider>
