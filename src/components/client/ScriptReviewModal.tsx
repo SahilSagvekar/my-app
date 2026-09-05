@@ -7,7 +7,7 @@ import { Card, CardContent } from '../ui/card';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { X, CheckCircle2, MessageSquare, ArrowLeft, FileText, History, RotateCcw } from 'lucide-react';
+import { X, CheckCircle2, MessageSquare, ArrowLeft, FileText, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { ReviewCommentCard, CommentInput } from '../review';
 import { ReviewComment } from '../review/types';
@@ -356,55 +356,87 @@ export function ScriptReviewModal({
                         <div className="flex-1 flex overflow-hidden min-h-0">
 
                             {/* ── SCRIPT AREA ── */}
-                            <div className="flex-1 flex flex-col overflow-hidden p-6">
-                                <div className="max-w-3xl w-full mx-auto flex-1 flex flex-col min-h-0">
-                                    {versions.length > 1 && (
-                                        <div className="mb-3 flex items-center justify-between gap-3 flex-shrink-0">
-                                            <div className="flex items-center gap-2 text-xs text-[var(--review-text-muted)]">
-                                                <History className="h-3.5 w-3.5" />
-                                                <span>Version history</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {!isViewingLatest && (
-                                                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={handleRestoreVersion}>
-                                                        <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                                                        Restore this version
-                                                    </Button>
+                            <div className="flex-1 flex flex-col overflow-hidden p-8">
+                                <div className="max-w-[720px] w-full mx-auto flex-1 flex flex-col min-h-0">
+                                    <div
+                                        className="flex-1 flex flex-col min-h-0 rounded-2xl border overflow-hidden"
+                                        style={{
+                                            background: 'var(--review-bg-elevated)',
+                                            borderColor: 'var(--review-border)',
+                                            boxShadow: '0 24px 60px -28px rgba(0, 0, 0, 0.7)',
+                                        }}
+                                    >
+                                        {/* Panel header — version control lives here, not as a caption above the page */}
+                                        <div
+                                            className="flex items-center justify-between gap-3 px-8 py-4 border-b flex-shrink-0"
+                                            style={{ borderColor: 'var(--review-border)' }}
+                                        >
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                {(() => {
+                                                    const shownVersion = isViewingLatest ? latestVersion : versions.find(v => v.number === selectedVersion);
+                                                    const initial = shownVersion?.editedBy?.name?.trim()?.[0]?.toUpperCase();
+                                                    return initial ? (
+                                                        <div
+                                                            className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0"
+                                                            style={{ background: 'var(--review-accent-purple)', color: '#fff' }}
+                                                        >
+                                                            {initial}
+                                                        </div>
+                                                    ) : null;
+                                                })()}
+                                                {versions.length > 1 ? (
+                                                    <Select
+                                                        value={String(selectedVersion ?? latestVersion?.number ?? '')}
+                                                        onValueChange={handleSelectVersion}
+                                                    >
+                                                        <SelectTrigger
+                                                            className="h-auto w-auto gap-1.5 border-0 bg-transparent p-0 text-sm font-medium shadow-none hover:opacity-80 focus:ring-0 focus-visible:ring-0"
+                                                            style={{ color: 'var(--review-text-secondary)' }}
+                                                        >
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {[...versions].reverse().map(v => (
+                                                                <SelectItem key={v.number} value={String(v.number)}>
+                                                                    Version {v.number}{v.number === latestVersion?.number ? ' · latest' : ''}{v.editedBy?.name ? ` · ${v.editedBy.name}` : ''} · {new Date(v.createdAt).toLocaleDateString()}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : (
+                                                    <span className="text-sm font-medium truncate" style={{ color: 'var(--review-text-secondary)' }}>
+                                                        {latestVersion?.editedBy?.name ? `Written by ${latestVersion.editedBy.name}` : taskTitle}
+                                                    </span>
                                                 )}
-                                                <Select
-                                                    value={String(selectedVersion ?? latestVersion?.number ?? '')}
-                                                    onValueChange={handleSelectVersion}
-                                                >
-                                                    <SelectTrigger className="h-8 w-[220px] bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-xs">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {[...versions].reverse().map(v => (
-                                                            <SelectItem key={v.number} value={String(v.number)}>
-                                                                Version {v.number}{v.number === latestVersion?.number ? ' (latest)' : ''} — {v.editedBy?.name ? `${v.editedBy.name}, ` : ''}{new Date(v.createdAt).toLocaleDateString()}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
                                             </div>
+                                            {!isViewingLatest && (
+                                                <Button size="sm" variant="outline" className="h-7 text-xs flex-shrink-0" onClick={handleRestoreVersion}>
+                                                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                                                    Restore this version
+                                                </Button>
+                                            )}
                                         </div>
-                                    )}
 
-                                    <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                                        <CardContent className="p-0 flex-1 flex min-h-0">
-                                            <Textarea
-                                                value={displayedContent}
-                                                onChange={(e) => canEdit && handleDraftChange(e.target.value)}
-                                                readOnly={!canEdit}
-                                                placeholder={canEdit ? 'Write or paste the script here…' : '(No script content yet)'}
-                                                className="flex-1 resize-none border-0 rounded-none focus-visible:ring-0 text-sm leading-relaxed p-4"
-                                            />
-                                        </CardContent>
-                                    </Card>
+                                        {/* Page */}
+                                        <Textarea
+                                            value={displayedContent}
+                                            onChange={(e) => canEdit && handleDraftChange(e.target.value)}
+                                            readOnly={!canEdit}
+                                            placeholder={canEdit ? 'Write or paste the script here…' : '(No script content yet)'}
+                                            className="flex-1 w-full resize-none border-0 rounded-none bg-transparent focus-visible:ring-0 shadow-none px-10 py-8"
+                                            style={{
+                                                fontFamily: "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif",
+                                                fontSize: '16px',
+                                                lineHeight: '1.85',
+                                                color: 'var(--review-text-primary)',
+                                                caretColor: 'var(--review-accent-purple)',
+                                            }}
+                                        />
+                                    </div>
 
                                     {!isViewingLatest && (
-                                        <p className="mt-2 text-xs text-[var(--review-text-muted)] flex-shrink-0">
-                                            Viewing an older version, read-only. Restore it to make it editable again.
+                                        <p className="mt-3 text-xs text-center flex-shrink-0" style={{ color: 'var(--review-text-muted)' }}>
+                                            Viewing an older version, read-only — restore it to make it editable again.
                                         </p>
                                     )}
                                 </div>
