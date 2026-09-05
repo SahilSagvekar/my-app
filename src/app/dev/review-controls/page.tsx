@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react';
 import {
     ReviewCompactTransport,
+    ReviewPlaybackControls,
     ReviewModePills,
     type ReviewMode,
 } from '@/components/review';
@@ -84,20 +85,20 @@ export default function ReviewControlsPreviewPage() {
                         <ReviewCompactTransport
                             duration={duration}
                             currentTime={currentTime}
-                            isPlaying={isPlaying}
-                            isMuted={isMuted}
-                            playbackSpeed={playbackSpeed}
                             comments={comments}
                             activeCommentId="1"
                             currentVersionNumber={1}
-                            fileCode="SF"
-                            formatTime={formatTime}
+                            onSeek={setCurrentTime}
+                            onMarkerClick={(c) => setCurrentTime(c.timestampSeconds)}
+                        />
+                        <ReviewPlaybackControls
+                            currentTime={currentTime}
+                            duration={duration}
+                            isPlaying={isPlaying}
+                            playbackSpeed={playbackSpeed}
                             onTogglePlay={() => setIsPlaying(v => !v)}
-                            onToggleMute={() => setIsMuted(v => !v)}
                             onSeek={setCurrentTime}
                             onPlaybackSpeedChange={(s) => setPlaybackSpeed(parseFloat(s))}
-                            onMarkerClick={(c) => setCurrentTime(c.timestampSeconds)}
-                            onExpand={() => undefined}
                         />
                         <ReviewModePills
                             activeMode={activeMode}
