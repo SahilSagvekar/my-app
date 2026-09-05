@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageSquare, Pencil, Mic, Clock, Paperclip, Instagram, Grid3x3 } from 'lucide-react';
+import { Pencil, Mic, Clock, Paperclip, Instagram, Grid3x3 } from 'lucide-react';
 
 export type ReviewMode = 'comment' | 'draw' | 'voice' | 'range' | 'attach' | 'instagram' | 'grid';
 
@@ -23,8 +23,7 @@ interface ReviewModePillsProps {
     showGrid?: boolean;
 }
 
-const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof MessageSquare }[] = [
-    { id: 'comment', label: 'Comment', Icon: MessageSquare },
+const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
     { id: 'draw', label: 'Draw', Icon: Pencil },
     { id: 'voice', label: 'Voice', Icon: Mic },
     { id: 'range', label: 'Range', Icon: Clock },
