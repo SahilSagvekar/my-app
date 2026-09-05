@@ -1,6 +1,12 @@
 'use client';
 
-import { Pencil, Mic, Clock, Paperclip, Instagram, Grid3x3 } from 'lucide-react';
+import { Pencil, Mic, Clock, Paperclip, Grid3x3 } from 'lucide-react';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuCheckboxItem,
+    DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 
 export type ReviewMode = 'comment' | 'draw' | 'voice' | 'range' | 'attach' | 'instagram' | 'grid';
 
@@ -9,16 +15,18 @@ interface ReviewModePillsProps {
     onSelect: (mode: ReviewMode) => void;
     disabled?: boolean;
     /**
-     * Instagram and Grid are standalone overlay toggles, not part of the
-     * comment/draw/voice/range/attach mutual-exclusivity group — either can
-     * stay highlighted while one of those is also active, so they're
-     * tracked separately from `activeMode`. Instagram and Grid ARE mutually
-     * exclusive with each other, but that's enforced by the caller (only
-     * one of instagramActive/gridActive should ever be true at once).
+     * Instagram and Overlay (the safe-zone guide, internally mode 'grid')
+     * are standalone overlay toggles, not part of the comment/draw/voice/
+     * range/attach mutual-exclusivity group — either can stay highlighted
+     * while one of those is also active, so they're tracked separately
+     * from `activeMode`. They're both surfaced from a single "Grid"
+     * dropdown pill, and are mutually exclusive with each other — enforced
+     * by the caller (only one of instagramActive/gridActive should ever be
+     * true at once).
      */
     instagramActive?: boolean;
     gridActive?: boolean;
-    /** Only short-form tasks get these Reels-check tools — hidden otherwise. */
+    /** Only short-form tasks get the Grid dropdown — hidden otherwise. */
     showInstagram?: boolean;
     showGrid?: boolean;
 }
@@ -30,15 +38,11 @@ const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
     { id: 'attach', label: 'Attach', Icon: Paperclip },
 ];
 
-const INSTAGRAM_MODE = { id: 'instagram' as const, label: 'Instagram', Icon: Instagram };
-const GRID_MODE = { id: 'grid' as const, label: 'Grid', Icon: Grid3x3 };
-
 export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, gridActive, showInstagram, showGrid }: ReviewModePillsProps) {
-    const MODES = [
-        ...BASE_MODES,
-        ...(showInstagram ? [INSTAGRAM_MODE] : []),
-        ...(showGrid ? [GRID_MODE] : []),
-    ];
+    const showGridDropdown = showInstagram || showGrid;
+    const gridDropdownActive = !!instagramActive || !!gridActive;
+    const pillCount = BASE_MODES.length + (showGridDropdown ? 1 : 0);
+
     return (
         <div className="review-mode-pills flex justify-center w-full px-2">
             <div
@@ -46,8 +50,8 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                 aria-label="Comment modes"
                 className="inline-flex items-stretch rounded-full border border-[var(--review-border)] bg-[var(--review-bg-tertiary)]/80 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
             >
-                {MODES.map(({ id, label, Icon }, index) => {
-                    const isActive = id === 'instagram' ? !!instagramActive : id === 'grid' ? !!gridActive : activeMode === id;
+                {BASE_MODES.map(({ id, label, Icon }, index) => {
+                    const isActive = activeMode === id;
                     return (
                         <button
                             key={id}
@@ -60,7 +64,7 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                                 'relative flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150',
                                 'disabled:opacity-40 disabled:cursor-not-allowed',
                                 index === 0 ? 'rounded-l-full' : '',
-                                index === MODES.length - 1 ? 'rounded-r-full' : '',
+                                index === pillCount - 1 ? 'rounded-r-full' : '',
                                 isActive
                                     ? 'bg-[var(--review-bg-elevated)] text-white shadow-sm ring-1 ring-white/10'
                                     : 'text-[var(--review-text-muted)] hover:text-white',
@@ -71,6 +75,47 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                         </button>
                     );
                 })}
+
+                {showGridDropdown && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={gridDropdownActive}
+                                disabled={disabled}
+                                className={[
+                                    'relative flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150 rounded-r-full',
+                                    'disabled:opacity-40 disabled:cursor-not-allowed',
+                                    gridDropdownActive
+                                        ? 'bg-[var(--review-bg-elevated)] text-white shadow-sm ring-1 ring-white/10'
+                                        : 'text-[var(--review-text-muted)] hover:text-white',
+                                ].join(' ')}
+                            >
+                                <Grid3x3 className={`h-3 w-3 ${gridDropdownActive ? 'text-[var(--review-accent-purple)]' : ''}`} />
+                                <span>Grid</span>
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent side="top" align="center">
+                            {showInstagram && (
+                                <DropdownMenuCheckboxItem
+                                    checked={!!instagramActive}
+                                    onCheckedChange={() => onSelect('instagram')}
+                                >
+                                    Instagram
+                                </DropdownMenuCheckboxItem>
+                            )}
+                            {showGrid && (
+                                <DropdownMenuCheckboxItem
+                                    checked={!!gridActive}
+                                    onCheckedChange={() => onSelect('grid')}
+                                >
+                                    Overlay
+                                </DropdownMenuCheckboxItem>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </div>
         </div>
     );
