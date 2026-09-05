@@ -11,6 +11,7 @@ import {
   file as fileTable,
   taskFeedback,
   user as userTable,
+  shootDetail as shootDetailTable,
 } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, ne, isNotNull, sql as drizzleSql } from "drizzle-orm";
@@ -308,6 +309,55 @@ export async function PATCH(
         const rawResult: any = await db.execute(drizzleSql`SELECT * FROM "Task" WHERE "id" = ${id}`);
         updatedTask = rawResult.rows?.[0] || { id, status: finalStatus };
       }
+    }
+
+    // ── Script review ↔ shoot script sync (best-effort) ───────────────────
+    // A "Text Post"/script review task records which shoot script it came
+    // from in its own textContent ({ kind: 'shoot-script', scriptId,
+    // shootTaskId, versions }). The videographer's script view
+    // (ShootScriptsDialog) reads status/clientFeedback off the *shootDetail*
+    // row, not off this task — so approve/revision-request actions here
+    // need to be mirrored there, or the videographer never sees them.
+    try {
+      const scriptRef = (() => {
+        try {
+          const parsed = task.textContent ? JSON.parse(task.textContent) : null;
+          return parsed?.kind === "shoot-script" && parsed.scriptId && parsed.shootTaskId ? parsed : null;
+        } catch {
+          return null;
+        }
+      })();
+
+      if (scriptRef && (finalStatus === "COMPLETED" || finalStatus === REJECTED_BY_CLIENT || finalStatus === REJECTED_BY_QC)) {
+        const { readShootScriptDocument, writeShootScriptDocument } = await import("@/lib/shoot-scripts");
+        const [shootRow] = await db
+          .select({ scriptContent: shootDetailTable.scriptContent })
+          .from(shootDetailTable)
+          .where(eq(shootDetailTable.taskId, scriptRef.shootTaskId))
+          .limit(1);
+
+        if (shootRow) {
+          const document = readShootScriptDocument(shootRow.scriptContent);
+          const script = document.scripts.find((s) => s.id === scriptRef.scriptId);
+          if (script) {
+            if (finalStatus === "COMPLETED") {
+              script.status = "approved";
+            } else {
+              script.status = "changes_requested";
+              const revisionNote = feedback || qcNotes;
+              if (revisionNote) script.clientFeedback = revisionNote;
+            }
+            script.updatedAt = new Date().toISOString();
+            await db
+              .update(shootDetailTable)
+              .set({ scriptContent: writeShootScriptDocument(document), updatedAt: new Date().toISOString() })
+              .where(eq(shootDetailTable.taskId, scriptRef.shootTaskId));
+          }
+        }
+      }
+    } catch (scriptSyncErr) {
+      // Non-fatal — the task status update itself already succeeded.
+      console.error("[Status] Failed to sync script review back to shoot script:", scriptSyncErr);
     }
 
     const isSchedulerSendBack =

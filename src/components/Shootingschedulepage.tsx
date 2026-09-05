@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
@@ -13,10 +13,10 @@ import {
 } from '../ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
-  Camera, MapPin, Clock, User, Plus, Pencil, Loader, CheckCircle2,
-  PackageCheck, Image as ImageIcon, ChevronDown, X, FileText, Send,
+  Camera, Plus, Loader, CheckCircle2, PackageCheck, ChevronDown, X, FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ShootScriptsDialog } from './ShootScriptsDialog';
 
 interface EquipmentItem {
   id: string;
@@ -58,6 +58,8 @@ interface Shoot {
   scriptContent: string | null;
   scriptStatus: string;
   scriptSentAt: string | null;
+  videosPlanned: number;
+  scriptsCount: number;
 }
 
 const SHOOT_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const;
@@ -68,10 +70,6 @@ const STATUS_META: Record<ShootStatus, { label: string; className: string }> = {
   IN_PROGRESS: { label: 'In Progress', className: 'bg-blue-100 text-blue-800' },
   COMPLETED: { label: 'Completed', className: 'bg-green-100 text-green-800' },
 };
-
-function statusMeta(status: string) {
-  return STATUS_META[status as ShootStatus] || { label: status.replace(/_/g, ' '), className: 'bg-slate-100 text-slate-700' };
-}
 
 const EMPTY_FORM = {
   title: '',
@@ -87,6 +85,7 @@ const EMPTY_FORM = {
   lighting: '',
   exclusions: '',
   notes: '',
+  videosPlanned: '1',
   status: 'PENDING' as ShootStatus,
 };
 
@@ -108,15 +107,15 @@ export function ShootingSchedulePage() {
   const [editingShootId, setEditingShootId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+  // Auto-fill tracking: null means user hasn't auto-filled, number = the auto-filled count
+  const [autoFilledVideos, setAutoFilledVideos] = useState<number | null>(null);
 
   const [returnDialogShoot, setReturnDialogShoot] = useState<Shoot | null>(null);
   const [returnPhotoFiles, setReturnPhotoFiles] = useState<Record<string, File | null>>({});
   const [confirmingReturn, setConfirmingReturn] = useState(false);
+  const [viewPhotosShoot, setViewPhotosShoot] = useState<Shoot | null>(null);
 
   const [scriptDialogShoot, setScriptDialogShoot] = useState<Shoot | null>(null);
-  const [scriptDraft, setScriptDraft] = useState('');
-  const [savingScript, setSavingScript] = useState(false);
-  const [sendingScript, setSendingScript] = useState(false);
 
   // Filters — all applied client-side over the already-fetched list.
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -150,6 +149,28 @@ export function ShootingSchedulePage() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // When a client is chosen in the form, fetch their deliverable total and
+  // auto-fill videosPlanned so scripts = tasks = deliverables.
+  const fetchClientVideosPlanned = async (clientId: string) => {
+    if (!clientId) return;
+    try {
+      const res = await fetch(`/api/clients/${clientId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const deliverables: { type?: string; quantity?: number }[] = data.monthlyDeliverables || [];
+      // Sum video-type deliverables, fall back to all deliverables if none match
+      const videoTypes = deliverables.filter(d => /(video|videos)/i.test(d.type || ''));
+      const source = videoTypes.length > 0 ? videoTypes : deliverables;
+      const total = source.reduce((acc, d) => acc + (d.quantity || 0), 0);
+      if (total > 0) {
+        setForm(prev => ({ ...prev, videosPlanned: String(total) }));
+        setAutoFilledVideos(total);
+      }
+    } catch {
+      // ignore — auto-fill is best-effort
+    }
+  };
 
   const equipmentName = (id: string) => equipment.find(e => e.id === id)?.name || '(removed)';
 
@@ -216,6 +237,7 @@ export function ShootingSchedulePage() {
       lighting: shoot.lighting || '',
       exclusions: shoot.exclusions || '',
       notes: shoot.videographerNotes || '',
+      videosPlanned: String(shoot.videosPlanned || 1),
       status: (SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? shoot.status : 'PENDING') as ShootStatus,
     });
     setIsFormOpen(true);
@@ -256,6 +278,7 @@ export function ShootingSchedulePage() {
           lighting: form.lighting,
           exclusions: form.exclusions,
           notes: form.notes,
+          videosPlanned: form.videosPlanned,
           status: form.status,
         }),
       });
@@ -308,69 +331,6 @@ export function ShootingSchedulePage() {
 
   const openScriptDialog = (shoot: Shoot) => {
     setScriptDialogShoot(shoot);
-    setScriptDraft(shoot.scriptContent || '');
-  };
-
-  const saveScriptDraft = async (): Promise<boolean> => {
-    if (!scriptDialogShoot) return false;
-    setSavingScript(true);
-    try {
-      const res = await fetch(`/api/shoots/${scriptDialogShoot.id}/script`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: scriptDraft }),
-      });
-      if (res.ok) {
-        setShoots(prev => prev.map(s => s.id === scriptDialogShoot.id ? { ...s, scriptContent: scriptDraft } : s));
-        return true;
-      }
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || 'Failed to save script');
-      return false;
-    } catch {
-      toast.error('Something went wrong');
-      return false;
-    } finally {
-      setSavingScript(false);
-    }
-  };
-
-  const handleSaveScript = async () => {
-    const ok = await saveScriptDraft();
-    if (ok) toast.success('Script saved');
-  };
-
-  const handleSendScript = async () => {
-    if (!scriptDialogShoot) return;
-    if (!scriptDialogShoot.client) {
-      toast.error('This shoot has no client to send to');
-      return;
-    }
-    if (!confirm(`Send this script to ${scriptDialogShoot.client.companyName || scriptDialogShoot.client.name}? They'll be able to see it in their portal from now on.`)) {
-      return;
-    }
-    // Save whatever's currently in the draft first, so the send reflects it.
-    const saved = await saveScriptDraft();
-    if (!saved) return;
-    setSendingScript(true);
-    try {
-      const res = await fetch(`/api/shoots/${scriptDialogShoot.id}/script`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        toast.success('Script sent to client');
-        setShoots(prev => prev.map(s => s.id === scriptDialogShoot.id
-          ? { ...s, scriptContent: scriptDraft, scriptStatus: data.shootDetail.scriptStatus, scriptSentAt: data.shootDetail.scriptSentAt }
-          : s));
-        setScriptDialogShoot(prev => prev ? { ...prev, scriptStatus: data.shootDetail.scriptStatus, scriptSentAt: data.shootDetail.scriptSentAt } : prev);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || 'Failed to send script');
-      }
-    } catch {
-      toast.error('Something went wrong');
-    } finally {
-      setSendingScript(false);
-    }
   };
 
   if (loading) {
@@ -385,21 +345,21 @@ export function ShootingSchedulePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="space-y-6 p-2 sm:p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Shooting Schedule</h1>
-          <p className="text-muted-foreground text-sm mt-1">All upcoming and past shoot days</p>
+          <h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">Shooting Schedule</h1>
+          <p className="mt-1 text-sm text-slate-600">All upcoming and past shoot days</p>
         </div>
-        <Button onClick={openCreateForm} className="gap-2 w-full sm:w-auto">
+        <Button onClick={openCreateForm} className="h-10 gap-2 rounded-lg bg-slate-950 px-4 hover:opacity-85 w-full sm:w-auto">
           <Plus className="h-4 w-4" /> New Shoot
         </Button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3 bg-slate-50 border border-slate-100 rounded-xl p-3">
-        <div className="space-y-1 flex-1 min-w-[140px]">
-          <Label className="text-[11px] text-muted-foreground">Status</Label>
+      <div className="grid grid-cols-1 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-1 min-w-[140px]">
+          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Status</Label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -411,8 +371,8 @@ export function ShootingSchedulePage() {
           </Select>
         </div>
 
-        <div className="space-y-1 flex-1 min-w-[160px]">
-          <Label className="text-[11px] text-muted-foreground">Client</Label>
+        <div className="space-y-1 min-w-[160px]">
+          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Client</Label>
           <Select value={clientFilter} onValueChange={setClientFilter}>
             <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -424,17 +384,17 @@ export function ShootingSchedulePage() {
           </Select>
         </div>
 
-        <div className="space-y-1 flex-1 min-w-[130px]">
-          <Label className="text-[11px] text-muted-foreground">From</Label>
+        <div className="space-y-1 min-w-[130px]">
+          <Label className="text-[11px] uppercase tracking-wide text-slate-400">From</Label>
           <Input type="date" className="h-9" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
         </div>
-        <div className="space-y-1 flex-1 min-w-[130px]">
-          <Label className="text-[11px] text-muted-foreground">To</Label>
+        <div className="space-y-1 min-w-[130px]">
+          <Label className="text-[11px] uppercase tracking-wide text-slate-400">To</Label>
           <Input type="date" className="h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
 
         {filtersActive && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground h-9">
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground h-9 lg:col-span-4 lg:justify-self-start">
             <X className="h-3.5 w-3.5" /> Clear
           </Button>
         )}
@@ -455,114 +415,35 @@ export function ShootingSchedulePage() {
           filteredShoots.map((shoot) => {
             const equipmentReturned = !!shoot.equipmentReturnedAt;
             return (
-              <Card key={shoot.id} className="overflow-hidden">
-                <CardContent className="p-5">
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                    <div className="space-y-3 flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-bold text-lg truncate">
-                          {shoot.client?.companyName || shoot.client?.name || shoot.title || 'Shoot'}
-                        </h3>
-                        <Badge className={statusMeta(shoot.status).className}>{statusMeta(shoot.status).label}</Badge>
-                        {equipmentReturned && (
-                          <Badge className="bg-green-100 text-green-800 gap-1">
-                            <PackageCheck className="h-3 w-3" /> Equipment returned
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
-                        <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                          <Clock className="h-4 w-4 text-primary shrink-0" />
-                          <span className="font-medium text-slate-900">
-                            {shoot.shootDate ? new Date(shoot.shootDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'No time set'}
-                          </span>
-                        </div>
-                        {shoot.location && (
-                          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                            <MapPin className="h-4 w-4 text-primary shrink-0" />
-                            <span className="font-medium truncate text-slate-900" title={shoot.location}>{shoot.location}</span>
-                          </div>
-                        )}
-                        {shoot.hostName && (
-                          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                            <User className="h-4 w-4 text-primary shrink-0" />
-                            <span className="font-medium text-slate-900">Host: {shoot.hostName}</span>
-                          </div>
-                        )}
-                        {shoot.videographer && (
-                          <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                            <Camera className="h-4 w-4 text-primary shrink-0" />
-                            <span className="font-medium text-slate-900">{shoot.videographer.name || shoot.videographer.email}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {shoot.equipmentIds.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {shoot.equipmentIds.map(id => (
-                            <Badge key={id} variant="secondary" className="text-[10px] bg-slate-100">
-                              {equipmentName(id)}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-
-                      {equipmentReturned && shoot.equipmentReturnedPhotoUrls.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {shoot.equipmentReturnedPhotoUrls.map((url, idx) => (
-                            <a
-                              key={url}
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 text-xs text-green-700 hover:underline"
-                            >
-                              <ImageIcon className="h-3.5 w-3.5" />
-                              {equipmentName(shoot.equipmentIds[idx])}
-                            </a>
-                          ))}
-                        </div>
-                      )}
+              <Card key={shoot.id} className="overflow-hidden rounded-xl border-slate-200 shadow-none">
+                <CardContent className="p-0">
+                  <div className="flex flex-col gap-5 p-5 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate text-xl font-bold text-slate-950">{shoot.client?.companyName || shoot.client?.name || shoot.title || 'Shoot'}</h3>
+                      <div className="mt-2 flex flex-wrap gap-2"><Badge variant="outline" className="rounded-full border-slate-300 bg-white text-[10px] font-medium uppercase tracking-wide text-slate-700">Videographer assigned</Badge>{equipmentReturned && <Badge variant="outline" role="button" tabIndex={0} onClick={() => setViewPhotosShoot(shoot)} onKeyDown={(e) => { if (e.key === 'Enter') setViewPhotosShoot(shoot); }} className="gap-1 cursor-pointer rounded-full border-slate-300 bg-white text-[10px] font-medium text-slate-700 hover:bg-slate-100"><PackageCheck className="h-3 w-3" /> Equipment returned</Badge>}{shoot.equipmentIds.map(id => <span key={id} className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">{equipmentName(id)}</span>)}</div>
                     </div>
-
-                    <div className="flex flex-row md:flex-col gap-2 shrink-0">
+                    <div className="flex flex-wrap gap-2 shrink-0">
                       <Select
                         value={SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? shoot.status : 'PENDING'}
                         onValueChange={(v) => updateStatus(shoot.id, v as ShootStatus)}
                       >
-                        <SelectTrigger className="h-8 text-xs w-full md:w-[140px]"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-10 w-[170px] text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {SHOOT_STATUSES.map(s => (
                             <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button variant="outline" size="sm" onClick={() => openEditForm(shoot)} className="gap-1.5">
-                        <Pencil className="h-3.5 w-3.5" /> Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 border-blue-200 hover:bg-blue-50 text-blue-700"
-                        onClick={() => openScriptDialog(shoot)}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        Script
-                        {shoot.scriptStatus === 'sent' && <Badge className="bg-blue-100 text-blue-800 text-[9px] px-1 py-0 ml-0.5">Sent</Badge>}
-                      </Button>
-                      {!equipmentReturned && shoot.equipmentIds.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 border-green-200 hover:bg-green-50 text-green-700"
-                          onClick={() => { setReturnDialogShoot(shoot); setReturnPhotoFiles({}); }}
-                        >
-                          <PackageCheck className="h-3.5 w-3.5" /> Confirm Equipment Back
-                        </Button>
-                      )}
+                      <Button variant="outline" onClick={() => openEditForm(shoot)} className="h-10 w-[170px] rounded-lg">Edit shoot details</Button>
                     </div>
                   </div>
+                  <div className="grid grid-cols-1 gap-x-6 gap-y-5 px-6 pb-5 sm:grid-cols-2 lg:grid-cols-4">
+                    <div><p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Shoot day</p><p className="mt-1 text-sm text-slate-950">{shoot.shootDate ? new Date(shoot.shootDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'}</p></div>
+                    <div><p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Location</p><p className="mt-1 truncate text-sm text-slate-950">{shoot.location || 'Not set'}</p></div>
+                    <div><p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Host</p><p className="mt-1 text-sm text-slate-950">{shoot.hostName || 'Not set'}</p></div>
+                    <div><p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Videographer</p><p className="mt-1 text-sm text-slate-950">{shoot.videographer?.name || shoot.videographer?.email || 'Unassigned'}</p></div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-slate-50 px-6 py-3.5"><p className="text-xs text-slate-600">{shoot.scriptsCount} of {shoot.videosPlanned} scripts written · {shoot.scriptStatus === 'sent' ? 'scripts sent to client' : 'none sent to client'}</p><div className="flex gap-2">{!equipmentReturned && shoot.equipmentIds.length > 0 && <Button variant="outline" size="sm" className="h-9" onClick={() => { setReturnDialogShoot(shoot); setReturnPhotoFiles({}); }}>Confirm Equipment Back</Button>}{equipmentReturned && <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setViewPhotosShoot(shoot)}><PackageCheck className="h-3.5 w-3.5" /> View Return Photos</Button>}<Button size="sm" className="h-9 gap-1.5 rounded-lg bg-slate-950 hover:opacity-85" onClick={() => openScriptDialog(shoot)}><FileText className="h-3.5 w-3.5" /> Script{shoot.scriptsCount ? ' — Draft' : ''}</Button></div></div>
                 </CardContent>
               </Card>
             );
@@ -582,7 +463,7 @@ export function ShootingSchedulePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Client</Label>
-                <Select value={form.clientId} onValueChange={(v) => setForm(f => ({ ...f, clientId: v }))}>
+                <Select value={form.clientId} onValueChange={(v) => { setForm(f => ({ ...f, clientId: v })); setAutoFilledVideos(null); fetchClientVideosPlanned(v); }}>
                   <SelectTrigger><SelectValue placeholder="Select client (optional)" /></SelectTrigger>
                   <SelectContent>
                     {clients.map(c => (
@@ -623,6 +504,20 @@ export function ShootingSchedulePage() {
                 value={form.shootDate}
                 onChange={(e) => setForm(f => ({ ...f, shootDate: e.target.value }))}
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Videos planned</Label>
+              <Input
+                type="number" min="1" max="99"
+                value={form.videosPlanned}
+                onChange={(e) => { setForm(f => ({ ...f, videosPlanned: e.target.value })); setAutoFilledVideos(null); }}
+              />
+              {autoFilledVideos !== null && (
+                <p className="text-[11px] text-muted-foreground">
+                  Auto-filled from client's monthly deliverables ({autoFilledVideos}). Adjust if needed.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -765,51 +660,52 @@ export function ShootingSchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Script Dialog */}
-      <Dialog open={!!scriptDialogShoot} onOpenChange={(open) => { if (!open) { setScriptDialogShoot(null); setScriptDraft(''); } }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      {/* View Return Photos Dialog — read-only, one photo per equipment item, in equipmentIds order */}
+      <Dialog open={!!viewPhotosShoot} onOpenChange={(open) => { if (!open) setViewPhotosShoot(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              Script
-              {scriptDialogShoot?.scriptStatus === 'sent' && (
-                <Badge className="bg-blue-100 text-blue-800 text-[10px]">
-                  Sent to client{scriptDialogShoot.scriptSentAt ? ` · ${new Date(scriptDialogShoot.scriptSentAt).toLocaleDateString()}` : ''}
-                </Badge>
-              )}
-            </DialogTitle>
+            <DialogTitle>Equipment Return Photos</DialogTitle>
             <DialogDescription>
-              {scriptDialogShoot?.client?.companyName || scriptDialogShoot?.client?.name || scriptDialogShoot?.title || 'This shoot'}
-              {scriptDialogShoot?.scriptStatus === 'sent'
-                ? ' — the client can see this live. Edits here update what they see immediately, no need to re-send.'
-                : ' — only visible internally until sent.'}
+              {viewPhotosShoot?.equipmentReturnedAt
+                ? `Confirmed ${new Date(viewPhotosShoot.equipmentReturnedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
+                : ''}
             </DialogDescription>
           </DialogHeader>
-
-          <Textarea
-            value={scriptDraft}
-            onChange={(e) => setScriptDraft(e.target.value)}
-            placeholder="Write the script for this shoot..."
-            rows={16}
-            className="font-mono text-sm"
-          />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => { setScriptDialogShoot(null); setScriptDraft(''); }}>Close</Button>
-            <Button variant="outline" onClick={handleSaveScript} disabled={savingScript} className="gap-1.5">
-              {savingScript ? 'Saving...' : 'Save Draft'}
-            </Button>
-            <Button
-              onClick={handleSendScript}
-              disabled={sendingScript || !scriptDraft.trim() || !scriptDialogShoot?.client}
-              className="gap-1.5"
-              title={!scriptDialogShoot?.client ? 'This shoot has no client to send to' : undefined}
-            >
-              <Send className="h-4 w-4" />
-              {sendingScript ? 'Sending...' : scriptDialogShoot?.scriptStatus === 'sent' ? 'Re-notify Client' : 'Send to Client'}
-            </Button>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            {viewPhotosShoot?.equipmentIds.map((id, idx) => {
+              const url = viewPhotosShoot.equipmentReturnedPhotoUrls?.[idx];
+              return (
+                <div key={id} className="space-y-1.5">
+                  <Label className="text-xs">{equipmentName(id)}</Label>
+                  {url ? (
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={url}
+                        alt={`${equipmentName(id)} returned`}
+                        className="w-full h-32 object-cover rounded-lg border hover:opacity-90"
+                      />
+                    </a>
+                  ) : (
+                    <div className="w-full h-32 flex items-center justify-center rounded-lg border border-dashed text-xs text-slate-400">
+                      No photo saved
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setViewPhotosShoot(null)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <ShootScriptsDialog
+        shoot={scriptDialogShoot}
+        open={!!scriptDialogShoot}
+        onOpenChange={(open) => { if (!open) setScriptDialogShoot(null); }}
+        onChanged={fetchAll}
+      />
     </div>
   );
 }
