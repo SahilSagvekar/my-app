@@ -36,6 +36,7 @@ interface ClientTask {
   id: string;
   title: string;
   status: string;
+  taskType?: string;
   files?: TaskFile[];
   monthlyDeliverable?: any;
 }
@@ -138,7 +139,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
             needs and sits flush right — which is the same edge as the Download
             pill below, since both rows share this container's padding. */}
         <div className="flex items-center gap-2">
-          <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-base leading-snug line-clamp-1">{task.monthlyDeliverable?.type ? task.monthlyDeliverable.type.replace(/_/g, " ") : "Content"}</h4>
+          <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-base leading-snug line-clamp-1">{(task.taskType || '').toLowerCase().includes('text post') ? task.title : task.monthlyDeliverable?.type ? task.monthlyDeliverable.type.replace(/_/g, " ") : "Content"}</h4>
           <span className="shrink-0 flex items-center gap-1.5 text-zinc-500 text-xs font-semibold">
             <FileText className="h-3.5 w-3.5" />
             {task.files?.length || 0}

@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Textarea } from '../ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { CheckCircle2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -16,6 +17,7 @@ interface TextPostReviewModalProps {
     textContent: string;
     onApprove: () => void | Promise<void>;
     onRequestRevisions: (feedbackItems: { feedback: string }[]) => void | Promise<void>;
+    onAddComment?: (feedback: string) => void | Promise<void>;
 }
 
 export function TextPostReviewModal({
@@ -26,13 +28,24 @@ export function TextPostReviewModal({
     textContent,
     onApprove,
     onRequestRevisions,
+    onAddComment,
 }: TextPostReviewModalProps) {
+    void taskId;
     const [revisionNote, setRevisionNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [selectedVersion, setSelectedVersion] = useState<string>('');
+    const scriptReview = useMemo(() => {
+        try {
+            const parsed = JSON.parse(textContent);
+            return parsed?.kind === 'shoot-script' && Array.isArray(parsed.versions) ? parsed : null;
+        } catch { return null; }
+    }, [textContent]);
+    const versions = useMemo(() => scriptReview?.versions || [], [scriptReview]);
+    const currentVersion = versions.find((version: { number: number }) => String(version.number) === selectedVersion) || versions[versions.length - 1];
 
     useEffect(() => {
-        if (open) setRevisionNote('');
-    }, [open]);
+        if (open) { setRevisionNote(''); setSelectedVersion(versions.length ? String(versions[versions.length - 1].number) : ''); }
+    }, [open, versions]);
 
     const handleApproveClick = async () => {
         setSubmitting(true);
@@ -58,19 +71,27 @@ export function TextPostReviewModal({
         }
     };
 
+    const handleAddComment = async () => {
+        if (!revisionNote.trim() || !onAddComment) return;
+        setSubmitting(true);
+        try { await onAddComment(revisionNote.trim()); setRevisionNote(''); }
+        finally { setSubmitting(false); }
+    };
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                 <DialogTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5 text-purple-500" />
-                    Text Post — <span className="font-normal text-muted-foreground">{taskTitle}</span>
+                    {scriptReview ? 'Script review' : 'Text Post'} — <span className="font-normal text-muted-foreground">{taskTitle}</span>
                 </DialogTitle>
                 <DialogDescription className="sr-only">Review the text post copy</DialogDescription>
 
                 <Card>
                     <CardContent className="p-4">
+                        {versions.length > 1 && <div className="mb-3 flex items-center justify-between gap-3"><span className="text-xs font-medium text-muted-foreground">Version history</span><Select value={selectedVersion} onValueChange={setSelectedVersion}><SelectTrigger className="h-8 w-[150px]"><SelectValue /></SelectTrigger><SelectContent>{[...versions].reverse().map((version: { number: number; createdAt: string }) => <SelectItem key={version.number} value={String(version.number)}>Version {version.number} — {new Date(version.createdAt).toLocaleDateString()}</SelectItem>)}</SelectContent></Select></div>}
                         <p className="whitespace-pre-wrap text-sm text-gray-800">
-                            {textContent || '(No text submitted yet)'}
+                            {currentVersion?.content || textContent || '(No text submitted yet)'}
                         </p>
                     </CardContent>
                 </Card>
@@ -89,6 +110,7 @@ export function TextPostReviewModal({
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">
+                    {onAddComment && <Button variant="outline" disabled={submitting || !revisionNote.trim()} onClick={handleAddComment}>Add Comment</Button>}
                     <Button
                         variant="outline"
                         disabled={submitting}

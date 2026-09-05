@@ -5,6 +5,7 @@ import { getDbPool } from "@/lib/db";
 import { taskFeedback, shareableReview as shareableReviewTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, ne, desc } from "drizzle-orm";
+import { getCurrentUser2 } from '@/lib/auth';
 
 // GET - Fetch all feedback for a task
 export async function GET(
@@ -83,7 +84,9 @@ export async function POST(
       attachments,
     } = body;
 
-    if (!folderType || !feedback || !createdBy) {
+    const currentUser = await getCurrentUser2(req);
+    const authorId = Number(createdBy ?? currentUser?.id);
+    if (!folderType || !feedback || !authorId) {
       return NextResponse.json(
         { error: "Missing required fields: folderType, feedback, createdBy" },
         { status: 400 }
@@ -99,7 +102,7 @@ export async function POST(
       timestamp: timestamp || null,
       category: category || null,
       status,
-      createdBy,
+      createdBy: authorId,
       screenshotUrl: screenshotUrl || null,
       annotations: annotations || null,
       voiceUrl: voiceUrl || null,
@@ -117,7 +120,7 @@ export async function POST(
 
     const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
     await createAuditLog({
-      userId: createdBy,
+      userId: authorId,
       action: AuditAction.TASK_UPDATED,
       entity: "TaskFeedback",
       entityId: newFeedback.id,

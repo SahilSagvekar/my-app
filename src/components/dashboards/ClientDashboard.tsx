@@ -1843,6 +1843,16 @@ export function ClientDashboard() {
             textContent={(selectedTask as any).textContent || ''}
             onApprove={() => handleThumbnailApprove(null as any)}
             onRequestRevisions={(items) => handleThumbnailRequestRevisions(null as any, items)}
+            onAddComment={async (feedback) => {
+              const response = await fetch(`/api/tasks/${selectedTask.id}/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ folderType: 'script', feedback, status: 'open' }),
+              });
+              if (!response.ok) throw new Error('Could not add comment');
+              toast.success('Comment added');
+            }}
           />
         )}
 

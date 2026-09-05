@@ -26,7 +26,17 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => { if (open && shoot) { setDocument(readShootScriptDocument(shoot.scriptContent)); setSelectedId(null); setView('list'); } }, [open, shoot]);
+  useEffect(() => {
+    if (!open || !shoot) return;
+    let cancelled = false;
+    setDocument(readShootScriptDocument(shoot.scriptContent)); setSelectedId(null); setView('list');
+    void fetch(`/api/shoots/${shoot.id}/scripts`).then(async response => {
+      if (!response.ok || cancelled) return;
+      const data = await response.json();
+      if (!cancelled) setDocument(data.document);
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [open, shoot]);
   const selected = document.scripts.find(s => s.id === selectedId) || null;
   const pending = Math.max(0, document.videosPlanned - document.scripts.length);
   const awaiting = document.scripts.filter(s => s.status === 'sent').length;
@@ -54,8 +64,16 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
   const update = (patch: Partial<ShootScript>) => selected && autosave({ ...document, scripts: document.scripts.map(s => s.id === selected.id ? { ...s, ...patch, updatedAt: new Date().toISOString() } : s) });
   const submit = async () => {
     if (!selected || !shoot?.client) { toast.error('Assign a client to this shoot before submitting'); return; }
-    const next = { ...document, scripts: document.scripts.map(s => s.id === selected.id ? { ...s, status: 'sent' as const, updatedAt: new Date().toISOString() } : s) };
-    if (await persist(next)) toast.success('Submitted to client');
+    setSaveStatus('saving');
+    try {
+      const response = await fetch(`/api/shoots/${shoot.id}/scripts/${selected.id}/submit`, { method: 'POST' });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Could not submit script');
+      const { script } = await response.json();
+      setDocument(current => ({ ...current, scripts: current.scripts.map(entry => entry.id === script.id ? script : entry) }));
+      onChanged();
+      toast.success(`Submitted Version ${script.versions?.length || 1} to the client task list`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not submit script'); }
+    finally { setSaveStatus('saved'); }
   };
   const remove = async () => { if (!deleteId) return; const next = { ...document, scripts: document.scripts.filter(s => s.id !== deleteId) }; setDeleteId(null); setSelectedId(null); setView('list'); await persist(next); };
 

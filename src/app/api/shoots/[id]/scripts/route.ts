@@ -1,10 +1,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getDbHttp } from '@/lib/db';
-import { shootDetail as shootDetailTable } from '@/lib/db/schema';
+import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/schema';
 import { readShootScriptDocument, writeShootScriptDocument, type ShootScriptDocument } from '@/lib/shoot-scripts';
 
 const CAN_EDIT = ['admin', 'manager', 'videographer'];
@@ -26,7 +26,18 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const [shoot] = await db.select({ scriptContent: shootDetailTable.scriptContent })
     .from(shootDetailTable).where(eq(shootDetailTable.taskId, id)).limit(1);
   if (!shoot) return NextResponse.json({ error: 'Shoot not found' }, { status: 404 });
-  return NextResponse.json({ document: readShootScriptDocument(shoot.scriptContent) });
+  const document = readShootScriptDocument(shoot.scriptContent);
+  const reviewTaskIds = document.scripts.flatMap((script) => script.reviewTaskId ? [script.reviewTaskId] : []);
+  if (reviewTaskIds.length) {
+    const statuses = await db.select({ id: taskTable.id, status: taskTable.status }).from(taskTable).where(inArray(taskTable.id, reviewTaskIds));
+    const statusByTaskId = new Map(statuses.map((row) => [row.id, row.status]));
+    document.scripts = document.scripts.map((script) => {
+      const taskStatus = script.reviewTaskId ? statusByTaskId.get(script.reviewTaskId) : null;
+      const status = taskStatus === 'COMPLETED' ? 'approved' : taskStatus === 'REJECTED_BY_CLIENT' ? 'changes_requested' : taskStatus === 'CLIENT_REVIEW' ? 'sent' : script.status;
+      return { ...script, status };
+    });
+  }
+  return NextResponse.json({ document });
 }
 
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {

@@ -1,5 +1,12 @@
 export type ScriptStatus = 'draft' | 'sent' | 'approved' | 'changes_requested';
 
+export interface ShootScriptVersion {
+  number: number;
+  title: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface ShootScript {
   id: string;
   title: string;
@@ -9,6 +16,8 @@ export interface ShootScript {
   createdAt: string;
   updatedAt: string;
   clientFeedback?: string;
+  reviewTaskId?: string;
+  versions?: ShootScriptVersion[];
 }
 
 export interface ShootScriptDocument {
@@ -49,6 +58,7 @@ export function readShootScriptDocument(raw: string | null | undefined): ShootSc
             ...script,
             status: script.status || 'draft',
             template: script.template || 'overall',
+            versions: script.versions || [],
           })),
         };
       }
