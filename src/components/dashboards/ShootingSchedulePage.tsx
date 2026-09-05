@@ -14,9 +14,10 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   Camera, MapPin, Clock, User, Plus, Pencil, Loader, CheckCircle2,
-  PackageCheck, Image as ImageIcon, ChevronDown, X, FileText, Send,
+  PackageCheck, Image as ImageIcon, ChevronDown, X, FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ShootScriptsDialog } from './ShootScriptsDialog';
 
 interface EquipmentItem {
   id: string;
@@ -58,6 +59,8 @@ interface Shoot {
   scriptContent: string | null;
   scriptStatus: string;
   scriptSentAt: string | null;
+  videosPlanned: number;
+  scriptsCount: number;
 }
 
 const SHOOT_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const;
@@ -87,6 +90,7 @@ const EMPTY_FORM = {
   lighting: '',
   exclusions: '',
   notes: '',
+  videosPlanned: '1',
   status: 'PENDING' as ShootStatus,
 };
 
@@ -114,9 +118,6 @@ export function ShootingSchedulePage() {
   const [confirmingReturn, setConfirmingReturn] = useState(false);
 
   const [scriptDialogShoot, setScriptDialogShoot] = useState<Shoot | null>(null);
-  const [scriptDraft, setScriptDraft] = useState('');
-  const [savingScript, setSavingScript] = useState(false);
-  const [sendingScript, setSendingScript] = useState(false);
 
   // Filters — all applied client-side over the already-fetched list.
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -216,6 +217,7 @@ export function ShootingSchedulePage() {
       lighting: shoot.lighting || '',
       exclusions: shoot.exclusions || '',
       notes: shoot.videographerNotes || '',
+      videosPlanned: String(shoot.videosPlanned || 1),
       status: (SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? shoot.status : 'PENDING') as ShootStatus,
     });
     setIsFormOpen(true);
@@ -256,6 +258,7 @@ export function ShootingSchedulePage() {
           lighting: form.lighting,
           exclusions: form.exclusions,
           notes: form.notes,
+          videosPlanned: form.videosPlanned,
           status: form.status,
         }),
       });
@@ -308,69 +311,6 @@ export function ShootingSchedulePage() {
 
   const openScriptDialog = (shoot: Shoot) => {
     setScriptDialogShoot(shoot);
-    setScriptDraft(shoot.scriptContent || '');
-  };
-
-  const saveScriptDraft = async (): Promise<boolean> => {
-    if (!scriptDialogShoot) return false;
-    setSavingScript(true);
-    try {
-      const res = await fetch(`/api/shoots/${scriptDialogShoot.id}/script`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: scriptDraft }),
-      });
-      if (res.ok) {
-        setShoots(prev => prev.map(s => s.id === scriptDialogShoot.id ? { ...s, scriptContent: scriptDraft } : s));
-        return true;
-      }
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error || 'Failed to save script');
-      return false;
-    } catch {
-      toast.error('Something went wrong');
-      return false;
-    } finally {
-      setSavingScript(false);
-    }
-  };
-
-  const handleSaveScript = async () => {
-    const ok = await saveScriptDraft();
-    if (ok) toast.success('Script saved');
-  };
-
-  const handleSendScript = async () => {
-    if (!scriptDialogShoot) return;
-    if (!scriptDialogShoot.client) {
-      toast.error('This shoot has no client to send to');
-      return;
-    }
-    if (!confirm(`Send this script to ${scriptDialogShoot.client.companyName || scriptDialogShoot.client.name}? They'll be able to see it in their portal from now on.`)) {
-      return;
-    }
-    // Save whatever's currently in the draft first, so the send reflects it.
-    const saved = await saveScriptDraft();
-    if (!saved) return;
-    setSendingScript(true);
-    try {
-      const res = await fetch(`/api/shoots/${scriptDialogShoot.id}/script`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        toast.success('Script sent to client');
-        setShoots(prev => prev.map(s => s.id === scriptDialogShoot.id
-          ? { ...s, scriptContent: scriptDraft, scriptStatus: data.shootDetail.scriptStatus, scriptSentAt: data.shootDetail.scriptSentAt }
-          : s));
-        setScriptDialogShoot(prev => prev ? { ...prev, scriptStatus: data.shootDetail.scriptStatus, scriptSentAt: data.shootDetail.scriptSentAt } : prev);
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || 'Failed to send script');
-      }
-    } catch {
-      toast.error('Something went wrong');
-    } finally {
-      setSendingScript(false);
-    }
   };
 
   if (loading) {
@@ -548,8 +488,8 @@ export function ShootingSchedulePage() {
                         onClick={() => openScriptDialog(shoot)}
                       >
                         <FileText className="h-3.5 w-3.5" />
-                        Script
-                        {shoot.scriptStatus === 'sent' && <Badge className="bg-blue-100 text-blue-800 text-[9px] px-1 py-0 ml-0.5">Sent</Badge>}
+                        Scripts
+                        <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-0.5">{shoot.scriptsCount}/{shoot.videosPlanned}</Badge>
                       </Button>
                       {!equipmentReturned && shoot.equipmentIds.length > 0 && (
                         <Button
@@ -623,6 +563,11 @@ export function ShootingSchedulePage() {
                 value={form.shootDate}
                 onChange={(e) => setForm(f => ({ ...f, shootDate: e.target.value }))}
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Videos planned</Label>
+              <Input type="number" min="1" max="99" value={form.videosPlanned} onChange={(e) => setForm(f => ({ ...f, videosPlanned: e.target.value }))} />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -765,51 +710,12 @@ export function ShootingSchedulePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Script Dialog */}
-      <Dialog open={!!scriptDialogShoot} onOpenChange={(open) => { if (!open) { setScriptDialogShoot(null); setScriptDraft(''); } }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              Script
-              {scriptDialogShoot?.scriptStatus === 'sent' && (
-                <Badge className="bg-blue-100 text-blue-800 text-[10px]">
-                  Sent to client{scriptDialogShoot.scriptSentAt ? ` · ${new Date(scriptDialogShoot.scriptSentAt).toLocaleDateString()}` : ''}
-                </Badge>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {scriptDialogShoot?.client?.companyName || scriptDialogShoot?.client?.name || scriptDialogShoot?.title || 'This shoot'}
-              {scriptDialogShoot?.scriptStatus === 'sent'
-                ? ' — the client can see this live. Edits here update what they see immediately, no need to re-send.'
-                : ' — only visible internally until sent.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <Textarea
-            value={scriptDraft}
-            onChange={(e) => setScriptDraft(e.target.value)}
-            placeholder="Write the script for this shoot..."
-            rows={16}
-            className="font-mono text-sm"
-          />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => { setScriptDialogShoot(null); setScriptDraft(''); }}>Close</Button>
-            <Button variant="outline" onClick={handleSaveScript} disabled={savingScript} className="gap-1.5">
-              {savingScript ? 'Saving...' : 'Save Draft'}
-            </Button>
-            <Button
-              onClick={handleSendScript}
-              disabled={sendingScript || !scriptDraft.trim() || !scriptDialogShoot?.client}
-              className="gap-1.5"
-              title={!scriptDialogShoot?.client ? 'This shoot has no client to send to' : undefined}
-            >
-              <Send className="h-4 w-4" />
-              {sendingScript ? 'Sending...' : scriptDialogShoot?.scriptStatus === 'sent' ? 'Re-notify Client' : 'Send to Client'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ShootScriptsDialog
+        shoot={scriptDialogShoot}
+        open={!!scriptDialogShoot}
+        onOpenChange={(open) => { if (!open) setScriptDialogShoot(null); }}
+        onChanged={fetchAll}
+      />
     </div>
   );
 }

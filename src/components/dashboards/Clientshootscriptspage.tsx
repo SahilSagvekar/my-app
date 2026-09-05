@@ -2,20 +2,27 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '../ui/card';
-import { FileText, MapPin, Clock, Loader } from 'lucide-react';
+import { Check, FileText, MapPin, Clock, Loader, MessageSquare } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Textarea } from '../ui/textarea';
+import { toast } from 'sonner';
+import type { ShootScript } from '@/lib/shoot-scripts';
 
-interface ScriptEntry {
+interface ScriptEntry extends ShootScript {
   taskId: string;
   taskTitle: string | null;
   shootDate: string | null;
   location: string | null;
-  scriptContent: string | null;
   scriptSentAt: string | null;
 }
 
 export function ClientShootScriptsPage() {
   const [scripts, setScripts] = useState<ScriptEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reviewing, setReviewing] = useState<ScriptEntry | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchScripts = useCallback(async () => {
     try {
@@ -33,6 +40,21 @@ export function ClientShootScriptsPage() {
   }, []);
 
   useEffect(() => { fetchScripts(); }, [fetchScripts]);
+
+  const respond = async (action: 'approve' | 'request_changes') => {
+    if (!reviewing) return;
+    if (action === 'request_changes' && !feedback.trim()) { toast.error('Please add feedback so the team knows what to change'); return; }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/client/shoot-scripts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId: reviewing.taskId, scriptId: reviewing.id, action, feedback }) });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not save your response');
+      const { script } = await res.json();
+      setScripts(current => current.map(item => item.id === script.id && item.taskId === reviewing.taskId ? { ...item, ...script } : item));
+      toast.success(action === 'approve' ? 'Script approved' : 'Changes requested');
+      setReviewing(null); setFeedback('');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Could not save your response'); }
+    finally { setSubmitting(false); }
+  };
 
   if (loading) {
     return (
@@ -63,10 +85,10 @@ export function ClientShootScriptsPage() {
       ) : (
         <div className="space-y-4">
           {scripts.map(script => (
-            <Card key={script.taskId}>
+            <Card key={`${script.taskId}-${script.id}`}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="font-bold text-lg">{script.taskTitle || 'Shoot'}</h3>
+                  <h3 className="font-bold text-lg">{script.title || script.taskTitle || 'Video script'}</h3>
                   {script.shootDate && (
                     <span className="flex items-center gap-1.5 text-xs text-slate-500">
                       <Clock className="h-3.5 w-3.5" />
@@ -81,13 +103,25 @@ export function ClientShootScriptsPage() {
                   )}
                 </div>
                 <pre className="whitespace-pre-wrap font-mono text-sm bg-slate-50 border border-slate-100 rounded-lg p-4 text-slate-800">
-                  {script.scriptContent || '(empty)'}
+                  {script.content || '(empty)'}
                 </pre>
+                {script.clientFeedback && <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-900"><strong>Your feedback:</strong> {script.clientFeedback}</div>}
+                <Button variant={script.status === 'approved' ? 'outline' : 'default'} onClick={() => { setReviewing(script); setFeedback(script.clientFeedback || ''); }} className="gap-1.5">
+                  {script.status === 'approved' ? <Check className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                  {script.status === 'approved' ? 'View response' : 'Review script'}
+                </Button>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+      <Dialog open={!!reviewing} onOpenChange={(open) => { if (!open) { setReviewing(null); setFeedback(''); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Review {reviewing?.title || 'script'}</DialogTitle><DialogDescription>Approve this script or tell the team what needs to change.</DialogDescription></DialogHeader>
+          <Textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={5} placeholder="Optional feedback when approving, required when requesting changes" />
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="outline" disabled={submitting} onClick={() => respond('request_changes')}>Request changes</Button><Button disabled={submitting} onClick={() => respond('approve')} className="gap-1.5"><Check className="h-4 w-4" />Approve</Button></div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

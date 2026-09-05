@@ -5,6 +5,7 @@ import { task as taskTable, shootDetail as shootDetailTable, client as clientTab
 import { createId } from '@/lib/db/id';
 import { eq, isNotNull, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
+import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
 
 // Shoot-day status is a focused subset of the broader TaskStatus enum —
 // all three values are valid TaskStatus members already, so no schema
@@ -45,7 +46,9 @@ export async function GET(req: NextRequest) {
       .where(isNotNull(shootDetailTable.taskId))
       .orderBy(desc(shootDetailTable.shootDate));
 
-    const shoots = rows.map(r => ({
+    const shoots = rows.map(r => {
+      const scriptDocument = readShootScriptDocument(r.shoot.scriptContent);
+      return ({
       id: r.task.id,
       title: r.task.title,
       status: r.task.status,
@@ -66,10 +69,13 @@ export async function GET(req: NextRequest) {
       scriptContent: r.shoot.scriptContent,
       scriptStatus: r.shoot.scriptStatus,
       scriptSentAt: r.shoot.scriptSentAt,
-    }));
+      videosPlanned: scriptDocument.videosPlanned,
+      scriptsCount: scriptDocument.scripts.length,
+    });
+    });
 
     return NextResponse.json({ shoots });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Shoots] GET error:', error);
     return NextResponse.json({ error: 'Failed to load shoots' }, { status: 500 });
   }
@@ -103,6 +109,7 @@ export async function POST(req: NextRequest) {
       exclusions,
       notes,
       status,
+      videosPlanned,
     } = body;
 
     if (!shootDate) {
@@ -148,12 +155,13 @@ export async function POST(req: NextRequest) {
       exclusions: exclusions || null,
       hostName: hostName || null,
       equipmentIds: Array.isArray(equipmentIds) ? equipmentIds : [],
+      scriptContent: writeShootScriptDocument({ version: 1, videosPlanned: Math.max(1, Number(videosPlanned) || 1), scripts: [] }),
       videographerId: assignedVideographerId,
       updatedAt: new Date().toISOString(),
     }).returning();
 
     return NextResponse.json({ task: createdTask, shootDetail: createdShootDetail }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Shoots] POST error:', error);
     return NextResponse.json({ error: 'Failed to create shoot' }, { status: 500 });
   }
