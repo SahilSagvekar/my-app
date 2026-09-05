@@ -88,7 +88,7 @@ export function ClientShootScriptsPage() {
             <Card key={`${script.taskId}-${script.id}`}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="font-bold text-lg">{script.title || script.taskTitle || 'Video script'}</h3>
+                  <h3 className="font-bold text-lg text-slate-950">{script.title || script.taskTitle || 'Video script'}</h3>
                   {script.shootDate && (
                     <span className="flex items-center gap-1.5 text-xs text-slate-500">
                       <Clock className="h-3.5 w-3.5" />
@@ -102,10 +102,10 @@ export function ClientShootScriptsPage() {
                     </span>
                   )}
                 </div>
-                <pre className="whitespace-pre-wrap font-mono text-sm bg-slate-50 border border-slate-100 rounded-lg p-4 text-slate-800">
+                <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-6 font-mono text-sm leading-7 text-slate-800">
                   {script.content || '(empty)'}
                 </pre>
-                {script.clientFeedback && <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-900"><strong>Your feedback:</strong> {script.clientFeedback}</div>}
+                {script.clientFeedback && <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800"><strong>Your feedback:</strong> {script.clientFeedback}</div>}
                 <Button variant={script.status === 'approved' ? 'outline' : 'default'} onClick={() => { setReviewing(script); setFeedback(script.clientFeedback || ''); }} className="gap-1.5">
                   {script.status === 'approved' ? <Check className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
                   {script.status === 'approved' ? 'View response' : 'Review script'}
@@ -116,10 +116,11 @@ export function ClientShootScriptsPage() {
         </div>
       )}
       <Dialog open={!!reviewing} onOpenChange={(open) => { if (!open) { setReviewing(null); setFeedback(''); } }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Review {reviewing?.title || 'script'}</DialogTitle><DialogDescription>Approve this script or tell the team what needs to change.</DialogDescription></DialogHeader>
-          <Textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={5} placeholder="Optional feedback when approving, required when requesting changes" />
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="outline" disabled={submitting} onClick={() => respond('request_changes')}>Request changes</Button><Button disabled={submitting} onClick={() => respond('approve')} className="gap-1.5"><Check className="h-4 w-4" />Approve</Button></div>
+        <DialogContent className="max-h-[88vh] max-w-[700px] overflow-y-auto rounded-2xl">
+          <DialogHeader><DialogTitle>Script approval</DialogTitle><DialogDescription>{reviewing?.title || 'Script'} · Awaiting your approval</DialogDescription></DialogHeader>
+          <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-xl border bg-slate-50 p-6 font-mono text-sm leading-7 text-slate-800">{reviewing?.content}</pre>
+          <div className="space-y-2"><label className="text-sm font-medium text-slate-950">Any feedback or requests?</label><Textarea value={feedback} onChange={(event) => setFeedback(event.target.value)} rows={5} placeholder="Leave feedback here..." /></div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between"><Button variant="outline" disabled={submitting} onClick={() => respond('request_changes')}>Request Changes</Button><Button disabled={submitting} onClick={() => respond('approve')} className="gap-1.5 bg-slate-950 hover:opacity-85"><Check className="h-4 w-4" />Approve</Button></div>
         </DialogContent>
       </Dialog>
     </div>
