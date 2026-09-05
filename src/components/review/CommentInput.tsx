@@ -10,9 +10,10 @@ import {
 } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ReviewComment, COMMENT_CATEGORIES, CommentCategory } from './types';
+import { toast } from 'sonner';
+import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment } from './types';
 import {
-    Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon,
+    Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon, Loader2,
 } from 'lucide-react';
 
 import { Button } from '../ui/button';
@@ -138,6 +139,33 @@ function captureAreaFromSource(
     }
 }
 
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+    const res = await fetch(dataUrl);
+    return res.blob();
+}
+
+// Uploads a single File/Blob to R2 via the comment-attachments endpoint.
+// Voice notes, general file/image attachments, and the drawn screenshot
+// all go through this — nothing gets submitted as a blob:/data: URL.
+async function uploadCommentAttachment(
+    taskId: string,
+    blob: Blob,
+    filename: string,
+    mimeType: string
+): Promise<CommentAttachment> {
+    const form = new FormData();
+    form.append('file', blob, filename);
+    const res = await fetch(`/api/tasks/${taskId}/feedback/attachments`, {
+        method: 'POST',
+        body: form,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Attachment upload failed');
+    }
+    return res.json();
+}
+
 interface CommentInputProps {
     taskId: string;
     currentTime: number;
@@ -194,14 +222,22 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
     // Voice recording
     const [isRecording, setIsRecording] = useState(false);
-    const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [audioUrl, setAudioUrl] = useState<string | null>(null); // local blob: preview only — never submitted
+    const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+    const [recordingSeconds, setRecordingSeconds] = useState(0);
+    const [voiceDurationSec, setVoiceDurationSec] = useState(0);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
     const mediaStreamRef = useRef<MediaStream | null>(null);
+    const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // File attachment
-    const [attachment, setAttachment] = useState<{ name: string; url: string; type: string } | null>(null);
+    // File / image attachments (multiple) — kept as raw Files until submit,
+    // uploaded to R2 then.
+    const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Upload progress while submitting
+    const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -215,6 +251,10 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
         mediaRecorderRef.current = null;
         mediaStreamRef.current?.getTracks().forEach(t => t.stop());
         mediaStreamRef.current = null;
+        if (recordingTimerRef.current) {
+            clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = null;
+        }
         setIsRecording(false);
     }, []);
 
@@ -349,6 +389,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             recorder.onstop = () => {
                 const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                 const url = URL.createObjectURL(blob);
+                setRecordedBlob(blob);
                 setAudioUrl(prev => {
                     if (prev) URL.revokeObjectURL(prev);
                     return url;
@@ -359,19 +400,30 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             };
             recorder.start();
             setIsRecording(true);
+            setRecordingSeconds(0);
+            if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingSeconds((s) => s + 1);
+            }, 1000);
         } catch (err) {
             console.error('Microphone access failed:', err);
+            toast.error('Could not access microphone — check browser permissions');
             setIsRecording(false);
         }
     }, [ensureExpanded, isRecording]);
 
     const stopVoiceRecording = useCallback(() => {
+        if (recordingTimerRef.current) {
+            clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = null;
+        }
+        setVoiceDurationSec(recordingSeconds);
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             mediaRecorderRef.current.stop();
         } else {
             stopRecordingCleanup();
         }
-    }, [stopRecordingCleanup]);
+    }, [stopRecordingCleanup, recordingSeconds]);
 
     const openFilePicker = useCallback(() => {
         ensureExpanded();
@@ -411,19 +463,27 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
         captureFullFrame,
     ]);
 
+    const MAX_ATTACHMENT_MB = 25;
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+        const files = Array.from(e.target.files || []);
         e.target.value = '';
-        if (!file) return;
-        const url = URL.createObjectURL(file);
-        setAttachment(prev => {
-            if (prev) URL.revokeObjectURL(prev.url);
-            return { name: file.name, url, type: file.type };
-        });
+        if (files.length === 0) return;
+
+        const tooBig = files.filter((f) => f.size > MAX_ATTACHMENT_MB * 1024 * 1024);
+        if (tooBig.length > 0) {
+            toast.error(`${tooBig.length > 1 ? 'Some files exceed' : `"${tooBig[0].name}" exceeds`} the ${MAX_ATTACHMENT_MB}MB limit`);
+        }
+        const ok = files.filter((f) => f.size <= MAX_ATTACHMENT_MB * 1024 * 1024);
+        setAttachedFiles((prev) => [...prev, ...ok]);
+    };
+
+    const removeAttachedFile = (idx: number) => {
+        setAttachedFiles((prev) => prev.filter((_, i) => i !== idx));
     };
 
     const handleSubmit = async () => {
-        if (!content.trim() && !audioUrl && !attachment && !screenshotUrl) return;
+        if (!content.trim() && !audioUrl && attachedFiles.length === 0 && !screenshotUrl) return;
 
         const startSecs = (useEndTimestamp && rangeStartSeconds !== null) ? rangeStartSeconds : currentTime;
         const startTimestamp = formatSecondsToTimestamp(startSecs);
@@ -437,43 +497,86 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
         setIsSubmitting(true);
 
-        const endSeconds = useEndTimestamp && endTimestampInput
-            ? parseTimestampToSeconds(endTimestampInput)
-            : undefined;
+        try {
+            const endSeconds = useEndTimestamp && endTimestampInput
+                ? parseTimestampToSeconds(endTimestampInput)
+                : undefined;
 
-        // If content is empty but we have media, invent a short label
-        const body = content.trim()
-            || (audioUrl ? 'Voice note' : '')
-            || (attachment ? `Attached: ${attachment.name}` : '')
-            || (screenshotUrl ? 'Frame annotation' : '');
+            // Upload anything pending to R2 before the comment is created —
+            // screenshotUrl/audioUrl at this point are still local
+            // data:/blob: URLs and won't survive a reload or be visible to
+            // anyone else until replaced with real R2 URLs below.
+            setIsUploadingAttachments(true);
 
-        const newComment: Omit<ReviewComment, 'id' | 'createdAt'> = {
-            taskId,
-            authorId,
-            authorName,
-            timestamp: useEndTimestamp ? startTimestamp : currentTimestamp,
-            timestampSeconds: startSecs,
-            endTimestamp: endSeconds ? endTimestampInput : undefined,
-            endTimestampSeconds: endSeconds ?? undefined,
-            content: body,
-            category: [category] as ReviewComment['category'],
-            screenshotUrl: screenshotUrl || undefined,
-            audioUrl: audioUrl || undefined,
-            attachmentUrl: attachment?.url,
-            attachmentName: attachment?.name,
-            resolved: false,
-            replies: [],
-            version: currentVersionNumber,
-        };
+            let finalScreenshotUrl = screenshotUrl || undefined;
+            if (finalScreenshotUrl && finalScreenshotUrl.startsWith('data:')) {
+                const blob = await dataUrlToBlob(finalScreenshotUrl);
+                const uploaded = await uploadCommentAttachment(
+                    taskId, blob, `screenshot-${Date.now()}.jpg`, 'image/jpeg'
+                );
+                finalScreenshotUrl = uploaded.url;
+            }
 
-        await onSubmit(newComment);
-        setContent('');
-        setScreenshotUrl(null);
-        setAudioUrl(null);
-        setAttachment(null);
-        disableRangeMode();
-        setIsSubmitting(false);
-        onCancel?.();
+            let finalVoiceUrl: string | undefined;
+            if (recordedBlob) {
+                const uploaded = await uploadCommentAttachment(
+                    taskId, recordedBlob, `voice-${Date.now()}.webm`, 'audio/webm'
+                );
+                finalVoiceUrl = uploaded.url;
+            }
+
+            let finalAttachments: CommentAttachment[] | undefined;
+            if (attachedFiles.length > 0) {
+                finalAttachments = await Promise.all(
+                    attachedFiles.map((f) => uploadCommentAttachment(taskId, f, f.name, f.type))
+                );
+            }
+
+            setIsUploadingAttachments(false);
+
+            // If content is empty but we have media, invent a short label
+            const body = content.trim()
+                || (finalVoiceUrl ? 'Voice note' : '')
+                || (finalAttachments?.length ? `Attached: ${finalAttachments.map(a => a.name).join(', ')}` : '')
+                || (finalScreenshotUrl ? 'Frame annotation' : '');
+
+            const newComment: Omit<ReviewComment, 'id' | 'createdAt'> = {
+                taskId,
+                authorId,
+                authorName,
+                timestamp: useEndTimestamp ? startTimestamp : currentTimestamp,
+                timestampSeconds: startSecs,
+                endTimestamp: endSeconds ? endTimestampInput : undefined,
+                endTimestampSeconds: endSeconds ?? undefined,
+                content: body,
+                category: [category] as ReviewComment['category'],
+                screenshotUrl: finalScreenshotUrl,
+                voiceUrl: finalVoiceUrl,
+                voiceDurationSec: finalVoiceUrl ? voiceDurationSec : undefined,
+                attachments: finalAttachments,
+                resolved: false,
+                replies: [],
+                version: currentVersionNumber,
+            };
+
+            await onSubmit(newComment);
+            setContent('');
+            setScreenshotUrl(null);
+            if (audioUrl) URL.revokeObjectURL(audioUrl);
+            setAudioUrl(null);
+            setRecordedBlob(null);
+            setRecordingSeconds(0);
+            setVoiceDurationSec(0);
+            setAttachedFiles([]);
+            disableRangeMode();
+            onCancel?.();
+        } catch (err: any) {
+            console.error('Failed to submit comment:', err);
+            toast.error(err?.message || 'Failed to post comment — please try again');
+        } finally {
+            setIsUploadingAttachments(false);
+            setIsSubmitting(false);
+        }
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -509,6 +612,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 className="hidden"
                 onChange={handleFileChange}
             />
@@ -675,28 +779,25 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 </div>
             )}
 
-            {/* Attachment preview */}
-            {attachment && (
-                <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-elevated)]/60 px-2.5 py-2">
-                    <FileIcon className="h-3.5 w-3.5 text-[var(--review-accent-purple)] shrink-0" />
-                    <a
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-white truncate flex-1 hover:underline"
-                    >
-                        {attachment.name}
-                    </a>
-                    <button
-                        onClick={() => {
-                            URL.revokeObjectURL(attachment.url);
-                            setAttachment(null);
-                        }}
-                        className="text-[var(--review-text-muted)] hover:text-red-400"
-                        title="Remove attachment"
-                    >
-                        <X className="h-3.5 w-3.5" />
-                    </button>
+            {/* Attachment previews (uploaded to R2 at submit time) */}
+            {attachedFiles.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                    {attachedFiles.map((f, idx) => (
+                        <div
+                            key={`${f.name}-${idx}`}
+                            className="flex items-center gap-1.5 rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-elevated)]/60 pl-2 pr-1 py-1.5"
+                        >
+                            <FileIcon className="h-3.5 w-3.5 text-[var(--review-accent-purple)] shrink-0" />
+                            <span className="text-xs text-white max-w-[140px] truncate">{f.name}</span>
+                            <button
+                                onClick={() => removeAttachedFile(idx)}
+                                className="text-[var(--review-text-muted)] hover:text-red-400 ml-0.5"
+                                title="Remove attachment"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    ))}
                 </div>
             )}
 
@@ -747,11 +848,15 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                     <Button
                         size="sm"
                         onClick={handleSubmit}
-                        disabled={(!content.trim() && !audioUrl && !attachment && !screenshotUrl) || isSubmitting || isRecording}
+                        disabled={(!content.trim() && !audioUrl && attachedFiles.length === 0 && !screenshotUrl) || isSubmitting || isRecording}
                         className="bg-[var(--review-accent-purple)] hover:bg-[var(--review-accent-purple)]/90 text-white"
                     >
-                        <Send className="h-4 w-4 mr-1" />
-                        Post
+                        {isUploadingAttachments ? (
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                            <Send className="h-4 w-4 mr-1" />
+                        )}
+                        {isUploadingAttachments ? 'Uploading…' : 'Post'}
                     </Button>
                 </div>
             </div>

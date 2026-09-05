@@ -497,6 +497,13 @@ export const taskFeedback = pgTable("TaskFeedback", {
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	acknowledgedAt: timestamp({ precision: 3, mode: 'string' }),
 	acknowledgedBy: integer(),
+	// Comment attachments — voice notes, general file/image attachments,
+	// and a drawn/annotated screenshot.
+	screenshotUrl: text(),
+	annotations: jsonb(),
+	voiceUrl: text(),
+	voiceDurationSec: integer(),
+	attachments: jsonb(),
 }, (table) => [
 	index("TaskFeedback_fileId_idx").using("btree", table.fileId.asc().nullsLast().op("text_ops")),
 	index("TaskFeedback_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
