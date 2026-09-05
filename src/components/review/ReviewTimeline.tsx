@@ -26,12 +26,15 @@ export const ReviewTimeline = memo(function ReviewTimeline({
     onDragStart,
     onDragEnd,
 }: ReviewTimelineProps) {
-    // Only show markers for comments belonging to the current version.
+    // Only show markers for comments belonging to the current version, and
+    // never for general (untimed) comments — they don't have a real point
+    // on the timeline.
     // When a new version is uploaded and sent to QC, dots from previous
     // versions should not bleed onto the new version's timeline.
-    const versionFilteredComments = currentVersionNumber !== undefined
+    const versionFilteredComments = (currentVersionNumber !== undefined
         ? comments.filter(c => c.version === undefined || c.version === currentVersionNumber)
-        : comments;
+        : comments
+    ).filter(c => !c.isGeneral);
     const trackRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
 

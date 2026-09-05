@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment } from './types';
 import {
-    Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon, Loader2,
+    Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon, Loader2, Globe,
 } from 'lucide-react';
 
 import { Button } from '../ui/button';
@@ -185,6 +185,8 @@ interface CommentInputProps {
      * drive those actions via the imperative API instead.
      */
     hideInlineTools?: boolean;
+    /** Hide the "General" (untimed) toggle — for screens where every comment is already untimed by nature (e.g. script review). */
+    hideGeneralToggle?: boolean;
 }
 
 export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(function CommentInput({
@@ -202,6 +204,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
     isExpanded = false,
     onToggleExpand,
     hideInlineTools = false,
+    hideGeneralToggle = false,
 }, ref) {
     const [content, setContent] = useState('');
     const [category, setCategory] = useState<CommentCategory['value']>('design');
@@ -219,6 +222,10 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
     const [endTimestampError, setEndTimestampError] = useState<string | null>(null);
     const [rangeStartSeconds, setRangeStartSeconds] = useState<number | null>(null);
     const [isEndTracking, setIsEndTracking] = useState(false);
+
+    // A "general" comment isn't tied to any specific time — no timestamp
+    // chip, no range, no marker on the timeline.
+    const [isGeneral, setIsGeneral] = useState(false);
 
     // Voice recording
     const [isRecording, setIsRecording] = useState(false);
@@ -298,6 +305,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
     const enableRangeMode = useCallback(() => {
         ensureExpanded();
+        setIsGeneral(false);
         setUseEndTimestamp(true);
         setRangeStartSeconds(currentTime);
         setEndTimestampInput(formatSecondsToTimestamp(currentTime));
@@ -310,6 +318,16 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
         setIsEndTracking(false);
         setRangeStartSeconds(null);
     }, []);
+
+    const toggleGeneral = useCallback(() => {
+        ensureExpanded();
+        setIsGeneral(v => {
+            const next = !v;
+            // A range only makes sense once there's a specific start time.
+            if (next && useEndTimestamp) disableRangeMode();
+            return next;
+        });
+    }, [ensureExpanded, useEndTimestamp, disableRangeMode]);
 
     const captureFullFrame = useCallback(() => {
         const source = videoRef?.current || imageRef?.current || null;
@@ -544,10 +562,11 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 taskId,
                 authorId,
                 authorName,
-                timestamp: useEndTimestamp ? startTimestamp : currentTimestamp,
-                timestampSeconds: startSecs,
+                timestamp: isGeneral ? 'General' : (useEndTimestamp ? startTimestamp : currentTimestamp),
+                timestampSeconds: isGeneral ? 0 : startSecs,
                 endTimestamp: endSeconds ? endTimestampInput : undefined,
                 endTimestampSeconds: endSeconds ?? undefined,
+                isGeneral: isGeneral || undefined,
                 content: body,
                 category: [category] as ReviewComment['category'],
                 screenshotUrl: finalScreenshotUrl,
@@ -561,6 +580,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
             await onSubmit(newComment);
             setContent('');
+            setIsGeneral(false);
             setScreenshotUrl(null);
             if (audioUrl) URL.revokeObjectURL(audioUrl);
             setAudioUrl(null);
@@ -591,6 +611,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
     const handleCancel = () => {
         stopRecordingCleanup();
+        setIsGeneral(false);
         onCancel?.();
     };
 
@@ -623,9 +644,11 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                     {/* Timestamp display with optional range */}
                     <div className="flex items-center gap-1">
                         <span className="review-comment-timestamp flex items-center gap-1">
-                            {useEndTimestamp && rangeStartSeconds !== null
-                                ? formatSecondsToTimestamp(rangeStartSeconds)
-                                : currentTimestamp}
+                            {isGeneral
+                                ? 'General'
+                                : useEndTimestamp && rangeStartSeconds !== null
+                                    ? formatSecondsToTimestamp(rangeStartSeconds)
+                                    : currentTimestamp}
                         </span>
                         {useEndTimestamp && (
                             <>
@@ -674,7 +697,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                                 </Button>
                             </>
                         )}
-                        {!hideInlineTools && !useEndTimestamp && videoRef && (
+                        {!hideInlineTools && !useEndTimestamp && !isGeneral && videoRef && (
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -684,6 +707,22 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                             >
                                 <Clock className="h-3.5 w-3.5" />
                                 <span className="text-[10px] uppercase font-bold tracking-wider">Range</span>
+                            </Button>
+                        )}
+                        {!hideInlineTools && !hideGeneralToggle && !useEndTimestamp && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={toggleGeneral}
+                                className={`h-6 gap-1 px-2 hover:bg-[var(--review-bg-elevated)] ${
+                                    isGeneral
+                                        ? 'text-[var(--review-accent-purple)]'
+                                        : 'text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)]'
+                                }`}
+                                title="Not tied to a specific time"
+                            >
+                                <Globe className="h-3.5 w-3.5" />
+                                <span className="text-[10px] uppercase font-bold tracking-wider">General</span>
                             </Button>
                         )}
                     </div>

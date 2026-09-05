@@ -465,6 +465,7 @@ export function ScriptReviewModal({
                                         onCancel={() => setShowCommentInput(false)}
                                         isExpanded={showCommentInput}
                                         onToggleExpand={() => setShowCommentInput(true)}
+                                        hideGeneralToggle
                                     />
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">

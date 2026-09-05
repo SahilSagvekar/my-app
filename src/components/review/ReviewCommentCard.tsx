@@ -136,15 +136,21 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
 
             {/* Timestamp & Category */}
             <div className="flex items-center gap-2 mb-2">
-                <button
-                    onClick={() => onTimestampClick(comment.timestampSeconds)}
-                    className="review-comment-timestamp"
-                >
-                    @{comment.timestamp}
-                    {comment.endTimestamp && (
-                        <span className="text-[var(--review-text-muted)]"> – {comment.endTimestamp}</span>
-                    )}
-                </button>
+                {comment.isGeneral ? (
+                    <span className="review-comment-timestamp opacity-80">
+                        General
+                    </span>
+                ) : (
+                    <button
+                        onClick={() => onTimestampClick(comment.timestampSeconds)}
+                        className="review-comment-timestamp"
+                    >
+                        @{comment.timestamp}
+                        {comment.endTimestamp && (
+                            <span className="text-[var(--review-text-muted)]"> – {comment.endTimestamp}</span>
+                        )}
+                    </button>
+                )}
 
                 {comment.version && (
                     <Badge variant="outline" className="text-[10px] h-5 bg-white/5 border-white/10 text-[var(--review-text-secondary)]">

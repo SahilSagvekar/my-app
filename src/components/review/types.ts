@@ -12,8 +12,9 @@ export interface ReviewComment {
     timestampSeconds: number; // Video timestamp in seconds
     endTimestamp?: string; // Optional end timestamp for ranges "1:28"
     endTimestampSeconds?: number; // Optional end timestamp in seconds for ranges
+    isGeneral?: boolean; // True for a comment not tied to any specific time — shown as "General", excluded from timeline markers
     content: string;
-    category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles')[];
+    category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles' | 'audio')[];
 
     screenshotUrl?: string; // R2 URL of captured (optionally drawn-on) video frame
     annotations?: Annotation[]; // Raw drawn strokes/shapes, relative (0-1) coords, tied to screenshotUrl
@@ -104,7 +105,7 @@ export const REVIEW_STATUSES: ReviewStatus[] = [
 ];
 
 export interface CommentCategory {
-    value: 'design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles';
+    value: 'design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles' | 'audio';
     label: string;
     color: string;
 }
@@ -116,6 +117,7 @@ export const COMMENT_CATEGORIES: CommentCategory[] = [
     { value: 'technical', label: 'Technical', color: '#ef4444' },
     { value: 'broll', label: 'Broll', color: '#6b7280' },
     { value: 'subtitles', label: 'Subtitles', color: '#3b82f2' },
+    { value: 'audio', label: 'Audio', color: '#06b6d4' },
 ];
 
 export type AnnotationTool = 'select' | 'freehand' | 'arrow' | 'rectangle' | 'circle';

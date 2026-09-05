@@ -538,7 +538,6 @@ export function ClientDashboard() {
             : prev,
         { revalidate: true }
       );
-      setCurrentFilter("rejected");
 
       toast.success("📝 Revision Requested – Sent to Editor", {
         description: "Your feedback has been sent to the editor.",
@@ -624,7 +623,6 @@ export function ClientDashboard() {
             : prev,
         { revalidate: true }
       );
-      setCurrentFilter("rejected");
 
       toast.success("📝 Revision Requested – Sent to Editor", {
         description: "Your feedback has been sent to the editor.",
@@ -705,7 +703,6 @@ export function ClientDashboard() {
             : prev,
         { revalidate: true }
       );
-      setCurrentFilter("rejected");
 
       toast.success("📝 Revisions Requested", {
         description: "Your feedback on the thumbnail has been sent.",

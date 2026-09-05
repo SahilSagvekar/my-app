@@ -518,6 +518,7 @@ export function FullScreenReviewModalFrameIO({
                         content: fb.feedback,
                         timestamp: ts,
                         timestampSeconds: tsSeconds,
+                        isGeneral: ts === 'General' || undefined,
                         category: fb.category ? fb.category.split(',') : ['other'],
                         createdAt: new Date(fb.createdAt),
                         resolved: fb.status === 'resolved',

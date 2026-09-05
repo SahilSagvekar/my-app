@@ -167,6 +167,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const [activeMode, setActiveMode] = useState<ReviewMode | null>(null);
     const [drawBaseUrl, setDrawBaseUrl] = useState<string | null>(null);
     const [showInstagramOverlay, setShowInstagramOverlay] = useState(false);
+    const [showGridOverlay, setShowGridOverlay] = useState(false);
     const videoShellRef = useRef<HTMLDivElement>(null);
     type SidebarTab = 'comments' | 'titles';
     const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
@@ -184,7 +185,10 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const isShortFormTask = fileCode === 'SF' || /(^|[_\s-])SF(\d|[_\s-]|$)/i.test(p.asset?.title || '');
 
     useEffect(() => {
-        if (!isShortFormTask) setShowInstagramOverlay(false);
+        if (!isShortFormTask) {
+            setShowInstagramOverlay(false);
+            setShowGridOverlay(false);
+        }
     }, [isShortFormTask]);
 
     const exitDrawMode = useCallback(() => {
@@ -193,9 +197,26 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     }, []);
 
     const handleModeSelect = useCallback((mode: ReviewMode) => {
+        // Instagram and Grid are standalone overlay toggles — they don't open
+        // the comment composer or touch the sidebar, just overlay chrome on
+        // top of the still-playing video. They're mutually exclusive:
+        // turning one on turns the other off.
         if (mode === 'instagram') {
             if (!isShortFormTask) return;
-            setShowInstagramOverlay(v => !v);
+            setShowInstagramOverlay(v => {
+                const next = !v;
+                if (next) setShowGridOverlay(false);
+                return next;
+            });
+            return;
+        }
+        if (mode === 'grid') {
+            if (!isShortFormTask) return;
+            setShowGridOverlay(v => {
+                const next = !v;
+                if (next) setShowInstagramOverlay(false);
+                return next;
+            });
             return;
         }
 
@@ -661,6 +682,18 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 commentCount={p.comments.length}
                                             />
                                         )}
+
+                                        {/* IG Reels safe-zone guide — same placement/reasoning as
+                                            the Instagram overlay above. Semi-transparent PNG with a
+                                            fully transparent "safe" middle, so it reads as a guide
+                                            on top of the real frame, not a mockup. */}
+                                        {showGridOverlay && isShortFormTask && (
+                                            <img
+                                                src="/assets/ig-reels-safe-zone.png"
+                                                alt="Instagram Reels safe-zone guide"
+                                                className="absolute inset-0 w-full h-full pointer-events-none select-none z-[105]"
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -786,6 +819,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             onSelect={handleModeSelect}
                                             instagramActive={showInstagramOverlay}
                                             showInstagram={isShortFormTask}
+                                            gridActive={showGridOverlay}
+                                            showGrid={isShortFormTask}
                                         />
                                         <div aria-hidden="true" />
                                     </>}

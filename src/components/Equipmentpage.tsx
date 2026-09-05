@@ -7,6 +7,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Settings, Plus, Pencil, Trash2, Loader } from 'lucide-react';
 import { toast } from 'sonner';
@@ -21,14 +22,32 @@ interface EquipmentItem {
 
 const EMPTY_FORM = { name: '', category: '', notes: '' };
 
-interface EquipmentPageProps {
-  /** Edit/Delete are admin-only. Real videographers can add equipment
-   * but not edit or remove it — defaults to true (full access) so any
-   * other caller of this page isn't accidentally locked down. */
-  canManage?: boolean;
-}
+const EQUIPMENT_CATEGORIES = [
+  'Camera',
+  'Action Camera',
+  'Lighting',
+  'Audio',
+  'Microphone',
+  'Tripod',
+  'Stabilization (Gimbal, Steadicam, Slider)',
+  'Lenses',
+  'ND Filters',
+  'Teleprompter',
+  'Backdrop & Set Dressing',
+  'Cables & Connectors',
+  'Power & Battery',
+  'Storage Media',
+  'Monitor & Display',
+  'Drone',
+  'Case & Bag (Hard Case, Equipment Bag)',
+  'Laptop/Computer',
+  'External Drive/SSD',
+  'Memory Card',
+  'Batteries & Chargers',
+  'Extension Cord/Power Strip',
+];
 
-export function EquipmentPage({ canManage = true }: EquipmentPageProps) {
+export function EquipmentPage() {
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -149,16 +168,14 @@ export function EquipmentPage({ canManage = true }: EquipmentPageProps) {
                   {item.category && <Badge variant="secondary" className="text-[10px] shrink-0">{item.category}</Badge>}
                 </div>
                 {item.notes && <p className="text-xs text-muted-foreground line-clamp-2">{item.notes}</p>}
-                {canManage && (
-                  <div className="flex gap-2 pt-1">
-                    <Button variant="outline" size="sm" className="h-7 gap-1 text-xs flex-1" onClick={() => openEditForm(item)}>
-                      <Pencil className="h-3 w-3" /> Edit
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-7 gap-1 text-xs text-red-600 hover:bg-red-50 border-red-200" onClick={() => handleDelete(item.id)}>
-                      <Trash2 className="h-3 w-3" /> Delete
-                    </Button>
-                  </div>
-                )}
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs flex-1" onClick={() => openEditForm(item)}>
+                    <Pencil className="h-3 w-3" /> Edit
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs text-red-600 hover:bg-red-50 border-red-200" onClick={() => handleDelete(item.id)}>
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -182,11 +199,24 @@ export function EquipmentPage({ canManage = true }: EquipmentPageProps) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Category</Label>
-              <Input
+              <Select
                 value={form.category}
-                onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
-                placeholder="e.g. Camera, Lighting, Audio"
-              />
+                onValueChange={(value) => setForm(f => ({ ...f, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Keep a legacy free-text category selectable so editing an
+                      older item doesn't silently blank it out. */}
+                  {form.category && !EQUIPMENT_CATEGORIES.includes(form.category) && (
+                    <SelectItem value={form.category}>{form.category}</SelectItem>
+                  )}
+                  {EQUIPMENT_CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Notes</Label>

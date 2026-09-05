@@ -7,6 +7,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Settings, Plus, Pencil, Trash2, Loader } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,6 +21,31 @@ interface EquipmentItem {
 }
 
 const EMPTY_FORM = { name: '', category: '', notes: '' };
+
+const EQUIPMENT_CATEGORIES = [
+  'Camera',
+  'Action Camera',
+  'Lighting',
+  'Audio',
+  'Microphone',
+  'Tripod',
+  'Stabilization (Gimbal, Steadicam, Slider)',
+  'Lenses',
+  'ND Filters',
+  'Teleprompter',
+  'Backdrop & Set Dressing',
+  'Cables & Connectors',
+  'Power & Battery',
+  'Storage Media',
+  'Monitor & Display',
+  'Drone',
+  'Case & Bag (Hard Case, Equipment Bag)',
+  'Laptop/Computer',
+  'External Drive/SSD',
+  'Memory Card',
+  'Batteries & Chargers',
+  'Extension Cord/Power Strip',
+];
 
 export function EquipmentPage() {
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
@@ -173,11 +199,24 @@ export function EquipmentPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Category</Label>
-              <Input
+              <Select
                 value={form.category}
-                onChange={(e) => setForm(f => ({ ...f, category: e.target.value }))}
-                placeholder="e.g. Camera, Lighting, Audio"
-              />
+                onValueChange={(value) => setForm(f => ({ ...f, category: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Keep a legacy free-text category selectable so editing an
+                      older item doesn't silently blank it out. */}
+                  {form.category && !EQUIPMENT_CATEGORIES.includes(form.category) && (
+                    <SelectItem value={form.category}>{form.category}</SelectItem>
+                  )}
+                  {EQUIPMENT_CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Notes</Label>

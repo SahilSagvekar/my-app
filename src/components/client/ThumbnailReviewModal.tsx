@@ -159,6 +159,7 @@ export function ThumbnailReviewModal({
                         content: fb.feedback,
                         timestamp: fb.timestamp || '0:00',
                         timestampSeconds: 0,
+                        isGeneral: fb.timestamp === 'General' || undefined,
                         category: fb.category ? fb.category.split(',') : ['other'],
                         createdAt: new Date(fb.createdAt),
                         resolved: fb.status === 'resolved',
