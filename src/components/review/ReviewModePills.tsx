@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Mic, Clock, Paperclip, Grid3x3 } from 'lucide-react';
+import { Pencil, Mic, Clock, Paperclip, Grid3x3, Globe } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -8,7 +8,7 @@ import {
     DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 
-export type ReviewMode = 'comment' | 'draw' | 'voice' | 'range' | 'attach' | 'instagram' | 'grid';
+export type ReviewMode = 'comment' | 'draw' | 'voice' | 'range' | 'general' | 'attach' | 'instagram' | 'grid';
 
 interface ReviewModePillsProps {
     activeMode: ReviewMode | null;
@@ -35,6 +35,7 @@ const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
     { id: 'draw', label: 'Draw', Icon: Pencil },
     { id: 'voice', label: 'Voice', Icon: Mic },
     { id: 'range', label: 'Range', Icon: Clock },
+    { id: 'general', label: 'General', Icon: Globe },
     { id: 'attach', label: 'Attach', Icon: Paperclip },
 ];
 

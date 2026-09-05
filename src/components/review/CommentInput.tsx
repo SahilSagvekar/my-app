@@ -31,6 +31,8 @@ export type CommentInputHandle = {
     openComment: () => void;
     /** Expand and enable timestamp-range mode. */
     toggleRange: () => void;
+    /** Expand and toggle "General" (untimed) mode. */
+    toggleGeneral: () => void;
     /** Expand and start voice recording immediately. */
     startVoice: () => void;
     /** Expand and open the file picker immediately. */
@@ -459,6 +461,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 enableRangeMode();
             }
         },
+        toggleGeneral: () => toggleGeneral(),
         startVoice: () => {
             void startVoiceRecording();
         },
@@ -476,6 +479,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
         useEndTimestamp,
         disableRangeMode,
         enableRangeMode,
+        toggleGeneral,
         startVoiceRecording,
         openFilePicker,
         captureFullFrame,

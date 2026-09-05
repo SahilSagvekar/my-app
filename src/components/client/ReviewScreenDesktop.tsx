@@ -254,6 +254,13 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
             return;
         }
 
+        if (mode === 'general' && activeMode === 'general') {
+            p.setShowCommentInput(true);
+            window.requestAnimationFrame(() => commentInputRef.current?.toggleGeneral());
+            setActiveMode(null);
+            return;
+        }
+
         setActiveMode(mode);
         p.setShowCommentInput(true);
 
@@ -272,6 +279,9 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     break;
                 case 'range':
                     api.toggleRange();
+                    break;
+                case 'general':
+                    api.toggleGeneral();
                     break;
             }
         });
