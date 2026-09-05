@@ -37,7 +37,7 @@ import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
-import { TextPostReviewModal } from '../client/TextPostReviewModal';
+import { ScriptReviewModal } from '../client/ScriptReviewModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ShareDialog } from '../review/ShareDialog';
 import { Checkbox } from '../ui/checkbox';
@@ -1832,7 +1832,7 @@ export function ClientDashboard() {
           )}
 
         {selectedTask && isTextPostTask(selectedTask) && (
-          <TextPostReviewModal
+          <ScriptReviewModal
             open={showTextPostReview}
             onOpenChange={(open: boolean) => {
               setShowTextPostReview(open);
@@ -1843,16 +1843,8 @@ export function ClientDashboard() {
             textContent={(selectedTask as any).textContent || ''}
             onApprove={() => handleThumbnailApprove(null as any)}
             onRequestRevisions={(items) => handleThumbnailRequestRevisions(null as any, items)}
-            onAddComment={async (feedback) => {
-              const response = await fetch(`/api/tasks/${selectedTask.id}/feedback`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ folderType: 'script', feedback, status: 'open' }),
-              });
-              if (!response.ok) throw new Error('Could not add comment');
-              toast.success('Comment added');
-            }}
+            userRole="client"
+            readOnly={isRejectedStatus(selectedTask.status)}
           />
         )}
 

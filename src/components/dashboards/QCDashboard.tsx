@@ -14,7 +14,7 @@ import {
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
-import { TextPostReviewModal } from '../client/TextPostReviewModal';
+import { ScriptReviewModal } from '../client/ScriptReviewModal';
 import { TagPicker } from '../workflow/TagPicker';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { useAuth } from '../auth/AuthContext';
@@ -1751,7 +1751,7 @@ useEffect(() => {
         )}
 
         {selectedTask && isTextPostTask(selectedTask) && (
-          <TextPostReviewModal
+          <ScriptReviewModal
             open={showTextPostReview}
             onOpenChange={(open: boolean) => {
               setShowTextPostReview(open);
@@ -1765,6 +1765,7 @@ useEffect(() => {
             textContent={(selectedTask as any).textContent || ''}
             onApprove={() => handleThumbnailApprove(null as any)}
             onRequestRevisions={(items) => handleThumbnailRequestRevisions(null as any, items)}
+            userRole="qc"
           />
         )}
 
