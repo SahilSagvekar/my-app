@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { backfillMissingTaskThumbnails } from '@/lib/backfill-task-thumbnails';
+import { processThumbnailBatch } from '@/lib/file-server';
 
 const BATCH_PER_TICK = 25;
 
@@ -22,7 +23,19 @@ export async function POST(req: NextRequest) {
   try {
     const { env } = getCloudflareContext();
     const summary = await backfillMissingTaskThumbnails(env, BATCH_PER_TICK);
-    return NextResponse.json({ ok: true, ...summary });
+
+    // Enqueueing alone doesn't process anything — e8-file-server's
+    // background setInterval loop stops ticking whenever the container
+    // idles, which is most of the time. Draining a batch here, inside
+    // this request, is what actually guarantees jobs get worked.
+    let processed: { done: number; failed: number; remaining: number } | { error: string };
+    try {
+      processed = await processThumbnailBatch(env, { limit: 10, timeBudgetMs: 45000 });
+    } catch (err: any) {
+      processed = { error: err?.message || 'processThumbnailBatch failed' };
+    }
+
+    return NextResponse.json({ ok: true, ...summary, processed });
   } catch (err: any) {
     console.error('[Cron Backfill Task Thumbnails]', err?.message || err);
     return NextResponse.json({ error: err?.message || 'Backfill failed' }, { status: 500 });

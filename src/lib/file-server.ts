@@ -65,6 +65,42 @@ async function fsRequest(
   return env.FILE_SERVER.fetch(url.toString(), options);
 }
 
+// GET /thumbnail/stats — queue counts (pending/processing/done/failed) on
+// e8-file-server's local SQLite-backed thumbnail queue. Useful for checking
+// whether a large backfill batch is actually draining, or got silently
+// dropped (e.g. by a container sleep — see the durability caveat noted in
+// /areas/cloudflare-migration.md).
+export async function getThumbnailStats(env: CloudflareEnv) {
+  const res = await fsRequest(env, 'GET', '/thumbnail/stats', '0', 'admin');
+  if (!res.ok) throw new Error(`File server /thumbnail/stats failed: ${res.status}`);
+  return res.json();
+}
+
+// GET /thumbnail/failed — recent failures, for spot-checking format issues
+export async function getThumbnailFailed(env: CloudflareEnv) {
+  const res = await fsRequest(env, 'GET', '/thumbnail/failed', '0', 'admin');
+  if (!res.ok) throw new Error(`File server /thumbnail/failed failed: ${res.status}`);
+  return res.json();
+}
+
+// POST /thumbnail/process — synchronously drains a batch of pending jobs
+// inside this request. The background setInterval loop in e8-file-server's
+// thumbnailWorker.start() doesn't survive Cloudflare Container idle-sleep
+// (the container only stays awake while handling a request), so this is
+// what actually guarantees the queue makes forward progress — call it on
+// every cron tick, not just when enqueueing.
+export async function processThumbnailBatch(
+  env: CloudflareEnv,
+  opts?: { limit?: number; timeBudgetMs?: number }
+): Promise<{ done: number; failed: number; remaining: number }> {
+  const res = await fsRequest(env, 'POST', '/thumbnail/process', '0', 'admin', {
+    limit: opts?.limit ?? 10,
+    timeBudgetMs: opts?.timeBudgetMs ?? 45000,
+  });
+  if (!res.ok) throw new Error(`File server /thumbnail/process failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getStructure(env: CloudflareEnv, userId: number | string, role: string, prefix: string) {
   const res = await fsRequest(env, 'GET', '/structure', userId, role, undefined, { prefix, role });
   if (!res.ok) {
@@ -345,22 +381,4 @@ export async function retryThumbnail(env: CloudflareEnv, key: string): Promise<{
     return { error: (data as any)?.error || `File server /thumbnail/retry failed: ${res.status}` };
   }
   return data as { outcome: string; kind: string };
-}
-
-// GET /thumbnail/stats — queue counts (pending/processing/done/failed) on
-// e8-file-server's local SQLite-backed thumbnail queue. Useful for checking
-// whether a large backfill batch is actually draining, or got silently
-// dropped (e.g. by a container sleep — see the durability caveat noted in
-// /areas/cloudflare-migration.md).
-export async function getThumbnailStats(env: CloudflareEnv) {
-  const res = await fsRequest(env, 'GET', '/thumbnail/stats', '0', 'admin');
-  if (!res.ok) throw new Error(`File server /thumbnail/stats failed: ${res.status}`);
-  return res.json();
-}
-
-// GET /thumbnail/failed — recent failures, for spot-checking format issues
-export async function getThumbnailFailed(env: CloudflareEnv) {
-  const res = await fsRequest(env, 'GET', '/thumbnail/failed', '0', 'admin');
-  if (!res.ok) throw new Error(`File server /thumbnail/failed failed: ${res.status}`);
-  return res.json();
 }
