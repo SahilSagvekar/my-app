@@ -96,11 +96,16 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                                 <span>Grid</span>
                             </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent side="top" align="center">
+                        <DropdownMenuContent
+                            side="top"
+                            align="center"
+                            className="min-w-[140px] border-[var(--review-border)] bg-[var(--review-bg-elevated)] text-white"
+                        >
                             {showInstagram && (
                                 <DropdownMenuCheckboxItem
                                     checked={!!instagramActive}
                                     onCheckedChange={() => onSelect('instagram')}
+                                    className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
                                 >
                                     Instagram
                                 </DropdownMenuCheckboxItem>
@@ -109,6 +114,7 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                                 <DropdownMenuCheckboxItem
                                     checked={!!gridActive}
                                     onCheckedChange={() => onSelect('grid')}
+                                    className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
                                 >
                                     Overlay
                                 </DropdownMenuCheckboxItem>

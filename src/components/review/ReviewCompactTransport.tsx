@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { memo } from 'react';
 import { Pause, Play, RotateCcw, RotateCw, ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -17,6 +17,12 @@ import {
 } from '../ui/tooltip';
 import { ReviewComment } from './types';
 
+const HANDLE_HIT_PX = 8;
+const MIN_RANGE_SEC = 1;
+const DEFAULT_RANGE_SEC = 3;
+
+type RangeDragKind = 'create' | 'move' | 'resize-start' | 'resize-end';
+
 interface ReviewCompactTransportProps {
     duration: number;
     currentTime: number;
@@ -27,6 +33,12 @@ interface ReviewCompactTransportProps {
     onMarkerClick: (comment: ReviewComment) => void;
     onDragStart?: () => void;
     onDragEnd?: () => void;
+    /** Enters drag-select mode: dragging the track defines a time range instead of seeking. */
+    rangeMode?: boolean;
+    /** The in-progress range being composed, in seconds. Controlled by the parent. */
+    activeRange?: { start: number; end: number } | null;
+    /** Fired continuously while creating or adjusting the range via drag. */
+    onRangeChange?: (start: number, end: number) => void;
 }
 
 interface ReviewPlaybackControlsProps {
@@ -49,15 +61,33 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
     onMarkerClick,
     onDragStart,
     onDragEnd,
+    rangeMode = false,
+    activeRange = null,
+    onRangeChange,
 }: ReviewCompactTransportProps) {
     const trackRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
+    const rangeDragRef = useRef<{ kind: RangeDragKind; anchorSec: number; moveOffsetSec: number; moveWidthSec: number } | null>(null);
+    const activeRangeRef = useRef(activeRange);
+
+    useEffect(() => {
+        activeRangeRef.current = activeRange;
+    }, [activeRange]);
 
     const versionFilteredComments = useMemo(() => {
         return currentVersionNumber !== undefined
             ? comments.filter(c => c.version === undefined || c.version === currentVersionNumber)
             : comments;
     }, [comments, currentVersionNumber]);
+
+    const pointComments = useMemo(
+        () => versionFilteredComments.filter(c => c.endTimestampSeconds == null && !c.isGeneral),
+        [versionFilteredComments]
+    );
+    const rangeComments = useMemo(
+        () => versionFilteredComments.filter(c => c.endTimestampSeconds != null && !c.isGeneral),
+        [versionFilteredComments]
+    );
 
     const progressPct = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
 
@@ -66,6 +96,11 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
         const rect = trackRef.current.getBoundingClientRect();
         const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
         return percentage * duration;
+    };
+
+    const secondsToClientX = (seconds: number, rect: DOMRect) => {
+        const pct = duration > 0 ? seconds / duration : 0;
+        return rect.left + pct * rect.width;
     };
 
     const handleSeekAt = (clientX: number) => {
@@ -92,17 +127,104 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
         document.addEventListener('mouseup', handleMouseUp);
     };
 
+    const handleRangeMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        if (!trackRef.current || duration <= 0) return;
+        const rect = trackRef.current.getBoundingClientRect();
+        const clickSec = getTimeFromClientX(e.clientX);
+        const current = activeRangeRef.current;
+
+        let kind: RangeDragKind = 'create';
+        let moveOffsetSec = 0;
+        let moveWidthSec = 0;
+
+        if (current) {
+            const startPx = secondsToClientX(current.start, rect);
+            const endPx = secondsToClientX(current.end, rect);
+            if (Math.abs(e.clientX - startPx) <= HANDLE_HIT_PX) {
+                kind = 'resize-start';
+            } else if (Math.abs(e.clientX - endPx) <= HANDLE_HIT_PX) {
+                kind = 'resize-end';
+            } else if (e.clientX > startPx && e.clientX < endPx) {
+                kind = 'move';
+                moveOffsetSec = clickSec - current.start;
+                moveWidthSec = current.end - current.start;
+            }
+        }
+
+        rangeDragRef.current = { kind, anchorSec: clickSec, moveOffsetSec, moveWidthSec };
+        onDragStart?.();
+
+        if (kind === 'create') {
+            onRangeChange?.(clickSec, clickSec);
+        }
+
+        const handleMove = (ev: MouseEvent) => {
+            const drag = rangeDragRef.current;
+            if (!drag) return;
+            const movedSec = getTimeFromClientX(ev.clientX);
+            switch (drag.kind) {
+                case 'create': {
+                    const start = Math.min(drag.anchorSec, movedSec);
+                    const end = Math.max(drag.anchorSec, movedSec);
+                    onRangeChange?.(start, end);
+                    break;
+                }
+                case 'resize-start': {
+                    const cur = activeRangeRef.current;
+                    if (!cur) break;
+                    const start = Math.max(0, Math.min(movedSec, cur.end - MIN_RANGE_SEC));
+                    onRangeChange?.(start, cur.end);
+                    break;
+                }
+                case 'resize-end': {
+                    const cur = activeRangeRef.current;
+                    if (!cur) break;
+                    const end = Math.min(duration, Math.max(movedSec, cur.start + MIN_RANGE_SEC));
+                    onRangeChange?.(cur.start, end);
+                    break;
+                }
+                case 'move': {
+                    const width = drag.moveWidthSec;
+                    let start = movedSec - drag.moveOffsetSec;
+                    start = Math.max(0, Math.min(start, duration - width));
+                    onRangeChange?.(start, start + width);
+                    break;
+                }
+            }
+        };
+
+        const handleUp = () => {
+            const drag = rangeDragRef.current;
+            if (drag?.kind === 'create') {
+                const cur = activeRangeRef.current;
+                if (cur && cur.end - cur.start < MIN_RANGE_SEC) {
+                    const start = cur.start;
+                    const end = Math.min(duration, start + DEFAULT_RANGE_SEC);
+                    onRangeChange?.(start, end);
+                }
+            }
+            rangeDragRef.current = null;
+            onDragEnd?.();
+            document.removeEventListener('mousemove', handleMove);
+            document.removeEventListener('mouseup', handleUp);
+        };
+
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('mouseup', handleUp);
+    };
+
     return (
-        <div className="review-compact-transport w-full min-w-0 py-1 px-2">
+        <div className="review-compact-transport w-full min-w-0 py-1 px-8">
             <div
                     ref={trackRef}
-                    className="review-compact-scrub relative h-4 flex items-center cursor-pointer group"
-                    onMouseDown={handleMouseDown}
+                    className={`review-compact-scrub relative h-4 flex items-center group ${rangeMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
+                    onMouseDown={rangeMode ? handleRangeMouseDown : handleMouseDown}
                     role="slider"
                     aria-valuemin={0}
                     aria-valuemax={duration || 0}
                     aria-valuenow={currentTime}
-                    aria-label="Seek"
+                    aria-label={rangeMode ? 'Select comment range' : 'Seek'}
             >
                 <div className="absolute inset-x-0 h-[3px] rounded-full bg-white/15 overflow-hidden">
                         <div
@@ -111,8 +233,31 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
                         />
                 </div>
 
-                {/* Comment markers */}
-                {versionFilteredComments.map((comment) => {
+                {/* Existing range comments — shown as a band spanning start–end */}
+                {rangeComments.map((comment) => {
+                        if (duration <= 0 || comment.endTimestampSeconds == null) return null;
+                        const startPct = (comment.timestampSeconds / duration) * 100;
+                        const endPct = (comment.endTimestampSeconds / duration) * 100;
+                        const isActive = comment.id === activeCommentId;
+                        return (
+                            <button
+                                key={comment.id}
+                                type="button"
+                                className={`absolute top-1/2 -translate-y-1/2 h-2 rounded-sm z-[1] transition-colors ${
+                                    isActive ? 'bg-white/40' : 'bg-white/20 hover:bg-white/30'
+                                }`}
+                                style={{ left: `${startPct}%`, width: `${Math.max(endPct - startPct, 0.5)}%` }}
+                                title={`${comment.timestamp}–${comment.endTimestamp}: ${comment.content.slice(0, 60)}`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onMarkerClick(comment);
+                                }}
+                            />
+                        );
+                })}
+
+                {/* Single-timestamp comment markers */}
+                {pointComments.map((comment) => {
                         if (duration <= 0) return null;
                         const left = (comment.timestampSeconds / duration) * 100;
                         const isActive = comment.id === activeCommentId;
@@ -135,11 +280,34 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
                         );
                 })}
 
+                {/* In-progress range being composed via drag-select */}
+                {rangeMode && activeRange && duration > 0 && (
+                    <>
+                        <div
+                            className="absolute top-1/2 -translate-y-1/2 h-[6px] rounded-sm bg-[var(--review-accent-purple)]/50 pointer-events-none z-[2]"
+                            style={{
+                                left: `${(activeRange.start / duration) * 100}%`,
+                                width: `${Math.max(((activeRange.end - activeRange.start) / duration) * 100, 0.3)}%`,
+                            }}
+                        />
+                        <div
+                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white border-2 border-[var(--review-accent-purple)] shadow-md pointer-events-none z-[3]"
+                            style={{ left: `${(activeRange.start / duration) * 100}%` }}
+                        />
+                        <div
+                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white border-2 border-[var(--review-accent-purple)] shadow-md pointer-events-none z-[3]"
+                            style={{ left: `${(activeRange.end / duration) * 100}%` }}
+                        />
+                    </>
+                )}
+
                 {/* Playhead thumb */}
-                <div
-                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-[3] pointer-events-none"
-                        style={{ left: `${progressPct}%` }}
-                />
+                {!rangeMode && (
+                    <div
+                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-[3] pointer-events-none"
+                            style={{ left: `${progressPct}%` }}
+                    />
+                )}
             </div>
         </div>
     );
