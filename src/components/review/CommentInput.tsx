@@ -41,6 +41,8 @@ export type CommentInputHandle = {
     setScreenshot: (url: string | null) => void;
     /** Capture the full current frame into the draft (no snip). */
     captureFullFrame: () => void;
+    /** Set the draft comment's timestamp range explicitly, in seconds — driven by the timeline drag-select UI. */
+    setRangeSeconds: (startSeconds: number, endSeconds: number) => void;
 };
 
 // Helper to format seconds to timestamp string (e.g., 90 -> "1:30")
@@ -474,6 +476,14 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             ensureExpanded();
             captureFullFrame();
         },
+        setRangeSeconds: (startSeconds, endSeconds) => {
+            ensureExpanded();
+            setIsGeneral(false);
+            setIsEndTracking(false);
+            setUseEndTimestamp(true);
+            setRangeStartSeconds(startSeconds);
+            setEndTimestampInput(formatSecondsToTimestamp(endSeconds));
+        },
     }), [
         ensureExpanded,
         useEndTimestamp,
@@ -690,15 +700,17 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                                         </div>
                                     )}
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={disableRangeMode}
-                                    className="h-5 w-5 p-0 text-[var(--review-text-muted)] hover:text-red-400"
-                                    title="Remove end time"
-                                >
-                                    <X className="h-3 w-3" />
-                                </Button>
+                                {!hideInlineTools && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={disableRangeMode}
+                                        className="h-5 w-5 p-0 text-[var(--review-text-muted)] hover:text-red-400"
+                                        title="Remove end time"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </Button>
+                                )}
                             </>
                         )}
                         {!hideInlineTools && !useEndTimestamp && !isGeneral && videoRef && (

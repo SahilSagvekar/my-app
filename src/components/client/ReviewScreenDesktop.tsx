@@ -1,956 +1,1329 @@
 'use client';
 
-import {
-    useState,
-    useRef,
-    useEffect,
-    useImperativeHandle,
-    forwardRef,
-    useCallback,
-} from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
-import { createPortal } from 'react-dom';
-import { toast } from 'sonner';
-// import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment } from './types';
-import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment } from '../review/types';
-import {
-    Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon, Loader2, Globe,
-} from 'lucide-react';
-
+import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { YoutubePlayer } from '../review/YoutubePlayer';
+import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
 import { Button } from '../ui/button';
-import { Textarea } from '../ui/textarea';
+import { Badge } from '../ui/badge';
+import { Card, CardContent } from '../ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import {
+    DropdownMenu,
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+} from '../ui/dropdown-menu';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '../ui/tooltip';
+import {
+    X, Download, Share, Play,
+    CheckCircle2, MessageSquare, Calendar, ChevronRight, ChevronDown,
+    AlertCircle, ArrowLeft,
+    Info, Copy, Check, UserCheck, Plus, Smartphone,
+    PenLine, ImageIcon, Settings, Maximize, Minimize,
+} from 'lucide-react';
+import {
+    ReviewCommentCard,
+    CommentInput,
+    ReviewCompactTransport,
+    ReviewPlaybackControls,
+    ReviewModePills,
+    ReviewDrawOverlay,
+    ReviewInstagramOverlay,
+    captureFullFrameFromSource,
+} from '../review';
+import type { CommentInputHandle, ReviewMode } from '../review';
+import { ReviewComment } from '../review/types';
+import { ShareDialog } from '../review/ShareDialog';
+import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 
-const MAX_SCREENSHOT_WIDTH = 1280;
-const MAX_SCREENSHOT_HEIGHT = 720;
-
-// Either a video frame or a static image can be the capture source.
-type CaptureSource = HTMLVideoElement | HTMLImageElement;
-
-export type CommentInputHandle = {
-    /** Expand the comment composer (Comment pill). */
-    openComment: () => void;
-    /** Expand and enable timestamp-range mode. */
-    toggleRange: () => void;
-    /** Expand and toggle "General" (untimed) mode. */
-    toggleGeneral: () => void;
-    /** Expand and start voice recording immediately. */
-    startVoice: () => void;
-    /** Expand and open the file picker immediately. */
-    openAttach: () => void;
-    /** Set / clear the screenshot attached to the draft comment. */
-    setScreenshot: (url: string | null) => void;
-    /** Capture the full current frame into the draft (no snip). */
-    captureFullFrame: () => void;
-    /** Set the draft comment's timestamp range explicitly, in seconds — driven by the timeline drag-select UI. */
-    setRangeSeconds: (startSeconds: number, endSeconds: number) => void;
-};
-
-// Helper to format seconds to timestamp string (e.g., 90 -> "1:30")
-function formatSecondsToTimestamp(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+function resolveFileCode(folderType?: string | null, deliverableType?: string | null): string {
+    const raw = (folderType || deliverableType || '').trim();
+    if (!raw) return 'MAIN';
+    const n = raw.toLowerCase().replace(/[_\s-]+/g, '');
+    if (n === 'sf' || n.includes('shortform')) return 'SF';
+    if (n === 'lf' || n.includes('longform')) return 'LF';
+    if (n === 'sqf' || n.includes('square')) return 'SQF';
+    if (n.includes('thumb')) return 'THUMB';
+    if (n.includes('tile')) return 'TILE';
+    if (n.includes('cover')) return 'COVER';
+    if (n.includes('music') || n.includes('license')) return 'LIC';
+    if (n === 'main' || n === 'mainfile') return 'MAIN';
+    return raw.slice(0, 6).toUpperCase();
 }
 
-// Helper to parse timestamp string to seconds (e.g., "1:30" -> 90)
-function parseTimestampToSeconds(timestamp: string): number | null {
-    const match = timestamp.match(/^(\d+):(\d{2})$/);
-    if (!match) return null;
-    const mins = parseInt(match[1], 10);
-    const secs = parseInt(match[2], 10);
-    if (secs >= 60) return null;
-    return mins * 60 + secs;
-}
+export interface ReviewScreenProps {
+    asset: any;
+    readOnly?: boolean;
+    currentFileSection?: { folderType: string; fileId: string; version: number };
+    userRole: 'client' | 'qc';
+    requiresClientReview: boolean;
+    forceClientReviewOverride?: boolean;
+    onForceClientReviewOverrideChange?: (value: boolean) => void;
+    postingTitles: { id: string; text: string }[];
+    postingDescriptions: { id: string; text: string }[];
+    postingTags: { id: string; text: string }[];
+    onPostingTitlesChange: (items: { id: string; text: string }[]) => void;
+    onPostingDescriptionsChange: (items: { id: string; text: string }[]) => void;
+    onPostingTagsChange: (items: { id: string; text: string }[]) => void;
+    templateHashtags?: string[];
 
-/** Capture a full frame from a video/image element as a JPEG data URL. */
-export function captureFullFrameFromSource(
-    source: CaptureSource,
-    opts?: { maxW?: number; maxH?: number }
-): string | null {
-    const maxW = opts?.maxW ?? MAX_SCREENSHOT_WIDTH;
-    const maxH = opts?.maxH ?? MAX_SCREENSHOT_HEIGHT;
-    const canvas = document.createElement('canvas');
-    const isVideo = source instanceof HTMLVideoElement;
-    const sourceW = isVideo
-        ? ((source as HTMLVideoElement).videoWidth || source.clientWidth)
-        : ((source as HTMLImageElement).naturalWidth || source.clientWidth);
-    const sourceH = isVideo
-        ? ((source as HTMLVideoElement).videoHeight || source.clientHeight)
-        : ((source as HTMLImageElement).naturalHeight || source.clientHeight);
-    if (!sourceW || !sourceH) return null;
-
-    const scale = Math.min(maxW / sourceW, maxH / sourceH, 1);
-    const targetW = Math.max(1, Math.round(sourceW * scale));
-    const targetH = Math.max(1, Math.round(sourceH * scale));
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    try {
-        ctx.drawImage(source, 0, 0, sourceW, sourceH, 0, 0, targetW, targetH);
-        return canvas.toDataURL('image/jpeg', 0.7);
-    } catch (err) {
-        console.error('Failed to capture screenshot:', err);
-        return null;
-    }
-}
-
-/**
- * Capture a (possibly cropped) region from a video/image element. `area` is
- * in the element's on-screen display coordinates (e.g. from a drag
- * selection) — mapped into the source's intrinsic pixel space before
- * cropping. Used by the Snip tool; omit `area` for a full-frame capture.
- */
-function captureAreaFromSource(
-    source: CaptureSource,
-    area?: { x: number; y: number; w: number; h: number }
-): string | null {
-    const canvas = document.createElement('canvas');
-    const isVideo = source instanceof HTMLVideoElement;
-
-    const sourceW = isVideo
-        ? ((source as HTMLVideoElement).videoWidth || source.clientWidth)
-        : ((source as HTMLImageElement).naturalWidth || source.clientWidth);
-    const sourceH = isVideo
-        ? ((source as HTMLVideoElement).videoHeight || source.clientHeight)
-        : ((source as HTMLImageElement).naturalHeight || source.clientHeight);
-    const displayW = source.clientWidth;
-    const displayH = source.clientHeight;
-    if (!sourceW || !sourceH || !displayW || !displayH) return null;
-
-    const scaleX = sourceW / displayW;
-    const scaleY = sourceH / displayH;
-
-    const hasArea = area && area.w > 5 && area.h > 5;
-    const cropX = hasArea ? area!.x * scaleX : 0;
-    const cropY = hasArea ? area!.y * scaleY : 0;
-    const cropW = hasArea ? area!.w * scaleX : sourceW;
-    const cropH = hasArea ? area!.h * scaleY : sourceH;
-
-    const scale = Math.min(MAX_SCREENSHOT_WIDTH / cropW, MAX_SCREENSHOT_HEIGHT / cropH, 1);
-    const targetW = Math.max(1, Math.round(cropW * scale));
-    const targetH = Math.max(1, Math.round(cropH * scale));
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-    try {
-        ctx.drawImage(source, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
-        return canvas.toDataURL('image/jpeg', 0.7);
-    } catch (err) {
-        console.error('Failed to capture screenshot:', err);
-        return null;
-    }
-}
-
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-    const res = await fetch(dataUrl);
-    return res.blob();
-}
-
-// Uploads a single File/Blob to R2 via the comment-attachments endpoint.
-// Voice notes, general file/image attachments, and the drawn screenshot
-// all go through this — nothing gets submitted as a blob:/data: URL.
-async function uploadCommentAttachment(
-    taskId: string,
-    blob: Blob,
-    filename: string,
-    mimeType: string
-): Promise<CommentAttachment> {
-    const form = new FormData();
-    form.append('file', blob, filename);
-    const res = await fetch(`/api/tasks/${taskId}/feedback/attachments`, {
-        method: 'POST',
-        body: form,
-    });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Attachment upload failed');
-    }
-    return res.json();
-}
-
-interface CommentInputProps {
-    taskId: string;
+    videoRef: RefObject<HTMLVideoElement | null>;
+    iframeRef: RefObject<HTMLIFrameElement | null>;
+    youtubePlayerRef: RefObject<YoutubePlayerHandle | null>;
+    handleYoutubeReady: () => void;
+    containerRef: RefObject<HTMLDivElement | null>;
+    commentsRef: RefObject<HTMLDivElement | null>;
+    videoSource: { type: 'video' | 'iframe' | 'youtube'; src: string };
+    isPlaying: boolean;
+    isMuted: boolean;
     currentTime: number;
-    currentTimestamp: string;
-    authorId: string;
-    authorName: string;
-    videoRef?: React.RefObject<HTMLVideoElement | null>;
-    imageRef?: React.RefObject<HTMLImageElement | null>;
-    duration?: number;
-    currentVersionNumber?: number;
-    onSubmit: (comment: Omit<ReviewComment, 'id' | 'createdAt'>) => void;
-    onCancel?: () => void;
-    isExpanded?: boolean;
-    onToggleExpand?: () => void;
-    /**
-     * When true, hide the inline Range / Full-capture chrome — Desktop pills
-     * drive those actions via the imperative API instead.
-     */
-    hideInlineTools?: boolean;
-    /** Hide the "General" (untimed) toggle — for screens where every comment is already untimed by nature (e.g. script review). */
-    hideGeneralToggle?: boolean;
+    duration: number;
+    playbackSpeed: number;
+    currentVersion: string;
+    measuredResolution: string;
+    videoError: boolean;
+    iframeLoaded: boolean;
+    isDragging: boolean;
+
+    comments: ReviewComment[];
+    sortedComments: ReviewComment[];
+    allClientComments: ReviewComment[];
+    activeCommentId: string | undefined;
+    showCommentInput: boolean;
+    confirmFinal: boolean;
+    savingFeedback: boolean;
+    showApprovalSuccess: boolean;
+    showRevisionSuccess: boolean;
+    currentVersionNumber: number;
+    isClientViewer: boolean;
+
+    showInfoPanel: boolean;
+    shareLink: string;
+    generatingLink: boolean;
+    linkCopied: boolean;
+    showShareDialog: boolean;
+    connectionInsight: ReviewConnectionInsight;
+
+    userName: string;
+
+    togglePlay: () => void;
+    toggleMute: () => void;
+    seekBackward: () => void;
+    seekForward: () => void;
+    handleSeek: (t: number) => void;
+    handleTimeUpdate: (e: React.SyntheticEvent<HTMLVideoElement>) => void;
+    handlePlaybackSpeedChange: (s: string) => void;
+    handleVersionChange: (id: string) => void;
+    handleMarkerClick: (c: ReviewComment) => void;
+    handleTimestampClick: (ts: number) => void;
+    onJumpToClientComment: (c: ReviewComment) => void;
+
+    handleCommentSubmit: (c: Omit<ReviewComment, 'id' | 'createdAt'>) => void;
+    handleCommentResolve: (id: string, resolved: boolean) => void;
+    handleCommentDelete: (id: string) => void;
+    handleCommentEdit: (id: string, newContent: string) => void;
+    handleStatusChange: (s: 'approved' | 'needs_changes') => void;
+    handleRejectWithComment?: (comment: string) => Promise<void>;
+
+    setShowCommentInput: (v: boolean) => void;
+    setConfirmFinal: (v: boolean) => void;
+    setShowInfoPanel: (v: boolean) => void;
+    setShowShareDialog: (v: boolean) => void;
+    setVideoError: (v: boolean) => void;
+    handleVideoError: () => void;
+    setIframeLoaded: (v: boolean) => void;
+    setIsDragging: (v: boolean) => void;
+    setIsPlaying: (v: boolean) => void;
+    setDuration: (v: number) => void;
+    setMeasuredResolution: (v: string) => void;
+    setCurrentTime: (v: number) => void;
+    handleDownload: () => void;
+    handleGenerateShareLink: () => void;
+    handleCopyLink: () => void;
+    onOpenChange: (v: boolean) => void;
+    onNextAsset?: () => void;
+    formatTime: (t: number) => string;
+
+    onSwitchToMobile: () => void;
+    onSwitchToDesktop?: () => void;
+    onSwitchToThumbnail?: () => void;
 }
 
-export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(function CommentInput({
-    taskId,
-    currentTime,
-    currentTimestamp,
-    authorId,
-    authorName,
-    videoRef,
-    imageRef,
-    duration = 0,
-    currentVersionNumber,
-    onSubmit,
-    onCancel,
-    isExpanded = false,
-    onToggleExpand,
-    hideInlineTools = false,
-    hideGeneralToggle = false,
-}, ref) {
-    const [content, setContent] = useState('');
-    const [category, setCategory] = useState<CommentCategory['value']>('design');
-    const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+export function ReviewScreenDesktop(p: ReviewScreenProps) {
+    const MAX_RENDERED_COMMENTS = 200;
+    const [showAllComments, setShowAllComments] = useState(false);
+    const unresolvedCount = p.sortedComments.filter(c => !c.resolved).length;
+    const commentInputRef = useRef<CommentInputHandle>(null);
+    const [activeMode, setActiveMode] = useState<ReviewMode | null>(null);
+    const [drawBaseUrl, setDrawBaseUrl] = useState<string | null>(null);
+    const [showInstagramOverlay, setShowInstagramOverlay] = useState(false);
+    const [showGridOverlay, setShowGridOverlay] = useState(false);
+    const videoShellRef = useRef<HTMLDivElement>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [rangeMode, setRangeMode] = useState(false);
+    const [activeRange, setActiveRange] = useState<{ start: number; end: number } | null>(null);
 
-    // Snip (drag-select a partial region to screenshot)
-    const [isSelectingArea, setIsSelectingArea] = useState(false);
-    const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
-    const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-
-    // Timestamp range state
-    const [useEndTimestamp, setUseEndTimestamp] = useState(false);
-    const [endTimestampInput, setEndTimestampInput] = useState('');
-    const [endTimestampError, setEndTimestampError] = useState<string | null>(null);
-    const [rangeStartSeconds, setRangeStartSeconds] = useState<number | null>(null);
-    const [isEndTracking, setIsEndTracking] = useState(false);
-
-    // A "general" comment isn't tied to any specific time — no timestamp
-    // chip, no range, no marker on the timeline.
-    const [isGeneral, setIsGeneral] = useState(false);
-
-    // Voice recording
-    const [isRecording, setIsRecording] = useState(false);
-    const [audioUrl, setAudioUrl] = useState<string | null>(null); // local blob: preview only — never submitted
-    const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-    const [recordingSeconds, setRecordingSeconds] = useState(0);
-    const [voiceDurationSec, setVoiceDurationSec] = useState(0);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const audioChunksRef = useRef<Blob[]>([]);
-    const mediaStreamRef = useRef<MediaStream | null>(null);
-    const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    // File / image attachments (multiple) — kept as raw Files until submit,
-    // uploaded to R2 then.
-    const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // Upload progress while submitting
-    const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
-
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-    const getCaptureSource = (): CaptureSource | null => videoRef?.current || imageRef?.current || null;
-    const hasCaptureSource = !!(videoRef || imageRef);
-
-    const stopRecordingCleanup = useCallback(() => {
-        try {
-            mediaRecorderRef.current?.stop();
-        } catch { /* ignore */ }
-        mediaRecorderRef.current = null;
-        mediaStreamRef.current?.getTracks().forEach(t => t.stop());
-        mediaStreamRef.current = null;
-        if (recordingTimerRef.current) {
-            clearInterval(recordingTimerRef.current);
-            recordingTimerRef.current = null;
-        }
-        setIsRecording(false);
+    const handleRangeChange = useCallback((start: number, end: number) => {
+        setActiveRange({ start, end });
+        commentInputRef.current?.setRangeSeconds(start, end);
     }, []);
 
-    useEffect(() => () => stopRecordingCleanup(), [stopRecordingCleanup]);
-
-    // Live-track end timestamp as video plays
     useEffect(() => {
-        if (!isEndTracking || !useEndTimestamp) return;
-        setEndTimestampInput(formatSecondsToTimestamp(currentTime));
-    }, [currentTime, isEndTracking, useEndTimestamp]);
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
-    // Validate end timestamp when it changes
-    useEffect(() => {
-        if (!useEndTimestamp || !endTimestampInput) {
-            setEndTimestampError(null);
-            return;
-        }
-
-        const endSeconds = parseTimestampToSeconds(endTimestampInput);
-        const startSecs = rangeStartSeconds ?? currentTime;
-        if (endSeconds === null) {
-            setEndTimestampError('Invalid format (use M:SS)');
-        } else if (endSeconds <= startSecs) {
-            setEndTimestampError('Must be after start time');
-        } else if (duration > 0 && endSeconds > duration) {
-            setEndTimestampError('Exceeds video length');
+    const toggleFullscreen = useCallback(() => {
+        if (!document.fullscreenElement) {
+            videoShellRef.current?.requestFullscreen?.().catch(() => {});
         } else {
-            setEndTimestampError(null);
+            document.exitFullscreen?.().catch(() => {});
         }
-    }, [endTimestampInput, useEndTimestamp, currentTime, duration, rangeStartSeconds]);
+    }, []);
+    type SidebarTab = 'comments' | 'titles';
+    const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
+
+    const fileCode = useMemo(
+        () => resolveFileCode(
+            p.currentFileSection?.folderType,
+            typeof (p.asset as { deliverableType?: string; taskType?: string })?.deliverableType === 'string'
+                ? (p.asset as { deliverableType?: string }).deliverableType
+                : (p.asset as { taskType?: string })?.taskType
+        ),
+        [p.currentFileSection?.folderType, p.asset]
+    );
+
+    const isShortFormTask = fileCode === 'SF' || /(^|[_\s-])SF(\d|[_\s-]|$)/i.test(p.asset?.title || '');
 
     useEffect(() => {
-        if (isExpanded && textareaRef.current) {
-            textareaRef.current.focus();
+        if (!isShortFormTask) {
+            setShowInstagramOverlay(false);
+            setShowGridOverlay(false);
         }
-    }, [isExpanded]);
+    }, [isShortFormTask]);
 
-    const ensureExpanded = useCallback(() => {
-        if (!isExpanded) onToggleExpand?.();
-    }, [isExpanded, onToggleExpand]);
-
-    const enableRangeMode = useCallback(() => {
-        ensureExpanded();
-        setIsGeneral(false);
-        setUseEndTimestamp(true);
-        setRangeStartSeconds(currentTime);
-        setEndTimestampInput(formatSecondsToTimestamp(currentTime));
-        setIsEndTracking(true);
-    }, [ensureExpanded, currentTime]);
-
-    const disableRangeMode = useCallback(() => {
-        setUseEndTimestamp(false);
-        setEndTimestampInput('');
-        setIsEndTracking(false);
-        setRangeStartSeconds(null);
+    const exitDrawMode = useCallback(() => {
+        setDrawBaseUrl(null);
+        setActiveMode(prev => (prev === 'draw' ? null : prev));
     }, []);
 
-    const toggleGeneral = useCallback(() => {
-        ensureExpanded();
-        setIsGeneral(v => {
-            const next = !v;
-            // A range only makes sense once there's a specific start time.
-            if (next && useEndTimestamp) disableRangeMode();
-            return next;
-        });
-    }, [ensureExpanded, useEndTimestamp, disableRangeMode]);
-
-    const captureFullFrame = useCallback(() => {
-        const source = videoRef?.current || imageRef?.current || null;
-        if (!source) return;
-        window.requestAnimationFrame(() => {
-            const dataUrl = captureFullFrameFromSource(source);
-            if (dataUrl) setScreenshotUrl(dataUrl);
-        });
-    }, [videoRef, imageRef]);
-
-    const handleStartSnip = useCallback(() => {
-        ensureExpanded();
-        setIsSelectingArea(true);
-        setSelectionRect(null);
-    }, [ensureExpanded]);
-
-    const handleSnipMouseDown = (e: ReactMouseEvent) => {
-        const container = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - container.left;
-        const y = e.clientY - container.top;
-        setSelectionStart({ x, y });
-        setSelectionRect({ x, y, w: 0, h: 0 });
-    };
-
-    const handleSnipMouseMove = (e: ReactMouseEvent) => {
-        if (!selectionStart) return;
-        const container = e.currentTarget.getBoundingClientRect();
-        const curX = e.clientX - container.left;
-        const curY = e.clientY - container.top;
-        const x = Math.min(curX, selectionStart.x);
-        const y = Math.min(curY, selectionStart.y);
-        const w = Math.abs(curX - selectionStart.x);
-        const h = Math.abs(curY - selectionStart.y);
-        setSelectionRect({ x, y, w, h });
-    };
-
-    const handleSnipMouseUp = () => {
-        const source = getCaptureSource();
-        if (!selectionRect || !source) {
-            setIsSelectingArea(false);
-            setSelectionStart(null);
+    const handleModeSelect = useCallback((mode: ReviewMode) => {
+        // Instagram and Grid are standalone overlay toggles — they don't open
+        // the comment composer or touch the sidebar, just overlay chrome on
+        // top of the still-playing video. They're mutually exclusive:
+        // turning one on turns the other off.
+        if (mode === 'instagram') {
+            if (!isShortFormTask) return;
+            setShowInstagramOverlay(v => {
+                const next = !v;
+                if (next) setShowGridOverlay(false);
+                return next;
+            });
             return;
         }
-        // Tiny drag — treat as a click/cancel rather than a selection.
-        if (selectionRect.w < 10 || selectionRect.h < 10) {
-            setIsSelectingArea(false);
-            setSelectionStart(null);
+        if (mode === 'grid') {
+            if (!isShortFormTask) return;
+            setShowGridOverlay(v => {
+                const next = !v;
+                if (next) setShowInstagramOverlay(false);
+                return next;
+            });
             return;
         }
-        const rect = selectionRect;
-        window.requestAnimationFrame(() => {
-            const dataUrl = captureAreaFromSource(source, rect);
-            if (dataUrl) setScreenshotUrl(dataUrl);
-        });
-        setIsSelectingArea(false);
-        setSelectionStart(null);
-    };
 
-    const cancelSnip = useCallback(() => {
-        setIsSelectingArea(false);
-        setSelectionStart(null);
-        setSelectionRect(null);
-    }, []);
-
-    const startVoiceRecording = useCallback(async () => {
-        ensureExpanded();
-        if (isRecording) return;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaStreamRef.current = stream;
-            audioChunksRef.current = [];
-            const recorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = recorder;
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) audioChunksRef.current.push(e.data);
-            };
-            recorder.onstop = () => {
-                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                const url = URL.createObjectURL(blob);
-                setRecordedBlob(blob);
-                setAudioUrl(prev => {
-                    if (prev) URL.revokeObjectURL(prev);
-                    return url;
-                });
-                mediaStreamRef.current?.getTracks().forEach(t => t.stop());
-                mediaStreamRef.current = null;
-                setIsRecording(false);
-            };
-            recorder.start();
-            setIsRecording(true);
-            setRecordingSeconds(0);
-            if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-            recordingTimerRef.current = setInterval(() => {
-                setRecordingSeconds((s) => s + 1);
-            }, 1000);
-        } catch (err) {
-            console.error('Microphone access failed:', err);
-            toast.error('Could not access microphone — check browser permissions');
-            setIsRecording(false);
+        if (mode !== 'range') {
+            setRangeMode(false);
+            setActiveRange(null);
         }
-    }, [ensureExpanded, isRecording]);
 
-    const stopVoiceRecording = useCallback(() => {
-        if (recordingTimerRef.current) {
-            clearInterval(recordingTimerRef.current);
-            recordingTimerRef.current = null;
-        }
-        setVoiceDurationSec(recordingSeconds);
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        } else {
-            stopRecordingCleanup();
-        }
-    }, [stopRecordingCleanup, recordingSeconds]);
+        setSidebarTab('comments');
 
-    const openFilePicker = useCallback(() => {
-        ensureExpanded();
-        // Defer so the composer is expanded before the picker opens
-        window.setTimeout(() => fileInputRef.current?.click(), 0);
-    }, [ensureExpanded]);
-
-    useImperativeHandle(ref, () => ({
-        openComment: () => ensureExpanded(),
-        toggleRange: () => {
-            if (useEndTimestamp) {
-                ensureExpanded();
-                disableRangeMode();
-            } else {
-                enableRangeMode();
-            }
-        },
-        toggleGeneral: () => toggleGeneral(),
-        startVoice: () => {
-            void startVoiceRecording();
-        },
-        openAttach: () => openFilePicker(),
-        setScreenshot: (url) => {
-            ensureExpanded();
-            setScreenshotUrl(url);
-        },
-        captureFullFrame: () => {
-            ensureExpanded();
-            captureFullFrame();
-        },
-        setRangeSeconds: (startSeconds, endSeconds) => {
-            ensureExpanded();
-            setIsGeneral(false);
-            setIsEndTracking(false);
-            setUseEndTimestamp(true);
-            setRangeStartSeconds(startSeconds);
-            setEndTimestampInput(formatSecondsToTimestamp(endSeconds));
-        },
-    }), [
-        ensureExpanded,
-        useEndTimestamp,
-        disableRangeMode,
-        enableRangeMode,
-        toggleGeneral,
-        startVoiceRecording,
-        openFilePicker,
-        captureFullFrame,
-    ]);
-
-    const MAX_ATTACHMENT_MB = 25;
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        e.target.value = '';
-        if (files.length === 0) return;
-
-        const tooBig = files.filter((f) => f.size > MAX_ATTACHMENT_MB * 1024 * 1024);
-        if (tooBig.length > 0) {
-            toast.error(`${tooBig.length > 1 ? 'Some files exceed' : `"${tooBig[0].name}" exceeds`} the ${MAX_ATTACHMENT_MB}MB limit`);
-        }
-        const ok = files.filter((f) => f.size <= MAX_ATTACHMENT_MB * 1024 * 1024);
-        setAttachedFiles((prev) => [...prev, ...ok]);
-    };
-
-    const removeAttachedFile = (idx: number) => {
-        setAttachedFiles((prev) => prev.filter((_, i) => i !== idx));
-    };
-
-    const handleSubmit = async () => {
-        if (!content.trim() && !audioUrl && attachedFiles.length === 0 && !screenshotUrl) return;
-
-        const startSecs = (useEndTimestamp && rangeStartSeconds !== null) ? rangeStartSeconds : currentTime;
-        const startTimestamp = formatSecondsToTimestamp(startSecs);
-
-        if (useEndTimestamp && endTimestampInput) {
-            const endSeconds = parseTimestampToSeconds(endTimestampInput);
-            if (endSeconds === null || endSeconds <= startSecs) {
+        if (mode === 'draw') {
+            if (p.isPlaying) p.togglePlay();
+            const source = p.videoRef.current;
+            if (!source) {
+                setActiveMode('comment');
+                p.setShowCommentInput(true);
+                commentInputRef.current?.openComment();
                 return;
             }
+            window.requestAnimationFrame(() => {
+                const dataUrl = captureFullFrameFromSource(source);
+                if (dataUrl) {
+                    setActiveMode('draw');
+                    setDrawBaseUrl(dataUrl);
+                } else {
+                    setActiveMode('comment');
+                    p.setShowCommentInput(true);
+                    commentInputRef.current?.openComment();
+                }
+            });
+            return;
         }
 
-        setIsSubmitting(true);
+        if (drawBaseUrl) setDrawBaseUrl(null);
 
-        try {
-            const endSeconds = useEndTimestamp && endTimestampInput
-                ? parseTimestampToSeconds(endTimestampInput)
-                : undefined;
-
-            // Upload anything pending to R2 before the comment is created —
-            // screenshotUrl/audioUrl at this point are still local
-            // data:/blob: URLs and won't survive a reload or be visible to
-            // anyone else until replaced with real R2 URLs below.
-            setIsUploadingAttachments(true);
-
-            let finalScreenshotUrl = screenshotUrl || undefined;
-            if (finalScreenshotUrl && finalScreenshotUrl.startsWith('data:')) {
-                const blob = await dataUrlToBlob(finalScreenshotUrl);
-                const uploaded = await uploadCommentAttachment(
-                    taskId, blob, `screenshot-${Date.now()}.jpg`, 'image/jpeg'
-                );
-                finalScreenshotUrl = uploaded.url;
+        if (mode === 'range') {
+            if (activeMode === 'range') {
+                commentInputRef.current?.toggleRange();
+                setRangeMode(false);
+                setActiveRange(null);
+                setActiveMode(null);
+                return;
             }
-
-            let finalVoiceUrl: string | undefined;
-            if (recordedBlob) {
-                const uploaded = await uploadCommentAttachment(
-                    taskId, recordedBlob, `voice-${Date.now()}.webm`, 'audio/webm'
-                );
-                finalVoiceUrl = uploaded.url;
-            }
-
-            let finalAttachments: CommentAttachment[] | undefined;
-            if (attachedFiles.length > 0) {
-                finalAttachments = await Promise.all(
-                    attachedFiles.map((f) => uploadCommentAttachment(taskId, f, f.name, f.type))
-                );
-            }
-
-            setIsUploadingAttachments(false);
-
-            // If content is empty but we have media, invent a short label
-            const body = content.trim()
-                || (finalVoiceUrl ? 'Voice note' : '')
-                || (finalAttachments?.length ? `Attached: ${finalAttachments.map(a => a.name).join(', ')}` : '')
-                || (finalScreenshotUrl ? 'Frame annotation' : '');
-
-            const newComment: Omit<ReviewComment, 'id' | 'createdAt'> = {
-                taskId,
-                authorId,
-                authorName,
-                timestamp: isGeneral ? 'General' : (useEndTimestamp ? startTimestamp : currentTimestamp),
-                timestampSeconds: isGeneral ? 0 : startSecs,
-                endTimestamp: endSeconds ? endTimestampInput : undefined,
-                endTimestampSeconds: endSeconds ?? undefined,
-                isGeneral: isGeneral || undefined,
-                content: body,
-                category: [category] as ReviewComment['category'],
-                screenshotUrl: finalScreenshotUrl,
-                voiceUrl: finalVoiceUrl,
-                voiceDurationSec: finalVoiceUrl ? voiceDurationSec : undefined,
-                attachments: finalAttachments,
-                resolved: false,
-                replies: [],
-                version: currentVersionNumber,
-            };
-
-            await onSubmit(newComment);
-            setContent('');
-            setIsGeneral(false);
-            setScreenshotUrl(null);
-            if (audioUrl) URL.revokeObjectURL(audioUrl);
-            setAudioUrl(null);
-            setRecordedBlob(null);
-            setRecordingSeconds(0);
-            setVoiceDurationSec(0);
-            setAttachedFiles([]);
-            disableRangeMode();
-            onCancel?.();
-        } catch (err: any) {
-            console.error('Failed to submit comment:', err);
-            toast.error(err?.message || 'Failed to post comment — please try again');
-        } finally {
-            setIsUploadingAttachments(false);
-            setIsSubmitting(false);
+            const start = p.currentTime;
+            const end = p.duration > 0 ? Math.min(p.duration, start + 3) : start + 3;
+            setActiveMode('range');
+            p.setShowCommentInput(true);
+            setRangeMode(true);
+            setActiveRange({ start, end });
+            window.requestAnimationFrame(() => {
+                commentInputRef.current?.setRangeSeconds(start, end);
+            });
+            return;
         }
+
+        if (mode === 'general' && activeMode === 'general') {
+            p.setShowCommentInput(true);
+            window.requestAnimationFrame(() => commentInputRef.current?.toggleGeneral());
+            setActiveMode(null);
+            return;
+        }
+
+        setActiveMode(mode);
+        p.setShowCommentInput(true);
+
+        window.requestAnimationFrame(() => {
+            const api = commentInputRef.current;
+            if (!api) return;
+            switch (mode) {
+                case 'comment':
+                    api.openComment();
+                    break;
+                case 'voice':
+                    api.startVoice();
+                    break;
+                case 'attach':
+                    api.openAttach();
+                    break;
+                case 'general':
+                    api.toggleGeneral();
+                    break;
+            }
+        });
+    }, [activeMode, drawBaseUrl, p.isPlaying, p.togglePlay, p.videoRef, p.setShowCommentInput, p.currentTime, p.duration]);
+
+    const handleDrawComplete = useCallback((composedDataUrl: string) => {
+        setDrawBaseUrl(null);
+        setActiveMode('comment');
+        p.setShowCommentInput(true);
+        window.requestAnimationFrame(() => {
+            commentInputRef.current?.setScreenshot(composedDataUrl);
+        });
+    }, [p.setShowCommentInput]);
+
+    const isVerticalVideo = useMemo(() => {
+        const res = p.measuredResolution || p.asset.resolution;
+        if (!res) return false;
+        const match = res.match(/^(\d+)x(\d+)$/i);
+        if (!match) return false;
+        const [, w, h] = match;
+        return Number(h) > Number(w);
+    }, [p.measuredResolution, p.asset.resolution]);
+
+    const exactAspectRatio = useMemo(() => {
+        const res = p.measuredResolution || p.asset.resolution;
+        const match = res?.match(/^(\d+)x(\d+)$/i);
+        if (!match) return '9 / 16';
+        const [, w, h] = match;
+        return `${w} / ${h}`;
+    }, [p.measuredResolution, p.asset.resolution]);
+
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingText, setEditingText] = useState('');
+    const [newTexts, setNewTexts] = useState({ titles: '', descriptions: '', tags: '' });
+    const [tagsText, setTagsText] = useState(() => p.postingTags.map(t => t.text).join(', '));
+
+    const CAPS = { titles: 3, descriptions: 3, tags: 10 };
+
+    const addItem = (type: 'titles'|'descriptions'|'tags') => {
+        const text = newTexts[type].trim();
+        if (!text) return;
+        const cap = CAPS[type];
+        const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
+        const setCurrentList = type === 'titles' ? p.onPostingTitlesChange : type === 'descriptions' ? p.onPostingDescriptionsChange : p.onPostingTagsChange;
+        if (currentList.length >= cap) return;
+        setCurrentList([...currentList, { id: `${Date.now()}-${Math.random()}`, text }]);
+        setNewTexts({ ...newTexts, [type]: '' });
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            handleSubmit();
-        }
-        if (e.key === 'Escape') {
-            onCancel?.();
-        }
+    const deleteItem = (type: 'titles'|'descriptions'|'tags', id: string) => {
+        const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
+        const setCurrentList = type === 'titles' ? p.onPostingTitlesChange : type === 'descriptions' ? p.onPostingDescriptionsChange : p.onPostingTagsChange;
+        if (type === 'titles' && p.userRole === 'client' && currentList.length <= 1) return;
+        setCurrentList(currentList.filter(i => i.id !== id));
     };
 
-    const handleCancel = () => {
-        stopRecordingCleanup();
-        setIsGeneral(false);
-        onCancel?.();
+    const startEdit = (id: string, text: string) => {
+        setEditingId(id);
+        setEditingText(text);
     };
 
-    if (!isExpanded) {
-        return (
-            <button
-                onClick={onToggleExpand}
-                className="w-full p-3 rounded-lg bg-[var(--review-bg-tertiary)] border border-[var(--review-border)] hover:border-[var(--review-accent-purple)] transition-colors flex items-center gap-2 text-[var(--review-text-muted)] hover:text-[var(--review-text-secondary)]"
-            >
-                <Plus className="h-4 w-4" />
-                <span className="text-sm">Add comment at {currentTimestamp}</span>
-            </button>
-        );
-    }
+    const commitEdit = (type: 'titles'|'descriptions'|'tags') => {
+        if (!editingId) return;
+        const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
+        const setCurrentList = type === 'titles' ? p.onPostingTitlesChange : type === 'descriptions' ? p.onPostingDescriptionsChange : p.onPostingTagsChange;
+        const text = editingText.trim();
+        if (!text) { setEditingId(null); return; }
+        setCurrentList(currentList.map(i => i.id === editingId ? { ...i, text } : i));
+        setEditingId(null);
+        setEditingText('');
+    };
+
+    const toggleTemplateHashtag = (tag: string) => {
+        const isSelected = p.postingTags.some(t => t.text === tag);
+        const nextItems = isSelected
+            ? p.postingTags.filter(t => t.text !== tag)
+            : [...p.postingTags, { id: `${Date.now()}-${Math.random()}`, text: tag }];
+        p.onPostingTagsChange(nextItems);
+        setTagsText(nextItems.map(t => t.text).join(', '));
+    };
+
+    const hasSeededTags = useRef(false);
+    useEffect(() => {
+        if (hasSeededTags.current) return;
+        if (!p.templateHashtags || p.templateHashtags.length === 0) return;
+        if (p.postingTags.length > 0) { hasSeededTags.current = true; return; }
+        const seeded = p.templateHashtags.map(tag => ({ id: `${Date.now()}-${Math.random()}`, text: tag }));
+        p.onPostingTagsChange(seeded);
+        setTagsText(seeded.map(t => t.text).join(', '));
+        hasSeededTags.current = true;
+    }, [p.templateHashtags, p.postingTags, p.onPostingTagsChange]);
+
+    const handleTabChange = (tab: SidebarTab) => {
+        setSidebarTab(tab);
+        setNewTexts({ titles: '', descriptions: '', tags: '' });
+        setEditingId(null);
+        setEditingText('');
+        setTagsText(p.postingTags.map(t => t.text).join(', '));
+    };
+
+    const isReadyToApprove = sidebarTab === 'titles';
+    const handleApproveClick = () => {
+        if (!isReadyToApprove) {
+            handleTabChange('titles');
+            return;
+        }
+        p.handleStatusChange('approved');
+    };
+
+    const { visibleComments, hasMoreComments } = useMemo(() => {
+        if (p.sortedComments.length <= MAX_RENDERED_COMMENTS) {
+            return { visibleComments: p.sortedComments, hasMoreComments: false };
+        }
+        return {
+            visibleComments: showAllComments
+                ? p.sortedComments
+                : p.sortedComments.slice(-MAX_RENDERED_COMMENTS),
+            hasMoreComments: !showAllComments,
+        };
+    }, [p.sortedComments, showAllComments]);
 
     return (
-        <div className="review-comment-input review-animate-fade-in">
-            {/* Hidden file input for Attach mode */}
-            <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={handleFileChange}
-            />
+        <TooltipProvider delayDuration={300}>
+            <div
+                ref={p.containerRef}
+                className="relative w-full h-full flex flex-col"
+                style={{ background: 'var(--review-bg-primary)' }}
+            >
+                {p.showApprovalSuccess && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
+                        <Card className="bg-green-900/50 border-green-500/50 backdrop-blur-xl">
+                            <CardContent className="p-8 text-center">
+                                <CheckCircle2 className="h-16 w-16 text-green-400 mx-auto mb-4" />
+                                <h3 className="text-xl font-medium text-green-100 mb-2">
+                                    {p.userRole === 'qc'
+                                        ? (p.requiresClientReview ? 'Sent to Client!' : 'Sent to Scheduler!')
+                                        : 'Sent to Scheduler!'}
+                                </h3>
+                                <p className="text-green-300/80">
+                                    {p.userRole === 'qc'
+                                        ? (p.requiresClientReview ? 'Asset has been sent to client for review' : 'Asset has been sent to scheduler for posting')
+                                        : 'Asset has been sent to scheduler for posting'}
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+                {p.showRevisionSuccess && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
+                        <Card className="bg-orange-900/50 border-orange-500/50 backdrop-blur-xl">
+                            <CardContent className="p-8 text-center">
+                                <MessageSquare className="h-16 w-16 text-orange-400 mx-auto mb-4" />
+                                <h3 className="text-xl font-medium text-orange-100 mb-2">
+                                    {p.userRole === 'qc' ? 'Sent Back to Editor' : 'Revisions Requested'}
+                                </h3>
+                                <p className="text-orange-300/80">
+                                    {unresolvedCount} comments sent as feedback
+                                </p>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
 
-            {/* Header */}
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                    {/* Timestamp display with optional range */}
-                    <div className="flex items-center gap-1">
-                        <span className="review-comment-timestamp flex items-center gap-1">
-                            {isGeneral
-                                ? 'General'
-                                : useEndTimestamp && rangeStartSeconds !== null
-                                    ? formatSecondsToTimestamp(rangeStartSeconds)
-                                    : currentTimestamp}
-                        </span>
-                        {useEndTimestamp && (
-                            <>
-                                <span className="text-[var(--review-text-muted)]">–</span>
-                                <div className="relative">
-                                    <div className="relative">
-                                        <Input
-                                            type="text"
-                                            value={endTimestampInput}
-                                            onChange={(e) => {
-                                                setIsEndTracking(false);
-                                                setEndTimestampInput(e.target.value);
-                                            }}
-                                            placeholder="M:SS"
-                                            className={`w-16 h-6 px-1.5 text-xs bg-[var(--review-bg-elevated)] border rounded text-center font-mono ${
-                                                endTimestampError
-                                                    ? 'border-red-500 text-red-400'
-                                                    : isEndTracking
-                                                        ? 'border-[var(--review-accent-purple)] text-[var(--review-accent-purple)]'
-                                                        : 'border-[var(--review-border)] text-white'
-                                            }`}
-                                        />
-                                        {isEndTracking && (
-                                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--review-accent-purple)] animate-pulse" title="Tracking live" />
-                                        )}
-                                    </div>
-                                    {endTimestampError && (
-                                        <div className="absolute top-full left-0 mt-1 text-[10px] text-red-400 whitespace-nowrap">
-                                            {endTimestampError}
-                                        </div>
-                                    )}
-                                    {isEndTracking && !endTimestampError && (
-                                        <div className="absolute top-full left-0 mt-1 text-[10px] text-[var(--review-accent-purple)] whitespace-nowrap">
-                                            Live • click to lock
-                                        </div>
-                                    )}
+                <div className="flex-shrink-0 review-header px-6 py-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => p.onOpenChange(false)} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]">
+                                        <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Go back</TooltipContent>
+                            </Tooltip>
+
+                            <div className="h-6 w-px bg-[var(--review-border)]" />
+
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-lg font-medium text-white">{p.asset.title}</h1>
                                 </div>
-                                {!hideInlineTools && (
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="text-sm text-white">
+                                        {p.duration > 0 ? p.formatTime(p.duration) : p.asset.runtime}
+                                    </span>
+                                    <span className="text-white">•</span>
+                                    <span className="text-sm text-white">{p.measuredResolution || p.asset.resolution}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {p.onSwitchToThumbnail && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={p.onSwitchToThumbnail}
+                                            className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
+                                        >
+                                            <ImageIcon className="h-4 w-4" />
+                                            <span className="text-xs hidden sm:inline">Thumbnails</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">Switch to Thumbnail Review</TooltipContent>
+                                </Tooltip>
+                            )}
+
+                            {p.asset.versions.length > 1 ? (
+                                <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
+                                    <SelectTrigger className="h-8 w-auto min-w-[130px] bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-xs">
+                                        <SelectValue placeholder="Version" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
+                                        {p.asset.versions.map((v: any) => (
+                                            <SelectItem key={v.id} value={v.id} className="text-[var(--review-text-secondary)] hover:text-white text-xs">
+                                                Version {v.number} — {v.uploadDate}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Badge className="bg-[var(--review-bg-tertiary)] text-white text-xs h-8 w-8 p-0 flex items-center justify-center">
+                                    V{p.asset.versions[0]?.number || '1'}
+                                </Badge>
+                            )}
+
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={p.handleDownload} className="text-white hover:text-white bg-blue-600 hover:bg-blue-700 h-8 w-8 p-0">
+                                        <Download className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Download</TooltipContent>
+                            </Tooltip>
+
+                            {p.userRole === 'client' && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="sm" onClick={p.handleGenerateShareLink} disabled={p.generatingLink} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                            {p.generatingLink
+                                                ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                : <Share className="h-4 w-4" />
+                                            }
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">Share link</TooltipContent>
+                                </Tooltip>
+                            )}
+
+                            {p.allClientComments.length > 0 && (
+                                <DropdownMenu>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="sm" className="relative text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                                    <MessageSquare className="h-4 w-4" />
+                                                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                                                        {p.allClientComments.length}
+                                                    </span>
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">Client comments — all versions</TooltipContent>
+                                    </Tooltip>
+                                    <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
+                                        <DropdownMenuLabel className="text-white text-xs">
+                                            Client comments — all versions
+                                        </DropdownMenuLabel>
+                                        <DropdownMenuSeparator className="bg-[var(--review-border)]" />
+                                        {p.allClientComments.map(comment => (
+                                            <DropdownMenuItem
+                                                key={comment.id}
+                                                onClick={() => p.onJumpToClientComment(comment)}
+                                                className="flex flex-col items-start gap-0.5 whitespace-normal text-[var(--review-text-secondary)] focus:bg-[var(--review-bg-tertiary)] focus:text-white cursor-pointer"
+                                            >
+                                                <div className="flex items-center gap-2 w-full">
+                                                    <span className="text-xs font-semibold text-white truncate">{comment.authorName}</span>
+                                                    <Badge className="bg-[var(--review-bg-tertiary)] text-[10px] px-1.5 py-0 shrink-0">V{comment.version ?? 1}</Badge>
+                                                    <span className="text-[10px] text-[var(--review-text-muted)] ml-auto shrink-0">{comment.timestamp}</span>
+                                                </div>
+                                                <p className="text-xs leading-snug break-words">{comment.content}</p>
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-white hover:text-white bg-yellow-500 hover:bg-yellow-600 h-8 w-8 p-0">
+                                        <Info className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Asset info</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                                <TooltipTrigger asChild>
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={disableRangeMode}
-                                        className="h-5 w-5 p-0 text-[var(--review-text-muted)] hover:text-red-400"
-                                        title="Remove end time"
+                                        onClick={p.onSwitchToMobile}
+                                        className="text-black hover:text-black bg-white hover:bg-white h-8 w-8 p-0"
                                     >
-                                        <X className="h-3 w-3" />
+                                        <Smartphone className="h-4 w-4" />
                                     </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Switch to Mobile View</TooltipContent>
+                            </Tooltip>
+
+                            <Button variant="ghost" size="sm" onClick={() => p.onOpenChange(false)} className="text-black hover:text-black bg-red-500 hover:bg-red-600 h-8 w-8 p-0">
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex-1 flex overflow-hidden min-h-0">
+
+                    <div className="flex-1 flex flex-col p-4 pr-0 overflow-hidden">
+                        <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0">
+                            {isVerticalVideo ? (
+                                <div className="!absolute !inset-0 flex items-center justify-center">
+                                    <div
+                                        className="review-video-container h-full w-auto"
+                                        style={{ aspectRatio: exactAspectRatio }}
+                                    >
+                                        {p.videoError ? (
+                                            <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white rounded-lg">
+                                                <div className="text-center p-8">
+                                                    <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+                                                    <h3 className="text-lg mb-2">Video Failed to Load</h3>
+                                                    <div className="flex gap-3 justify-center">
+                                                        <Button variant="outline" size="sm" onClick={() => p.setVideoError(false)} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Retry</Button>
+                                                        <Button variant="outline" size="sm" onClick={() => window.open(p.asset.videoUrl, '_blank')} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Open in New Tab</Button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : p.videoSource.type === 'iframe' ? (
+                                            <div className="relative w-full h-full rounded-lg overflow-hidden">
+                                                {!p.iframeLoaded && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
+                                                        <div className="text-center">
+                                                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4" />
+                                                            <p className="text-sm text-[var(--review-text-muted)]">Loading video...</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <iframe
+                                                    ref={p.iframeRef}
+                                                    className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
+                                                    src={p.videoSource.src}
+                                                    title={`Video player for ${p.asset.title}`}
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                    allowFullScreen
+                                                    onLoad={() => p.setIframeLoaded(true)}
+                                                    onError={() => p.setVideoError(true)}
+                                                />
+                                            </div>
+                                        ) : p.videoSource.type === 'youtube' ? (
+                                            <YoutubePlayer
+                                                ref={p.youtubePlayerRef}
+                                                videoId={p.videoSource.src}
+                                                className="w-full h-full bg-black rounded-lg border border-[var(--review-border)] overflow-hidden"
+                                                onReady={p.handleYoutubeReady}
+                                                onPlay={() => p.setIsPlaying(true)}
+                                                onPause={() => p.setIsPlaying(false)}
+                                                onEnded={() => p.setIsPlaying(false)}
+                                                onError={() => p.handleVideoError()}
+                                                onTimeUpdate={p.setCurrentTime}
+                                                onDurationChange={p.setDuration}
+                                            />
+                                        ) : (
+                                            <>
+                                                <video
+                                                    ref={p.videoRef}
+                                                    crossOrigin="anonymous"
+                                                    className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
+                                                    src={p.videoSource.src}
+                                                    onTimeUpdate={p.handleTimeUpdate}
+                                                    onLoadedMetadata={(e) => {
+                                                        p.setDuration(e.currentTarget.duration);
+                                                        if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
+                                                            p.setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
+                                                        }
+                                                    }}
+                                                    onPlay={() => p.setIsPlaying(true)}
+                                                    onPause={() => p.setIsPlaying(false)}
+                                                    onError={() => p.handleVideoError()}
+                                                    playsInline
+                                                    preload="metadata"
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={p.togglePlay}>
+                                                    {!p.isPlaying && (
+                                                        <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
+                                                            <Play className="h-12 w-12 text-white fill-white" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {showInstagramOverlay && isShortFormTask && (
+                                            <ReviewInstagramOverlay
+                                                defaultUsername={p.asset.client}
+                                                commentCount={p.comments.length}
+                                            />
+                                        )}
+
+                                        {/* IG Reels safe-zone guide — same placement/reasoning as
+                                            the Instagram overlay above. Semi-transparent PNG with a
+                                            fully transparent "safe" middle, so it reads as a guide
+                                            on top of the real frame, not a mockup. */}
+                                        {showGridOverlay && isShortFormTask && (
+                                            <img
+                                                src="/assets/ig-reels-safe-zone.png"
+                                                alt="Instagram Reels safe-zone guide"
+                                                className="absolute inset-0 w-full h-full pointer-events-none select-none z-[105]"
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="relative w-full max-w-5xl aspect-video review-video-container">
+                                    {p.videoError ? (
+                                        <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white rounded-lg">
+                                            <div className="text-center p-8">
+                                                <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+                                                <h3 className="text-lg mb-2">Video Failed to Load</h3>
+                                                <div className="flex gap-3 justify-center">
+                                                    <Button variant="outline" size="sm" onClick={() => p.setVideoError(false)} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Retry</Button>
+                                                    <Button variant="outline" size="sm" onClick={() => window.open(p.asset.videoUrl, '_blank')} className="bg-[var(--review-bg-elevated)] border-[var(--review-border)] text-white">Open in New Tab</Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : p.videoSource.type === 'iframe' ? (
+                                        <div className="relative w-full h-full rounded-lg overflow-hidden">
+                                            {!p.iframeLoaded && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
+                                                    <div className="text-center">
+                                                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4" />
+                                                        <p className="text-sm text-[var(--review-text-muted)]">Loading video...</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <iframe
+                                                ref={p.iframeRef}
+                                                className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
+                                                src={p.videoSource.src}
+                                                title={`Video player for ${p.asset.title}`}
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                allowFullScreen
+                                                onLoad={() => p.setIframeLoaded(true)}
+                                                onError={() => p.setVideoError(true)}
+                                            />
+                                        </div>
+                                    ) : p.videoSource.type === 'youtube' ? (
+                                        <YoutubePlayer
+                                            ref={p.youtubePlayerRef}
+                                            videoId={p.videoSource.src}
+                                            className="w-full h-full bg-black rounded-lg border border-[var(--review-border)] overflow-hidden"
+                                            onReady={p.handleYoutubeReady}
+                                            onPlay={() => p.setIsPlaying(true)}
+                                            onPause={() => p.setIsPlaying(false)}
+                                            onEnded={() => p.setIsPlaying(false)}
+                                            onError={() => p.handleVideoError()}
+                                            onTimeUpdate={p.setCurrentTime}
+                                            onDurationChange={p.setDuration}
+                                        />
+                                    ) : (
+                                        <>
+                                            <video
+                                                ref={p.videoRef}
+                                                crossOrigin="anonymous"
+                                                className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
+                                                src={p.videoSource.src}
+                                                onTimeUpdate={p.handleTimeUpdate}
+                                                onLoadedMetadata={(e) => {
+                                                    p.setDuration(e.currentTarget.duration);
+                                                    if (e.currentTarget.videoWidth && e.currentTarget.videoHeight) {
+                                                        p.setMeasuredResolution(`${e.currentTarget.videoWidth}x${e.currentTarget.videoHeight}`);
+                                                    }
+                                                }}
+                                                onPlay={() => p.setIsPlaying(true)}
+                                                onPause={() => p.setIsPlaying(false)}
+                                                onError={() => p.handleVideoError()}
+                                                playsInline
+                                                preload="metadata"
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={p.togglePlay}>
+                                                {!p.isPlaying && (
+                                                    <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
+                                                        <Play className="h-12 w-12 text-white fill-white" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {drawBaseUrl && videoShellRef.current && (
+                                <ReviewDrawOverlay
+                                    baseImageUrl={drawBaseUrl}
+                                    container={videoShellRef.current}
+                                    onComplete={handleDrawComplete}
+                                    onCancel={exitDrawMode}
+                                />
+                            )}
+                        </div>
+
+                        <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-1.5">
+                            {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
+                                <ReviewCompactTransport
+                                    duration={p.duration}
+                                    currentTime={p.currentTime}
+                                    comments={p.comments}
+                                    activeCommentId={p.activeCommentId}
+                                    currentVersionNumber={p.currentVersionNumber}
+                                    onSeek={p.handleSeek}
+                                    onMarkerClick={p.handleMarkerClick}
+                                    onDragStart={() => p.setIsDragging(true)}
+                                    onDragEnd={() => p.setIsDragging(false)}
+                                    rangeMode={rangeMode}
+                                    activeRange={activeRange}
+                                    onRangeChange={handleRangeChange}
+                                />
+                            )}
+
+                            {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
+                                <div className={`grid items-center gap-3 ${p.readOnly ? 'grid-cols-1' : 'grid-cols-[1fr_auto_1fr]'}`}>
+                                    <div className={`flex ${p.readOnly ? 'justify-center' : 'justify-end'}`}>
+                                        <ReviewPlaybackControls
+                                            currentTime={p.currentTime}
+                                            duration={p.duration}
+                                            isPlaying={p.isPlaying}
+                                            playbackSpeed={p.playbackSpeed}
+                                            onTogglePlay={p.togglePlay}
+                                            onSeek={p.handleSeek}
+                                            onPlaybackSpeedChange={p.handlePlaybackSpeedChange}
+                                        />
+                                    </div>
+                                    {!p.readOnly && <>
+                                        <ReviewModePills
+                                            activeMode={activeMode}
+                                            onSelect={handleModeSelect}
+                                            instagramActive={showInstagramOverlay}
+                                            showInstagram={isShortFormTask}
+                                            gridActive={showGridOverlay}
+                                            showGrid={isShortFormTask}
+                                        />
+                                        <div className="flex items-center justify-start gap-1">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 rounded-md p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
+                                                        aria-label="Settings"
+                                                    >
+                                                        <Settings className="h-4 w-4" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Settings</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={toggleFullscreen}
+                                                        className="h-8 w-8 rounded-md p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
+                                                        aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                                                    >
+                                                        {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>{isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</TooltipContent>
+                                            </Tooltip>
+                                        </div>
+                                    </>}
+                                </div>
+                            )}
+
+                            {p.onNextAsset && (
+                                <div className="flex justify-end">
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="sm" onClick={p.onNextAsset} className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-tertiary)] text-sm">
+                                                Next Asset <ChevronRight className="h-4 w-4 ml-1" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Next file</TooltipContent>
+                                    </Tooltip>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {!p.readOnly && (
+                    <div
+                        className="w-96 flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
+                        style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
+                    >
+                        <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
+                            <div className="grid grid-cols-2 gap-2">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize flex items-center justify-center gap-1 bg-blue-500 text-white hover:bg-blue-600 ${sidebarTab === 'comments' ? '' : 'opacity-60 hover:opacity-100'}`}
+                                        >
+                                            Comments
+                                            <ChevronDown className="h-3 w-3" />
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="center" className="min-w-[140px] border-[var(--review-border)] bg-[var(--review-bg-elevated)] text-white">
+                                        <DropdownMenuItem
+                                            onClick={() => handleModeSelect('general')}
+                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
+                                        >
+                                            General
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => handleModeSelect('comment')}
+                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
+                                        >
+                                            Revisions
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <button
+                                    onClick={() => handleTabChange('titles')}
+                                    className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize bg-orange-500 text-white hover:bg-orange-600 ${sidebarTab === 'titles' ? '' : 'opacity-60 hover:opacity-100'}`}
+                                >
+                                    Titles
+                                </button>
+                            </div>
+                        </div>
+
+                        {sidebarTab === 'comments' && (<>
+                            <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
+                                <CommentInput
+                                    ref={commentInputRef}
+                                    taskId={p.asset.id}
+                                    currentTime={p.currentTime}
+                                    currentTimestamp={p.formatTime(p.currentTime)}
+                                    authorId="current-user"
+                                    authorName={p.userName}
+                                    videoRef={p.videoRef}
+                                    duration={p.duration}
+                                    currentVersionNumber={p.currentVersionNumber}
+                                    onSubmit={(c) => {
+                                        p.handleCommentSubmit(c);
+                                        setActiveMode(null);
+                                        setRangeMode(false);
+                                        setActiveRange(null);
+                                    }}
+                                    onCancel={() => {
+                                        p.setShowCommentInput(false);
+                                        setActiveMode(null);
+                                        setRangeMode(false);
+                                        setActiveRange(null);
+                                    }}
+                                    isExpanded={p.showCommentInput}
+                                    onToggleExpand={() => {
+                                        setActiveMode('comment');
+                                        p.setShowCommentInput(true);
+                                    }}
+                                    hideInlineTools
+                                />
+                            </div>
+                            <div ref={p.commentsRef} className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
+                                {p.sortedComments.length === 0 ? (
+                                    <div className="text-center py-12 text-[var(--review-text-muted)]">
+                                        <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                                        <p className="text-sm">No comments on V{p.currentVersionNumber}</p>
+                                        <p className="text-xs mt-1 opacity-70">
+                                            {p.isClientViewer
+                                                ? 'Add a comment to leave feedback on this version'
+                                                : 'Use Comment / Draw / Voice pills below the player'
+                                            }
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {hasMoreComments && (
+                                            <div className="mb-2 text-[10px] text-[var(--review-text-muted)] text-center">
+                                                Showing last {MAX_RENDERED_COMMENTS} of {p.sortedComments.length} comments.&nbsp;
+                                                <button className="underline hover:text-[var(--review-text-secondary)]" onClick={() => setShowAllComments(true)}>Show all</button>
+                                            </div>
+                                        )}
+                                        <div className="space-y-2">
+                                            {visibleComments.map(comment => (
+                                                <div key={comment.id} id={`comment-${comment.id}`}>
+                                                    <ReviewCommentCard
+                                                        comment={comment}
+                                                        isActive={p.activeCommentId === comment.id}
+                                                        onTimestampClick={p.handleTimestampClick}
+                                                        onResolve={p.handleCommentResolve}
+                                                        onDelete={p.handleCommentDelete}
+                                                        onEdit={p.handleCommentEdit}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
                                 )}
-                            </>
+                            </div>
+                        </>)}
+
+                        {sidebarTab === 'titles' && (
+                            <div className="flex-1 overflow-y-auto review-scrollbar min-h-0">
+                                {(['titles', 'descriptions', 'tags'] as const).map(type => {
+                                    const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
+                                    const cap = CAPS[type];
+                                    const atCap = currentList.length >= cap;
+                                    const labels = {
+                                        titles: { singular: 'title', placeholder: 'Add a title…' },
+                                        descriptions: { singular: 'description', placeholder: 'Add a description…' },
+                                        tags: { singular: 'tag', placeholder: 'Add a tag…' },
+                                    };
+                                    const { singular, placeholder } = labels[type];
+
+                                    if (type === 'descriptions' || type === 'tags') {
+                                        const isTags = type === 'tags';
+                                        return (
+                                            <div key={type} className="border-b border-[var(--review-border)] last:border-0 pb-4 mb-2 last:mb-0">
+                                                <div className="p-3 pb-1 sticky top-0 bg-[var(--review-bg-secondary)] z-10 border-b border-[var(--review-border)]/50">
+                                                    <span className="text-xs font-semibold text-white capitalize">{type}</span>
+                                                </div>
+                                                <div className="px-3 pt-2">
+                                                    {isTags && (p.templateHashtags?.length ?? 0) > 0 && (
+                                                        <div className="mb-2.5">
+                                                            <span className="text-[10px] font-medium text-[var(--review-text-muted)] uppercase tracking-wide">
+                                                                Client tags
+                                                            </span>
+                                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                                {p.templateHashtags!.map(tag => {
+                                                                    const selected = p.postingTags.some(t => t.text === tag);
+                                                                    return (
+                                                                        <button
+                                                                            key={tag}
+                                                                            type="button"
+                                                                            onClick={() => toggleTemplateHashtag(tag)}
+                                                                            className={`px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+                                                                                selected
+                                                                                    ? 'bg-[var(--review-status-approved)] border-[var(--review-status-approved)] text-white'
+                                                                                    : 'bg-transparent border-[var(--review-border)] text-[var(--review-text-muted)] hover:border-[var(--review-status-approved)]/60 hover:text-white'
+                                                                            }`}
+                                                                        >
+                                                                            {tag}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {isTags ? (
+                                                        <Textarea
+                                                            value={tagsText}
+                                                            onChange={e => {
+                                                                const raw = e.target.value;
+                                                                setTagsText(raw);
+                                                                const items = raw
+                                                                    .split(/[,\n]/)
+                                                                    .map(t => t.trim())
+                                                                    .filter(Boolean)
+                                                                    .map(text => ({ id: `${Date.now()}-${Math.random()}`, text }));
+                                                                p.onPostingTagsChange(items);
+                                                            }}
+                                                            placeholder="Add tags, separated by commas…"
+                                                            rows={3}
+                                                            className="text-xs bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] resize-y"
+                                                        />
+                                                    ) : (
+                                                        <Textarea
+                                                            value={p.postingDescriptions[0]?.text ?? ''}
+                                                            onChange={e => {
+                                                                const text = e.target.value;
+                                                                if (!text.trim()) {
+                                                                    p.onPostingDescriptionsChange([]);
+                                                                } else if (p.postingDescriptions.length === 0) {
+                                                                    p.onPostingDescriptionsChange([{ id: `${Date.now()}-${Math.random()}`, text }]);
+                                                                } else {
+                                                                    p.onPostingDescriptionsChange([{ ...p.postingDescriptions[0], text }]);
+                                                                }
+                                                            }}
+                                                            placeholder={placeholder}
+                                                            rows={5}
+                                                            className="text-xs bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] resize-y"
+                                                        />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div key={type} className="border-b border-[var(--review-border)] last:border-0 pb-4 mb-2 last:mb-0">
+                                            <div className="p-3 pb-1 space-y-2 sticky top-0 bg-[var(--review-bg-secondary)] z-10 border-b border-[var(--review-border)]/50">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-semibold text-white capitalize">{type}</span>
+                                                    <span className={`text-[10px] font-medium ${atCap ? 'text-red-400' : 'text-[var(--review-text-muted)]'}`}>
+                                                        {currentList.length}/{cap}
+                                                    </span>
+                                                </div>
+                                                <div className="flex gap-1.5 pb-2">
+                                                    <Input
+                                                        value={newTexts[type]}
+                                                        onChange={e => setNewTexts({ ...newTexts, [type]: e.target.value })}
+                                                        placeholder={atCap ? `Max ${cap} ${singular}s reached` : placeholder}
+                                                        disabled={atCap}
+                                                        className="flex-1 text-xs h-8 bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] disabled:opacity-40"
+                                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(type); } }}
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        disabled={atCap || !newTexts[type].trim()}
+                                                        onClick={() => addItem(type)}
+                                                        className="h-8 px-2.5 bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white shrink-0"
+                                                    >
+                                                        <Plus className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            <div className="px-3 space-y-2 mt-2">
+                                                {currentList.length === 0 ? (
+                                                    <div className="text-center py-4 text-[var(--review-text-muted)]">
+                                                        <p className="text-xs opacity-70">No {singular}s yet</p>
+                                                    </div>
+                                                ) : currentList.map(item => (
+                                                    <div
+                                                        key={item.id}
+                                                        className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
+                                                    >
+                                                        {editingId === item.id ? (
+                                                            <div className="space-y-1.5">
+                                                                <Input
+                                                                    value={editingText}
+                                                                    onChange={e => setEditingText(e.target.value)}
+                                                                    className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
+                                                                    autoFocus
+                                                                    onKeyDown={e => {
+                                                                        if (e.key === 'Enter') commitEdit(type);
+                                                                        if (e.key === 'Escape') { setEditingId(null); setEditingText(''); }
+                                                                    }}
+                                                                />
+                                                                <div className="flex gap-1">
+                                                                    <Button size="sm" onClick={() => commitEdit(type)} className="h-6 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditingText(''); }} className="h-6 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-start gap-2">
+                                                                <p className="flex-1 text-xs text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
+                                                                <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <button
+                                                                        onClick={() => startEdit(item.id, item.text)}
+                                                                        className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
+                                                                        title={`Edit ${singular}`}
+                                                                    >
+                                                                        <PenLine className="h-3 w-3" />
+                                                                    </button>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <button
+                                                                                onClick={() => deleteItem(type, item.id)}
+                                                                                disabled={type === 'titles' && p.userRole === 'client' && currentList.length <= 1}
+                                                                                className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--review-text-muted)]"
+                                                                                title={`Delete ${singular}`}
+                                                                            >
+                                                                                <X className="h-3 w-3" />
+                                                                            </button>
+                                                                        </TooltipTrigger>
+                                                                        {type === 'titles' && p.userRole === 'client' && currentList.length <= 1 && (
+                                                                            <TooltipContent side="left" className="text-xs max-w-[160px]">
+                                                                                At least one title must be kept
+                                                                            </TooltipContent>
+                                                                        )}
+                                                                    </Tooltip>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         )}
-                        {!hideInlineTools && !useEndTimestamp && !isGeneral && videoRef && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={enableRangeMode}
-                                className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
-                                title="Add end time for a range (e.g., 1:00 - 1:28)"
-                            >
-                                <Clock className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Range</span>
-                            </Button>
-                        )}
-                        {!hideInlineTools && !hideGeneralToggle && !useEndTimestamp && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={toggleGeneral}
-                                className={`h-6 gap-1 px-2 hover:bg-[var(--review-bg-elevated)] ${
-                                    isGeneral
-                                        ? 'text-[var(--review-accent-purple)]'
-                                        : 'text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)]'
-                                }`}
-                                title="Not tied to a specific time"
-                            >
-                                <Globe className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">General</span>
-                            </Button>
-                        )}
+
+                        <div className="p-4 pb-6 border-t border-[var(--review-border)] flex flex-col gap-2.5 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
+                            {p.userRole === 'qc' ? (
+                                <>
+                                    {!p.requiresClientReview && (
+                                        <label className="flex items-center gap-2 px-1 pb-1 text-xs text-[var(--review-text-secondary)] cursor-pointer select-none">
+                                            <Checkbox
+                                                checked={!!p.forceClientReviewOverride}
+                                                onCheckedChange={(checked) => p.onForceClientReviewOverrideChange?.(checked === true)}
+                                            />
+                                            Send this video to client review anyway
+                                        </label>
+                                    )}
+                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={handleApproveClick} disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}>
+                                        {isReadyToApprove
+                                            ? <><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Confirm Approve</>
+                                            : (p.requiresClientReview || p.forceClientReviewOverride)
+                                                ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve</>
+                                                : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve</>
+                                        }
+                                    </Button>
+                                    <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={unresolvedCount === 0 || p.savingFeedback}>
+                                        {p.savingFeedback
+                                            ? <><div className="h-3.5 w-3.5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />Saving...</>
+                                            : <><MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Send Back ({unresolvedCount} comments)</>
+                                        }
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex items-start gap-2 mb-1">
+                                        <Checkbox
+                                            id="confirm-final-desktop"
+                                            checked={p.confirmFinal}
+                                            onCheckedChange={v => p.setConfirmFinal(v as boolean)}
+                                            className="mt-0.5"
+                                        />
+                                        <label htmlFor="confirm-final-desktop" className="text-xs text-[var(--review-text-secondary)] cursor-pointer">
+                                            I confirm this is the final version for publishing
+                                        </label>
+                                    </div>
+                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={handleApproveClick} disabled={!p.confirmFinal || p.asset.approvalLocked || unresolvedCount > 0}>
+                                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />{isReadyToApprove ? 'Confirm Approve' : 'Approve'}
+                                    </Button>
+                                    <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0}>
+                                        <MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Request Revisions
+                                    </Button>
+                                </>
+                            )}
+                        </div>
                     </div>
-                    {hasCaptureSource && (
-                        <div className="flex items-center gap-1">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={captureFullFrame}
-                                className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
-                                title={videoRef ? 'Capture full frame' : 'Capture full image'}
-                            >
-                                <Camera className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Full</span>
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleStartSnip}
-                                className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
-                                title="Select area to snip"
-                            >
-                                <Crop className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Snip</span>
-                            </Button>
+                    )}
+
+                    {p.showInfoPanel && (
+                        <div className="w-64 flex-shrink-0 flex flex-col bg-[var(--review-bg-secondary)] border-l border-[var(--review-border)] p-4 review-animate-slide-in review-scrollbar overflow-y-auto">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-medium text-white text-sm">Asset Details</h3>
+                                <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(false)} className="h-6 w-6 p-0 text-[var(--review-text-muted)] hover:text-white">
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            <div className="space-y-3 text-sm">
+                                {p.currentFileSection && (
+                                    <>
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] text-xs mb-0.5">Section</div>
+                                            <div className="text-white capitalize">{p.currentFileSection.folderType}</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-[var(--review-text-muted)] text-xs mb-0.5">Version</div>
+                                            <div className="text-white">v{p.currentFileSection.version}</div>
+                                        </div>
+                                    </>
+                                )}
+                                <div><div className="text-[var(--review-text-muted)] text-xs mb-0.5">Resolution</div><div className="text-white">{p.measuredResolution || p.asset.resolution}</div></div>
+                                <div><div className="text-[var(--review-text-muted)] text-xs mb-0.5">File Size</div><div className="text-white">{p.asset.fileSize}</div></div>
+                                <div><div className="text-[var(--review-text-muted)] text-xs mb-0.5">Platform</div><div className="text-white">{p.asset.platform}</div></div>
+                                <div><div className="text-[var(--review-text-muted)] text-xs mb-0.5">Uploaded</div><div className="text-white">{p.asset.uploadDate}</div></div>
+                                <div><div className="text-[var(--review-text-muted)] text-xs mb-0.5">Uploader</div><div className="text-white">{p.asset.uploader}</div></div>
+                                {p.shareLink && (
+                                    <div className="pt-3 mt-3 border-t border-[var(--review-border)]">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[var(--review-text-muted)] text-xs">Share Link</span>
+                                            <Button variant="ghost" size="sm" className="h-5 p-1 text-blue-400 hover:text-blue-300" onClick={p.handleCopyLink}>
+                                                {p.linkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                            </Button>
+                                        </div>
+                                        <div className="bg-[var(--review-bg-tertiary)] p-1.5 rounded text-[10px] break-all font-mono text-blue-300 border border-blue-500/20">
+                                            {p.shareLink}
+                                        </div>
+                                        <Button variant="outline" size="sm" className="w-full mt-2 h-6 text-[10px] bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20" onClick={() => p.setShowShareDialog(true)}>
+                                            Manage Share
+                                        </Button>
+                                    </div>
+                                )}
+
+                            </div>
                         </div>
                     )}
                 </div>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleCancel}
-                    className="h-6 w-6 p-0 text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-elevated)]"
-                >
-                    <X className="h-4 w-4" />
-                </Button>
+
+                <ShareDialog
+                    open={p.showShareDialog}
+                    onOpenChange={p.setShowShareDialog}
+                    shareLink={p.shareLink}
+                    onCopy={p.handleCopyLink}
+                    copied={p.linkCopied}
+                />
             </div>
-
-            {/* Screenshot Preview */}
-            {screenshotUrl && (
-                <div className="mb-3 relative group w-fit">
-                    <img
-                        src={screenshotUrl}
-                        alt="Captured frame"
-                        className="h-24 rounded border border-[var(--review-border)] hover:border-[var(--review-accent-purple)] transition-colors cursor-pointer object-cover"
-                    />
-                    <button
-                        onClick={() => setScreenshotUrl(null)}
-                        className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                        title="Remove screenshot"
-                    >
-                        <X className="h-3 w-3" />
-                    </button>
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center rounded">
-                        <span className="text-[10px] text-white font-bold px-2 py-1 bg-black/60 rounded">Captured</span>
-                    </div>
-                </div>
-            )}
-
-            {/* Voice recording / playback */}
-            {(isRecording || audioUrl) && (
-                <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-elevated)]/60 px-2.5 py-2">
-                    {isRecording ? (
-                        <>
-                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                            <span className="text-xs text-red-300 font-medium flex-1">Recording…</span>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={stopVoiceRecording}
-                                className="h-7 gap-1 px-2 text-red-300 hover:text-white hover:bg-red-500/20"
-                            >
-                                <Square className="h-3 w-3 fill-current" />
-                                <span className="text-[10px] uppercase font-bold">Stop</span>
-                            </Button>
-                        </>
-                    ) : audioUrl ? (
-                        <>
-                            <Mic className="h-3.5 w-3.5 text-[var(--review-accent-purple)]" />
-                            <audio src={audioUrl} controls className="h-7 flex-1 max-w-[220px]" />
-                            <button
-                                onClick={() => {
-                                    URL.revokeObjectURL(audioUrl);
-                                    setAudioUrl(null);
-                                }}
-                                className="text-[var(--review-text-muted)] hover:text-red-400"
-                                title="Remove voice note"
-                            >
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        </>
-                    ) : null}
-                </div>
-            )}
-
-            {/* Attachment previews (uploaded to R2 at submit time) */}
-            {attachedFiles.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                    {attachedFiles.map((f, idx) => (
-                        <div
-                            key={`${f.name}-${idx}`}
-                            className="flex items-center gap-1.5 rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-elevated)]/60 pl-2 pr-1 py-1.5"
-                        >
-                            <FileIcon className="h-3.5 w-3.5 text-[var(--review-accent-purple)] shrink-0" />
-                            <span className="text-xs text-white max-w-[140px] truncate">{f.name}</span>
-                            <button
-                                onClick={() => removeAttachedFile(idx)}
-                                className="text-[var(--review-text-muted)] hover:text-red-400 ml-0.5"
-                                title="Remove attachment"
-                            >
-                                <X className="h-3.5 w-3.5" />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Textarea */}
-            <Textarea
-                ref={textareaRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Add your feedback..."
-                className="min-h-[80px] bg-transparent border-none resize-none text-white placeholder:text-[var(--review-text-muted)] focus-visible:ring-0 p-0"
-            />
-
-            {/* Category Selector */}
-            <div className="flex items-center gap-1 mt-3 mb-3 flex-wrap">
-                {COMMENT_CATEGORIES.map((cat) => (
-                    <button
-                        key={cat.value}
-                        onClick={() => setCategory(cat.value)}
-                        className={`review-category-pill cursor-pointer transition-all ${category === cat.value
-                            ? 'ring-1 ring-offset-1 ring-offset-[var(--review-bg-tertiary)]'
-                            : 'opacity-60 hover:opacity-100'
-                            }`}
-                        data-category={cat.value}
-                        style={{
-                            '--tw-ring-color': cat.color,
-                        } as React.CSSProperties}
-                    >
-                        {cat.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between pt-2 border-t border-[var(--review-border)]">
-                <span className="text-xs text-[var(--review-text-muted)]">
-                    ⌘/Ctrl + Enter to submit
-                </span>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCancel}
-                        className="text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-elevated)]"
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        size="sm"
-                        onClick={handleSubmit}
-                        disabled={(!content.trim() && !audioUrl && attachedFiles.length === 0 && !screenshotUrl) || isSubmitting || isRecording}
-                        className="bg-[var(--review-accent-purple)] hover:bg-[var(--review-accent-purple)]/90 text-white"
-                    >
-                        {isUploadingAttachments ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                        ) : (
-                            <Send className="h-4 w-4 mr-1" />
-                        )}
-                        {isUploadingAttachments ? 'Uploading…' : 'Post'}
-                    </Button>
-                </div>
-            </div>
-
-            {/* Snip: drag-to-select overlay portal, positioned over the video/image */}
-            {isSelectingArea && (videoRef?.current?.parentElement || imageRef?.current?.parentElement) && createPortal(
-                <div
-                    className="absolute inset-0 z-[100] cursor-crosshair bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center"
-                    onMouseDown={handleSnipMouseDown}
-                    onMouseMove={handleSnipMouseMove}
-                    onMouseUp={handleSnipMouseUp}
-                >
-                    <div className="absolute top-4 bg-black/80 text-white px-3 py-1 rounded text-xs border border-white/20 select-none animate-bounce">
-                        Drag to select area
-                    </div>
-                    {selectionRect && (
-                        <div
-                            className="absolute border-2 border-dashed border-[var(--review-accent-purple)] bg-[var(--review-accent-purple)]/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]"
-                            style={{
-                                left: selectionRect.x,
-                                top: selectionRect.y,
-                                width: selectionRect.w,
-                                height: selectionRect.h,
-                            }}
-                        />
-                    )}
-                    <button
-                        className="absolute bottom-4 bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-full text-xs font-bold transition-all shadow-lg select-none"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            cancelSnip();
-                        }}
-                    >
-                        Cancel
-                    </button>
-                </div>,
-                (videoRef?.current?.parentElement || imageRef?.current?.parentElement)!
-            )}
-        </div>
+        </TooltipProvider>
     );
-});
+}
