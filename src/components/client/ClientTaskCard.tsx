@@ -11,7 +11,6 @@ import {
   Download,
 } from 'lucide-react';
 import {
-  autoThumbnailKeyForVideo,
   getTaskCardThumbnailUrl,
   taskThumbnailFallbackLabel,
 } from '@/lib/task-thumbnail';
@@ -53,9 +52,7 @@ interface ClientTaskCardProps {
 
 // Helper to get thumbnail from task files
 function getTaskThumbnailFromFiles(files?: TaskFile[]): string | null {
-  return getTaskCardThumbnailUrl(files as any, {
-    buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-urls?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
-  });
+  return getTaskCardThumbnailUrl(files as any);
 }
 
 export const ClientTaskCard = memo(function ClientTaskCard({

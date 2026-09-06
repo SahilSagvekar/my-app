@@ -53,7 +53,7 @@ import { useClientTasks } from '../../lib/hooks/useClientTasks';
 import { useEffectiveClientId } from '../../lib/hooks/useEffectiveClientId';
 import { ClientTaskCard } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
-import { autoThumbnailKeyForVideo, getTaskCardThumbnailUrl } from '@/lib/task-thumbnail';
+import { getTaskCardThumbnailUrl } from '@/lib/task-thumbnail';
 
 interface TaskFile {
   id: string;
@@ -1100,9 +1100,7 @@ export function ClientDashboard() {
   };
 
   const getTaskThumbnail = (task: ClientTask) => {
-    return getTaskCardThumbnailUrl(task.files as any, {
-      buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-urls?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
-    });
+    return getTaskCardThumbnailUrl(task.files as any);
   };
 
   const isOverdue = (task: ClientTask) => new Date(task.dueDate) < new Date();
@@ -1525,60 +1523,6 @@ export function ClientDashboard() {
                 )}
               </div>
 
-              {/* 🔧 FIX: Changed mt-4 to mt-auto + flex-shrink-0 so buttons stay pinned at bottom */}
-              {/* <div className="flex items-center justify-end gap-3 pt-4 border-t mt-auto flex-shrink-0">
-                <Button
-                  variant="outline"
-                  className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 mr-auto "
-                  onClick={() => handleDownloadAllFiles()}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Files
-                </Button>
-
-                {!(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED' || selectedTask.status === 'POSTED') && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowFileSelector(false);
-                        setShowRevisionDialog(true);
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Request Revisions
-                    </Button>
-                    <Button
-                      onClick={() => handleApprove()}
-                      disabled={isSubmitting}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Approve All
-                    </Button>
-                  </>
-                )}
-
-                {user?.hasPostingServices !== false && (selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED') && (
-                  <Button
-                    onClick={() => handleMarkAsPosted()}
-                    disabled={isSubmitting}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Mark as Posted
-                  </Button>
-                )}
-
-                {selectedTask.status === 'POSTED' && (
-                  <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-md border border-orange-100 font-medium">
-                    <ExternalLink className="h-4 w-4" />
-                    Content Posted
-                  </div>
-                )}
-              </div> */}
-
               {/* Bottom Action Bar */}
               <div className="flex flex-col gap-3 pt-4 border-t mt-auto flex-shrink-0">
                 {/* Share + Download, matching the card buttons: orange Share,
@@ -1611,29 +1555,6 @@ export function ClientDashboard() {
                   selectedTask.status === "POSTED"
                 ) && (
                     <div className="flex items-center gap-3">
-                      {/* <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => {
-                          setShowFileSelector(false);
-                          setShowRevisionDialog(true);
-                        }}
-                        disabled={isSubmitting}
-                      >
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                        Request Revisions
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => handleApprove()}
-                        disabled={isSubmitting}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Approve All
-                      </Button> */}
                     </div>
                   )}
 

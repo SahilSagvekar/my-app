@@ -27,7 +27,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
 import {
-  autoThumbnailKeyForVideo,
+  // autoThumbnailKeyForVideo,
   getTaskCardThumbnailUrl,
   taskThumbnailFallbackLabel,
   taskHasThumbnailFiles,
@@ -817,11 +817,15 @@ useEffect(() => {
     }
   };
 
+  // const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
+  //   return getTaskCardThumbnailUrl(task.files, {
+  //     buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-urls?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
+  //   });
+  // };
+
   const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
-    return getTaskCardThumbnailUrl(task.files, {
-      buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-urls?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
-    });
-  };
+  return getTaskCardThumbnailUrl(task.files);
+};
 
   const isHardPostTask = (task: EnhancedWorkflowTask) => {
     const type = ((task as any).deliverableType || task.taskType || '').toLowerCase();
