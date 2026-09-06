@@ -11,7 +11,8 @@ import {
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment } from './types';
+// import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment } from './types';
+import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment } from '../review/types';
 import {
     Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon, Loader2, Globe,
 } from 'lucide-react';
