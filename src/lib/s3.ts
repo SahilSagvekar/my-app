@@ -284,10 +284,22 @@ export function extractS3KeyFromUrl(s3Url: string): string | null {
     // Remove leading slash
     pathname = pathname.startsWith("/") ? pathname.substring(1) : pathname;
 
+    // R2's raw S3-API endpoint (<account>.r2.cloudflarestorage.com) is
+    // path-style: the URL is /<bucket>/<key>, unlike a virtual-hosted S3
+    // URL or an R2 public custom domain, where the pathname already IS
+    // the key with no bucket prefix. Strip the leading bucket segment so
+    // callers get the real object key — leaving it in would make a
+    // re-signed URL look for "<bucket>/<real-key>" inside the bucket,
+    // a doubly-nested path that doesn't exist.
+    if (url.hostname.includes("r2.cloudflarestorage.com")) {
+      const firstSlash = pathname.indexOf("/");
+      pathname = firstSlash === -1 ? "" : pathname.slice(firstSlash + 1);
+    }
+
     // 🔥 Decode URL encoding (critical for files with spaces, #, etc.)
     pathname = decodeURIComponent(pathname);
 
-    return pathname;
+    return pathname || null;
   } catch (error) {
     console.error("Error extracting S3 key:", error);
     return null;
