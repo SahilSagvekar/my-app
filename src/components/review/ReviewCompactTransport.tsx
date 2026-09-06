@@ -215,7 +215,7 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
     };
 
     return (
-        <div className="review-compact-transport w-full min-w-0 py-1 px-8">
+        <div className="review-compact-transport w-full min-w-0 py-0 px-8">
             <div
                     ref={trackRef}
                     className={`review-compact-scrub relative h-4 flex items-center group ${rangeMode ? 'cursor-crosshair' : 'cursor-pointer'}`}

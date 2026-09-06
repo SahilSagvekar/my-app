@@ -840,7 +840,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             )}
                         </div>
 
-                        <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-0">
+                        <div className="flex-shrink-0 px-4 pt-0 pb-3 space-y-0">
                             {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
                                 <ReviewCompactTransport
                                     duration={p.duration}
