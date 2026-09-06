@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Mic, Clock, Paperclip, Grid3x3, Globe } from 'lucide-react';
+import { Pencil, Mic, Clock, Paperclip, Grid3x3 } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -35,7 +35,6 @@ const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
     { id: 'draw', label: 'Draw', Icon: Pencil },
     { id: 'voice', label: 'Voice', Icon: Mic },
     { id: 'range', label: 'Range', Icon: Clock },
-    { id: 'general', label: 'General', Icon: Globe },
     { id: 'attach', label: 'Attach', Icon: Paperclip },
 ];
 
@@ -49,7 +48,7 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
             <div
                 role="tablist"
                 aria-label="Comment modes"
-                className="inline-flex items-stretch rounded-full border border-[var(--review-border)] bg-[var(--review-bg-tertiary)]/80 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                className="inline-flex items-stretch rounded-md border border-[var(--review-border)] bg-[var(--review-bg-tertiary)]/80 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
             >
                 {BASE_MODES.map(({ id, label, Icon }, index) => {
                     const isActive = activeMode === id;
@@ -64,8 +63,8 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                             className={[
                                 'relative flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150',
                                 'disabled:opacity-40 disabled:cursor-not-allowed',
-                                index === 0 ? 'rounded-l-full' : '',
-                                index === pillCount - 1 ? 'rounded-r-full' : '',
+                                index === 0 ? 'rounded-l-md' : '',
+                                index === pillCount - 1 && !showGridDropdown ? 'rounded-r-md' : '',
                                 isActive
                                     ? 'bg-[var(--review-bg-elevated)] text-white shadow-sm ring-1 ring-white/10'
                                     : 'text-[var(--review-text-muted)] hover:text-white',
@@ -86,7 +85,7 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                                 aria-selected={gridDropdownActive}
                                 disabled={disabled}
                                 className={[
-                                    'relative flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150 rounded-r-full',
+                                    'relative flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150 rounded-r-md',
                                     'disabled:opacity-40 disabled:cursor-not-allowed',
                                     gridDropdownActive
                                         ? 'bg-[var(--review-bg-elevated)] text-white shadow-sm ring-1 ring-white/10'

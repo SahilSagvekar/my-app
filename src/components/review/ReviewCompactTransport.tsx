@@ -93,7 +93,7 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
     };
 
     return (
-        <div className="review-compact-transport w-full min-w-0 py-1">
+        <div className="review-compact-transport w-full min-w-0 py-1 px-2">
             <div
                     ref={trackRef}
                     className="review-compact-scrub relative h-4 flex items-center cursor-pointer group"
@@ -120,10 +120,10 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
                             <button
                                 key={comment.id}
                                 type="button"
-                                className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full z-[2] transition-transform hover:scale-150 ${
+                                className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[2px] rounded-none z-[2] transition-all hover:h-4 ${
                                     isActive
-                                        ? 'bg-white ring-2 ring-[var(--review-accent-purple)]'
-                                        : 'bg-[var(--review-accent-purple)]/90'
+                                        ? 'h-4 bg-white shadow-[0_0_4px_rgba(255,255,255,0.9)]'
+                                        : 'h-3 bg-white/80'
                                 }`}
                                 style={{ left: `${left}%` }}
                                 title={`${comment.timestamp}: ${comment.content.slice(0, 60)}`}

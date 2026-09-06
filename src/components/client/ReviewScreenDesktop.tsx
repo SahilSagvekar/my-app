@@ -26,10 +26,10 @@ import {
 } from '../ui/tooltip';
 import {
     X, Download, Share, Play,
-    CheckCircle2, MessageSquare, Calendar, ChevronRight,
+    CheckCircle2, MessageSquare, Calendar, ChevronRight, ChevronDown,
     AlertCircle, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
-    PenLine, ImageIcon,
+    PenLine, ImageIcon, Settings, Maximize, Minimize,
 } from 'lucide-react';
 import {
     ReviewCommentCard,
@@ -169,6 +169,23 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const [showInstagramOverlay, setShowInstagramOverlay] = useState(false);
     const [showGridOverlay, setShowGridOverlay] = useState(false);
     const videoShellRef = useRef<HTMLDivElement>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    const toggleFullscreen = useCallback(() => {
+        if (!document.fullscreenElement) {
+            videoShellRef.current?.requestFullscreen?.().catch(() => {});
+        } else {
+            document.exitFullscreen?.().catch(() => {});
+        }
+    }, []);
     type SidebarTab = 'comments' | 'titles';
     const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
 
@@ -795,7 +812,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             )}
                         </div>
 
-                        <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-3">
+                        <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-1.5">
                             {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
                                 <ReviewCompactTransport
                                     duration={p.duration}
@@ -832,7 +849,35 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             gridActive={showGridOverlay}
                                             showGrid={isShortFormTask}
                                         />
-                                        <div aria-hidden="true" />
+                                        <div className="flex items-center justify-start gap-1">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 rounded-md p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
+                                                        aria-label="Settings"
+                                                    >
+                                                        <Settings className="h-4 w-4" />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>Settings</TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={toggleFullscreen}
+                                                        className="h-8 w-8 rounded-md p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
+                                                        aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                                                    >
+                                                        {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>{isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}</TooltipContent>
+                                            </Tooltip>
+                                        </div>
                                     </>}
                                 </div>
                             )}
@@ -859,23 +904,36 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     >
                         <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
                             <div className="grid grid-cols-2 gap-2">
-                                {(['comments', 'titles'] as const).map(tab => {
-                                    const isComments = tab === 'comments';
-                                    const isActive = sidebarTab === tab;
-                                    const colorClasses = isComments
-                                        ? `bg-blue-500 text-white hover:bg-blue-600 ${isActive ? '' : 'opacity-60 hover:opacity-100'}`
-                                        : `bg-orange-500 text-white hover:bg-orange-600 ${isActive ? '' : 'opacity-60 hover:opacity-100'}`;
-
-                                    return (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
                                         <button
-                                            key={tab}
-                                            onClick={() => handleTabChange(tab)}
-                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize ${colorClasses}`}
+                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize flex items-center justify-center gap-1 bg-blue-500 text-white hover:bg-blue-600 ${sidebarTab === 'comments' ? '' : 'opacity-60 hover:opacity-100'}`}
                                         >
-                                            {tab === 'comments' ? 'Comments' : 'Titles'}
+                                            Comments
+                                            <ChevronDown className="h-3 w-3" />
                                         </button>
-                                    );
-                                })}
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="center" className="min-w-[140px] border-[var(--review-border)] bg-[var(--review-bg-elevated)] text-white">
+                                        <DropdownMenuItem
+                                            onClick={() => handleModeSelect('general')}
+                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
+                                        >
+                                            General
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => handleModeSelect('comment')}
+                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
+                                        >
+                                            Revisions
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <button
+                                    onClick={() => handleTabChange('titles')}
+                                    className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize bg-orange-500 text-white hover:bg-orange-600 ${sidebarTab === 'titles' ? '' : 'opacity-60 hover:opacity-100'}`}
+                                >
+                                    Titles
+                                </button>
                             </div>
                         </div>
 
