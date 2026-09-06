@@ -819,7 +819,7 @@ useEffect(() => {
 
   const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
     return getTaskCardThumbnailUrl(task.files, {
-      buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-url?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
+      buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-urls?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
     });
   };
 

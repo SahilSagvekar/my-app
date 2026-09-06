@@ -1101,7 +1101,7 @@ export function ClientDashboard() {
 
   const getTaskThumbnail = (task: ClientTask) => {
     return getTaskCardThumbnailUrl(task.files as any, {
-      buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-url?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
+      buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-urls?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
     });
   };
 
