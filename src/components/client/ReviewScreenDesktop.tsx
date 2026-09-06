@@ -296,10 +296,22 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
             return;
         }
 
-        if (mode === 'general' && activeMode === 'general') {
+        if (mode === 'general') {
+            setActiveMode('general');
             p.setShowCommentInput(true);
-            window.requestAnimationFrame(() => commentInputRef.current?.toggleGeneral());
-            setActiveMode(null);
+            window.requestAnimationFrame(() => {
+                commentInputRef.current?.setGeneral(true);
+            });
+            return;
+        }
+
+        if (mode === 'comment') {
+            setActiveMode('comment');
+            p.setShowCommentInput(true);
+            window.requestAnimationFrame(() => {
+                commentInputRef.current?.setGeneral(false);
+                commentInputRef.current?.openComment();
+            });
             return;
         }
 
@@ -310,17 +322,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
             const api = commentInputRef.current;
             if (!api) return;
             switch (mode) {
-                case 'comment':
-                    api.openComment();
-                    break;
                 case 'voice':
                     api.startVoice();
                     break;
                 case 'attach':
                     api.openAttach();
-                    break;
-                case 'general':
-                    api.toggleGeneral();
                     break;
             }
         });
@@ -651,7 +657,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         style={{ aspectRatio: exactAspectRatio }}
                                     >
                                         {p.videoError ? (
-                                            <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white rounded-lg">
+                                            <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white">
                                                 <div className="text-center p-8">
                                                     <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
                                                     <h3 className="text-lg mb-2">Video Failed to Load</h3>
@@ -662,7 +668,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 </div>
                                             </div>
                                         ) : p.videoSource.type === 'iframe' ? (
-                                            <div className="relative w-full h-full rounded-lg overflow-hidden">
+                                            <div className="relative w-full h-full overflow-hidden">
                                                 {!p.iframeLoaded && (
                                                     <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
                                                         <div className="text-center">
@@ -673,7 +679,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 )}
                                                 <iframe
                                                     ref={p.iframeRef}
-                                                    className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
+                                                    className="w-full h-full bg-black border border-[var(--review-border)]"
                                                     src={p.videoSource.src}
                                                     title={`Video player for ${p.asset.title}`}
                                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -686,7 +692,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             <YoutubePlayer
                                                 ref={p.youtubePlayerRef}
                                                 videoId={p.videoSource.src}
-                                                className="w-full h-full bg-black rounded-lg border border-[var(--review-border)] overflow-hidden"
+                                                className="w-full h-full bg-black border border-[var(--review-border)] overflow-hidden"
                                                 onReady={p.handleYoutubeReady}
                                                 onPlay={() => p.setIsPlaying(true)}
                                                 onPause={() => p.setIsPlaying(false)}
@@ -700,7 +706,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 <video
                                                     ref={p.videoRef}
                                                     crossOrigin="anonymous"
-                                                    className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
+                                                    className="w-full h-full object-contain bg-black border border-[var(--review-border)]"
                                                     src={p.videoSource.src}
                                                     onTimeUpdate={p.handleTimeUpdate}
                                                     onLoadedMetadata={(e) => {
@@ -748,7 +754,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             ) : (
                                 <div className="relative w-full max-w-5xl aspect-video review-video-container">
                                     {p.videoError ? (
-                                        <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white rounded-lg">
+                                        <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white">
                                             <div className="text-center p-8">
                                                 <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
                                                 <h3 className="text-lg mb-2">Video Failed to Load</h3>
@@ -759,7 +765,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             </div>
                                         </div>
                                     ) : p.videoSource.type === 'iframe' ? (
-                                        <div className="relative w-full h-full rounded-lg overflow-hidden">
+                                        <div className="relative w-full h-full overflow-hidden">
                                             {!p.iframeLoaded && (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-[var(--review-bg-secondary)] z-10">
                                                     <div className="text-center">
@@ -770,7 +776,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             )}
                                             <iframe
                                                 ref={p.iframeRef}
-                                                className="w-full h-full bg-black border border-[var(--review-border)] rounded-lg"
+                                                className="w-full h-full bg-black border border-[var(--review-border)]"
                                                 src={p.videoSource.src}
                                                 title={`Video player for ${p.asset.title}`}
                                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -783,7 +789,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         <YoutubePlayer
                                             ref={p.youtubePlayerRef}
                                             videoId={p.videoSource.src}
-                                            className="w-full h-full bg-black rounded-lg border border-[var(--review-border)] overflow-hidden"
+                                            className="w-full h-full bg-black border border-[var(--review-border)] overflow-hidden"
                                             onReady={p.handleYoutubeReady}
                                             onPlay={() => p.setIsPlaying(true)}
                                             onPause={() => p.setIsPlaying(false)}
@@ -797,7 +803,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             <video
                                                 ref={p.videoRef}
                                                 crossOrigin="anonymous"
-                                                className="w-full h-full object-contain bg-black rounded-lg border border-[var(--review-border)]"
+                                                className="w-full h-full object-contain bg-black border border-[var(--review-border)]"
                                                 src={p.videoSource.src}
                                                 onTimeUpdate={p.handleTimeUpdate}
                                                 onLoadedMetadata={(e) => {
@@ -834,7 +840,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             )}
                         </div>
 
-                        <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-1.5">
+                        <div className="flex-shrink-0 px-4 pt-2 pb-3 space-y-0">
                             {(p.videoSource.type === 'video' || p.videoSource.type === 'youtube') && (
                                 <ReviewCompactTransport
                                     duration={p.duration}
@@ -941,15 +947,17 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <DropdownMenuContent align="center" className="min-w-[140px] border-[var(--review-border)] bg-[var(--review-bg-elevated)] text-white">
                                         <DropdownMenuItem
                                             onClick={() => handleModeSelect('general')}
-                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
+                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white flex items-center justify-between gap-2"
                                         >
                                             General
+                                            {activeMode === 'general' && <Check className="h-3 w-3" />}
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                             onClick={() => handleModeSelect('comment')}
-                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
+                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white flex items-center justify-between gap-2"
                                         >
                                             Revisions
+                                            {activeMode === 'comment' && <Check className="h-3 w-3" />}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>

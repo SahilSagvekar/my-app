@@ -346,3 +346,21 @@ export async function retryThumbnail(env: CloudflareEnv, key: string): Promise<{
   }
   return data as { outcome: string; kind: string };
 }
+
+// GET /thumbnail/stats — queue counts (pending/processing/done/failed) on
+// e8-file-server's local SQLite-backed thumbnail queue. Useful for checking
+// whether a large backfill batch is actually draining, or got silently
+// dropped (e.g. by a container sleep — see the durability caveat noted in
+// /areas/cloudflare-migration.md).
+export async function getThumbnailStats(env: CloudflareEnv) {
+  const res = await fsRequest(env, 'GET', '/thumbnail/stats', '0', 'admin');
+  if (!res.ok) throw new Error(`File server /thumbnail/stats failed: ${res.status}`);
+  return res.json();
+}
+
+// GET /thumbnail/failed — recent failures, for spot-checking format issues
+export async function getThumbnailFailed(env: CloudflareEnv) {
+  const res = await fsRequest(env, 'GET', '/thumbnail/failed', '0', 'admin');
+  if (!res.ok) throw new Error(`File server /thumbnail/failed failed: ${res.status}`);
+  return res.json();
+}

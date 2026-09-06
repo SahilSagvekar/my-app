@@ -43,6 +43,8 @@ export type CommentInputHandle = {
     captureFullFrame: () => void;
     /** Set the draft comment's timestamp range explicitly, in seconds — driven by the timeline drag-select UI. */
     setRangeSeconds: (startSeconds: number, endSeconds: number) => void;
+    /** Explicitly set General mode on/off — used by the Comments dropdown (General/Revisions), which selects a mode absolutely rather than toggling it. */
+    setGeneral: (value: boolean) => void;
 };
 
 // Helper to format seconds to timestamp string (e.g., 90 -> "1:30")
@@ -483,6 +485,16 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             setUseEndTimestamp(true);
             setRangeStartSeconds(startSeconds);
             setEndTimestampInput(formatSecondsToTimestamp(endSeconds));
+        },
+        setGeneral: (value) => {
+            ensureExpanded();
+            if (value) {
+                // General comments aren't tied to a time — clear any range in progress.
+                if (useEndTimestamp) disableRangeMode();
+                setIsGeneral(true);
+            } else {
+                setIsGeneral(false);
+            }
         },
     }), [
         ensureExpanded,
