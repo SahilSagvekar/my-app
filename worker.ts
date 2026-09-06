@@ -97,13 +97,6 @@ export default {
         ctx.waitUntil(triggerCronRoute('/api/cron/auto-invoice-review-reminder', env, ctx));
         break;
 
-      // Client Review auto-reminder rule — daily ≈ 11:00 AM ET. Reminds
-      // clients about tasks sitting in CLIENT_REVIEW past the 5-day
-      // threshold, respecting each task's 3-day reminder cooldown.
-      case '0 15 * * *':
-        ctx.waitUntil(triggerCronRoute('/api/cron/client-review-reminders', env, ctx));
-        break;
-
 
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);
