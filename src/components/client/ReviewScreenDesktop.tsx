@@ -241,10 +241,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     }, []);
 
     const handleModeSelect = useCallback((mode: ReviewMode) => {
-        // Instagram and Grid are standalone overlay toggles — they don't open
-        // the comment composer or touch the sidebar, just overlay chrome on
-        // top of the still-playing video. They're mutually exclusive:
-        // turning one on turns the other off.
         if (mode === 'instagram') {
             if (!isShortFormTask) return;
             setShowInstagramOverlay(v => {
@@ -447,10 +443,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setTagsText(p.postingTags.map(t => t.text).join(', '));
     };
 
-    // Two-step, order-agnostic approval (E8 Review Screen v2 spec): either
-    // tab can be approved first; pips track which is done; the second
-    // Approve click reads "Approve Final" and opens a confirmation card
-    // instead of calling handleStatusChange directly.
     const [okComments, setOkComments] = useState(false);
     const [okTitles, setOkTitles] = useState(false);
     const [confirmingApproval, setConfirmingApproval] = useState(false);
@@ -721,7 +713,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </button>
                         </div>
                     </div>
-                </div>
 
                 <div className="flex-1 flex overflow-hidden min-h-0" style={{ background: 'var(--review-bg-primary)' }}>
 
@@ -830,10 +821,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             />
                                         )}
 
-                                        {/* IG Reels safe-zone guide — same placement/reasoning as
-                                            the Instagram overlay above. Semi-transparent PNG with a
-                                            fully transparent "safe" middle, so it reads as a guide
-                                            on top of the real frame, not a mockup. */}
                                         {showGridOverlay && isShortFormTask && (
                                             <img
                                                 src="/assets/ig-reels-safe-zone.png"
@@ -1494,6 +1481,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     onCopy={p.handleCopyLink}
                     copied={p.linkCopied}
                 />
+            </div>
         </TooltipProvider>
     );
 }
