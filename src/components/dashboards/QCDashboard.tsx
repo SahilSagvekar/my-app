@@ -1374,7 +1374,10 @@ useEffect(() => {
                     {/* Card Body */}
                     <div className="px-4 pb-4 pt-2.5 flex flex-col gap-2.5">
                       <div className="flex items-center justify-between gap-2">
-                        <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm leading-none line-clamp-1">
+                        <h4
+                          className="flex-1 min-w-0 text-zinc-900 line-clamp-1"
+                          style={{ fontSize: '0.875rem', lineHeight: 1, fontWeight: 700, margin: 0 }}
+                        >
                           {task.title}
                         </h4>
                         <TaskGuidelinesButton
