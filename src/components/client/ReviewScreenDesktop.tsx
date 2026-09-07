@@ -484,7 +484,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         <TooltipProvider delayDuration={300}>
             <div
                 ref={p.containerRef}
-                className="relative w-full h-full flex flex-col"
+                className="relative w-full h-full max-h-screen flex flex-col overflow-hidden min-h-0"
                 style={{ background: 'var(--review-bg-primary)' }}
             >
                 {p.showApprovalSuccess && (
@@ -730,13 +730,13 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         </div>
                     </div>
 
-                <div className="flex-1 flex overflow-hidden min-h-0" style={{ background: 'var(--review-bg-primary)' }}>
+                <div className="flex-1 flex overflow-hidden min-h-0 h-full max-h-full" style={{ background: 'var(--review-bg-primary)' }}>
 
                     <div
-                        className="flex-1 flex flex-col overflow-hidden m-4 mr-2"
+                        className="flex-1 flex flex-col overflow-hidden m-4 mr-2 min-h-0 h-[calc(100%-2rem)] max-h-[calc(100%-2rem)]"
                         style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-v2-gray-800)', borderRadius: 16, padding: 24 }}
                     >
-                        <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0">
+                        <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0 w-full overflow-hidden">
                             {isFullscreen && (
                                 <button
                                     onClick={toggleFullscreen}
@@ -847,8 +847,12 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="relative w-full max-w-5xl aspect-video review-video-container">
-                                    {p.videoError ? (
+                                <div className="!absolute !inset-0 flex items-center justify-center p-2">
+                                    <div
+                                        className="relative review-video-container max-w-full max-h-full aspect-video flex items-center justify-center"
+                                        style={{ aspectRatio: exactAspectRatio || '16 / 9', maxWidth: '100%', maxHeight: '100%' }}
+                                    >
+                                        {p.videoError ? (
                                         <div className="w-full h-full flex items-center justify-center bg-[var(--review-bg-tertiary)] text-white">
                                             <div className="text-center p-8">
                                                 <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
@@ -922,6 +926,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             </div>
                                         </>
                                     )}
+                                    </div>
                                 </div>
                             )}
 
@@ -1012,10 +1017,10 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                     {!p.readOnly && (
                     <div
-                        className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden m-4 ml-2"
+                        className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden m-4 ml-2 min-h-0 h-[calc(100%-2rem)] max-h-[calc(100%-2rem)]"
                         style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)', borderRadius: 16 }}
                     >
-                        <div className="grid grid-cols-2" style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
+                        <div className="grid grid-cols-2 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
                             {sidebarTab === 'comments' ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -1067,69 +1072,71 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </button>
                         </div>
 
-                        {sidebarTab === 'comments' && (<>
-                            <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
-                                <CommentInput
-                                    ref={commentInputRef}
-                                    taskId={p.asset.id}
-                                    currentTime={p.currentTime}
-                                    currentTimestamp={p.formatTime(p.currentTime)}
-                                    authorId="current-user"
-                                    authorName={p.userName}
-                                    videoRef={p.videoRef}
-                                    duration={p.duration}
-                                    currentVersionNumber={p.currentVersionNumber}
-                                    onSubmit={(c) => {
-                                        p.handleCommentSubmit(c);
-                                        setActiveMode(null);
-                                        setRangeMode(false);
-                                        setActiveRange(null);
-                                    }}
-                                    onCancel={() => {
-                                        p.setShowCommentInput(false);
-                                        setActiveMode(null);
-                                        setRangeMode(false);
-                                        setActiveRange(null);
-                                    }}
-                                    isExpanded={p.showCommentInput}
-                                    onToggleExpand={() => {
-                                        setActiveMode('comment');
-                                        p.setShowCommentInput(true);
-                                    }}
-                                    hideInlineTools
-                                />
-                            </div>
-                            <div ref={p.commentsRef} className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
-                                {p.sortedComments.length === 0 ? (
-                                    <div className="text-center py-12 text-[var(--review-text-muted)]">
-                                        <p className="text-sm">No comments yet</p>
-                                    </div>
-                                ) : (
-                                    <>
-                                        {hasMoreComments && (
-                                            <div className="mb-2 text-[10px] text-[var(--review-text-muted)] text-center">
-                                                Showing last {MAX_RENDERED_COMMENTS} of {p.sortedComments.length} comments.&nbsp;
-                                                <button className="underline hover:text-[var(--review-text-secondary)]" onClick={() => setShowAllComments(true)}>Show all</button>
-                                            </div>
-                                        )}
-                                        <div className="space-y-2">
-                                            {visibleComments.map(comment => (
-                                                <div key={comment.id} id={`comment-${comment.id}`}>
-                                                    <ReviewCommentCard
-                                                        comment={comment}
-                                                        isActive={p.activeCommentId === comment.id}
-                                                        onTimestampClick={p.handleTimestampClick}
-                                                        onResolve={p.handleCommentResolve}
-                                                        onDelete={p.handleCommentDelete}
-                                                        onEdit={p.handleCommentEdit}
-                                                    />
-                                                </div>
-                                            ))}
+                        {sidebarTab === 'comments' && (
+                            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                                <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
+                                    <CommentInput
+                                        ref={commentInputRef}
+                                        taskId={p.asset.id}
+                                        currentTime={p.currentTime}
+                                        currentTimestamp={p.formatTime(p.currentTime)}
+                                        authorId="current-user"
+                                        authorName={p.userName}
+                                        videoRef={p.videoRef}
+                                        duration={p.duration}
+                                        currentVersionNumber={p.currentVersionNumber}
+                                        onSubmit={(c) => {
+                                            p.handleCommentSubmit(c);
+                                            setActiveMode(null);
+                                            setRangeMode(false);
+                                            setActiveRange(null);
+                                        }}
+                                        onCancel={() => {
+                                            p.setShowCommentInput(false);
+                                            setActiveMode(null);
+                                            setRangeMode(false);
+                                            setActiveRange(null);
+                                        }}
+                                        isExpanded={p.showCommentInput}
+                                        onToggleExpand={() => {
+                                            setActiveMode('comment');
+                                            p.setShowCommentInput(true);
+                                        }}
+                                        hideInlineTools
+                                    />
+                                </div>
+                                <div ref={p.commentsRef} className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
+                                    {p.sortedComments.length === 0 ? (
+                                        <div className="text-center py-12 text-[var(--review-text-muted)]">
+                                            <p className="text-sm">No comments yet</p>
                                         </div>
-                                    </>
-                                )}
+                                    ) : (
+                                        <>
+                                            {hasMoreComments && (
+                                                <div className="mb-2 text-[10px] text-[var(--review-text-muted)] text-center">
+                                                    Showing last {MAX_RENDERED_COMMENTS} of {p.sortedComments.length} comments.&nbsp;
+                                                    <button className="underline hover:text-[var(--review-text-secondary)]" onClick={() => setShowAllComments(true)}>Show all</button>
+                                                </div>
+                                            )}
+                                            <div className="space-y-2">
+                                                {visibleComments.map(comment => (
+                                                    <div key={comment.id} id={`comment-${comment.id}`}>
+                                                        <ReviewCommentCard
+                                                            comment={comment}
+                                                            isActive={p.activeCommentId === comment.id}
+                                                            onTimestampClick={p.handleTimestampClick}
+                                                            onResolve={p.handleCommentResolve}
+                                                            onDelete={p.handleCommentDelete}
+                                                            onEdit={p.handleCommentEdit}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
-                        </>)}
+                        )}
 
                         {sidebarTab === 'titles' && (
                             <div className="flex-1 overflow-y-auto review-scrollbar min-h-0 p-4 space-y-4">
