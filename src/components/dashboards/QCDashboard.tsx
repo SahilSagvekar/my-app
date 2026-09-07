@@ -1327,11 +1327,36 @@ useEffect(() => {
             </div>
 
             {/* Stats Badge */}
-            <div className="h-9 px-4 rounded-xl bg-black text-white flex items-center justify-center gap-2.5 shrink-0 select-none shadow-sm">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-white">
+            <div
+              className="flex items-center shrink-0 select-none font-sans"
+              style={{
+                background: 'var(--gray-950, #09090b)',
+                color: 'var(--white, #ffffff)',
+                borderRadius: 'var(--radius-sm, 8px)',
+                padding: '8px 16px',
+                gap: '10px',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  color: '#ffffff',
+                  textTransform: 'uppercase',
+                  lineHeight: 1,
+                }}
+              >
                 {hasActiveFilters ? 'Filtered' : 'Pending'}
               </span>
-              <span className="text-[17px] font-black text-white leading-none tracking-tight">
+              <span
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  color: '#ffffff',
+                  lineHeight: 1,
+                }}
+              >
                 {pendingReviews}
               </span>
             </div>
