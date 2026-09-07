@@ -19,11 +19,11 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
-import { completeMultipart } from '@/lib/file-server';
+import { completeMultipart, requestMediaPreviewGeneration } from '@/lib/file-server';
 import { pushUploadJob } from '@/lib/upload-queue';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDbHttp } from "@/lib/db";
-import { client as clientTable, file as fileTable, task as taskTable } from "@/lib/db/schema";
+import { client as clientTable, file as fileTable, mediaPreview, task as taskTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { isMultiAssetFolderType, shouldVersionReplaceUpload } from "@/lib/file-folder-types";
@@ -263,6 +263,43 @@ export async function POST(request: NextRequest) {
         batchId: batchId || null,
         batchTotal: typeof batchTotal === 'number' && batchTotal > 0 ? batchTotal : null,
       });
+
+      // Thumbnail extraction is owned by the dedicated file service (where
+      // ffmpeg can run), never by this Worker. A queue failure must not turn a
+      // successfully uploaded video into a failed upload; the processor can
+      // backfill it later.
+      if (fileType?.startsWith('video/')) {
+        const now = new Date().toISOString();
+        await db.insert(mediaPreview).values({
+          id: createId(),
+          s3Key: key,
+          fileId: fileRecord?.id || null,
+          taskId: isDriveUpload ? null : taskId,
+          status: 'PENDING',
+          attempts: 0,
+          createdAt: now,
+          updatedAt: now,
+        }).onConflictDoUpdate({
+          target: mediaPreview.s3Key,
+          set: {
+            fileId: fileRecord?.id || null,
+            taskId: isDriveUpload ? null : taskId,
+            status: 'PENDING',
+            errorMessage: null,
+            updatedAt: now,
+          },
+        });
+        try {
+          await requestMediaPreviewGeneration(env, userId, user.role || 'editor', {
+            s3Key: key,
+            fileId: fileRecord?.id || null,
+            taskId: isDriveUpload ? null : taskId,
+            mimeType: fileType,
+          });
+        } catch (previewError: unknown) {
+          console.error('⚠️ Failed to queue media preview generation:', getErrorMessage(previewError));
+        }
+      }
 
       console.log(`📬 Background job queued: ${jobId} for ${fileName}`);
 

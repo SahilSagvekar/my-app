@@ -1,9 +1,6 @@
 // Shared task-card thumbnail resolution for QC + client dashboards.
-// Prefers folderType=thumbnails File rows, then any image on the task.
-// There is no auto-generation anymore — the only way a thumbnails File row
-// exists is an editor uploading one manually (src/components/workflow/
-// TaskUploadSections.tsx, folderType: "thumbnails"). No R2-key guessing:
-// we only ever show a thumbnail once a real File row for it exists.
+// The newest editor-uploaded thumbnail wins; when none exists, the API-added
+// generated preview for the newest active video is the fallback.
 
 export type ThumbnailFileLike = {
   url?: string | null;
@@ -12,6 +9,10 @@ export type ThumbnailFileLike = {
   folderType?: string | null;
   isActive?: boolean | null;
   s3Key?: string | null;
+  uploadedAt?: string | Date | null;
+  createdAt?: string | Date | null;
+  // Added by task APIs for a video whose generated preview is READY.
+  previewUrl?: string | null;
 };
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif)$/i;
@@ -36,19 +37,29 @@ export function getTaskCardThumbnailUrl(
 
   const active = (f: ThumbnailFileLike) => f.isActive !== false;
 
+  // Editors can upload several thumbnail concepts. The product rule is that
+  // the newest active upload automatically becomes the task-card cover.
+  const newestFirst = [...files].sort((a, b) => {
+    const aTime = new Date(a.uploadedAt || a.createdAt || 0).getTime();
+    const bTime = new Date(b.uploadedAt || b.createdAt || 0).getTime();
+    return bTime - aTime;
+  });
+
   const thumb =
-    files.find(
+    newestFirst.find(
       (f) => f.folderType === 'thumbnails' && active(f) && isLikelyImageFile(f) && f.url
     ) ||
-    files.find((f) => f.folderType === 'thumbnails' && active(f) && f.url);
+    newestFirst.find((f) => f.folderType === 'thumbnails' && active(f) && f.url);
 
   if (thumb?.url) return thumb.url;
 
-  const anyActiveImage = files.find((f) => active(f) && isLikelyImageFile(f) && f.url);
-  if (anyActiveImage?.url) return anyActiveImage.url;
-
-  const anyImage = files.find((f) => isLikelyImageFile(f) && f.url);
-  if (anyImage?.url) return anyImage.url;
+  // No editor thumbnail: use the generated preview of the newest active
+  // video. This is deliberately after manual images, so an editor's newest
+  // thumbnail always wins for QC and client task cards.
+  const generatedPreview = newestFirst.find(
+    (f) => active(f) && f.mimeType?.startsWith('video/') && f.previewUrl
+  );
+  if (generatedPreview?.previewUrl) return generatedPreview.previewUrl;
 
   return null;
 }
@@ -64,7 +75,8 @@ export function taskHasThumbnailFiles(
 
 /** Label under the card media plane when no image is showing. */
 export function taskThumbnailFallbackLabel(
-  _files: ThumbnailFileLike[] | null | undefined
+  files: ThumbnailFileLike[] | null | undefined
 ): string {
-  return 'No thumbnail';
+  const hasPendingVideo = files?.some(f => f.isActive !== false && f.mimeType?.startsWith('video/'));
+  return hasPendingVideo ? 'Generating preview…' : 'No thumbnail';
 }

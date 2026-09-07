@@ -158,6 +158,44 @@ function FileThumbnail({
   );
 }
 
+const VIDEO_FILE_EXTENSIONS = /\.(mp4|mov|m4v|webm|mkv|avi|wmv|mts|m2ts)$/i;
+
+// The storage tree does not include app-managed preview state. Hydrate it in
+// batches so a folder view never makes one request per video.
+async function attachGeneratedPreviews(root: DriveItem): Promise<DriveItem> {
+  const videoKeys: string[] = [];
+  const collect = (item: DriveItem) => {
+    if (item.type === 'file' && VIDEO_FILE_EXTENSIONS.test(item.name)) {
+      const key = item.s3Key || item.s3Path;
+      if (key) videoKeys.push(key);
+    }
+    item.children?.forEach(collect);
+  };
+  collect(root);
+
+  const previewByKey = new Map<string, string>();
+  const uniqueKeys = [...new Set(videoKeys)];
+  for (let i = 0; i < uniqueKeys.length; i += 100) {
+    const params = new URLSearchParams({ keys: uniqueKeys.slice(i, i + 100).join(',') });
+    const response = await fetch(`/api/media-previews?${params.toString()}`);
+    if (!response.ok) continue;
+    const { previews } = await response.json();
+    Object.entries(previews || {}).forEach(([key, preview]: [string, any]) => {
+      if (preview?.url) previewByKey.set(key, preview.url);
+    });
+  }
+
+  const apply = (item: DriveItem): DriveItem => {
+    const key = item.s3Key || item.s3Path;
+    return {
+      ...item,
+      thumbnailUrl: item.thumbnailUrl || (key ? previewByKey.get(key) || null : null),
+      children: item.children?.map(apply),
+    };
+  };
+  return apply(root);
+}
+
 
 
 // ─── FEATURE 2: URL Path Persistence Helpers ───
@@ -769,14 +807,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       }
 
       const data = await response.json();
-      setDriveStructure(data);
+      const hydratedData = await attachGeneratedPreviews(data);
+      setDriveStructure(hydratedData);
 
       // ─── FEATURE 2: Restore navigation path after structure load ───
       if (pathToRestore) {
-        navigateToPathInTree(data, pathToRestore);
+        navigateToPathInTree(hydratedData, pathToRestore);
       } else {
-        setCurrentFolder(data);
-        setBreadcrumb([data]);
+        setCurrentFolder(hydratedData);
+        setBreadcrumb([hydratedData]);
       }
       hasRestoredRef.current = true;
     } catch (error: any) {

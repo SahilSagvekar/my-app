@@ -1246,10 +1246,37 @@ export const file = pgTable("File", {
 	index("File_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
 	index("File_taskId_isActive_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.isActive.asc().nullsLast().op("text_ops")),
 	foreignKey({
-			columns: [table.taskId],
-			foreignColumns: [task.id],
-			name: "File_taskId_fkey"
-		}).onUpdate("cascade").onDelete("cascade"),
+		columns: [table.taskId],
+		foreignColumns: [task.id],
+		name: "File_taskId_fkey"
+	}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+// A generated preview belongs to the storage object, not exclusively to a
+// Task/File row. Drive uploads can be browsed without a File row, while task
+// files can be versioned, so s3Key is the durable identity here.
+export const mediaPreview = pgTable("MediaPreview", {
+	id: text().primaryKey().notNull(),
+	s3Key: text().notNull(),
+	fileId: text(),
+	taskId: text(),
+	previewS3Key: text(),
+	status: text().default('PENDING').notNull(),
+	width: integer(),
+	height: integer(),
+	durationSeconds: doublePrecision(),
+	frameTimestampSeconds: doublePrecision(),
+	sourceEtag: text(),
+	attempts: integer().default(0).notNull(),
+	errorMessage: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("MediaPreview_s3Key_key").using("btree", table.s3Key.asc().nullsLast().op("text_ops")),
+	index("MediaPreview_previewS3Key_idx").using("btree", table.previewS3Key.asc().nullsLast().op("text_ops")),
+	index("MediaPreview_fileId_idx").using("btree", table.fileId.asc().nullsLast().op("text_ops")),
+	index("MediaPreview_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+	index("MediaPreview_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
 ]);
 
 export const trainingCourse = pgTable("TrainingCourse", {

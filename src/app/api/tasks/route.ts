@@ -14,6 +14,7 @@ import {
   shootDetail as shootDetailTable,
   editorClientPermission as editorClientPermissionTable,
   file as fileTable,
+  mediaPreview,
 } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, or, eq, inArray, isNull, isNotNull, ne, desc, count, getTableColumns, sql as drizzleSql } from "drizzle-orm";
@@ -491,6 +492,33 @@ const effectiveRole =
         user: { name: t.userName, role: t.userRole },
         files: allFiles.filter(f => f.taskId === t.id),
         taskFeedback: []
+      }));
+    }
+
+    // Attach only READY generated previews. The browser receives a same-origin
+    // image route rather than a storage URL, and task-card resolution decides
+    // whether this video preview is superseded by an editor thumbnail.
+    const videoKeys = [...new Set(tasks.flatMap((task: any) =>
+      (task.files || [])
+        .filter((file: any) => file.isActive !== false && file.mimeType?.startsWith('video/') && file.s3Key)
+        .map((file: any) => file.s3Key as string)
+    ))];
+    if (videoKeys.length) {
+      const previews = await db
+        .select({ s3Key: mediaPreview.s3Key, previewS3Key: mediaPreview.previewS3Key })
+        .from(mediaPreview)
+        .where(and(inArray(mediaPreview.s3Key, videoKeys), eq(mediaPreview.status, 'READY')));
+      const previewUrls = new Map(
+        previews
+          .filter(preview => !!preview.previewS3Key)
+          .map(preview => [preview.s3Key, `/api/media-previews/image?key=${encodeURIComponent(preview.previewS3Key!)}`]),
+      );
+      tasks = tasks.map((task: any) => ({
+        ...task,
+        files: (task.files || []).map((file: any) => ({
+          ...file,
+          previewUrl: file.s3Key ? previewUrls.get(file.s3Key) || null : null,
+        })),
       }));
     }
 

@@ -92,6 +92,43 @@ export async function presignDownload(env: CloudflareEnv, userId: number | strin
   return res.json() as Promise<{ downloadUrl: string }>;
 }
 
+export interface MediaPreviewGenerationRequest {
+  s3Key: string;
+  fileId?: string | null;
+  taskId?: string | null;
+  mimeType: string;
+}
+
+/**
+ * Ask the file service's ffmpeg-capable processor to create a preview. This
+ * endpoint must enqueue work and return quickly; upload completion never
+ * waits for video decoding.
+ */
+export async function requestMediaPreviewGeneration(
+  env: CloudflareEnv,
+  userId: number | string,
+  role: string,
+  payload: MediaPreviewGenerationRequest,
+): Promise<void> {
+  const res = await fsRequest(env, 'POST', '/media-previews/generate', userId, role, payload);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`File server preview queue error: ${res.status}${body ? ` — ${body}` : ''}`);
+  }
+}
+
+/** Streams a generated image without exposing a public R2 object URL. */
+export async function getMediaPreviewStream(
+  env: CloudflareEnv,
+  userId: number | string,
+  role: string,
+  previewS3Key: string,
+): Promise<Response> {
+  const res = await fsRequest(env, 'GET', '/media-previews/stream', userId, role, undefined, { key: previewS3Key });
+  if (!res.ok) throw new Error(`File server preview stream error: ${res.status}`);
+  return res;
+}
+
 // For files deleted from R2 but confirmed backed up to NAS (see the Files &
 // Drive NAS-merge feature). Unlike presignDownload, NAS has no native
 // presigning, so this returns the raw streamed Response for pass-through —
@@ -325,4 +362,3 @@ export async function ackDriveMirrorJobs(env: CloudflareEnv, fileRecordIds: stri
   });
   if (!res.ok) throw new Error(`File server /drive-mirror/ack failed: ${res.status}`);
 }
-
