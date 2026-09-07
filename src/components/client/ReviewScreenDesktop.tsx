@@ -622,12 +622,20 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         {p.userRole === 'client' && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={p.handleGenerateShareLink} disabled={p.generatingLink} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                    <button
+                                        onClick={p.handleGenerateShareLink}
+                                        disabled={p.generatingLink}
+                                        title="Share link"
+                                        className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors disabled:opacity-50"
+                                        style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-hover-info)'; e.currentTarget.style.borderColor = 'var(--review-v2-hover-info)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                    >
                                         {p.generatingLink
                                             ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                            : <Share className="h-4 w-4" />
+                                            : <Share className="h-[18px] w-[18px]" strokeWidth={1.5} />
                                         }
-                                    </Button>
+                                    </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">Share link</TooltipContent>
                             </Tooltip>
@@ -638,12 +646,18 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="sm" className="relative text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
-                                                    <MessageSquare className="h-4 w-4" />
-                                                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
+                                                <button
+                                                    title="Client comments — all versions"
+                                                    className="relative w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                                    style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-hover-info)'; e.currentTarget.style.borderColor = 'var(--review-v2-hover-info)'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                                >
+                                                    <MessageSquare className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                                    <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white shadow-sm pointer-events-none">
                                                         {p.allClientComments.length}
                                                     </span>
-                                                </Button>
+                                                </button>
                                             </DropdownMenuTrigger>
                                         </TooltipTrigger>
                                         <TooltipContent side="bottom">Client comments — all versions</TooltipContent>
