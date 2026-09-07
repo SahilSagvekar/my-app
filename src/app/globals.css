@@ -360,8 +360,7 @@ body.e8-review-shell .review-comment-timestamp {
   color: var(--review-v2-gray-950);
   background: var(--review-v2-gray-50);
   border-radius: 9999px;
-  padding: 10px 20px;
-  font-size: 0.95rem;
+  padding: 3px 8px;
 }
 body.e8-review-shell .review-comment-timestamp:hover {
   background: var(--review-v2-gray-50);
@@ -587,8 +586,8 @@ body.e8-review-shell .review-category-pill {
 .review-comment-input {
   background: var(--review-bg-tertiary);
   border: 1px solid var(--review-border);
-  border-radius: 20px;
-  padding: 20px;
+  border-radius: 8px;
+  padding: 12px;
   transition: border-color 0.2s ease;
 }
 
