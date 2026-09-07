@@ -31,6 +31,7 @@ import {
   getTaskCardThumbnailUrl,
   taskThumbnailFallbackLabel,
 } from '@/lib/task-thumbnail';
+import { uploadService } from '@/lib/upload-service';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
 
@@ -307,6 +308,69 @@ useEffect(() => {
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [showBulkRejectDialog, setShowBulkRejectDialog] = useState(false);
   const [bulkRejectFeedback, setBulkRejectFeedback] = useState("");
+
+  // 🔥 Still upload state & helpers for task cards
+  const [uploadingStillTaskId, setUploadingStillTaskId] = useState<string | null>(null);
+
+  const handleStillUpload = async (task: EnhancedWorkflowTask, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file for the still');
+      return;
+    }
+    try {
+      setUploadingStillTaskId(task.id);
+      toast.loading(`Uploading still for ${task.title}...`, { id: `upload-${task.id}` });
+      await uploadService.startUpload(file, task, 'thumbnails', undefined, 'outputs');
+      toast.success('Still uploaded successfully!', { id: `upload-${task.id}` });
+      await loadQCTasks();
+    } catch (err: any) {
+      console.error('Failed to upload still:', err);
+      toast.error(err?.message || 'Failed to upload still', { id: `upload-${task.id}` });
+    } finally {
+      setUploadingStillTaskId(null);
+    }
+  };
+
+  const formatCardDate = (dateVal: any) => {
+    if (!dateVal) return "";
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+
+  const getDeliverableBadge = (rawType?: string | null) => {
+    if (!rawType || rawType === "Other") return null;
+    const lower = rawType.toLowerCase().trim();
+    let label = rawType;
+    if (lower === 'sf' || lower === 'short form' || lower === 'short form videos' || lower.includes('short form')) {
+      label = 'Short Form Videos';
+    } else if (lower === 'lf' || lower === 'long form' || lower === 'long form videos' || lower.includes('long form')) {
+      label = 'Long Form Videos';
+    } else if (lower === 'bsf' || lower.includes('beta')) {
+      label = 'Beta Short Form';
+    } else if (lower === 'sqf' || lower.includes('super quick')) {
+      label = 'Super Quick Form';
+    }
+
+    let colorClass = 'bg-[#dcfce7] text-[#15803d]';
+    if (lower.includes('long') || lower === 'lf') {
+      colorClass = 'bg-blue-100 text-blue-800';
+    } else if (lower.includes('snap')) {
+      colorClass = 'bg-yellow-100 text-yellow-800';
+    } else if (lower.includes('thumb') || lower.includes('image')) {
+      colorClass = 'bg-purple-100 text-purple-800';
+    } else if (lower.includes('audio') || lower.includes('podcast')) {
+      colorClass = 'bg-orange-100 text-orange-800';
+    } else if (lower.includes('beta') || lower.includes('bsf')) {
+      colorClass = 'bg-teal-100 text-teal-800';
+    }
+
+    return { label, colorClass };
+  };
+
+  const getEditorName = (task: EnhancedWorkflowTask) => {
+    return task.user?.name || (task as any).assignee?.name || (task as any).editor?.name || "";
+  };
 
   const { user } = useAuth();
   const isAdmin = user?.role?.toLowerCase() === 'admin';
@@ -1289,10 +1353,9 @@ useEffect(() => {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-              {filteredTasks.map((task, index) => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
+              {filteredTasks.map((task) => {
                 const thumbnail = getTaskThumbnail(task);
-                const deliverableColors = getDeliverableTypeColor((task as any).deliverableType);
                 const isChecked = selectedTaskIds.has(task.id);
                 const latestVideo = task.files
                   ?.filter(f => f.mimeType?.startsWith('video/'))
@@ -1302,34 +1365,78 @@ useEffect(() => {
                     return (b.version || 1) - (a.version || 1);
                   })[0];
                 const latestVideoVersion = latestVideo?.version || 1;
+                const deliverableBadge = getDeliverableBadge((task as any).deliverableType || task.taskCategory);
+                const editorName = getEditorName(task);
+                const dueDateFormatted = formatCardDate(task.dueDate || task.createdAt);
+
                 return (
-                  <Card
+                  <div
                     key={task.id}
-                    className={`group cursor-pointer shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full hover:shadow-md ${deliverableColors.bg} ${deliverableColors.border} border hover:${deliverableColors.ring} ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""} ${isChecked ? "ring-2 ring-violet-500" : ""}`}
+                    className={`group cursor-pointer bg-white rounded-2xl border border-zinc-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col h-full ${
+                      selectedTask?.id === task.id ? "ring-2 ring-primary" : ""
+                    } ${isChecked ? "ring-2 ring-violet-500" : ""}`}
                     onClick={() => handleTaskClick(task)}
                   >
                     {/* Visual Header / Thumbnail Area */}
-                    <div className="h-72 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold">
-                      {thumbnail && (
-                        <img
-                          src={thumbnail}
-                          alt={task.title}
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 z-10"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.opacity = '0';
+                    <div className="w-full aspect-[4/5] relative flex items-center justify-center bg-[#ebebeb]/60 overflow-hidden">
+                      {thumbnail ? (
+                        <>
+                          <img
+                            src={thumbnail}
+                            alt={task.title}
+                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 z-10"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.opacity = '0';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
+                        </>
+                      ) : (
+                        <div
+                          className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center select-none cursor-pointer transition-colors hover:bg-zinc-200/50 z-10"
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                           }}
-                        />
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const file = e.dataTransfer.files?.[0];
+                            if (file) handleStillUpload(task, file);
+                          }}
+                        >
+                          <ImageIcon className="h-7 w-7 text-zinc-400 stroke-[1.5] mb-2" />
+                          <span className="text-xs font-semibold text-zinc-800">Drop a still</span>
+                          <span className="text-[11px] text-zinc-500 mt-0.5">
+                            or{" "}
+                            <label
+                              className="underline underline-offset-2 hover:text-zinc-900 cursor-pointer"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              browse files
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleStillUpload(task, file);
+                                }}
+                              />
+                            </label>
+                          </span>
+                        </div>
                       )}
-                      <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
-                        {taskThumbnailFallbackLabel(task.files)}
-                      </div>
 
-                      {thumbnail && (
-                        <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
+                      {uploadingStillTaskId === task.id && (
+                        <div className="absolute inset-0 bg-white/85 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-30">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                          <span className="text-xs font-medium text-zinc-700">Uploading still...</span>
+                        </div>
                       )}
 
+                      {/* Top Left: Multi-select checkbox or Share + Reassign buttons */}
                       {selectionMode && isViewingAsOther ? (
-                        /* Selection Checkbox - Top Left */
                         <div className="absolute top-3 left-3 z-20">
                           <div
                             className="h-8 w-8 rounded-full bg-white/90 backdrop-blur-sm border border-zinc-200/50 shadow-sm flex items-center justify-center"
@@ -1342,41 +1449,40 @@ useEffect(() => {
                           </div>
                         </div>
                       ) : (
-                        /* Share + Reassign Buttons - Top Left */
-                        <div className="absolute top-3 left-3 z-20 flex gap-1.5">
-                          <Button
-                            size="icon"
-                            variant="secondary"
-                            className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-primary"
+                        <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            className="h-8 w-8 rounded-full bg-white/90 hover:bg-white backdrop-blur-md border border-black/5 shadow-sm flex items-center justify-center text-zinc-700 hover:text-zinc-900 transition-colors"
                             onClick={(e) => handleShare(e, task)}
+                            title="Share"
                           >
                             <Share2 className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="secondary"
-                            title="Reassign to another QC"
-                            className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-orange-500"
+                          </button>
+                          <button
+                            type="button"
+                            className="h-8 w-8 rounded-full bg-white/90 hover:bg-white backdrop-blur-md border border-black/5 shadow-sm flex items-center justify-center text-zinc-700 hover:text-orange-600 transition-colors"
                             onClick={(e) => handleOpenReassign(e, task)}
+                            title="Reassign to another QC"
                           >
                             <UserCheck className="h-3.5 w-3.5" />
-                          </Button>
+                          </button>
                         </div>
                       )}
 
-                      {/* File Count - Top Right */}
-                      <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm z-20">
-                        <FileText className="h-3 w-3" />
-                        {task.files?.length || 0}
+                      {/* Top Right: Dark translucent badge with file count */}
+                      <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md text-white text-xs font-semibold shadow-sm">
+                        <FileText className="h-3.5 w-3.5 stroke-[2]" />
+                        <span>{task.files?.length || 0}</span>
                       </div>
                     </div>
 
                     {/* Card Body */}
-                    <div className="px-4 pb-4 pt-2.5 flex flex-col gap-2.5">
+                    <div className="p-4 pt-3.5 pb-4 flex flex-col justify-between flex-1 gap-2.5 bg-white">
+                      {/* Row 1: Task Title & Guidelines Button */}
                       <div className="flex items-center justify-between gap-2">
                         <h4
-                          className="flex-1 min-w-0 text-zinc-900 line-clamp-1"
-                          style={{ fontSize: '0.875rem', lineHeight: 1, fontWeight: 700, margin: 0 }}
+                          className="text-[13px] font-bold text-zinc-900 truncate leading-snug"
+                          title={task.title}
                         >
                           {task.title}
                         </h4>
@@ -1384,54 +1490,37 @@ useEffect(() => {
                           clientId={task.clientId}
                           clientName={task.client?.companyName || task.client?.name || null}
                           role="qc"
+                          buttonClassName="h-5 w-5 rounded-full bg-[#f05a28] hover:bg-[#ea580c] text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm transition-colors"
                         />
                       </div>
 
-                      {/* Editor & Date Row */}
-                      <div className="flex items-center justify-between text-zinc-500 text-[11px] leading-none">
-                        <div className="flex items-center gap-1.5">
-                          <User className="h-3.5 w-3.5" />
-                          <span>{task.user?.name || ""}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>
-                            {new Date(task.dueDate).toLocaleDateString(
-                              undefined,
-                              { month: "short", day: "numeric" },
-                            )}
-                          </span>
-                        </div>
+                      {/* Row 2: Editor / Creator & Date */}
+                      <div className="flex items-center justify-between text-xs text-zinc-500 font-normal leading-none">
+                        <span className="truncate max-w-[65%]">
+                          {editorName || "Unassigned"}
+                        </span>
+                        <span className="shrink-0">
+                          {dueDateFormatted}
+                        </span>
                       </div>
 
-                      {/* Tag + Version Row */}
-                      <div className="flex items-center justify-between gap-2 leading-none">
-                        {(task as any).deliverableType && (task as any).deliverableType !== "Other" ? (
-                          <Badge
-                            variant="outline"
-                            className={`w-fit text-[10px] h-5 px-2 font-medium ${
-                              (() => {
-                                const dt = ((task as any).deliverableType || '').toLowerCase();
-                                if (dt.includes('short form') || dt === 'sf') return 'bg-emerald-100 text-emerald-700 border-emerald-300';
-                                if (dt.includes('beta') || dt === 'bsf') return 'bg-teal-100 text-teal-700 border-teal-300';
-                                if (dt === 'sqf' || dt.includes('sqf') || dt.includes('super quick')) return 'bg-cyan-100 text-cyan-700 border-cyan-300';
-                                if (dt.includes('snapchat') || dt === 'snap') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-                                if (dt.includes('long form') || dt === 'lf') return 'bg-blue-100 text-blue-700 border-blue-300';
-                                if (dt.includes('thumbnail') || dt.includes('image')) return 'bg-purple-100 text-purple-700 border-purple-300';
-                                if (dt.includes('podcast') || dt.includes('audio')) return 'bg-orange-100 text-orange-700 border-orange-300';
-                                return 'bg-zinc-100 text-zinc-600 border-zinc-200';
-                              })()
-                            }`}
+                      {/* Row 3: Deliverable Badge & Version Badge */}
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        {deliverableBadge ? (
+                          <span
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${deliverableBadge.colorClass}`}
                           >
-                            {(task as any).deliverableType}
-                          </Badge>
-                        ) : <span />}
-                        <Badge variant="outline" className="w-fit text-[10px] h-5 px-2 font-medium bg-zinc-100 text-zinc-600 border-zinc-200 shrink-0">
+                            {deliverableBadge.label}
+                          </span>
+                        ) : (
+                          <span />
+                        )}
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-700 shrink-0">
                           V{latestVideoVersion}
-                        </Badge>
+                        </span>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 );
               })}
             </div>
