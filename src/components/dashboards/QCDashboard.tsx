@@ -30,7 +30,6 @@ import {
   // autoThumbnailKeyForVideo,
   getTaskCardThumbnailUrl,
   taskThumbnailFallbackLabel,
-  taskHasThumbnailFiles,
 } from '@/lib/task-thumbnail';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
@@ -1305,6 +1304,14 @@ useEffect(() => {
                 const thumbnail = getTaskThumbnail(task);
                 const deliverableColors = getDeliverableTypeColor((task as any).deliverableType);
                 const isChecked = selectedTaskIds.has(task.id);
+                const latestVideo = task.files
+                  ?.filter(f => f.mimeType?.startsWith('video/'))
+                  .sort((a, b) => {
+                    if (a.isActive && !b.isActive) return -1;
+                    if (!a.isActive && b.isActive) return 1;
+                    return (b.version || 1) - (a.version || 1);
+                  })[0];
+                const latestVideoVersion = latestVideo?.version || 1;
                 return (
                   <Card
                     key={task.id}
@@ -1346,7 +1353,7 @@ useEffect(() => {
                         </div>
                       ) : (
                         /* Share + Reassign Buttons - Top Left */
-                        <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex gap-1.5">
+                        <div className="absolute top-3 left-3 z-20 flex gap-1.5">
                           <Button
                             size="icon"
                             variant="secondary"
@@ -1372,24 +1379,44 @@ useEffect(() => {
                         <FileText className="h-3 w-3" />
                         {task.files?.length || 0}
                       </div>
-                    </div>
 
-                    {/* Card Body */}
-                    <div className="p-4 flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
-                          {task.title}
-                        </h4>
+                      {/* Guidelines - overlapping the thumbnail/body boundary */}
+                      <div className="absolute -bottom-4 left-4 z-20">
                         <TaskGuidelinesButton
                           clientId={task.clientId}
                           clientName={task.client?.companyName || task.client?.name || null}
                           role="qc"
+                          buttonClassName="h-9 w-9 rounded-full border-2 border-white bg-orange-500 text-sm font-bold flex items-center justify-center text-white hover:bg-orange-500 shadow-sm"
                         />
                       </div>
+                    </div>
 
-                      {/* Deliverable Type Badge */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {(task as any).deliverableType && (task as any).deliverableType !== "Other" && (
+                    {/* Card Body */}
+                    <div className="p-4 pt-6 flex flex-col gap-3">
+                      <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">
+                        {task.title}
+                      </h4>
+
+                      {/* Editor & Date Row */}
+                      <div className="flex items-center justify-between text-zinc-500 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5" />
+                          <span>{task.user?.name || ""}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>
+                            {new Date(task.dueDate).toLocaleDateString(
+                              undefined,
+                              { month: "short", day: "numeric" },
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Tag + Version Row */}
+                      <div className="flex items-center justify-between gap-2">
+                        {(task as any).deliverableType && (task as any).deliverableType !== "Other" ? (
                           <Badge
                             variant="outline"
                             className={`w-fit text-[10px] h-5 px-2 font-medium ${
@@ -1408,79 +1435,10 @@ useEffect(() => {
                           >
                             {(task as any).deliverableType}
                           </Badge>
-                        )}
-                        {task.oneOffDeliverableId && (
-                          <Badge variant="outline" className="w-fit text-[10px] h-5 px-2 bg-yellow-50 text-yellow-700 border-yellow-200">
-                            One-Off
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Editor & Date Row */}
-                      <div className="flex items-center justify-between text-zinc-500 text-[11px]">
-                        <div className="flex items-center gap-1.5">
-                          <User className="h-3.5 w-3.5" />
-                          <span>Editor: {task.user?.name || ""}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>
-                            {new Date(task.dueDate).toLocaleDateString(
-                              undefined,
-                              { month: "short", day: "numeric" },
-                            )}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Badges Row */}
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {task.qcResult === "APPROVED" && task.qcReviewer ? (
-                          <Badge className="bg-green-50 text-green-600 hover:bg-green-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                            ✅ Approved by {task.qcReviewer.name}
-                          </Badge>
-                        ) : task.qcResult === "REJECTED" && task.qcReviewer ? (
-                          <Badge className="bg-red-50 text-red-600 hover:bg-red-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                            ❌ Rejected by {task.qcReviewer.name}
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
-                            Pending
-                          </Badge>
-                        )}
-
-                        {/* Non-H.264 Badge */}
-                        {(() => {
-                          const latestVideo = task.files
-                            ?.filter(f => f.mimeType?.startsWith('video/'))
-                            .sort((a, b) => {
-                              if (a.isActive && !b.isActive) return -1;
-                              if (!a.isActive && b.isActive) return 1;
-                              return (b.version || 1) - (a.version || 1);
-                            })[0];
-
-                          if (latestVideo && latestVideo.codec && !latestVideo.codec.toLowerCase().includes('h.264') && !latestVideo.codec.toLowerCase().includes('avc1')) {
-                            return (
-                              <Badge className="bg-amber-100 text-amber-700 border-amber-200 rounded-full px-2 py-0.5 text-[10px] font-bold animate-pulse">
-                                ⚠️ Non-H.264
-                              </Badge>
-                            );
-                          }
-                          return null;
-                        })()}
-
-                        {/* No Thumbnails Badge */}
-                        {(() => {
-                          const hasThumbnails = taskHasThumbnailFiles(task.files);
-                          if (!hasThumbnails) {
-                            return (
-                              <Badge className="bg-gray-100 text-gray-500 border-gray-200 rounded-full px-2 py-0.5 text-[10px] font-medium">
-                                🖼️ No Thumbnails
-                              </Badge>
-                            );
-                          }
-                          return null;
-                        })()}
+                        ) : <span />}
+                        <Badge variant="outline" className="w-fit text-[10px] h-5 px-2 font-medium bg-zinc-100 text-zinc-600 border-zinc-200 shrink-0">
+                          V{latestVideoVersion}
+                        </Badge>
                       </div>
                     </div>
                   </Card>
