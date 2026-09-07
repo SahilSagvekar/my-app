@@ -1372,7 +1372,7 @@ useEffect(() => {
                     </div>
 
                     {/* Card Body */}
-                    <div className="p-4 flex flex-col gap-2.5">
+                    <div className="px-4 pb-4 pt-2.5 flex flex-col gap-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm leading-none line-clamp-1">
                           {task.title}
