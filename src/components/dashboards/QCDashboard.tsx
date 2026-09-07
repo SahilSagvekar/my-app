@@ -372,6 +372,23 @@ useEffect(() => {
     return task.user?.name || (task as any).assignee?.name || (task as any).editor?.name || "";
   };
 
+  const getTaskLatestVersion = (task: EnhancedWorkflowTask): number => {
+    const latestVideo = task.files
+      ?.filter(f => f.mimeType?.startsWith('video/'))
+      .sort((a, b) => {
+        if (a.isActive && !b.isActive) return -1;
+        if (!a.isActive && b.isActive) return 1;
+        return (b.version || 1) - (a.version || 1);
+      })[0];
+    if (latestVideo?.version) return latestVideo.version;
+
+    let maxVer = 1;
+    for (const f of task.files || []) {
+      if (f.version && f.version > maxVer) maxVer = f.version;
+    }
+    return maxVer;
+  };
+
   const { user } = useAuth();
   const isAdmin = user?.role?.toLowerCase() === 'admin';
 
@@ -1162,11 +1179,24 @@ useEffect(() => {
   }, [qcTasks]);
 
   const filteredTasks = useMemo(() => {
-    return qcTasks.filter(task => {
+    const list = qcTasks.filter(task => {
       const matchType = deliverableTypeFilter === "all" || (task as any).deliverableType === deliverableTypeFilter;
       const matchClient = clientFilter === "all" || task.clientId === clientFilter;
       const matchTag = tagFilter === "all" || ((task as any).tags || []).some((t: any) => t.name === tagFilter);
       return matchType && matchClient && matchTag;
+    });
+
+    // 🔥 Sort tasks with higher versions to the top (e.g. V4, V3, V2 before V1)
+    // Secondary tie-breaker: newest due date / creation date first
+    return list.sort((a, b) => {
+      const verA = getTaskLatestVersion(a);
+      const verB = getTaskLatestVersion(b);
+      if (verB !== verA) {
+        return verB - verA; // Descending by version
+      }
+      const timeA = new Date(a.dueDate || a.createdAt || 0).getTime();
+      const timeB = new Date(b.dueDate || b.createdAt || 0).getTime();
+      return timeB - timeA;
     });
   }, [qcTasks, deliverableTypeFilter, clientFilter, tagFilter]);
 
@@ -1354,14 +1384,7 @@ useEffect(() => {
               {filteredTasks.map((task) => {
                 const thumbnail = getTaskThumbnail(task);
                 const isChecked = selectedTaskIds.has(task.id);
-                const latestVideo = task.files
-                  ?.filter(f => f.mimeType?.startsWith('video/'))
-                  .sort((a, b) => {
-                    if (a.isActive && !b.isActive) return -1;
-                    if (!a.isActive && b.isActive) return 1;
-                    return (b.version || 1) - (a.version || 1);
-                  })[0];
-                const latestVideoVersion = latestVideo?.version || 1;
+                const latestVideoVersion = getTaskLatestVersion(task);
                 const deliverableBadge = getDeliverableBadge((task as any).deliverableType || task.taskCategory);
                 const editorName = getEditorName(task);
                 const dueDateFormatted = formatCardDate(task.dueDate || task.createdAt);
