@@ -756,37 +756,41 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                     </div>
                     {hasCaptureSource && (
                         <div className="flex items-center gap-1">
-                            <Button
-                                variant="ghost"
-                                size="sm"
+                            <button
                                 onClick={captureFullFrame}
-                                className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
                                 title={videoRef ? 'Capture full frame' : 'Capture full image'}
+                                className="flex items-center gap-1.5 h-7 text-xs font-bold uppercase rounded cursor-pointer bg-transparent transition-colors"
+                                style={{ letterSpacing: '.06em', padding: '0 12px', border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; e.currentTarget.style.color = '#fff'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
                             >
-                                <Camera className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Full</span>
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
+                                <Camera className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                Full
+                            </button>
+                            <button
                                 onClick={handleStartSnip}
-                                className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
                                 title="Select area to snip"
+                                className="flex items-center gap-1.5 h-7 text-xs font-bold uppercase rounded cursor-pointer bg-transparent transition-colors"
+                                style={{ letterSpacing: '.06em', padding: '0 12px', border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; e.currentTarget.style.color = '#fff'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
                             >
-                                <Crop className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Snip</span>
-                            </Button>
+                                <Crop className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                Snip
+                            </button>
                         </div>
                     )}
                 </div>
-                <Button
-                    variant="ghost"
-                    size="sm"
+                <button
                     onClick={handleCancel}
-                    className="h-6 w-6 p-0 text-[var(--review-text-muted)] hover:text-white hover:bg-[var(--review-bg-elevated)]"
+                    title="Discard comment"
+                    className="h-7 w-7 flex items-center justify-center rounded cursor-pointer bg-transparent transition-colors border-none"
+                    style={{ color: 'var(--review-v2-gray-400)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--review-v2-gray-800)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                     <X className="h-4 w-4" />
-                </Button>
+                </button>
             </div>
 
             {/* Screenshot Preview */}
@@ -878,24 +882,28 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 className="min-h-[80px] bg-transparent border-none resize-none text-white placeholder:text-[var(--review-text-muted)] focus-visible:ring-0 p-0"
             />
 
-            {/* Category Selector */}
-            <div className="flex items-center gap-1 mt-3 mb-3 flex-wrap">
-                {COMMENT_CATEGORIES.map((cat) => (
-                    <button
-                        key={cat.value}
-                        onClick={() => setCategory(cat.value)}
-                        className={`review-category-pill cursor-pointer transition-all ${category === cat.value
-                            ? 'ring-1 ring-offset-1 ring-offset-[var(--review-bg-tertiary)]'
-                            : 'opacity-60 hover:opacity-100'
-                            }`}
-                        data-category={cat.value}
-                        style={{
-                            '--tw-ring-color': cat.color,
-                        } as React.CSSProperties}
-                    >
-                        {cat.label}
-                    </button>
-                ))}
+            {/* Category Selector — single-select, neutral (E8 Review Screen v2) */}
+            <div className="flex items-center gap-2 mt-3 mb-3 flex-wrap">
+                {COMMENT_CATEGORIES.map((cat) => {
+                    const active = category === cat.value;
+                    return (
+                        <button
+                            key={cat.value}
+                            onClick={() => setCategory(cat.value)}
+                            className="cursor-pointer transition-all text-xs uppercase rounded-full"
+                            style={{
+                                letterSpacing: '.06em',
+                                padding: '8px 14px',
+                                fontWeight: active ? 700 : 500,
+                                background: active ? 'var(--review-v2-gray-50)' : 'var(--review-v2-gray-800)',
+                                border: `1px solid ${active ? 'var(--review-v2-gray-50)' : 'var(--review-v2-gray-700)'}`,
+                                color: active ? 'var(--review-v2-gray-950)' : 'var(--review-v2-gray-200)',
+                            }}
+                        >
+                            {cat.label}
+                        </button>
+                    );
+                })}
             </div>
 
             {/* Actions */}
@@ -916,14 +924,15 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                         size="sm"
                         onClick={handleSubmit}
                         disabled={(!content.trim() && !audioUrl && attachedFiles.length === 0 && !screenshotUrl) || isSubmitting || isRecording}
-                        className="bg-[var(--review-accent-purple)] hover:bg-[var(--review-accent-purple)]/90 text-white"
+                        style={{ background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }}
+                        className="hover:opacity-85"
                     >
                         {isUploadingAttachments ? (
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                         ) : (
-                            <Send className="h-4 w-4 mr-1" />
+                            <Plus className="h-4 w-4 mr-1" />
                         )}
-                        {isUploadingAttachments ? 'Uploading…' : 'Post'}
+                        {isUploadingAttachments ? 'Uploading…' : 'Add'}
                     </Button>
                 </div>
             </div>

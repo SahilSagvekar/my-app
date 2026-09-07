@@ -73,7 +73,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
             <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
                     {/* Avatar */}
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-medium text-white">
+                    <div className="w-7 h-7 rounded-full bg-[var(--review-v2-gray-700)] flex items-center justify-center text-xs font-medium text-white">
                         {comment.authorName.charAt(0).toUpperCase()}
                     </div>
 
@@ -173,7 +173,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
             {isEditing ? (
                 <div className="space-y-2 mb-3">
                     <textarea
-                        className="w-full bg-[var(--review-bg-tertiary)] border border-[var(--review-border)] rounded p-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-purple-500 min-h-[80px]"
+                        className="w-full bg-[var(--review-bg-tertiary)] border border-[var(--review-border)] rounded p-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[var(--review-v2-gray-400)] min-h-[80px]"
                         value={tempContent}
                         onChange={(e) => setTempContent(e.target.value)}
                         autoFocus
@@ -189,7 +189,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                         </Button>
                         <Button
                             size="sm"
-                            className="text-xs h-7 bg-purple-600 hover:bg-purple-500 text-white"
+                            className="text-xs h-7 bg-[var(--review-v2-gray-50)] hover:opacity-85 text-[var(--review-v2-gray-950)] text-white"
                             onClick={handleEditSave}
                         >
                             Save
@@ -217,7 +217,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
             {/* Voice comment */}
             {comment.voiceUrl && (
                 <div className="mb-3 flex items-center gap-2 bg-black/20 border border-white/5 rounded-lg px-2 py-1.5">
-                    <Mic className="h-3.5 w-3.5 text-[var(--review-accent-purple)] shrink-0" />
+                    <Mic className="h-3.5 w-3.5 text-[var(--review-v2-gray-300)] shrink-0" />
                     <audio controls src={comment.voiceUrl} className="h-8 w-full" />
                     {!!comment.voiceDurationSec && (
                         <span className="text-[10px] text-[var(--review-text-muted)] font-mono shrink-0">
@@ -239,7 +239,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                                     href={att.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="block w-16 h-16 rounded border border-white/10 overflow-hidden hover:border-[var(--review-accent-purple)] transition-colors"
+                                    className="block w-16 h-16 rounded border border-white/10 overflow-hidden hover:border-[var(--review-v2-gray-500)] transition-colors"
                                     title={att.name}
                                 >
                                     <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
@@ -252,7 +252,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                                 href={att.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 bg-black/20 border border-white/5 hover:border-[var(--review-accent-purple)] rounded-lg pl-2 pr-2 py-1 transition-colors"
+                                className="flex items-center gap-1.5 bg-black/20 border border-white/5 hover:border-[var(--review-v2-gray-500)] rounded-lg pl-2 pr-2 py-1 transition-colors"
                                 title={`Download ${att.name}`}
                             >
                                 <FileIcon className="h-3.5 w-3.5 text-[var(--review-text-muted)] shrink-0" />
@@ -285,7 +285,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                 {comment.replies && comment.replies.length > 0 && (
                     <button
                         onClick={() => setShowReplies(!showReplies)}
-                        className="flex items-center gap-1 text-xs text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)]"
+                        className="flex items-center gap-1 text-xs text-[var(--review-text-muted)] hover:text-[var(--review-v2-gray-300)]"
                     >
                         <MessageSquare className="h-3 w-3" />
                         {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
@@ -299,7 +299,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                     {comment.replies.map((reply) => (
                         <div key={reply.id} className="text-sm">
                             <div className="flex items-center gap-2 mb-1">
-                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-[10px] font-medium text-white">
+                                <div className="w-5 h-5 rounded-full bg-[var(--review-v2-gray-700)] flex items-center justify-center text-[10px] font-medium text-white">
                                     {reply.authorName.charAt(0).toUpperCase()}
                                 </div>
                                 <span className="text-xs font-medium text-white">{reply.authorName}</span>

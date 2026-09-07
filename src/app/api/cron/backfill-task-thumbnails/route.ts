@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     // this request, is what actually guarantees jobs get worked.
     let processed: { done: number; failed: number; remaining: number } | { error: string };
     try {
-      processed = await processThumbnailBatch(env, { limit: 10, timeBudgetMs: 45000 });
+      processed = await processThumbnailBatch(env, { limit: 3, timeBudgetMs: 20000 });
     } catch (err: any) {
       processed = { error: err?.message || 'processThumbnailBatch failed' };
     }

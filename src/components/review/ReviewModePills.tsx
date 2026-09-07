@@ -1,6 +1,6 @@
 'use client';
 
-import { Pencil, Mic, Clock, Paperclip, Grid3x3 } from 'lucide-react';
+import { Pencil, Mic, Clock, Paperclip, Grid3x3, ChevronDown } from 'lucide-react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -44,83 +44,85 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
     const pillCount = BASE_MODES.length + (showGridDropdown ? 1 : 0);
 
     return (
-        <div className="review-mode-pills flex justify-center w-full px-2">
+        <div className="review-mode-pills flex justify-center w-full px-2 flex-wrap">
             <div
                 role="tablist"
                 aria-label="Comment modes"
-                className="inline-flex items-stretch rounded-md border border-[var(--review-border)] bg-[var(--review-bg-tertiary)]/80 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                className="inline-flex items-stretch flex-wrap rounded-md"
+                style={{ border: '1px solid var(--review-v2-gray-600)' }}
             >
                 {BASE_MODES.map(({ id, label, Icon }, index) => {
                     const isActive = activeMode === id;
                     return (
-                        <button
-                            key={id}
-                            type="button"
-                            role="tab"
-                            aria-selected={isActive}
-                            disabled={disabled}
-                            onClick={() => onSelect(id)}
-                            className={[
-                                'relative flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150',
-                                'disabled:opacity-40 disabled:cursor-not-allowed',
-                                index === 0 ? 'rounded-l-md' : '',
-                                index === pillCount - 1 && !showGridDropdown ? 'rounded-r-md' : '',
-                                isActive
-                                    ? 'bg-[var(--review-bg-elevated)] text-white shadow-sm ring-1 ring-white/10'
-                                    : 'text-[var(--review-text-muted)] hover:text-white',
-                            ].join(' ')}
-                        >
-                            <Icon className={`h-3 w-3 ${isActive ? 'text-[var(--review-accent-purple)]' : ''}`} />
-                            <span>{label}</span>
-                        </button>
+                        <div key={id} className="flex items-stretch">
+                            {index > 0 && <span style={{ width: 1, background: 'var(--review-v2-gray-600)' }} />}
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={isActive}
+                                disabled={disabled}
+                                onClick={() => onSelect(id)}
+                                className="relative flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 border-none disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                style={isActive
+                                    ? { background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }
+                                    : { background: 'transparent', color: 'var(--review-v2-gray-100)' }}
+                            >
+                                <Icon className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                <span>{label}</span>
+                            </button>
+                        </div>
                     );
                 })}
 
                 {showGridDropdown && (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected={gridDropdownActive}
-                                disabled={disabled}
-                                className={[
-                                    'relative flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold tracking-wide transition-all duration-150 rounded-r-md',
-                                    'disabled:opacity-40 disabled:cursor-not-allowed',
-                                    gridDropdownActive
-                                        ? 'bg-[var(--review-bg-elevated)] text-white shadow-sm ring-1 ring-white/10'
-                                        : 'text-[var(--review-text-muted)] hover:text-white',
-                                ].join(' ')}
+                    <div className="flex items-stretch">
+                        <span style={{ width: 1, background: 'var(--review-v2-gray-600)' }} />
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={gridDropdownActive}
+                                    disabled={disabled}
+                                    className="relative flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 border-none disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                    style={gridDropdownActive
+                                        ? { background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }
+                                        : { background: 'transparent', color: 'var(--review-v2-gray-100)' }}
+                                >
+                                    <Grid3x3 className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                    <span>Grid</span>
+                                    <ChevronDown className="h-3 w-3" strokeWidth={1.75} />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                side="top"
+                                align="start"
+                                className="min-w-[170px] p-2"
+                                style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}
                             >
-                                <Grid3x3 className={`h-3 w-3 ${gridDropdownActive ? 'text-[var(--review-accent-purple)]' : ''}`} />
-                                <span>Grid</span>
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            side="top"
-                            align="center"
-                            className="min-w-[140px] border-[var(--review-border)] bg-[var(--review-bg-elevated)] text-white"
-                        >
-                            {showInstagram && (
-                                <DropdownMenuCheckboxItem
-                                    checked={!!instagramActive}
-                                    onCheckedChange={() => onSelect('instagram')}
-                                    className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
-                                >
-                                    Instagram
-                                </DropdownMenuCheckboxItem>
-                            )}
-                            {showGrid && (
-                                <DropdownMenuCheckboxItem
-                                    checked={!!gridActive}
-                                    onCheckedChange={() => onSelect('grid')}
-                                    className="cursor-pointer text-xs focus:bg-white/10 focus:text-white"
-                                >
-                                    Overlay
-                                </DropdownMenuCheckboxItem>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                {showInstagram && (
+                                    <DropdownMenuCheckboxItem
+                                        checked={!!instagramActive}
+                                        onCheckedChange={() => onSelect('instagram')}
+                                        className="cursor-pointer text-sm rounded-md py-2.5 px-3"
+                                        style={{ color: instagramActive ? '#fff' : 'var(--review-v2-gray-300)' }}
+                                    >
+                                        Instagram
+                                    </DropdownMenuCheckboxItem>
+                                )}
+                                {showGrid && (
+                                    <DropdownMenuCheckboxItem
+                                        checked={!!gridActive}
+                                        onCheckedChange={() => onSelect('grid')}
+                                        className="cursor-pointer text-sm rounded-md py-2.5 px-3"
+                                        style={{ color: gridActive ? '#fff' : 'var(--review-v2-gray-300)' }}
+                                    >
+                                        Safeguards
+                                    </DropdownMenuCheckboxItem>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 )}
             </div>
         </div>

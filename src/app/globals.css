@@ -296,6 +296,97 @@ html {
   --review-timeline-hover: rgba(255, 255, 255, 0.3);
 }
 
+/* ================================================
+   E8 Review Screen v2 — strict-neutral dark remap
+   (E8 Design System handoff, Sept 2026)
+
+   Toggled on <body> only while ReviewScreenDesktop is mounted
+   (see its mount/unmount effect) so mobile/thumbnail/script
+   review — which share the --review-* variables above — are
+   completely unaffected. Radix portals (dropdowns, selects)
+   render into document.body, so a body-level class is what lets
+   them pick up the new palette too; a wrapper-scoped class would
+   not reach them.
+   ================================================ */
+body.e8-review-shell {
+  --review-bg-primary: #000000;       /* --color-bg */
+  --review-bg-secondary: #131316;     /* --gray-900 */
+  --review-bg-tertiary: #0a0a0b;      /* --gray-950 */
+  --review-bg-elevated: #222225;      /* --gray-800 */
+  --review-border: #38383d;           /* --gray-700 */
+  --review-border-hover: #505056;     /* --gray-600 */
+  --review-text-primary: #ffffff;
+  --review-text-secondary: #8a8a91;   /* --gray-400 */
+  --review-text-muted: #6b6b72;       /* --gray-500 */
+  --review-accent-purple: #f4f4f5;    /* --gray-50 — repurposed as the neutral "active/selected" fill */
+  --review-accent-blue: #8a8a91;
+  --review-accent-cyan: #8a8a91;
+  --review-status-approved: #2fbf60;  /* approved exception hue */
+  --review-status-changes: #a6303a;   /* send-back exception hue */
+  --review-status-progress: #8a8a91;
+  --review-status-pending: #505056;
+  --review-comment-marker: #b0b0b5;   /* --gray-300 */
+  --review-timeline-bg: #38383d;
+  --review-timeline-progress: #ffffff;
+  --review-timeline-hover: #6b6b72;
+
+  /* Extra tokens the v1 palette has no equivalent for */
+  --review-v2-gray-950: #0a0a0b;
+  --review-v2-gray-900: #131316;
+  --review-v2-gray-800: #222225;
+  --review-v2-gray-700: #38383d;
+  --review-v2-gray-600: #505056;
+  --review-v2-gray-500: #6b6b72;
+  --review-v2-gray-400: #8a8a91;
+  --review-v2-gray-300: #b0b0b5;
+  --review-v2-gray-200: #d3d3d6;
+  --review-v2-gray-100: #e7e7e9;
+  --review-v2-gray-50: #f4f4f5;
+  --review-v2-hover-download: #2F5490;  /* header Download hover fill */
+  --review-v2-hover-info: #8A6A2E;      /* header Details hover fill */
+  --review-v2-approve: #2FBF60;
+  --review-v2-send-back: #A6303A;
+}
+
+/* Component classes that hardcode the old purple rather than reading
+   var(--review-accent-purple) — overridden explicitly while the v2
+   shell class is on <body>. */
+body.e8-review-shell .review-comment-timestamp {
+  font-family: var(--font-sans, inherit);
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--review-v2-gray-950);
+  background: var(--review-v2-gray-50);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+body.e8-review-shell .review-comment-timestamp:hover {
+  background: var(--review-v2-gray-50);
+  opacity: .9;
+}
+body.e8-review-shell .review-comment.active {
+  border-color: var(--review-v2-gray-500);
+  box-shadow: 0 0 0 1px var(--review-v2-gray-500);
+}
+body.e8-review-shell .review-comment {
+  border-radius: 12px;
+}
+/* Category pills on posted comment cards read as a plain uppercase
+   label in v2, not a per-category colored chip (that treatment is
+   kept only on the composer's selectable category buttons, which are
+   styled inline in CommentInput.tsx). */
+body.e8-review-shell .review-category-pill {
+  background: transparent !important;
+  color: var(--review-v2-gray-400) !important;
+  padding: 0;
+  font-weight: 500;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
 /* Review Modal Container */
 .review-modal {
   background: var(--review-bg-primary);

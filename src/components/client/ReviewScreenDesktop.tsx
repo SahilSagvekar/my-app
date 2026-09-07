@@ -26,9 +26,9 @@ import {
 } from '../ui/tooltip';
 import {
     X, Download, Share, Play,
-    CheckCircle2, MessageSquare, Calendar, ChevronRight, ChevronDown,
+    CheckCircle2, MessageSquare, ChevronRight, ChevronDown,
     AlertCircle, ArrowLeft,
-    Info, Copy, Check, UserCheck, Plus, Smartphone,
+    Info, Copy, Check, Plus, Smartphone,
     PenLine, ImageIcon, Settings, Maximize, Minimize,
 } from 'lucide-react';
 import {
@@ -184,6 +184,26 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         };
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    // Scopes the v2 neutral palette (see globals.css) to this screen only.
+    // Applied on <body> — not a local wrapper class — because Radix
+    // dropdown/select portals render into document.body and would
+    // otherwise miss a wrapper-scoped CSS variable override.
+    useEffect(() => {
+        document.body.classList.add('e8-review-shell');
+        return () => document.body.classList.remove('e8-review-shell');
+    }, []);
+
+    // Escape also exits fullscreen — matches the design's Escape-to-close.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && document.fullscreenElement) {
+                document.exitFullscreen?.().catch(() => {});
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
     }, []);
 
     const toggleFullscreen = useCallback(() => {
@@ -427,12 +447,30 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         setTagsText(p.postingTags.map(t => t.text).join(', '));
     };
 
-    const isReadyToApprove = sidebarTab === 'titles';
-    const handleApproveClick = () => {
-        if (!isReadyToApprove) {
-            handleTabChange('titles');
-            return;
+    // Two-step, order-agnostic approval (E8 Review Screen v2 spec): either
+    // tab can be approved first; pips track which is done; the second
+    // Approve click reads "Approve Final" and opens a confirmation card
+    // instead of calling handleStatusChange directly.
+    const [okComments, setOkComments] = useState(false);
+    const [okTitles, setOkTitles] = useState(false);
+    const [confirmingApproval, setConfirmingApproval] = useState(false);
+    const otherSectionApproved = sidebarTab === 'comments' ? okTitles : okComments;
+    const approveLabel = otherSectionApproved ? 'Approve Final' : 'Approve';
+    const stepLabel = `Step ${otherSectionApproved ? '2' : '1'} of 2 — ${sidebarTab === 'comments' ? 'Comments' : 'Titles'}`;
+
+    const startApprove = () => {
+        const onComments = sidebarTab === 'comments';
+        if (onComments) setOkComments(true); else setOkTitles(true);
+        const otherDone = onComments ? okTitles : okComments;
+        if (otherDone) {
+            setConfirmingApproval(true);
+        } else {
+            setSidebarTab(onComments ? 'titles' : 'comments');
         }
+    };
+    const cancelApproveConfirmation = () => setConfirmingApproval(false);
+    const confirmApproveFinal = () => {
+        setConfirmingApproval(false);
         p.handleStatusChange('approved');
     };
 
@@ -490,93 +528,116 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     </div>
                 )}
 
-                <div className="flex-shrink-0 review-header px-6 py-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
+                <div className="flex-shrink-0 flex items-center justify-between gap-6 px-4 py-3" style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
+                    <div className="flex items-center gap-4 min-w-0">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => p.onOpenChange(false)}
+                                    className="flex items-center gap-2 bg-transparent border-none px-2 py-2 rounded-md cursor-pointer transition-colors"
+                                    style={{ color: 'var(--review-v2-gray-300)' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-bg-elevated)'; e.currentTarget.style.color = '#fff'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-300)'; }}
+                                >
+                                    <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                    <span className="text-sm font-medium">Back</span>
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">Go back</TooltipContent>
+                        </Tooltip>
+
+                        <div style={{ width: 1, height: 32, background: 'var(--review-border)' }} />
+
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/assets/e8-logo-white.svg" alt="E8" style={{ height: 28, width: 'auto', display: 'block', flex: 'none' }} />
+
+                        <div style={{ width: 1, height: 32, background: 'var(--review-border)' }} />
+
+                        <div className="flex items-baseline gap-3 min-w-0">
+                            <span className="text-lg font-semibold whitespace-nowrap overflow-hidden text-ellipsis text-white" style={{ letterSpacing: '-0.01em' }}>
+                                {p.asset.title}
+                            </span>
+                            <span style={{ width: 1, height: 14, background: 'var(--review-border)', flex: 'none', alignSelf: 'center' }} />
+                            <span className="text-sm font-medium whitespace-nowrap" style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--review-v2-gray-100)' }}>
+                                {p.duration > 0 ? p.formatTime(p.duration) : p.asset.runtime} &nbsp;•&nbsp; {p.measuredResolution || p.asset.resolution}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        {p.onSwitchToThumbnail && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => p.onOpenChange(false)} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]">
-                                        <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={p.onSwitchToThumbnail}
+                                        className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
+                                    >
+                                        <ImageIcon className="h-4 w-4" />
+                                        <span className="text-xs hidden sm:inline">Thumbnails</span>
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom">Go back</TooltipContent>
+                                <TooltipContent side="bottom">Switch to Thumbnail Review</TooltipContent>
                             </Tooltip>
+                        )}
 
-                            <div className="h-6 w-px bg-[var(--review-border)]" />
-
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h1 className="text-lg font-medium text-white">{p.asset.title}</h1>
-                                </div>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                    <span className="text-sm text-white">
-                                        {p.duration > 0 ? p.formatTime(p.duration) : p.asset.runtime}
-                                    </span>
-                                    <span className="text-white">•</span>
-                                    <span className="text-sm text-white">{p.measuredResolution || p.asset.resolution}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            {p.onSwitchToThumbnail && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={p.onSwitchToThumbnail}
-                                            className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
-                                        >
-                                            <ImageIcon className="h-4 w-4" />
-                                            <span className="text-xs hidden sm:inline">Thumbnails</span>
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom">Switch to Thumbnail Review</TooltipContent>
-                                </Tooltip>
-                            )}
-
-                            {p.asset.versions.length > 1 ? (
+                        {p.asset.versions.length > 1 ? (
+                            <div className="relative">
                                 <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
-                                    <SelectTrigger className="h-8 w-auto min-w-[130px] bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white text-xs">
+                                    <SelectTrigger
+                                        className="h-[38px] w-auto min-w-[170px] text-sm font-medium rounded-md"
+                                        style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border)', color: 'var(--review-v2-gray-100)' }}
+                                    >
                                         <SelectValue placeholder="Version" />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
+                                    <SelectContent style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}>
                                         {p.asset.versions.map((v: any) => (
-                                            <SelectItem key={v.id} value={v.id} className="text-[var(--review-text-secondary)] hover:text-white text-xs">
+                                            <SelectItem key={v.id} value={v.id} className="text-sm" style={{ color: 'var(--review-v2-gray-100)' }}>
                                                 Version {v.number} — {v.uploadDate}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            ) : (
-                                <Badge className="bg-[var(--review-bg-tertiary)] text-white text-xs h-8 w-8 p-0 flex items-center justify-center">
-                                    V{p.asset.versions[0]?.number || '1'}
-                                </Badge>
-                            )}
+                            </div>
+                        ) : (
+                            <Badge
+                                className="text-xs h-[38px] w-[38px] p-0 flex items-center justify-center rounded-md"
+                                style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border)', color: 'var(--review-v2-gray-100)' }}
+                            >
+                                V{p.asset.versions[0]?.number || '1'}
+                            </Badge>
+                        )}
 
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={p.handleDownload}
+                                    title="Download"
+                                    className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                    style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-hover-download)'; e.currentTarget.style.borderColor = 'var(--review-v2-hover-download)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                >
+                                    <Download className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">Download</TooltipContent>
+                        </Tooltip>
+
+                        {p.userRole === 'client' && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={p.handleDownload} className="text-white hover:text-white bg-blue-600 hover:bg-blue-700 h-8 w-8 p-0">
-                                        <Download className="h-4 w-4" />
+                                    <Button variant="ghost" size="sm" onClick={p.handleGenerateShareLink} disabled={p.generatingLink} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                        {p.generatingLink
+                                            ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                            : <Share className="h-4 w-4" />
+                                        }
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom">Download</TooltipContent>
+                                <TooltipContent side="bottom">Share link</TooltipContent>
                             </Tooltip>
-
-                            {p.userRole === 'client' && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="sm" onClick={p.handleGenerateShareLink} disabled={p.generatingLink} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
-                                            {p.generatingLink
-                                                ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                                : <Share className="h-4 w-4" />
-                                            }
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom">Share link</TooltipContent>
-                                </Tooltip>
-                            )}
+                        )}
 
                             {p.allClientComments.length > 0 && (
                                 <DropdownMenu>
@@ -618,38 +679,69 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => p.setShowInfoPanel(!p.showInfoPanel)} className="text-white hover:text-white bg-yellow-500 hover:bg-yellow-600 h-8 w-8 p-0">
-                                        <Info className="h-4 w-4" />
-                                    </Button>
+                                    <button
+                                        onClick={() => p.setShowInfoPanel(!p.showInfoPanel)}
+                                        title="Details"
+                                        className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                        style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-hover-info)'; e.currentTarget.style.borderColor = 'var(--review-v2-hover-info)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                    >
+                                        <Info className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                    </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">Asset info</TooltipContent>
                             </Tooltip>
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
+                                    <button
                                         onClick={p.onSwitchToMobile}
-                                        className="text-black hover:text-black bg-white hover:bg-white h-8 w-8 p-0"
+                                        title="Mobile preview"
+                                        className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                        style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-200)'; e.currentTarget.style.borderColor = 'var(--review-v2-gray-200)'; e.currentTarget.style.color = 'var(--review-v2-gray-950)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
                                     >
-                                        <Smartphone className="h-4 w-4" />
-                                    </Button>
+                                        <Smartphone className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                    </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">Switch to Mobile View</TooltipContent>
                             </Tooltip>
 
-                            <Button variant="ghost" size="sm" onClick={() => p.onOpenChange(false)} className="text-black hover:text-black bg-red-500 hover:bg-red-600 h-8 w-8 p-0">
-                                <X className="h-4 w-4" />
-                            </Button>
+                            <button
+                                onClick={() => p.onOpenChange(false)}
+                                title="Close"
+                                className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-send-back)'; e.currentTarget.style.borderColor = 'var(--review-v2-send-back)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                            >
+                                <X className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex-1 flex overflow-hidden min-h-0">
+                <div className="flex-1 flex overflow-hidden min-h-0" style={{ background: 'var(--review-bg-primary)' }}>
 
-                    <div className="flex-1 flex flex-col p-4 pr-0 overflow-hidden">
+                    <div
+                        className="flex-1 flex flex-col overflow-hidden m-4 mr-2"
+                        style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-v2-gray-800)', borderRadius: 16, padding: 24 }}
+                    >
                         <div ref={videoShellRef} className="relative flex-1 flex items-center justify-center min-h-0">
+                            {isFullscreen && (
+                                <button
+                                    onClick={toggleFullscreen}
+                                    title="Exit fullscreen"
+                                    className="absolute top-4 right-4 z-20 w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                    style={{ border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-send-back)'; e.currentTarget.style.borderColor = 'var(--review-v2-send-back)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-v2-gray-600)'; }}
+                                >
+                                    <X className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                </button>
+                            )}
                             {isVerticalVideo ? (
                                 <div className="!absolute !inset-0 flex items-center justify-center">
                                     <div
@@ -930,44 +1022,50 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                     {!p.readOnly && (
                     <div
-                        className="w-96 flex-shrink-0 review-comments-sidebar flex flex-col overflow-hidden border-l border-[var(--review-border)]"
-                        style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
+                        className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden m-4 ml-2"
+                        style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)', borderRadius: 16 }}
                     >
-                        <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
-                            <div className="grid grid-cols-2 gap-2">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <button
-                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize flex items-center justify-center gap-1 bg-blue-500 text-white hover:bg-blue-600 ${sidebarTab === 'comments' ? '' : 'opacity-60 hover:opacity-100'}`}
-                                        >
-                                            Comments
-                                            <ChevronDown className="h-3 w-3" />
-                                        </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="center" className="min-w-[140px] border-[var(--review-border)] bg-[var(--review-bg-elevated)] text-white">
-                                        <DropdownMenuItem
-                                            onClick={() => handleModeSelect('general')}
-                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white flex items-center justify-between gap-2"
-                                        >
-                                            General
-                                            {activeMode === 'general' && <Check className="h-3 w-3" />}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => handleModeSelect('comment')}
-                                            className="cursor-pointer text-xs focus:bg-white/10 focus:text-white flex items-center justify-between gap-2"
-                                        >
-                                            Revisions
-                                            {activeMode === 'comment' && <Check className="h-3 w-3" />}
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                <button
-                                    onClick={() => handleTabChange('titles')}
-                                    className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize bg-orange-500 text-white hover:bg-orange-600 ${sidebarTab === 'titles' ? '' : 'opacity-60 hover:opacity-100'}`}
-                                >
-                                    Titles
-                                </button>
-                            </div>
+                        <div className="grid grid-cols-2" style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        className="text-sm flex items-center justify-center gap-2 py-3.5 px-2 -mb-px cursor-pointer transition-colors"
+                                        style={sidebarTab === 'comments'
+                                            ? { background: 'var(--review-bg-tertiary)', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                            : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                                    >
+                                        Comments
+                                        <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="center" className="min-w-[190px] p-2" style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}>
+                                    <DropdownMenuItem
+                                        onClick={() => handleModeSelect('comment')}
+                                        className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3"
+                                        style={{ color: activeMode === 'comment' || (activeMode !== 'general' && !activeMode) ? '#fff' : 'var(--review-v2-gray-300)' }}
+                                    >
+                                        Revisions
+                                        {activeMode !== 'general' && <Check className="h-3.5 w-3.5" strokeWidth={2} />}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        onClick={() => handleModeSelect('general')}
+                                        className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3"
+                                        style={{ color: activeMode === 'general' ? '#fff' : 'var(--review-v2-gray-300)' }}
+                                    >
+                                        General
+                                        {activeMode === 'general' && <Check className="h-3.5 w-3.5" strokeWidth={2} />}
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <button
+                                onClick={() => handleTabChange('titles')}
+                                className="text-sm py-3.5 px-2 -mb-px cursor-pointer transition-colors"
+                                style={sidebarTab === 'titles'
+                                    ? { background: 'var(--review-bg-tertiary)', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                    : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                            >
+                                Titles
+                            </button>
                         </div>
 
                         {sidebarTab === 'comments' && (<>
@@ -1224,11 +1322,64 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </div>
                         )}
 
-                        <div className="p-4 pb-6 border-t border-[var(--review-border)] flex flex-col gap-2.5 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
-                            {p.userRole === 'qc' ? (
+                        <div className="p-4 border-t flex flex-col gap-2" style={{ background: 'var(--review-bg-secondary)', borderColor: 'var(--review-border)' }}>
+                            {confirmingApproval ? (
+                                <div className="flex flex-col gap-2">
+                                    <p className="text-sm leading-normal m-0" style={{ color: 'var(--review-v2-gray-100)' }}>
+                                        Comments and titles are both approved. Approving closes this version
+                                        {unresolvedCount > 0
+                                            ? ` — your ${unresolvedCount} comment${unresolvedCount === 1 ? '' : 's'} will not be sent.`
+                                            : ' and releases it for delivery.'}
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={cancelApproveConfirmation}
+                                            className="flex-1 flex items-center justify-center text-sm font-medium py-3 rounded-md cursor-pointer bg-transparent transition-colors"
+                                            style={{ border: '1px solid var(--review-v2-gray-500)', color: 'var(--review-v2-gray-100)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--review-bg-elevated)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={confirmApproveFinal}
+                                            disabled={p.savingFeedback}
+                                            className="flex-1 flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-md cursor-pointer transition-all disabled:opacity-60"
+                                            style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
+                                            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = 'var(--review-v2-gray-50)'; }}
+                                        >
+                                            {p.savingFeedback
+                                                ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                                : <CheckCircle2 className="h-4 w-4" />}
+                                            Yes, approve
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
                                 <>
-                                    {!p.requiresClientReview && (
-                                        <label className="flex items-center gap-2 px-1 pb-1 text-xs text-[var(--review-text-secondary)] cursor-pointer select-none">
+                                    <div className="flex items-center justify-between gap-2 pb-1">
+                                        <span className="text-xs font-bold uppercase" style={{ letterSpacing: '.06em', color: 'var(--review-v2-gray-400)' }}>
+                                            {stepLabel}
+                                        </span>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => handleTabChange('comments')}
+                                                title="Comments"
+                                                className="border-none cursor-pointer p-0"
+                                                style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'comments' ? 'var(--review-v2-gray-50)' : (okComments ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
+                                            />
+                                            <button
+                                                onClick={() => handleTabChange('titles')}
+                                                title="Titles"
+                                                className="border-none cursor-pointer p-0"
+                                                style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'titles' ? 'var(--review-v2-gray-50)' : (okTitles ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {p.userRole === 'qc' && !p.requiresClientReview && (
+                                        <label className="flex items-center gap-2 px-1 pb-1 text-xs cursor-pointer select-none" style={{ color: 'var(--review-v2-gray-400)' }}>
                                             <Checkbox
                                                 checked={!!p.forceClientReviewOverride}
                                                 onCheckedChange={(checked) => p.onForceClientReviewOverrideChange?.(checked === true)}
@@ -1236,40 +1387,52 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             Send this video to client review anyway
                                         </label>
                                     )}
-                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={handleApproveClick} disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}>
-                                        {isReadyToApprove
-                                            ? <><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Confirm Approve</>
-                                            : (p.requiresClientReview || p.forceClientReviewOverride)
-                                                ? <><UserCheck className="h-3.5 w-3.5 mr-2" />Approve</>
-                                                : <><Calendar className="h-3.5 w-3.5 mr-2" />Approve</>
-                                        }
-                                    </Button>
-                                    <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={unresolvedCount === 0 || p.savingFeedback}>
+                                    {p.userRole === 'client' && (
+                                        <div className="flex items-start gap-2 px-0.5 pb-1">
+                                            <Checkbox
+                                                id="confirm-final-desktop"
+                                                checked={p.confirmFinal}
+                                                onCheckedChange={v => p.setConfirmFinal(v as boolean)}
+                                                className="mt-0.5"
+                                            />
+                                            <label htmlFor="confirm-final-desktop" className="text-xs cursor-pointer" style={{ color: 'var(--review-v2-gray-400)' }}>
+                                                I confirm this is the final version for publishing
+                                            </label>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={startApprove}
+                                        disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0 || (p.userRole === 'client' && !p.confirmFinal)}
+                                        className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                        style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
+                                        onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}
+                                        onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = 'var(--review-v2-gray-50)'; }}
+                                    >
+                                        <CheckCircle2 className="h-[17px] w-[17px]" strokeWidth={1.75} />
+                                        {approveLabel}
+                                    </button>
+
+                                    <button
+                                        onClick={() => p.handleStatusChange('needs_changes')}
+                                        disabled={unresolvedCount === 0 || p.savingFeedback}
+                                        className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:cursor-not-allowed"
+                                        style={unresolvedCount === 0
+                                            ? { background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-500)' }
+                                            : { background: 'var(--review-v2-send-back)', border: '1px solid var(--review-v2-send-back)', color: 'var(--review-v2-gray-50)' }}
+                                        onMouseEnter={e => { if (unresolvedCount > 0) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}
+                                        onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = unresolvedCount === 0 ? 'var(--review-v2-gray-500)' : 'var(--review-v2-gray-50)'; }}
+                                    >
                                         {p.savingFeedback
-                                            ? <><div className="h-3.5 w-3.5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />Saving...</>
-                                            : <><MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Send Back ({unresolvedCount} comments)</>
-                                        }
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    <div className="flex items-start gap-2 mb-1">
-                                        <Checkbox
-                                            id="confirm-final-desktop"
-                                            checked={p.confirmFinal}
-                                            onCheckedChange={v => p.setConfirmFinal(v as boolean)}
-                                            className="mt-0.5"
-                                        />
-                                        <label htmlFor="confirm-final-desktop" className="text-xs text-[var(--review-text-secondary)] cursor-pointer">
-                                            I confirm this is the final version for publishing
-                                        </label>
-                                    </div>
-                                    <Button size="sm" className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium" onClick={handleApproveClick} disabled={!p.confirmFinal || p.asset.approvalLocked || unresolvedCount > 0}>
-                                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />{isReadyToApprove ? 'Confirm Approve' : 'Approve'}
-                                    </Button>
-                                    <Button size="sm" className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium" onClick={() => p.handleStatusChange('needs_changes')} disabled={p.comments.filter(c => !c.resolved).length === 0}>
-                                        <MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />Request Revisions
-                                    </Button>
+                                            ? <div className="h-[17px] w-[17px] animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                            : <MessageSquare className="h-[17px] w-[17px]" strokeWidth={1.5} />}
+                                        Send Back ({unresolvedCount} comment{unresolvedCount === 1 ? '' : 's'})
+                                    </button>
+                                    {unresolvedCount === 0 && (
+                                        <span className="text-xs leading-normal text-center" style={{ color: 'var(--review-v2-gray-500)' }}>
+                                            Add at least one comment to send this version back.
+                                        </span>
+                                    )}
                                 </>
                             )}
                         </div>

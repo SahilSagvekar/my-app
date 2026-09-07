@@ -52,3 +52,14 @@ dead_letter_queue = "notifications-dlq"
 [[services]]
 binding = "FILE_SERVER"
 service = "e8-file-server"
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = false
+head_sampling_rate = 1
+persist = true
