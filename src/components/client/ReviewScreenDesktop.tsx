@@ -29,7 +29,7 @@ import {
     CheckCircle2, MessageSquare, ChevronRight, ChevronDown,
     AlertCircle, ArrowLeft,
     Info, Copy, Check, Plus, Smartphone,
-    PenLine, ImageIcon, Settings, Maximize, Minimize,
+    PenLine, ImageIcon, Maximize, Minimize,
 } from 'lucide-react';
 import {
     ReviewCommentCard,
@@ -965,19 +965,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="h-8 w-8 rounded-md p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
-                                                        aria-label="Settings"
-                                                    >
-                                                        <Settings className="h-4 w-4" />
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>Settings</TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
                                                         onClick={toggleFullscreen}
                                                         className="h-8 w-8 rounded-md p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
                                                         aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
@@ -1090,14 +1077,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             <div ref={p.commentsRef} className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
                                 {p.sortedComments.length === 0 ? (
                                     <div className="text-center py-12 text-[var(--review-text-muted)]">
-                                        <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                                        <p className="text-sm">No comments on V{p.currentVersionNumber}</p>
-                                        <p className="text-xs mt-1 opacity-70">
-                                            {p.isClientViewer
-                                                ? 'Add a comment to leave feedback on this version'
-                                                : 'Use Comment / Draw / Voice pills below the player'
-                                            }
-                                        </p>
+                                        <p className="text-sm">No comments yet</p>
                                     </div>
                                 ) : (
                                     <>

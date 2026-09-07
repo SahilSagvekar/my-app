@@ -21,6 +21,13 @@ const HANDLE_HIT_PX = 8;
 const MIN_RANGE_SEC = 1;
 const DEFAULT_RANGE_SEC = 3;
 
+function formatTime(seconds: number): string {
+    if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 type RangeDragKind = 'create' | 'move' | 'resize-start' | 'resize-end';
 
 interface ReviewCompactTransportProps {
@@ -215,10 +222,13 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
     };
 
     return (
-        <div className="review-compact-transport w-full min-w-0 py-0 px-8">
+        <div className="review-compact-transport w-full min-w-0 py-0 px-8 flex items-center gap-3">
+            <span className="review-transport-time shrink-0 text-xs tabular-nums text-[var(--review-text-muted)]">
+                {formatTime(currentTime)}
+            </span>
             <div
                     ref={trackRef}
-                    className={`review-compact-scrub relative h-4 flex items-center group ${rangeMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
+                    className={`review-compact-scrub relative h-4 flex-1 flex items-center group ${rangeMode ? 'cursor-crosshair' : 'cursor-pointer'}`}
                     onMouseDown={rangeMode ? handleRangeMouseDown : handleMouseDown}
                     role="slider"
                     aria-valuemin={0}
@@ -309,6 +319,9 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
                     />
                 )}
             </div>
+            <span className="review-transport-time shrink-0 text-xs tabular-nums text-[var(--review-text-muted)]">
+                {formatTime(duration)}
+            </span>
         </div>
     );
 });
