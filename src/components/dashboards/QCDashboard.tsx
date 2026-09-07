@@ -1347,6 +1347,8 @@ useEffect(() => {
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase' as const,
                   lineHeight: 1,
+                  position: 'relative',
+                  top: '-1px',
                 }}
               >
                 {hasActiveFilters ? 'Filtered' : 'Pending'}
