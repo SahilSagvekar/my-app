@@ -1328,22 +1328,24 @@ useEffect(() => {
 
             {/* Stats Badge */}
             <div
-              className="flex items-center shrink-0 select-none font-sans"
+              className="shrink-0 select-none"
               style={{
-                background: 'var(--gray-950, #09090b)',
-                color: 'var(--white, #ffffff)',
-                borderRadius: 'var(--radius-sm, 8px)',
-                padding: '8px 16px',
-                gap: '10px',
+                display: 'inline-flex',
+                alignItems: 'baseline',
+                background: '#18181b',
+                color: '#ffffff',
+                borderRadius: '8px',
+                padding: '7px 14px',
+                gap: '8px',
+                fontFamily: 'Inter, var(--font-sans), sans-serif',
               }}
             >
               <span
                 style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
+                  fontSize: '11px',
+                  fontWeight: 800,
                   letterSpacing: '0.08em',
-                  color: '#ffffff',
-                  textTransform: 'uppercase',
+                  textTransform: 'uppercase' as const,
                   lineHeight: 1,
                 }}
               >
@@ -1351,9 +1353,8 @@ useEffect(() => {
               </span>
               <span
                 style={{
-                  fontSize: '16px',
+                  fontSize: '18px',
                   fontWeight: 700,
-                  color: '#ffffff',
                   lineHeight: 1,
                 }}
               >
