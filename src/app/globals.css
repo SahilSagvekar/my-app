@@ -592,7 +592,7 @@ body.e8-review-shell .review-category-pill {
 }
 
 .review-comment-input:focus-within {
-  border-color: var(--review-accent-purple);
+  border-color: var(--review-border);
 }
 
 .review-comment-input textarea {
