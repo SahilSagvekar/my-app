@@ -102,8 +102,8 @@ interface EnhancedWorkflowTask {
 
 
 // 🔥 Color coding for deliverable types
-const getDeliverableTypeColor = (deliverableType: string): { bg: string; border: string; ring: string } => {
-  const type = deliverableType?.toLowerCase() || '';
+const getDeliverableTypeColor = (deliverableType?: string | null): { bg: string; border: string; ring: string } => {
+  const type = deliverableType?.toLowerCase().trim() || '';
   
   // Short Form Videos (green)
   if (type.includes('short form') || type === 'sf' || type === 'short_form') {
@@ -114,7 +114,7 @@ const getDeliverableTypeColor = (deliverableType: string): { bg: string; border:
     };
   }
   // Beta Short Form (teal)
-  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form') {
+  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form' || type.includes('beta')) {
     return { 
       bg: 'bg-teal-50', 
       border: 'border-teal-200', 
@@ -145,8 +145,8 @@ const getDeliverableTypeColor = (deliverableType: string): { bg: string; border:
       ring: 'ring-blue-300' 
     };
   }
-  // Thumbnails/Images (purple)
-  if (type.includes('thumbnail') || type.includes('image')) {
+  // Thumbnails/Images/Hard Post (purple)
+  if (type.includes('thumbnail') || type.includes('image') || type === 'hp' || type.includes('hard post') || type.includes('graphic image')) {
     return { 
       bg: 'bg-purple-50', 
       border: 'border-purple-200', 
@@ -161,10 +161,18 @@ const getDeliverableTypeColor = (deliverableType: string): { bg: string; border:
       ring: 'ring-orange-300' 
     };
   }
+  // Text Post (indigo)
+  if (type.includes('text post')) {
+    return { 
+      bg: 'bg-indigo-50', 
+      border: 'border-indigo-200', 
+      ring: 'ring-indigo-300' 
+    };
+  }
   // Default
   return { 
     bg: 'bg-white', 
-    border: 'border-zinc-100', 
+    border: 'border-zinc-200', 
     ring: 'ring-zinc-200' 
   };
 };
@@ -350,6 +358,10 @@ useEffect(() => {
       label = 'Beta Short Form';
     } else if (lower === 'sqf' || lower.includes('super quick')) {
       label = 'Super Quick Form';
+    } else if (lower === 'hp' || lower.includes('hard post') || lower.includes('graphic image')) {
+      label = 'Hard Post';
+    } else if (lower.includes('text post')) {
+      label = 'Text Post';
     }
 
     let colorClass = 'bg-[#dcfce7] text-[#15803d]';
@@ -357,12 +369,14 @@ useEffect(() => {
       colorClass = 'bg-blue-100 text-blue-800';
     } else if (lower.includes('snap')) {
       colorClass = 'bg-yellow-100 text-yellow-800';
-    } else if (lower.includes('thumb') || lower.includes('image')) {
+    } else if (lower.includes('thumb') || lower.includes('image') || lower === 'hp' || lower.includes('hard post')) {
       colorClass = 'bg-purple-100 text-purple-800';
     } else if (lower.includes('audio') || lower.includes('podcast')) {
       colorClass = 'bg-orange-100 text-orange-800';
     } else if (lower.includes('beta') || lower.includes('bsf')) {
       colorClass = 'bg-teal-100 text-teal-800';
+    } else if (lower.includes('text post')) {
+      colorClass = 'bg-indigo-100 text-indigo-800';
     }
 
     return { label, colorClass };
@@ -1385,14 +1399,16 @@ useEffect(() => {
                 const thumbnail = getTaskThumbnail(task);
                 const isChecked = selectedTaskIds.has(task.id);
                 const latestVideoVersion = getTaskLatestVersion(task);
-                const deliverableBadge = getDeliverableBadge((task as any).deliverableType || task.taskCategory);
+                const deliverableTypeRaw = (task as any).deliverableType || task.taskCategory;
+                const deliverableColors = getDeliverableTypeColor(deliverableTypeRaw);
+                const deliverableBadge = getDeliverableBadge(deliverableTypeRaw);
                 const editorName = getEditorName(task);
                 const dueDateFormatted = formatCardDate(task.dueDate || task.createdAt);
 
                 return (
                   <div
                     key={task.id}
-                    className={`group cursor-pointer bg-white rounded-2xl border border-zinc-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col h-full ${
+                    className={`group cursor-pointer rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col h-full ${deliverableColors.bg} ${deliverableColors.border} hover:${deliverableColors.ring} ${
                       selectedTask?.id === task.id ? "ring-2 ring-primary" : ""
                     } ${isChecked ? "ring-2 ring-violet-500" : ""}`}
                     onClick={() => handleTaskClick(task)}
@@ -1497,7 +1513,7 @@ useEffect(() => {
                     </div>
 
                     {/* Card Body */}
-                    <div className="p-4 pt-3.5 pb-4 flex flex-col justify-between flex-1 gap-2.5 bg-white">
+                    <div className={`p-4 pt-3.5 pb-4 flex flex-col justify-between flex-1 gap-2.5 ${deliverableColors.bg}`}>
                       {/* Row 1: Task Title & Guidelines Button */}
                       <div className="flex items-center justify-between gap-2">
                         <h4
@@ -1535,7 +1551,7 @@ useEffect(() => {
                         ) : (
                           <span />
                         )}
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-700 shrink-0">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/90 text-zinc-700 border border-black/5 shadow-xs shrink-0">
                           V{latestVideoVersion}
                         </span>
                       </div>
