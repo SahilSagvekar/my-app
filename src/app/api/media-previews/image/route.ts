@@ -27,8 +27,28 @@ export async function GET(req: NextRequest) {
   if (!knownPreview) return new NextResponse('Preview not found', { status: 404 });
 
   try {
-    const { env } = getCloudflareContext();
-    const upstream = await getMediaPreviewStream(env, user.id, user.role, key);
+    try {
+      const { env } = getCloudflareContext();
+      if (env?.FILE_SERVER) {
+        const upstream = await getMediaPreviewStream(env, user.id, user.role, key);
+        const headers = new Headers();
+        headers.set('Content-Type', upstream.headers.get('content-type') || 'image/webp');
+        headers.set('Cache-Control', 'private, max-age=3600');
+        const length = upstream.headers.get('content-length');
+        if (length) headers.set('Content-Length', length);
+        return new NextResponse(upstream.body, { status: 200, headers });
+      }
+    } catch (cfError: unknown) {
+      // Fall through to direct S3/R2 presigned URL fetch
+    }
+
+    // Direct S3/R2 fallback
+    const { generateSignedUrl } = await import('@/lib/s3');
+    const signedUrl = await generateSignedUrl(key, 3600);
+    const upstream = await fetch(signedUrl);
+    if (!upstream.ok) {
+      return new NextResponse('Preview unavailable', { status: 502 });
+    }
     const headers = new Headers();
     headers.set('Content-Type', upstream.headers.get('content-type') || 'image/webp');
     headers.set('Cache-Control', 'private, max-age=3600');

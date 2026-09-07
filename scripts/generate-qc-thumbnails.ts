@@ -1,4 +1,12 @@
+// npx tsx scripts/generate-qc-thumbnails.ts
+
+import path from 'path';
+import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config();
 
 import { getDbHttp } from '../src/lib/db';
@@ -8,10 +16,10 @@ import { isLikelyImageFile } from '../src/lib/task-thumbnail';
 import { generateThumbnailForVideoKey } from '../src/lib/media-preview-generator';
 
 async function main() {
-  console.log('🚀 Starting Thumbnail Generation for READY_FOR_QC tasks...\n');
+  console.log('🚀 Starting Thumbnail Generation for CLIENT_REVIEW tasks...\n');
   const db = getDbHttp();
 
-  // 1. Fetch all READY_FOR_QC tasks
+  // 1. Fetch all CLIENT_REVIEW tasks
   const qcTasks = await db
     .select({
       id: taskTable.id,
@@ -19,12 +27,12 @@ async function main() {
       status: taskTable.status,
     })
     .from(taskTable)
-    .where(eq(taskTable.status, 'READY_FOR_QC'));
+    .where(eq(taskTable.status, 'CLIENT_REVIEW'));
 
-  console.log(`📋 Found ${qcTasks.length} tasks in READY_FOR_QC status.`);
+  console.log(`📋 Found ${qcTasks.length} tasks in CLIENT_REVIEW status.`);
 
   if (qcTasks.length === 0) {
-    console.log('No tasks in READY_FOR_QC status. Done.');
+    console.log('No tasks in CLIENT_REVIEW status. Done.');
     process.exit(0);
   }
 
@@ -133,7 +141,7 @@ async function main() {
   console.log(`  - Queued for thumbnail generation: ${queue.length}\n`);
 
   if (queue.length === 0) {
-    console.log('✅ All READY_FOR_QC tasks already have thumbnails or previews!');
+    console.log('✅ All CLIENT_REVIEW tasks already have thumbnails or previews!');
     process.exit(0);
   }
 
