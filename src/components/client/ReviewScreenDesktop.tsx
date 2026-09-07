@@ -1494,7 +1494,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                     onCopy={p.handleCopyLink}
                     copied={p.linkCopied}
                 />
-            </div>
         </TooltipProvider>
     );
 }
