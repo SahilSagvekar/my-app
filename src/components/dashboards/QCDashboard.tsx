@@ -419,15 +419,10 @@ useEffect(() => {
     return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
   }, []);
 
-  // 🔥 Bulk selection is admin-only (viewing as QC). If this ever stops being
-  // true mid-session — a real QC user, or an admin switching back to their
-  // own role — force-exit selection mode so the feature can't linger.
   useEffect(() => {
-    if (!isViewingAsOther && (selectionMode || selectedTaskIds.size > 0)) {
-      setSelectionMode(false);
-      setSelectedTaskIds(new Set());
-    }
-  }, [isViewingAsOther]);
+    setSelectedTaskIds(new Set());
+    setSelectionMode(false);
+  }, [viewingAsRole]);
 
   const loadQCTasks = useCallback(async () => {
     try {
@@ -1194,25 +1189,25 @@ useEffect(() => {
   return (
     <>
       <div className="flex flex-col h-full space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-200">
-          <div className="flex-1">
-            <h1 className="text-xl font-bold tracking-tight text-gray-900">Content Review</h1>
-            <p className="text-muted-foreground mt-0.5 text-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-zinc-200">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-zinc-950 leading-tight">Content Review</h1>
+            <p className="text-zinc-500 mt-1 text-xs sm:text-[13px]">
               Review submitted work and approve or reject with feedback
             </p>
           </div>
 
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Dashboard Filters */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5 mr-1">
-                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Filter:</span>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              <div className="flex items-center gap-1.5 mr-0.5">
+                <Filter className="h-4 w-4 text-zinc-400 stroke-[1.75]" />
+                <span className="text-xs sm:text-sm font-medium text-zinc-500">Filter:</span>
               </div>
 
               <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-                <SelectTrigger className="h-9 w-[160px] text-xs">
-                  <SelectValue placeholder="Deliverable Type" />
+                <SelectTrigger className="h-9 w-[145px] sm:w-[155px] text-xs sm:text-sm font-medium bg-white border border-zinc-200 rounded-lg text-zinc-800 hover:bg-zinc-50/80 shadow-none focus:ring-0 focus:border-zinc-300">
+                  <SelectValue placeholder="All Deliverables" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Deliverables</SelectItem>
@@ -1225,7 +1220,7 @@ useEffect(() => {
               </Select>
 
               <Select value={clientFilter} onValueChange={setClientFilter}>
-                <SelectTrigger className="h-9 w-[160px] text-xs">
+                <SelectTrigger className="h-9 w-[135px] sm:w-[145px] text-xs sm:text-sm font-medium bg-white border border-zinc-200 rounded-lg text-zinc-800 hover:bg-zinc-50/80 shadow-none focus:ring-0 focus:border-zinc-300">
                   <SelectValue placeholder="All Clients" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1239,7 +1234,7 @@ useEffect(() => {
               </Select>
 
               <Select value={tagFilter} onValueChange={setTagFilter}>
-                <SelectTrigger className="h-9 w-[160px] text-xs">
+                <SelectTrigger className="h-9 w-[135px] sm:w-[145px] text-xs sm:text-sm font-medium bg-white border border-zinc-200 rounded-lg text-zinc-800 hover:bg-zinc-50/80 shadow-none focus:ring-0 focus:border-zinc-300">
                   <SelectValue placeholder="All Tags" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1257,42 +1252,44 @@ useEffect(() => {
                   variant="ghost"
                   size="sm"
                   onClick={clearAllFilters}
-                  className="h-9 px-2 text-xs text-muted-foreground hover:text-primary"
+                  className="h-9 px-2.5 text-xs text-muted-foreground hover:text-zinc-900"
                 >
                   Clear
                 </Button>
               )}
 
-              {isViewingAsOther && (
-                <Button
-                  variant={selectionMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={handleToggleSelectionMode}
-                  className="h-9 text-xs rounded-full"
-                >
-                  {selectionMode ? (
-                    <>
-                      <X className="h-3.5 w-3.5 mr-1.5" />
-                      Cancel Selection
-                    </>
-                  ) : (
-                    <>
-                      <Check className="h-3.5 w-3.5 mr-1.5" />
-                      Select Multiple
-                    </>
-                  )}
-                </Button>
-              )}
+              <Button
+                variant={selectionMode ? "default" : "outline"}
+                size="sm"
+                onClick={handleToggleSelectionMode}
+                className={`h-9 px-3.5 text-xs sm:text-sm font-medium rounded-lg border border-zinc-200 shadow-none transition-colors ${
+                  selectionMode
+                    ? "bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900"
+                    : "bg-white text-zinc-800 hover:bg-zinc-50 hover:text-zinc-900"
+                }`}
+              >
+                {selectionMode ? (
+                  <>
+                    <X className="h-4 w-4 mr-1.5" />
+                    Cancel Selection
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-1.5 stroke-[2.2]" />
+                    Select Multiple
+                  </>
+                )}
+              </Button>
             </div>
 
             {/* Stats Badge */}
-            <div className="px-3 py-1.5 rounded-full bg-black text-white text-[11px] font-bold uppercase tracking-wide">
+            <div className="h-9 px-3.5 rounded-lg bg-black text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center shrink-0">
               {hasActiveFilters ? 'Filtered' : 'Pending'} {pendingReviews}
             </div>
           </div>
         </div>
 
-        {selectionMode && isViewingAsOther && (
+        {selectionMode && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-violet-50 border border-violet-200 rounded-xl">
             <div className="flex items-center gap-3">
               <Checkbox
@@ -1436,7 +1433,7 @@ useEffect(() => {
                       )}
 
                       {/* Top Left: Multi-select checkbox or Share + Reassign buttons */}
-                      {selectionMode && isViewingAsOther ? (
+                      {selectionMode ? (
                         <div className="absolute top-3 left-3 z-20">
                           <div
                             className="h-8 w-8 rounded-full bg-white/90 backdrop-blur-sm border border-zinc-200/50 shadow-sm flex items-center justify-center"
