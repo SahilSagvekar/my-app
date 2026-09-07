@@ -1327,8 +1327,13 @@ useEffect(() => {
             </div>
 
             {/* Stats Badge */}
-            <div className="h-9 px-3.5 rounded-lg bg-black text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center shrink-0">
-              {hasActiveFilters ? 'Filtered' : 'Pending'} {pendingReviews}
+            <div className="h-9 px-4 rounded-xl bg-black text-white flex items-center justify-center gap-2.5 shrink-0 select-none shadow-sm">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-white">
+                {hasActiveFilters ? 'Filtered' : 'Pending'}
+              </span>
+              <span className="text-[17px] font-black text-white leading-none tracking-tight">
+                {pendingReviews}
+              </span>
             </div>
           </div>
         </div>
