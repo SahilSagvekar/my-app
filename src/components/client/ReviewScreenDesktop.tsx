@@ -380,6 +380,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const [tagsText, setTagsText] = useState(() => p.postingTags.map(t => t.text).join(', '));
 
     const CAPS = { titles: 3, descriptions: 3, tags: 10 };
+    const TITLE_CHAR_LIMIT = 100;
+    const DESCRIPTION_CHAR_LIMIT = 2200;
 
     const addItem = (type: 'titles'|'descriptions'|'tags') => {
         const text = newTexts[type].trim();
@@ -1000,37 +1002,46 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)', borderRadius: 16 }}
                     >
                         <div className="grid grid-cols-2" style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <button
-                                        className="text-sm flex items-center justify-center gap-2 py-3.5 px-2 -mb-px cursor-pointer transition-colors"
-                                        style={sidebarTab === 'comments'
-                                            ? { background: 'var(--review-bg-tertiary)', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
-                                            : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
-                                    >
-                                        Comments
-                                        <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} />
-                                    </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="center" className="min-w-[190px] p-2" style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}>
-                                    <DropdownMenuItem
-                                        onClick={() => handleModeSelect('comment')}
-                                        className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3"
-                                        style={{ color: activeMode === 'comment' || (activeMode !== 'general' && !activeMode) ? '#fff' : 'var(--review-v2-gray-300)' }}
-                                    >
-                                        Revisions
-                                        {activeMode !== 'general' && <Check className="h-3.5 w-3.5" strokeWidth={2} />}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onClick={() => handleModeSelect('general')}
-                                        className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3"
-                                        style={{ color: activeMode === 'general' ? '#fff' : 'var(--review-v2-gray-300)' }}
-                                    >
-                                        General
-                                        {activeMode === 'general' && <Check className="h-3.5 w-3.5" strokeWidth={2} />}
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                            {sidebarTab === 'comments' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <button
+                                            className="text-sm flex items-center justify-center gap-2 py-3.5 px-2 -mb-px cursor-pointer transition-colors"
+                                            style={{ background: 'var(--review-bg-tertiary)', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }}
+                                        >
+                                            Comments
+                                            <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="center" className="min-w-[190px] p-2" style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}>
+                                        <DropdownMenuItem
+                                            onClick={() => handleModeSelect('comment')}
+                                            className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3"
+                                            style={{ color: activeMode === 'comment' || (activeMode !== 'general' && !activeMode) ? '#fff' : 'var(--review-v2-gray-300)' }}
+                                        >
+                                            Revisions
+                                            {activeMode !== 'general' && <Check className="h-3.5 w-3.5" strokeWidth={2} />}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => handleModeSelect('general')}
+                                            className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3"
+                                            style={{ color: activeMode === 'general' ? '#fff' : 'var(--review-v2-gray-300)' }}
+                                        >
+                                            General
+                                            {activeMode === 'general' && <Check className="h-3.5 w-3.5" strokeWidth={2} />}
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : (
+                                <button
+                                    onClick={() => handleTabChange('comments')}
+                                    className="text-sm flex items-center justify-center gap-2 py-3.5 px-2 -mb-px cursor-pointer transition-colors"
+                                    style={{ background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                                >
+                                    Comments
+                                    <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+                                </button>
+                            )}
                             <button
                                 onClick={() => handleTabChange('titles')}
                                 className="text-sm py-3.5 px-2 -mb-px cursor-pointer transition-colors"
@@ -1107,185 +1118,173 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         </>)}
 
                         {sidebarTab === 'titles' && (
-                            <div className="flex-1 overflow-y-auto review-scrollbar min-h-0">
-                                {(['titles', 'descriptions', 'tags'] as const).map(type => {
-                                    const currentList = type === 'titles' ? p.postingTitles : type === 'descriptions' ? p.postingDescriptions : p.postingTags;
-                                    const cap = CAPS[type];
-                                    const atCap = currentList.length >= cap;
-                                    const labels = {
-                                        titles: { singular: 'title', placeholder: 'Add a title…' },
-                                        descriptions: { singular: 'description', placeholder: 'Add a description…' },
-                                        tags: { singular: 'tag', placeholder: 'Add a tag…' },
-                                    };
-                                    const { singular, placeholder } = labels[type];
+                            <div className="flex-1 overflow-y-auto review-scrollbar min-h-0 p-4 space-y-4">
+                                {/* TITLES */}
+                                <div className="rounded-xl border border-[var(--review-border)] p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-xs font-bold uppercase tracking-wide text-white">Titles</span>
+                                        <span className={`text-xs font-medium ${p.postingTitles.length >= CAPS.titles ? 'text-red-400' : 'text-[var(--review-text-muted)]'}`}>
+                                            {p.postingTitles.length}/{CAPS.titles}
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={newTexts.titles}
+                                            onChange={e => setNewTexts({ ...newTexts, titles: e.target.value })}
+                                            placeholder={p.postingTitles.length >= CAPS.titles ? `Max ${CAPS.titles} titles reached` : 'Add a title…'}
+                                            disabled={p.postingTitles.length >= CAPS.titles}
+                                            maxLength={TITLE_CHAR_LIMIT}
+                                            className="flex-1 text-sm h-11 rounded-lg bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] disabled:opacity-40"
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem('titles'); } }}
+                                        />
+                                        <Button
+                                            disabled={p.postingTitles.length >= CAPS.titles || !newTexts.titles.trim()}
+                                            onClick={() => addItem('titles')}
+                                            className="h-11 w-11 p-0 shrink-0 rounded-lg hover:opacity-85"
+                                            style={{ background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <div className="flex justify-end mt-1.5">
+                                        <span className="text-xs text-[var(--review-text-muted)]">{newTexts.titles.length} / {TITLE_CHAR_LIMIT}</span>
+                                    </div>
 
-                                    if (type === 'descriptions' || type === 'tags') {
-                                        const isTags = type === 'tags';
-                                        return (
-                                            <div key={type} className="border-b border-[var(--review-border)] last:border-0 pb-4 mb-2 last:mb-0">
-                                                <div className="p-3 pb-1 sticky top-0 bg-[var(--review-bg-secondary)] z-10 border-b border-[var(--review-border)]/50">
-                                                    <span className="text-xs font-semibold text-white capitalize">{type}</span>
-                                                </div>
-                                                <div className="px-3 pt-2">
-                                                    {isTags && (p.templateHashtags?.length ?? 0) > 0 && (
-                                                        <div className="mb-2.5">
-                                                            <span className="text-[10px] font-medium text-[var(--review-text-muted)] uppercase tracking-wide">
-                                                                Client tags
-                                                            </span>
-                                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
-                                                                {p.templateHashtags!.map(tag => {
-                                                                    const selected = p.postingTags.some(t => t.text === tag);
-                                                                    return (
-                                                                        <button
-                                                                            key={tag}
-                                                                            type="button"
-                                                                            onClick={() => toggleTemplateHashtag(tag)}
-                                                                            className={`px-2 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-                                                                                selected
-                                                                                    ? 'bg-[var(--review-status-approved)] border-[var(--review-status-approved)] text-white'
-                                                                                    : 'bg-transparent border-[var(--review-border)] text-[var(--review-text-muted)] hover:border-[var(--review-status-approved)]/60 hover:text-white'
-                                                                            }`}
-                                                                        >
-                                                                            {tag}
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                            </div>
+                                    <div className="space-y-2 mt-3">
+                                        {p.postingTitles.length === 0 ? (
+                                            <div className="text-center py-4 text-[var(--review-text-muted)]">
+                                                <p className="text-xs opacity-70">No titles yet</p>
+                                            </div>
+                                        ) : p.postingTitles.map(item => (
+                                            <div
+                                                key={item.id}
+                                                className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
+                                            >
+                                                {editingId === item.id ? (
+                                                    <div className="space-y-1.5">
+                                                        <Input
+                                                            value={editingText}
+                                                            onChange={e => setEditingText(e.target.value)}
+                                                            maxLength={TITLE_CHAR_LIMIT}
+                                                            className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
+                                                            autoFocus
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') commitEdit('titles');
+                                                                if (e.key === 'Escape') { setEditingId(null); setEditingText(''); }
+                                                            }}
+                                                        />
+                                                        <div className="flex gap-1">
+                                                            <Button size="sm" onClick={() => commitEdit('titles')} className="h-6 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditingText(''); }} className="h-6 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
                                                         </div>
-                                                    )}
-                                                    {isTags ? (
-                                                        <Textarea
-                                                            value={tagsText}
-                                                            onChange={e => {
-                                                                const raw = e.target.value;
-                                                                setTagsText(raw);
-                                                                const items = raw
-                                                                    .split(/[,\n]/)
-                                                                    .map(t => t.trim())
-                                                                    .filter(Boolean)
-                                                                    .map(text => ({ id: `${Date.now()}-${Math.random()}`, text }));
-                                                                p.onPostingTagsChange(items);
-                                                            }}
-                                                            placeholder="Add tags, separated by commas…"
-                                                            rows={3}
-                                                            className="text-xs bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] resize-y"
-                                                        />
-                                                    ) : (
-                                                        <Textarea
-                                                            value={p.postingDescriptions[0]?.text ?? ''}
-                                                            onChange={e => {
-                                                                const text = e.target.value;
-                                                                if (!text.trim()) {
-                                                                    p.onPostingDescriptionsChange([]);
-                                                                } else if (p.postingDescriptions.length === 0) {
-                                                                    p.onPostingDescriptionsChange([{ id: `${Date.now()}-${Math.random()}`, text }]);
-                                                                } else {
-                                                                    p.onPostingDescriptionsChange([{ ...p.postingDescriptions[0], text }]);
-                                                                }
-                                                            }}
-                                                            placeholder={placeholder}
-                                                            rows={5}
-                                                            className="text-xs bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] resize-y"
-                                                        />
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    }
-
-                                    return (
-                                        <div key={type} className="border-b border-[var(--review-border)] last:border-0 pb-4 mb-2 last:mb-0">
-                                            <div className="p-3 pb-1 space-y-2 sticky top-0 bg-[var(--review-bg-secondary)] z-10 border-b border-[var(--review-border)]/50">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-semibold text-white capitalize">{type}</span>
-                                                    <span className={`text-[10px] font-medium ${atCap ? 'text-red-400' : 'text-[var(--review-text-muted)]'}`}>
-                                                        {currentList.length}/{cap}
-                                                    </span>
-                                                </div>
-                                                <div className="flex gap-1.5 pb-2">
-                                                    <Input
-                                                        value={newTexts[type]}
-                                                        onChange={e => setNewTexts({ ...newTexts, [type]: e.target.value })}
-                                                        placeholder={atCap ? `Max ${cap} ${singular}s reached` : placeholder}
-                                                        disabled={atCap}
-                                                        className="flex-1 text-xs h-8 bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] disabled:opacity-40"
-                                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(type); } }}
-                                                    />
-                                                    <Button
-                                                        size="sm"
-                                                        disabled={atCap || !newTexts[type].trim()}
-                                                        onClick={() => addItem(type)}
-                                                        className="h-8 px-2.5 bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white shrink-0"
-                                                    >
-                                                        <Plus className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-
-                                            <div className="px-3 space-y-2 mt-2">
-                                                {currentList.length === 0 ? (
-                                                    <div className="text-center py-4 text-[var(--review-text-muted)]">
-                                                        <p className="text-xs opacity-70">No {singular}s yet</p>
                                                     </div>
-                                                ) : currentList.map(item => (
-                                                    <div
-                                                        key={item.id}
-                                                        className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
-                                                    >
-                                                        {editingId === item.id ? (
-                                                            <div className="space-y-1.5">
-                                                                <Input
-                                                                    value={editingText}
-                                                                    onChange={e => setEditingText(e.target.value)}
-                                                                    className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
-                                                                    autoFocus
-                                                                    onKeyDown={e => {
-                                                                        if (e.key === 'Enter') commitEdit(type);
-                                                                        if (e.key === 'Escape') { setEditingId(null); setEditingText(''); }
-                                                                    }}
-                                                                />
-                                                                <div className="flex gap-1">
-                                                                    <Button size="sm" onClick={() => commitEdit(type)} className="h-6 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
-                                                                    <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditingText(''); }} className="h-6 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-start gap-2">
-                                                                <p className="flex-1 text-xs text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
-                                                                <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                ) : (
+                                                    <div className="flex items-start gap-2">
+                                                        <p className="flex-1 text-xs text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
+                                                        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => startEdit(item.id, item.text)}
+                                                                className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
+                                                                title="Edit title"
+                                                            >
+                                                                <PenLine className="h-3 w-3" />
+                                                            </button>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
                                                                     <button
-                                                                        onClick={() => startEdit(item.id, item.text)}
-                                                                        className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
-                                                                        title={`Edit ${singular}`}
+                                                                        onClick={() => deleteItem('titles', item.id)}
+                                                                        disabled={p.userRole === 'client' && p.postingTitles.length <= 1}
+                                                                        className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--review-text-muted)]"
+                                                                        title="Delete title"
                                                                     >
-                                                                        <PenLine className="h-3 w-3" />
+                                                                        <X className="h-3 w-3" />
                                                                     </button>
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <button
-                                                                                onClick={() => deleteItem(type, item.id)}
-                                                                                disabled={type === 'titles' && p.userRole === 'client' && currentList.length <= 1}
-                                                                                className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--review-text-muted)]"
-                                                                                title={`Delete ${singular}`}
-                                                                            >
-                                                                                <X className="h-3 w-3" />
-                                                                            </button>
-                                                                        </TooltipTrigger>
-                                                                        {type === 'titles' && p.userRole === 'client' && currentList.length <= 1 && (
-                                                                            <TooltipContent side="left" className="text-xs max-w-[160px]">
-                                                                                At least one title must be kept
-                                                                            </TooltipContent>
-                                                                        )}
-                                                                    </Tooltip>
-                                                                </div>
-                                                            </div>
-                                                        )}
+                                                                </TooltipTrigger>
+                                                                {p.userRole === 'client' && p.postingTitles.length <= 1 && (
+                                                                    <TooltipContent side="left" className="text-xs max-w-[160px]">
+                                                                        At least one title must be kept
+                                                                    </TooltipContent>
+                                                                )}
+                                                            </Tooltip>
+                                                        </div>
                                                     </div>
-                                                ))}
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* DESCRIPTIONS */}
+                                <div className="rounded-xl border border-[var(--review-border)] p-4">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-white block mb-3">Descriptions</span>
+                                    <Textarea
+                                        value={p.postingDescriptions[0]?.text ?? ''}
+                                        onChange={e => {
+                                            const text = e.target.value;
+                                            if (!text.trim()) {
+                                                p.onPostingDescriptionsChange([]);
+                                            } else if (p.postingDescriptions.length === 0) {
+                                                p.onPostingDescriptionsChange([{ id: `${Date.now()}-${Math.random()}`, text }]);
+                                            } else {
+                                                p.onPostingDescriptionsChange([{ ...p.postingDescriptions[0], text }]);
+                                            }
+                                        }}
+                                        placeholder="Add a description…"
+                                        maxLength={DESCRIPTION_CHAR_LIMIT}
+                                        rows={5}
+                                        className="text-sm rounded-lg bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] resize-y"
+                                    />
+                                    <div className="flex items-center justify-between mt-1.5">
+                                        <span className="text-xs text-[var(--review-text-muted)]">Social platform caption limit</span>
+                                        <span className="text-xs text-[var(--review-text-muted)]">{(p.postingDescriptions[0]?.text ?? '').length} / {DESCRIPTION_CHAR_LIMIT.toLocaleString()}</span>
+                                    </div>
+                                </div>
+
+                                {/* TAGS */}
+                                <div className="rounded-xl border border-[var(--review-border)] p-4">
+                                    <span className="text-xs font-bold uppercase tracking-wide text-white block mb-3">Tags</span>
+                                    {(p.templateHashtags?.length ?? 0) > 0 && (
+                                        <div className="mb-3">
+                                            <span className="text-[10px] font-medium text-[var(--review-text-muted)] uppercase tracking-wide">
+                                                Client tags
+                                            </span>
+                                            <div className="flex flex-wrap gap-2 mt-2">
+                                                {p.templateHashtags!.map(tag => {
+                                                    const selected = p.postingTags.some(t => t.text === tag);
+                                                    return (
+                                                        <button
+                                                            key={tag}
+                                                            type="button"
+                                                            onClick={() => toggleTemplateHashtag(tag)}
+                                                            className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                                                            style={selected
+                                                                ? { background: 'var(--review-v2-gray-50)', borderColor: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }
+                                                                : { background: 'transparent', borderColor: 'var(--review-border)', color: 'var(--review-text-muted)' }}
+                                                        >
+                                                            {tag}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
-                                    );
-                                })}
+                                    )}
+                                    <Textarea
+                                        value={tagsText}
+                                        onChange={e => {
+                                            const raw = e.target.value;
+                                            setTagsText(raw);
+                                            const items = raw
+                                                .split(/[,\n]/)
+                                                .map(t => t.trim())
+                                                .filter(Boolean)
+                                                .map(text => ({ id: `${Date.now()}-${Math.random()}`, text }));
+                                            p.onPostingTagsChange(items);
+                                        }}
+                                        placeholder="Add tags, separated by commas…"
+                                        rows={3}
+                                        className="text-sm rounded-lg bg-[var(--review-bg-tertiary)] border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] resize-y"
+                                    />
+                                </div>
                             </div>
                         )}
 
