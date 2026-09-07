@@ -1319,7 +1319,7 @@ useEffect(() => {
                     onClick={() => handleTaskClick(task)}
                   >
                     {/* Visual Header / Thumbnail Area */}
-                    <div className="h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold">
+                    <div className="h-72 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold">
                       {thumbnail && (
                         <img
                           src={thumbnail}
