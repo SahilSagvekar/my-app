@@ -189,7 +189,6 @@ export function TaskManagementTab() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [mirroringTaskId, setMirroringTaskId] = useState<string | null>(null);
   const [youtubeMirroringTaskId, setYoutubeMirroringTaskId] = useState<string | null>(null);
-  const [regeneratingThumbTaskId, setRegeneratingThumbTaskId] = useState<string | null>(null);
   const [manageVideosTask, setManageVideosTask] = useState<Task | null>(null);
   const [taskFiles, setTaskFiles] = useState<any[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -562,28 +561,6 @@ export function TaskManagementTab() {
     }
   }
 
-  async function handleRegenerateThumbnail(taskId: string) {
-    setRegeneratingThumbTaskId(taskId);
-    try {
-      const res = await fetch(`/api/admin/tasks/${taskId}/generate-thumbnail`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: 'Thumbnail generation failed', description: data.error || 'Unknown error', variant: 'destructive' });
-        return;
-      }
-      toast({
-        title: 'Thumbnail generation started',
-        description: data.outcome === 'reconciled'
-          ? 'Found an existing thumbnail in storage — card will update shortly.'
-          : 'Queued for generation — card will update once it finishes.',
-      });
-    } catch (err: any) {
-      toast({ title: 'Thumbnail generation failed', description: err.message, variant: 'destructive' });
-    } finally {
-      setRegeneratingThumbTaskId(null);
-    }
-  }
-
   // ── Filter column config (drives the label-above-select row) ──
   const filterColumns: { label: string; key: keyof FilterState; items: { id: string | number; name: string }[] }[] = [
     { label: 'Editors', key: 'editor', items: editors.map(m => ({ id: m.id, name: m.name })) },
@@ -786,13 +763,6 @@ export function TaskManagementTab() {
                                   >
                                     <Youtube className="h-4 w-4 mr-2" />
                                     {youtubeMirroringTaskId === task.id ? 'Uploading...' : 'Trigger YouTube Upload'}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => handleRegenerateThumbnail(task.id)}
-                                    disabled={regeneratingThumbTaskId === task.id}
-                                  >
-                                    <RefreshCw className="h-4 w-4 mr-2" />
-                                    {regeneratingThumbTaskId === task.id ? 'Generating...' : 'Regenerate Thumbnail'}
                                   </DropdownMenuItem>
                                   {(() => {
                                     const dtype = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || '';

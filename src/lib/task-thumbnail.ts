@@ -1,12 +1,9 @@
 // Shared task-card thumbnail resolution for QC + client dashboards.
-// Prefers folderType=thumbnails File rows (including auto-generated ones),
-// then any image on the task. No longer guesses at an R2 key for videos
-// that don't have a thumbnails File row yet — that path (buildAutoThumbUrl)
-// was removed because it assumed the auto-thumb existed without checking,
-// producing 404s whenever generation hadn't finished (or failed) yet. The
-// every-minute backfill cron (src/lib/backfill-task-thumbnails.ts) is what
-// actually creates the File row once a real thumbnail exists in R2 — until
-// then, cards show the "Generating…" fallback label below.
+// Prefers folderType=thumbnails File rows, then any image on the task.
+// There is no auto-generation anymore — the only way a thumbnails File row
+// exists is an editor uploading one manually (src/components/workflow/
+// TaskUploadSections.tsx, folderType: "thumbnails"). No R2-key guessing:
+// we only ever show a thumbnail once a real File row for it exists.
 
 export type ThumbnailFileLike = {
   url?: string | null;
@@ -18,7 +15,6 @@ export type ThumbnailFileLike = {
 };
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif)$/i;
-export const AUTO_THUMBNAIL_PREFIX = '.thumbnails/';
 
 export function isLikelyImageFile(f: ThumbnailFileLike): boolean {
   if (f.mimeType?.startsWith('image/')) return true;
@@ -26,10 +22,6 @@ export function isLikelyImageFile(f: ThumbnailFileLike): boolean {
   if (f.url && IMAGE_EXT.test(f.url.split('?')[0])) return true;
   if (f.s3Key && IMAGE_EXT.test(f.s3Key)) return true;
   return false;
-}
-
-export function autoThumbnailKeyForVideo(videoS3Key: string): string {
-  return `${AUTO_THUMBNAIL_PREFIX}${videoS3Key}.jpg`;
 }
 
 /**
@@ -70,29 +62,9 @@ export function taskHasThumbnailFiles(
   );
 }
 
-const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv)$/i;
-
-/** True when the task has an active main video that can get an auto-thumb. */
-export function taskHasMainVideo(
-  files: ThumbnailFileLike[] | null | undefined
-): boolean {
-  if (!files?.length) return false;
-  return files.some(
-    (f) =>
-      f.folderType === 'main' &&
-      f.isActive !== false &&
-      !!f.s3Key &&
-      (f.mimeType?.startsWith('video/') || VIDEO_EXT.test(f.s3Key) || (!!f.name && VIDEO_EXT.test(f.name)))
-  );
-}
-
-/**
- * Label under the card media plane when no image is showing.
- * Prefer "Generating…" when a main video exists so QC/client don't read as empty.
- */
+/** Label under the card media plane when no image is showing. */
 export function taskThumbnailFallbackLabel(
-  files: ThumbnailFileLike[] | null | undefined
+  _files: ThumbnailFileLike[] | null | undefined
 ): string {
-  if (taskHasMainVideo(files) && !taskHasThumbnailFiles(files)) return 'Generating…';
   return 'No thumbnail';
 }

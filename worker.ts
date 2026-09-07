@@ -49,12 +49,9 @@ export default {
 
   async scheduled(controller: ScheduledController, env: any, ctx: ExecutionContext) {
     switch (controller.cron) {
-      // Every minute — drains the upload-notification and NAS-sweep queues,
-      // and backfills a small batch of missing task-output auto-thumbnails
-      // so QC / client task cards stop showing "No thumbnail".
+      // Every minute — drains the upload-notification and NAS-sweep queues.
       case '* * * * *':
         ctx.waitUntil(triggerCronRoute('/api/cron/tick-queues', env, ctx));
-        ctx.waitUntil(triggerCronRoute('/api/cron/backfill-task-thumbnails', env, ctx));
         break;
 
       // Every Saturday — populates the weekly NAS backup sweep queue.
