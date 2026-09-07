@@ -38,7 +38,7 @@ export async function DELETE(request: NextRequest) {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { s3Key, type, totpCode, confirmNoBackup } = await request.json();
+    const { s3Key, type, totpCode } = await request.json();
     if (!s3Key) return NextResponse.json({ error: 'No s3Key provided' }, { status: 400 });
 
     if (user.role === 'editor') {
@@ -81,9 +81,14 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // ── NAS backup check — resolve every key actually being deleted, and
-    // find out which of them are/aren't backed up to NAS before letting
-    // the delete proceed. See the Files & Drive NAS-merge feature. ──
+    // NOTE: this route does NOT gate on NAS backup status — deleting a
+    // file/folder here is a normal, permanent delete regardless of whether
+    // it's been backed up. The "can only delete if already backed up to
+    // NAS" rule lives ONLY on the NAS Backup admin page — see
+    // /api/admin/nas-sweep/delete-archived. Here, we only look up backup
+    // status afterward so that IF a deleted key happens to already be
+    // archived, its deletedFromCloud flag still gets flipped — that's what
+    // lets a later request for that file fall back to NAS automatically.
     const affectedKeys = type === 'folder' ? await listKeysUnderPrefix(s3Key) : [s3Key];
 
     let matchedFileRows: { s3Key: string | null; archivedToNas: boolean }[] = [];
@@ -99,20 +104,6 @@ export async function DELETE(request: NextRequest) {
       ...matchedFileRows.filter((r) => r.archivedToNas).map((r) => r.s3Key!),
       ...matchedRecordRows.filter((r) => r.archivedToNas).map((r) => r.s3Key),
     ]);
-    const trackedKeys = new Set([
-      ...matchedFileRows.map((r) => r.s3Key!),
-      ...matchedRecordRows.map((r) => r.s3Key),
-    ]);
-    // Tracked but NOT backed up — deleting these is genuinely permanent.
-    const notBackedUpCount = affectedKeys.filter((k) => trackedKeys.has(k) && !backedUpKeys.has(k)).length;
-
-    if (notBackedUpCount > 0 && !confirmNoBackup) {
-      return NextResponse.json({
-        error: 'NOT_BACKED_UP_TO_NAS',
-        message: `${notBackedUpCount} file${notBackedUpCount === 1 ? ' is' : 's are'} not backed up to NAS yet — deleting now is permanent. Confirm to proceed anyway.`,
-        notBackedUpCount,
-      }, { status: 409 });
-    }
 
     const result = await deleteItem(env, user.id, user.role, s3Key, type);
 

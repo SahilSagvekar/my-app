@@ -25,10 +25,24 @@ export interface BackupListFile {
   nasPath: string | null;
 }
 
-function prefixFor(client: { rawFootageFolderId: string | null; essentialsFolderId: string | null }, folderType: TrackedFolderType): string | null {
-  const raw = folderType === 'raw-footage' ? client.rawFootageFolderId : client.essentialsFolderId;
-  if (!raw) return null;
-  return raw.endsWith('/') ? raw : `${raw}/`;
+function prefixFor(
+  client: { companyName: string | null; name: string; rawFootageFolderId: string | null; essentialsFolderId: string | null },
+  folderType: TrackedFolderType,
+): string | null {
+  // rawFootageFolderId / essentialsFolderId are meant to hold a ready-to-use
+  // S3 prefix (see upload/route.ts), but this was never backfilled for every
+  // client — plenty of clients have it null despite having real raw-footage
+  // or elements files in R2. Prefer the stored value when present (respects
+  // any client with a non-standard path), but always fall back to deriving
+  // it the same way the rest of the app already assumes files are laid out:
+  // {companyName or name}/raw-footage/ or {companyName or name}/elements/.
+  const stored = folderType === 'raw-footage' ? client.rawFootageFolderId : client.essentialsFolderId;
+  if (stored) return stored.endsWith('/') ? stored : `${stored}/`;
+
+  const company = client.companyName || client.name;
+  if (!company) return null;
+  const folderName = folderType === 'raw-footage' ? 'raw-footage' : 'elements';
+  return `${company}/${folderName}/`;
 }
 
 /**
@@ -41,7 +55,7 @@ export async function listTrackedFiles(clientId: string, folderType: TrackedFold
   const db = getDbHttp();
 
   const [client] = await db
-    .select({ id: clientTable.id, name: clientTable.name, rawFootageFolderId: clientTable.rawFootageFolderId, essentialsFolderId: clientTable.essentialsFolderId })
+    .select({ id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName, rawFootageFolderId: clientTable.rawFootageFolderId, essentialsFolderId: clientTable.essentialsFolderId })
     .from(clientTable)
     .where(eq(clientTable.id, clientId))
     .limit(1);
@@ -109,13 +123,16 @@ export async function listTrackedFiles(clientId: string, folderType: TrackedFold
   });
 }
 
-/** All active clients that have at least one relevant folder configured — used by the weekly auto-sweep. */
+/** All active clients — used by the weekly auto-sweep. Every active client
+ * qualifies now that prefixFor() derives a usable prefix even when
+ * rawFootageFolderId/essentialsFolderId isn't set (see prefixFor above) —
+ * previously this filtered out any client missing that column, silently
+ * excluding them from the automatic sweep even when they had real files. */
 export async function getClientsWithTrackedFolders(folderType: TrackedFolderType): Promise<{ id: string; name: string }[]> {
   const db = getDbHttp();
-  const column = folderType === 'raw-footage' ? clientTable.rawFootageFolderId : clientTable.essentialsFolderId;
   const rows = await db
-    .select({ id: clientTable.id, name: clientTable.name, folderId: column })
+    .select({ id: clientTable.id, name: clientTable.name })
     .from(clientTable)
     .where(eq(clientTable.status, 'active'));
-  return rows.filter((r) => !!r.folderId).map((r) => ({ id: r.id, name: r.name }));
+  return rows;
 }

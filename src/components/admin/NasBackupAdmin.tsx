@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import ManualNasSweepPanel from '@/components/admin/ManualNasSweepPanel';
+import NasCleanupPanel from '@/components/admin/NasCleanupPanel';
 
 interface SyncLog {
   id: string;
@@ -251,6 +252,13 @@ export function NasBackupAdmin() {
               targeted the decommissioned Tailscale+MinIO setup. */}
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <ManualNasSweepPanel />
+          </div>
+
+          {/* Delete-from-Cloudflare — the only place in the app where
+              deletion is gated on "already backed up to NAS". See
+              /api/admin/nas-sweep/delete-archived. */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <NasCleanupPanel />
           </div>
 
           {/* Sync history */}

@@ -35,7 +35,17 @@ export async function GET(
         }
 
         if (fileRow.deletedFromCloud) {
-            return new NextResponse('This file has been archived to NAS and removed from cloud storage. Contact an admin to restore it.', { status: 410 });
+            // No longer in R2 — redirect to the NAS proxy instead of hard-
+            // blocking. KNOWN LIMITATION: /api/drive/nas-stream (and
+            // e8-file-server's /nas-download underneath it) does not
+            // support Range requests, so video scrubbing/seeking on a
+            // NAS-only file won't work smoothly the way it does from R2 —
+            // playback will start, but seeking may re-fetch from the start.
+            // Fine for occasional archived-file playback; if this becomes
+            // a common case, nas-upload-server's /download endpoint needs
+            // Range support end-to-end.
+            const params = new URLSearchParams({ s3Key: fileRow.s3Key, fileName: fileRow.name || fileRow.s3Key.split('/').pop() || 'file' });
+            return NextResponse.redirect(new URL(`/api/drive/nas-stream?${params.toString()}`, request.url));
         }
 
         // 3. Handle Range Requests (Crucial for video scrubbing/streaming)

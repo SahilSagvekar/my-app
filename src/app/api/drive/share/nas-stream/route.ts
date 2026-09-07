@@ -1,6 +1,10 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/drive/nas-stream/route.ts
 //
+// FIXED: this route previously lived at src/app/api/drive/share/nas-stream/
+// (one folder too deep), so /api/drive/nas-stream — the path every caller
+// actually requests — 404'd. Moved here to match.
+//
 // The browser navigates here directly (e.g. window.open / <a href>) for
 // files that have been deleted from R2 but are confirmed backed up to NAS.
 // Same-origin so the existing session cookie covers auth — no separate

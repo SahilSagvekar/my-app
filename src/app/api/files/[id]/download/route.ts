@@ -63,8 +63,16 @@ export async function GET(
         }
 
         if (file.deletedFromCloud) {
+            // No longer in R2 — fetch it from NAS instead of erroring out.
+            // Same same-origin proxy /api/drive/nas-stream uses (cookie-
+            // authenticated, proxies to e8-file-server -> nas-upload-server).
+            const s3Key = file.s3Key;
+            if (s3Key) {
+                const params = new URLSearchParams({ s3Key, fileName: file.name });
+                return NextResponse.redirect(new URL(`/api/drive/nas-stream?${params.toString()}`, req.url));
+            }
             return NextResponse.json(
-                { error: 'This file has been archived to NAS and removed from cloud storage. Contact an admin to restore it.' },
+                { error: 'This file has been archived to NAS and removed from cloud storage, but has no s3Key on record. Contact an admin.' },
                 { status: 410 }
             );
         }
