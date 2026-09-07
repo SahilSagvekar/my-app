@@ -1372,9 +1372,9 @@ useEffect(() => {
                     </div>
 
                     {/* Card Body */}
-                    <div className="p-4 flex flex-col gap-3">
+                    <div className="p-4 flex flex-col gap-2.5">
                       <div className="flex items-center justify-between gap-2">
-                        <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
+                        <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm leading-none line-clamp-1">
                           {task.title}
                         </h4>
                         <TaskGuidelinesButton
@@ -1385,7 +1385,7 @@ useEffect(() => {
                       </div>
 
                       {/* Editor & Date Row */}
-                      <div className="flex items-center justify-between text-zinc-500 text-[11px]">
+                      <div className="flex items-center justify-between text-zinc-500 text-[11px] leading-none">
                         <div className="flex items-center gap-1.5">
                           <User className="h-3.5 w-3.5" />
                           <span>{task.user?.name || ""}</span>
@@ -1402,7 +1402,7 @@ useEffect(() => {
                       </div>
 
                       {/* Tag + Version Row */}
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 leading-none">
                         {(task as any).deliverableType && (task as any).deliverableType !== "Other" ? (
                           <Badge
                             variant="outline"
