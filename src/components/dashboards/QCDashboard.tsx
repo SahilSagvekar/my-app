@@ -22,7 +22,7 @@ import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
-import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Share2, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
@@ -1130,10 +1130,10 @@ useEffect(() => {
   return (
     <>
       <div className="flex flex-col h-full space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-200">
           <div className="flex-1">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
-            <p className="text-muted-foreground mt-1 text-lg">
+            <h1 className="text-xl font-bold tracking-tight text-gray-900">Content Review</h1>
+            <p className="text-muted-foreground mt-0.5 text-xs">
               Review submitted work and approve or reject with feedback
             </p>
           </div>
@@ -1204,7 +1204,7 @@ useEffect(() => {
                   variant={selectionMode ? "default" : "outline"}
                   size="sm"
                   onClick={handleToggleSelectionMode}
-                  className="h-9 text-xs"
+                  className="h-9 text-xs rounded-full"
                 >
                   {selectionMode ? (
                     <>
@@ -1213,7 +1213,7 @@ useEffect(() => {
                     </>
                   ) : (
                     <>
-                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                      <Check className="h-3.5 w-3.5 mr-1.5" />
                       Select Multiple
                     </>
                   )}
@@ -1222,18 +1222,8 @@ useEffect(() => {
             </div>
 
             {/* Stats Badge */}
-            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
-              <div className="flex flex-col items-center text-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
-                  {hasActiveFilters ? 'Filtered' : 'Pending'}
-                </span>
-                <span className="text-xl font-bold text-zinc-900 leading-none">
-                  {pendingReviews}
-                </span>
-              </div>
-              <div className="ml-4 h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
-                <Clock className="h-4 w-4 text-blue-500" />
-              </div>
+            <div className="px-3 py-1.5 rounded-full bg-black text-white text-[11px] font-bold uppercase tracking-wide">
+              {hasActiveFilters ? 'Filtered' : 'Pending'} {pendingReviews}
             </div>
           </div>
         </div>
@@ -1379,23 +1369,20 @@ useEffect(() => {
                         <FileText className="h-3 w-3" />
                         {task.files?.length || 0}
                       </div>
+                    </div>
 
-                      {/* Guidelines - overlapping the thumbnail/body boundary */}
-                      <div className="absolute -bottom-4 left-4 z-20">
+                    {/* Card Body */}
+                    <div className="p-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
+                          {task.title}
+                        </h4>
                         <TaskGuidelinesButton
                           clientId={task.clientId}
                           clientName={task.client?.companyName || task.client?.name || null}
                           role="qc"
-                          buttonClassName="h-9 w-9 rounded-full border-2 border-white bg-orange-500 text-sm font-bold flex items-center justify-center text-white hover:bg-orange-500 shadow-sm"
                         />
                       </div>
-                    </div>
-
-                    {/* Card Body */}
-                    <div className="p-4 pt-6 flex flex-col gap-3">
-                      <h4 className="text-zinc-900 font-bold text-sm line-clamp-1">
-                        {task.title}
-                      </h4>
 
                       {/* Editor & Date Row */}
                       <div className="flex items-center justify-between text-zinc-500 text-[11px]">
