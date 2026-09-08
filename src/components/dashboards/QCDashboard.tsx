@@ -22,7 +22,7 @@ import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
-import { Share2, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Share2, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
@@ -319,6 +319,8 @@ useEffect(() => {
 
   // 🔥 Still upload state & helpers for task cards
   const [uploadingStillTaskId, setUploadingStillTaskId] = useState<string | null>(null);
+  // Active thumbnail carousel slide index per task
+  const [taskThumbIndices, setTaskThumbIndices] = useState<Record<string, number>>({});
 
   const handleStillUpload = async (task: EnhancedWorkflowTask, file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -918,8 +920,67 @@ useEffect(() => {
   // };
 
   const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
-  return getTaskCardThumbnailUrl(task.files);
-};
+    return getTaskCardThumbnailUrl(task.files);
+  };
+
+  const getTaskThumbnails = (task: EnhancedWorkflowTask): { url: string; file?: TaskFile }[] => {
+    if (!task.files || task.files.length === 0) return [];
+    const active = (f: TaskFile) => f.isActive !== false;
+
+    // 1. Files specifically in 'thumbnails' or 'tiles' folder
+    const thumbFiles = task.files
+      .filter((f) => (f.folderType === 'thumbnails' || f.folderType === 'tiles') && active(f) && !!f.url)
+      .sort((a, b) => {
+        const verDiff = (b.version || 1) - (a.version || 1);
+        if (verDiff !== 0) return verDiff;
+        return new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime();
+      });
+
+    let candidates: { url: string; file?: TaskFile }[] = [];
+
+    if (thumbFiles.length > 0) {
+      candidates = thumbFiles.map((f) => ({ url: f.url, file: f }));
+    } else {
+      // 2. Any other image files (e.g. hard posts, covers)
+      const imageFiles = task.files
+        .filter((f) => {
+          const mime = getMimeType(f);
+          return (
+            (mime.startsWith('image/') ||
+              f.folderType === 'covers' ||
+              (f.name && /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name))) &&
+            active(f) &&
+            !!f.url
+          );
+        })
+        .sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
+
+      if (imageFiles.length > 0) {
+        candidates = imageFiles.map((f) => ({ url: f.url, file: f }));
+      } else {
+        // 3. Fallback video previewUrl
+        const videoWithPreview = task.files.find(
+          (f) => active(f) && f.mimeType?.startsWith('video/') && f.previewUrl
+        );
+        if (videoWithPreview?.previewUrl) {
+          candidates = [{ url: videoWithPreview.previewUrl, file: videoWithPreview }];
+        } else {
+          const single = getTaskCardThumbnailUrl(task.files);
+          if (single) {
+            candidates = [{ url: single }];
+          }
+        }
+      }
+    }
+
+    // Deduplicate by URL
+    const seen = new Set<string>();
+    return candidates.filter((item) => {
+      if (!item.url || seen.has(item.url)) return false;
+      seen.add(item.url);
+      return true;
+    });
+  };
 
   const isLongFormTask = (task: EnhancedWorkflowTask) => {
     const deliverableTypeRaw = ((task as any).deliverableType || task.taskCategory || '').toLowerCase().trim();
@@ -1448,7 +1509,11 @@ useEffect(() => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
               {filteredTasks.map((task) => {
-                const thumbnail = getTaskThumbnail(task);
+                const thumbnails = getTaskThumbnails(task);
+                const currentThumbIndex = taskThumbIndices[task.id] || 0;
+                const safeThumbIndex = currentThumbIndex < thumbnails.length ? currentThumbIndex : 0;
+                const currentThumb = thumbnails[safeThumbIndex];
+                const hasThumbnails = thumbnails.length > 0;
                 const isChecked = selectedTaskIds.has(task.id);
                 const latestVideoVersion = getTaskLatestVersion(task);
                 const deliverableTypeRaw = (task as any).deliverableType || task.taskCategory;
@@ -1457,7 +1522,6 @@ useEffect(() => {
                 const deliverableBadge = getDeliverableBadge(deliverableTypeRaw, task.title);
                 const editorName = getEditorName(task);
                 const dueDateFormatted = formatCardDate(task.dueDate || task.createdAt);
-                const hasThumbnail = Boolean(thumbnail);
 
                 return (
                   <div
@@ -1467,7 +1531,7 @@ useEffect(() => {
                         ? "col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2 xl:col-span-2"
                         : "col-span-1"
                     } ${
-                      !hasThumbnail
+                      !hasThumbnails
                         ? "border-2 border-dashed border-zinc-300 bg-[#f8f8f9]/70 hover:border-zinc-400 hover:bg-[#f3f4f6]"
                         : "bg-white border border-zinc-200 shadow-sm hover:shadow-md hover:border-zinc-300"
                     } ${
@@ -1480,13 +1544,14 @@ useEffect(() => {
                       className={`w-full ${
                         isLongForm ? "aspect-video" : "aspect-[4/5]"
                       } relative flex items-center justify-center ${
-                        !hasThumbnail ? "bg-transparent" : "bg-[#ebebeb]/60"
-                      } overflow-hidden`}
+                        !hasThumbnails ? "bg-transparent" : "bg-[#ebebeb]/60"
+                      } overflow-hidden select-none`}
                     >
-                      {thumbnail ? (
+                      {hasThumbnails && currentThumb ? (
                         <>
                           <img
-                            src={thumbnail}
+                            key={currentThumb.url}
+                            src={currentThumb.url}
                             alt={task.title}
                             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 z-10"
                             onError={(e) => {
@@ -1494,6 +1559,67 @@ useEffect(() => {
                             }}
                           />
                           <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
+
+                          {/* Left and Right Slider Arrows if more than 1 thumbnail */}
+                          {thumbnails.length > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center backdrop-blur-md shadow-md transition-all hover:scale-110 active:scale-95 focus:outline-none border border-white/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTaskThumbIndices((prev) => ({
+                                    ...prev,
+                                    [task.id]: safeThumbIndex > 0 ? safeThumbIndex - 1 : thumbnails.length - 1,
+                                  }));
+                                }}
+                                title="Previous thumbnail"
+                                aria-label="Previous thumbnail"
+                              >
+                                <ChevronLeft className="h-4 w-4 stroke-[2.5]" />
+                              </button>
+
+                              <button
+                                type="button"
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center backdrop-blur-md shadow-md transition-all hover:scale-110 active:scale-95 focus:outline-none border border-white/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTaskThumbIndices((prev) => ({
+                                    ...prev,
+                                    [task.id]: safeThumbIndex < thumbnails.length - 1 ? safeThumbIndex + 1 : 0,
+                                  }));
+                                }}
+                                title="Next thumbnail"
+                                aria-label="Next thumbnail"
+                              >
+                                <ChevronRight className="h-4 w-4 stroke-[2.5]" />
+                              </button>
+
+                              {/* Carousel Dots Indicator */}
+                              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md shadow-sm border border-white/10">
+                                {thumbnails.map((_, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    className={`rounded-full transition-all duration-200 focus:outline-none ${
+                                      idx === safeThumbIndex
+                                        ? "w-3.5 h-1.5 bg-white"
+                                        : "w-1.5 h-1.5 bg-white/45 hover:bg-white/80"
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTaskThumbIndices((prev) => ({
+                                        ...prev,
+                                        [task.id]: idx,
+                                      }));
+                                    }}
+                                    title={`Thumbnail ${idx + 1} of ${thumbnails.length}`}
+                                    aria-label={`Go to thumbnail ${idx + 1}`}
+                                  />
+                                ))}
+                              </div>
+                            </>
+                          )}
                         </>
                       ) : (
                         <div
@@ -1574,7 +1700,7 @@ useEffect(() => {
                       )}
 
                       {/* Top Right: Replace/Edit actions for cards with thumbnail, or File count badge */}
-                      {hasThumbnail ? (
+                      {hasThumbnails ? (
                         <>
                           <div
                             className={`absolute top-3 right-3 z-20 items-center gap-1.5 ${
@@ -1602,6 +1728,15 @@ useEffect(() => {
                               className="text-xs font-medium text-white bg-black/50 hover:bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-md transition-colors shadow-xs"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                if (currentThumb?.file) {
+                                  setSelectedTask(task);
+                                  setSelectedFile(currentThumb.file);
+                                  const mime = getMimeType(currentThumb.file);
+                                  if (mime.startsWith('image/')) {
+                                    setShowThumbnailReview(true);
+                                    return;
+                                  }
+                                }
                                 handleTaskClick(task);
                               }}
                               title="Review & edit task"
@@ -1626,7 +1761,7 @@ useEffect(() => {
                     </div>
 
                     {/* Card Body */}
-                    <div className={`p-4 pt-3.5 pb-4 flex flex-col justify-between flex-1 gap-2.5 ${!hasThumbnail ? 'bg-transparent' : 'bg-white'}`}>
+                    <div className={`p-4 pt-3.5 pb-4 flex flex-col justify-between flex-1 gap-2.5 ${!hasThumbnails ? 'bg-transparent' : 'bg-white'}`}>
                       {/* Row 1: Task Title & Guidelines Button */}
                       <div className="flex items-center justify-between gap-2">
                         <h4
