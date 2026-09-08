@@ -581,14 +581,14 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             <div className="relative">
                                 <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
                                     <SelectTrigger
-                                        className="h-[38px] w-auto min-w-[170px] text-sm font-medium rounded-md"
-                                        style={{ background: 'transparent', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
+                                        className="w-auto min-w-[170px] text-sm font-medium rounded-md"
+                                        style={{ height: 38, background: 'transparent', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
                                     >
                                         <SelectValue placeholder="Version" />
                                     </SelectTrigger>
-                                    <SelectContent style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}>
+                                    <SelectContent className="border-[var(--review-border)] [&_[data-slot=select-scroll-up-button]]:text-[var(--review-v2-gray-300)] [&_[data-slot=select-scroll-down-button]]:text-[var(--review-v2-gray-300)]" style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}>
                                         {p.asset.versions.map((v: any) => (
-                                            <SelectItem key={v.id} value={v.id} className="text-sm" style={{ color: 'var(--review-v2-gray-100)' }}>
+                                            <SelectItem key={v.id} value={v.id} className="text-sm focus:bg-[var(--review-bg-tertiary)] focus:text-white [&_[data-slot=select-item-indicator]_svg]:text-white" style={{ color: 'var(--review-v2-gray-100)' }}>
                                                 Version {v.number} — {v.uploadDate}
                                             </SelectItem>
                                         ))}
@@ -597,8 +597,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </div>
                         ) : (
                             <Badge
-                                className="text-xs h-[38px] w-[38px] p-0 flex items-center justify-center rounded-md"
-                                style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border)', color: 'var(--review-v2-gray-100)' }}
+                                className="text-xs w-[38px] p-0 flex items-center justify-center rounded-md"
+                                style={{ height: 38, background: 'transparent', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
                             >
                                 V{p.asset.versions[0]?.number || '1'}
                             </Badge>
@@ -1036,7 +1036,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     <DropdownMenuContent align="center" className="min-w-[190px] p-2" style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}>
                                         <DropdownMenuItem
                                             onClick={() => handleModeSelect('comment')}
-                                            className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3"
+                                            className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3 focus:bg-[var(--review-bg-tertiary)] focus:text-white"
                                             style={{ color: activeMode === 'comment' || (activeMode !== 'general' && !activeMode) ? '#fff' : 'var(--review-v2-gray-300)' }}
                                         >
                                             Revisions
@@ -1044,7 +1044,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                             onClick={() => handleModeSelect('general')}
-                                            className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3"
+                                            className="cursor-pointer text-sm flex items-center justify-between gap-4 rounded-md py-2.5 px-3 focus:bg-[var(--review-bg-tertiary)] focus:text-white"
                                             style={{ color: activeMode === 'general' ? '#fff' : 'var(--review-v2-gray-300)' }}
                                         >
                                             General

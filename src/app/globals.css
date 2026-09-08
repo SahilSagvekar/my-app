@@ -261,6 +261,12 @@ html {
   border: none !important;
   border-radius: 0 !important;
   box-shadow: none !important;
+  overflow: hidden !important;
+  scrollbar-width: none !important;
+}
+
+.fullscreen-dialog::-webkit-scrollbar {
+  display: none !important;
 }
 
 /* Hide default dialog close button */
