@@ -139,13 +139,74 @@ export async function nasDownloadStream(env: CloudflareEnv, userId: number | str
   return res;
 }
 
-export async function streamZip(
+// ─── Zip jobs ("Download All") ─────────────────────────────────────────────
+// Replaces the old streamZip()/single-request /download-zip call. A zip job
+// for a large folder can legitimately take hours, so the file-server's
+// POST /zip-jobs response isn't awaited from a normal request handler —
+// only from src/lib/zip-jobs-queue.ts's deliverZipJob(), which runs inside
+// a Cloudflare Queue consumer (no wall-time limit on Workers, unlike a
+// plain HTTP fetch handler). See /areas/download-all-zip-jobs for the
+// full design writeup.
+
+export interface ZipJobRequest {
+  keys?: string[];
+  folderPrefix?: string;
+  zipName?: string;
+}
+
+export interface ZipJobResult {
+  success: boolean;
+  jobId: string;
+  resultKey?: string;
+  error?: string;
+}
+
+/**
+ * Starts (and awaits full completion of) a zip-build job on the file
+ * server. ONLY call this from a Cloudflare Queue consumer context — it can
+ * take hours for large folders. Calling it from a plain API route would
+ * hold that request open for the same duration, defeating the entire point
+ * of the async job design.
+ */
+export async function startZipJob(
   env: CloudflareEnv,
   userId: number | string,
   role: string,
-  opts: { keys?: string[]; folderPrefix?: string; zipName?: string },
-): Promise<Response> {
-  return fsRequest(env, 'POST', '/download-zip', userId, role, opts);
+  jobId: string,
+  opts: ZipJobRequest,
+): Promise<ZipJobResult> {
+  const res = await fsRequest(env, 'POST', '/zip-jobs', userId, role, { jobId, ...opts });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { success: false, jobId, error: (body as any)?.error || `File server error: ${res.status}` };
+  }
+  return body as ZipJobResult;
+}
+
+export interface ZipJobStatus {
+  status: 'processing' | 'done' | 'failed';
+  zipName: string | null;
+  resultKey: string | null;
+  totalFiles: number;
+  processedFiles: number;
+  totalBytes: number;
+  processedBytes: number;
+  error: string | null;
+}
+
+/** Fast poll — reads the job's current progress. Returns null if the job
+ *  hasn't been picked up by the queue consumer yet (row doesn't exist on
+ *  the file server yet) — the caller should treat that as "queued". */
+export async function getZipJobStatus(
+  env: CloudflareEnv,
+  userId: number | string,
+  role: string,
+  jobId: string,
+): Promise<ZipJobStatus | null> {
+  const res = await fsRequest(env, 'GET', `/zip-jobs/${jobId}`, userId, role);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`File server error: ${res.status}`);
+  return res.json();
 }
 
 export async function deleteItem(env: CloudflareEnv, userId: number | string, role: string, s3Key: string, type: 'file' | 'folder') {

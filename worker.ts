@@ -17,6 +17,7 @@
 // @ts-ignore — .open-next/worker.js is generated at build time
 import { default as handler } from './.open-next/worker.js';
 import { deliverSlackJobNow, deliverEmailJobNow, NotificationJob } from './src/lib/notification-queue';
+import { deliverZipJob, ZipJobMessage } from './src/lib/zip-jobs-queue';
 
 const APP_URL = 'https://e8productions.com';
 
@@ -100,16 +101,44 @@ export default {
     }
   },
 
-  // Consumer for the `notifications` Cloudflare Queue (see wrangler.toml's
-  // [[queues.consumers]]) — every Slack message and email in the app is
-  // enqueued via src/lib/notification-queue.ts's enqueueNotification() and
-  // lands here for actual delivery. Slack jobs are delivered directly
-  // (plain HTTPS, fine on Workers); email jobs are relayed to
-  // e8-file-server, since Workers can't open raw SMTP sockets.
-  async queue(batch: MessageBatch<NotificationJob>, env: any, ctx: ExecutionContext) {
+  // Consumer for BOTH the `notifications` and `zip-jobs` Cloudflare Queues
+  // (see wrangler.toml's [[queues.consumers]]) — Cloudflare routes a batch
+  // from whichever queue triggered this invocation; `batch.queue` tells us
+  // which one so a single handler can serve both.
+  //
+  // notifications: every Slack message and email in the app is enqueued
+  // via src/lib/notification-queue.ts's enqueueNotification() and lands
+  // here for actual delivery. Slack jobs are delivered directly (plain
+  // HTTPS, fine on Workers); email jobs are relayed to e8-file-server,
+  // since Workers can't open raw SMTP sockets.
+  //
+  // zip-jobs: "Download All" zip-build jobs, enqueued via
+  // src/lib/zip-jobs-queue.ts's enqueueZipJob(). deliverZipJob() awaits
+  // the file-server's full response, which can legitimately take HOURS
+  // for a 100GB folder — safe here specifically because Cloudflare Queue
+  // consumer invocations have no wall-time limit, unlike a plain HTTP
+  // fetch handler. Never call deliverZipJob() from an API route directly.
+  async queue(batch: MessageBatch<NotificationJob | ZipJobMessage>, env: any, ctx: ExecutionContext) {
+    if (batch.queue === 'zip-jobs') {
+      for (const message of batch.messages) {
+        try {
+          await deliverZipJob(message.body as ZipJobMessage, env);
+          message.ack();
+        } catch (err: any) {
+          console.error(`[worker.ts] Zip job failed (jobId=${(message.body as ZipJobMessage).jobId}):`, err?.message || err);
+          // Not retried: a failed multi-hour job re-running from scratch on
+          // the same queue-retry backoff is rarely what the user wants —
+          // the frontend already surfaces the failure and offers a fresh
+          // "Download All" click, which enqueues a brand-new job.
+          message.ack();
+        }
+      }
+      return;
+    }
+
     for (const message of batch.messages) {
       try {
-        const job = message.body;
+        const job = message.body as NotificationJob;
         if (job.kind === 'email') {
           await deliverEmailJobNow(job, env);
         } else {
@@ -117,7 +146,7 @@ export default {
         }
         message.ack();
       } catch (err: any) {
-        console.error(`[worker.ts] Notification job failed (kind=${message.body.kind}):`, err?.message || err);
+        console.error(`[worker.ts] Notification job failed (kind=${(message.body as NotificationJob).kind}):`, err?.message || err);
         message.retry();
       }
     }

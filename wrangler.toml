@@ -42,12 +42,30 @@ binding = "ROLLUP_QUEUE"
 queue = "notifications"
 binding = "NOTIFICATIONS_QUEUE"
 
+[[queues.producers]]
+queue = "zip-jobs"
+binding = "ZIP_JOBS_QUEUE"
+
 [[queues.consumers]]
 queue = "notifications"
 max_batch_size = 10
 max_batch_timeout = 5
 max_retries = 3
 dead_letter_queue = "notifications-dlq"
+
+# max_batch_size = 1 is deliberate: each zip job can take hours, so batching
+# several jobId messages into one invocation would serialize them behind
+# each other for no reason — the container binding underneath can still
+# process multiple jobs in parallel across separate invocations (bounded by
+# consumer concurrency), it just shouldn't be forced to do so one at a time
+# within a single batch. max_retries = 0 because worker.ts's handler always
+# acks (see the comment there) — a failed job is surfaced to the user via
+# polling instead of being silently retried from scratch.
+[[queues.consumers]]
+queue = "zip-jobs"
+max_batch_size = 1
+max_batch_timeout = 5
+max_retries = 0
 
 [[services]]
 binding = "FILE_SERVER"

@@ -312,12 +312,22 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState<string>('');
 
-  // ─── Download queue modal ─────────────────────────────────────────────────
-  const [downloadQueue, setDownloadQueue] = useState<{ key: string; name: string; url: string; filename: string }[]>([]);
+  // ─── Download job modal (async "Download All" zip build) ──────────────────
+  interface ZipJobState {
+    jobId: string;
+    status: 'queued' | 'processing' | 'done' | 'failed';
+    zipName: string;
+    totalFiles: number;
+    processedFiles: number;
+    totalBytes: number;
+    processedBytes: number;
+    error: string | null;
+    downloadUrl: string | null;
+  }
+  const [zipJob, setZipJob] = useState<ZipJobState | null>(null);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [downloadedSet, setDownloadedSet] = useState<Set<number>>(new Set());
-  const [autoDownloading, setAutoDownloading] = useState(false);
-  const autoDownloadRef = useRef(false);
+  const zipPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const zipDownloadTriggeredRef = useRef(false);
 
   // Share states
   const [shareLink, setShareLink] = useState("");
@@ -1362,11 +1372,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   };
 
   // ─── Download helpers ────────────────────────────────────────────────────────
-  // Instead of zipping on the server (which OOMs on 3.9GB RAM with large video folders),
-  // we fetch presigned R2 URLs and trigger individual file downloads in the browser.
-  // Files download directly from R2 — zero server memory usage.
+  // "Download All" builds a real zip server-side (streamed through the file
+  // server into R2, never buffered in full — see e8-file-server's
+  // zipWorker.js) as a background job, and the browser just polls for
+  // progress and downloads the single finished file once ready.
+  //
+  // Previously this fetched presigned per-file R2 URLs and triggered
+  // individual browser downloads in a loop — that silently broke past ~6
+  // files, since Chrome blocks a page from auto-triggering more than a
+  // handful of downloads without explicit permission. A single zip means a
+  // single download, so that limit no longer applies, and it also works
+  // for folders far too large to ever hand-list (100GB+).
 
-  // Trigger a single file download via <a> click — works when called from direct user gesture
+  // Trigger a single file download via <a> click.
   const triggerSingleDownload = (url: string, filename: string) => {
     const a = document.createElement('a');
     a.href = url;
@@ -1377,13 +1395,66 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     document.body.removeChild(a);
   };
 
-  // Fetch presigned URLs then open a download queue modal
+  const stopZipPolling = () => {
+    if (zipPollRef.current) {
+      clearInterval(zipPollRef.current);
+      zipPollRef.current = null;
+    }
+  };
+
+  const pollZipJob = (jobId: string, zipFileName: string) => {
+    stopZipPolling();
+    zipDownloadTriggeredRef.current = false;
+    zipPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/drive/zip-jobs/${jobId}`);
+        const data = await res.json();
+
+        if (data.status === 'queued') {
+          setZipJob(prev => (prev ? { ...prev, status: 'queued' } : prev));
+          return;
+        }
+        if (data.status === 'failed') {
+          stopZipPolling();
+          setZipJob(prev => (prev ? { ...prev, status: 'failed', error: data.error || 'Zip build failed' } : prev));
+          toast.error(data.error || 'Download failed');
+          return;
+        }
+
+        setZipJob({
+          jobId,
+          status: data.status,
+          zipName: zipFileName,
+          totalFiles: data.totalFiles || 0,
+          processedFiles: data.processedFiles || 0,
+          totalBytes: data.totalBytes || 0,
+          processedBytes: data.processedBytes || 0,
+          error: null,
+          downloadUrl: data.downloadUrl || null,
+        });
+
+        if (data.status === 'done' && data.downloadUrl && !zipDownloadTriggeredRef.current) {
+          zipDownloadTriggeredRef.current = true;
+          stopZipPolling();
+          triggerSingleDownload(data.downloadUrl, zipFileName);
+        }
+      } catch (err) {
+        // Transient network blip on a single poll — just try again next tick.
+        console.warn('[zip poll] failed, will retry:', err);
+      }
+    }, 3000);
+  };
+
+  // Starts the async zip-build job and opens the progress modal. Does NOT
+  // wait for the zip to finish — see /api/drive/download-zip's own comment
+  // for why (folders can take hours to zip; the browser never holds that
+  // connection open).
   const downloadFilesFromUrls = async (
     body: { folderPrefix?: string; keys?: string[]; zipName?: string },
     label: string,
   ) => {
     setIsZipping(true);
-    setZipProgress(`Preparing "${label}"…`);
+    setZipProgress(`Starting "${label}"…`);
     try {
       const res = await fetch('/api/drive/download-zip', {
         method: 'POST',
@@ -1394,39 +1465,24 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         const e = await res.json().catch(() => ({ error: 'Failed' }));
         throw new Error(e.error || `Server error (${res.status})`);
       }
-      const data = await res.json() as { files: { key: string; name: string; url: string }[]; folderName: string };
-      if (!data.files?.length) throw new Error('No files found');
+      const data = await res.json() as { jobId: string };
+      const zipFileName = `${(body.zipName || label).replace(/\.zip$/, '')}.zip`;
 
-      const queue = data.files.map(f => ({
-        ...f,
-        filename: f.name.split('/').pop() || f.name,
-      }));
-
-      setDownloadQueue(queue);
-      setDownloadedSet(new Set());
-      setAutoDownloading(false);
-      autoDownloadRef.current = false;
+      setZipJob({
+        jobId: data.jobId,
+        status: 'queued',
+        zipName: zipFileName,
+        totalFiles: 0, processedFiles: 0, totalBytes: 0, processedBytes: 0,
+        error: null, downloadUrl: null,
+      });
       setShowDownloadModal(true);
+      pollZipJob(data.jobId, zipFileName);
     } catch (err: any) {
       toast.error(err.message || 'Download failed');
-    } finally { setIsZipping(false); setZipProgress(''); }
-  };
-
-  // Auto-download all files sequentially — each triggered by the loop itself
-  // which runs inside a user-gesture context from the button click that started it
-  const startAutoDownload = async () => {
-    setAutoDownloading(true);
-    autoDownloadRef.current = true;
-    for (let i = 0; i < downloadQueue.length; i++) {
-      if (!autoDownloadRef.current) break; // user cancelled
-      const file = downloadQueue[i];
-      triggerSingleDownload(file.url, file.filename);
-      setDownloadedSet(prev => new Set([...prev, i]));
-      // Wait 1.5s between downloads — enough for browser to register each one
-      if (i < downloadQueue.length - 1) await new Promise(r => setTimeout(r, 1500));
+    } finally {
+      setIsZipping(false);
+      setZipProgress('');
     }
-    setAutoDownloading(false);
-    autoDownloadRef.current = false;
   };
 
   const handleDownloadFolder = async (item: DriveItem) => {
@@ -3161,75 +3217,54 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       </div>
     </div>
 
-      {/* ─── Download Queue Modal ──────────────────────────────────────────── */}
+      {/* ─── Download Job Modal ────────────────────────────────────────────── */}
       <Dialog open={showDownloadModal} onOpenChange={(open) => {
-        if (!open) { autoDownloadRef.current = false; setAutoDownloading(false); }
+        if (!open) stopZipPolling();
         setShowDownloadModal(open);
       }}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Download className="h-4 w-4" />
-              Download Files ({downloadQueue.length})
+              {zipJob?.zipName || 'Download'}
             </DialogTitle>
             <DialogDescription>
-              {downloadedSet.size === 0
-                ? `${downloadQueue.length} file${downloadQueue.length !== 1 ? 's' : ''} ready. Click "Download All" to start, or download individually.`
-                : autoDownloading
-                  ? `Downloading… ${downloadedSet.size}/${downloadQueue.length} done`
-                  : `${downloadedSet.size}/${downloadQueue.length} downloaded`}
+              {!zipJob || zipJob.status === 'queued'
+                ? 'Starting up…'
+                : zipJob.status === 'processing'
+                  ? zipJob.totalFiles > 0
+                    ? `Zipping… ${zipJob.processedFiles}/${zipJob.totalFiles} files (${formatBytes(zipJob.processedBytes)} / ${formatBytes(zipJob.totalBytes)})`
+                    : 'Listing files…'
+                  : zipJob.status === 'done'
+                    ? 'Download ready — it should start automatically.'
+                    : `Failed: ${zipJob.error || 'Unknown error'}`}
             </DialogDescription>
           </DialogHeader>
 
-          {/* Progress bar */}
-          {downloadedSet.size > 0 && (
+          {zipJob?.status === 'processing' && zipJob.totalBytes > 0 && (
             <div className="w-full bg-muted rounded-full h-1.5">
               <div
                 className="bg-primary h-1.5 rounded-full transition-all"
-                style={{ width: `${(downloadedSet.size / downloadQueue.length) * 100}%` }}
+                style={{ width: `${Math.min(100, (zipJob.processedBytes / zipJob.totalBytes) * 100)}%` }}
               />
             </div>
           )}
 
-          {/* File list */}
-          <div className="overflow-y-auto flex-1 border rounded-md divide-y">
-            {downloadQueue.map((file, i) => (
-              <div key={file.key} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50">
-                <div className="flex-1 truncate text-muted-foreground" title={file.filename}>
-                  {file.filename}
-                </div>
-                {downloadedSet.has(i) ? (
-                  <span className="text-xs text-green-600 font-medium shrink-0">✓ Done</span>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 shrink-0"
-                    onClick={() => {
-                      triggerSingleDownload(file.url, file.filename);
-                      setDownloadedSet(prev => new Set([...prev, i]));
-                    }}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+          {(!zipJob || zipJob.status === 'queued' || zipJob.status === 'processing') && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              This can take a while for large folders — feel free to close this and check back later.
+            </div>
+          )}
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { autoDownloadRef.current = false; setShowDownloadModal(false); }}>
+            <Button variant="outline" onClick={() => { stopZipPolling(); setShowDownloadModal(false); }}>
               Close
             </Button>
-            {autoDownloading ? (
-              <Button variant="destructive" onClick={() => { autoDownloadRef.current = false; setAutoDownloading(false); }}>
-                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                Stop
-              </Button>
-            ) : (
-              <Button onClick={startAutoDownload} disabled={downloadedSet.size === downloadQueue.length}>
+            {zipJob?.status === 'done' && zipJob.downloadUrl && (
+              <Button onClick={() => triggerSingleDownload(zipJob.downloadUrl!, zipJob.zipName)}>
                 <Download className="h-3.5 w-3.5 mr-1.5" />
-                {downloadedSet.size > 0 ? 'Resume' : 'Download All'}
+                Download again
               </Button>
             )}
           </DialogFooter>
