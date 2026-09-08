@@ -562,15 +562,16 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         {p.onSwitchToThumbnail && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
+                                    <button
                                         onClick={p.onSwitchToThumbnail}
-                                        className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
+                                        className="h-[38px] px-2.5 flex items-center justify-center gap-1.5 bg-transparent rounded-md cursor-pointer transition-colors"
+                                        style={{ border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-hover-info)'; e.currentTarget.style.borderColor = 'var(--review-v2-hover-info)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
                                     >
-                                        <ImageIcon className="h-4 w-4" />
-                                        <span className="text-xs hidden sm:inline">Thumbnails</span>
-                                    </Button>
+                                        <ImageIcon className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                        <span className="text-xs font-medium hidden sm:inline">Thumbnails</span>
+                                    </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">Switch to Thumbnail Review</TooltipContent>
                             </Tooltip>
@@ -581,7 +582,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
                                     <SelectTrigger
                                         className="h-[38px] w-auto min-w-[170px] text-sm font-medium rounded-md"
-                                        style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border)', color: 'var(--review-v2-gray-100)' }}
+                                        style={{ background: 'transparent', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
                                     >
                                         <SelectValue placeholder="Version" />
                                     </SelectTrigger>
