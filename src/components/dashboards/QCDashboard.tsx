@@ -346,10 +346,15 @@ useEffect(() => {
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  const getDeliverableBadge = (rawType?: string | null) => {
-    if (!rawType || rawType === "Other") return null;
-    const lower = rawType.toLowerCase().trim();
-    let label = rawType;
+  const getDeliverableBadge = (rawType?: string | null, taskTitle?: string) => {
+    let lower = (rawType || "").toLowerCase().trim();
+    if (!lower && taskTitle) {
+      const t = taskTitle.toLowerCase();
+      if (/(?:^|[_\-\s])lf\d*(?:[_\-\s]|$)/i.test(t)) lower = 'lf';
+      else if (/(?:^|[_\-\s])sf\d*(?:[_\-\s]|$)/i.test(t)) lower = 'sf';
+    }
+    if (!lower || lower === "other") return null;
+    let label = rawType || "";
     if (lower === 'sf' || lower === 'short form' || lower === 'short form videos' || lower.includes('short form')) {
       label = 'Short Form Videos';
     } else if (lower === 'lf' || lower === 'long form' || lower === 'long form videos' || lower.includes('long form')) {
@@ -916,6 +921,20 @@ useEffect(() => {
   return getTaskCardThumbnailUrl(task.files);
 };
 
+  const isLongFormTask = (task: EnhancedWorkflowTask) => {
+    const deliverableTypeRaw = ((task as any).deliverableType || task.taskCategory || '').toLowerCase().trim();
+    if (
+      deliverableTypeRaw.includes('long form') ||
+      deliverableTypeRaw === 'lf' ||
+      deliverableTypeRaw.includes('long_form') ||
+      deliverableTypeRaw.includes('long-form')
+    ) {
+      return true;
+    }
+    const title = (task.title || '').toLowerCase();
+    return /(?:^|[_\-\s])lf\d*(?:[_\-\s]|$)/i.test(title);
+  };
+
   const isHardPostTask = (task: EnhancedWorkflowTask) => {
     const type = ((task as any).deliverableType || task.taskType || '').toLowerCase();
     return type.includes('hard post') || type.includes('graphic image');
@@ -1434,20 +1453,36 @@ useEffect(() => {
                 const latestVideoVersion = getTaskLatestVersion(task);
                 const deliverableTypeRaw = (task as any).deliverableType || task.taskCategory;
                 const deliverableColors = getDeliverableTypeColor(deliverableTypeRaw);
-                const deliverableBadge = getDeliverableBadge(deliverableTypeRaw);
+                const isLongForm = isLongFormTask(task);
+                const deliverableBadge = getDeliverableBadge(deliverableTypeRaw, task.title);
                 const editorName = getEditorName(task);
                 const dueDateFormatted = formatCardDate(task.dueDate || task.createdAt);
+                const hasThumbnail = Boolean(thumbnail);
 
                 return (
                   <div
                     key={task.id}
-                    className={`group cursor-pointer rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col h-full ${deliverableColors.bg} ${deliverableColors.border} hover:${deliverableColors.ring} ${
+                    className={`group cursor-pointer rounded-2xl transition-all duration-200 overflow-hidden flex flex-col h-full ${
+                      isLongForm
+                        ? "col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2 xl:col-span-2"
+                        : "col-span-1"
+                    } ${
+                      !hasThumbnail
+                        ? "border-2 border-dashed border-zinc-300 bg-[#f8f8f9]/70 hover:border-zinc-400 hover:bg-[#f3f4f6]"
+                        : "bg-white border border-zinc-200 shadow-sm hover:shadow-md hover:border-zinc-300"
+                    } ${
                       selectedTask?.id === task.id ? "ring-2 ring-primary" : ""
                     } ${isChecked ? "ring-2 ring-violet-500" : ""}`}
                     onClick={() => handleTaskClick(task)}
                   >
                     {/* Visual Header / Thumbnail Area */}
-                    <div className="w-full aspect-[4/5] relative flex items-center justify-center bg-[#ebebeb]/60 overflow-hidden">
+                    <div
+                      className={`w-full ${
+                        isLongForm ? "aspect-video" : "aspect-[4/5]"
+                      } relative flex items-center justify-center ${
+                        !hasThumbnail ? "bg-transparent" : "bg-[#ebebeb]/60"
+                      } overflow-hidden`}
+                    >
                       {thumbnail ? (
                         <>
                           <img
@@ -1462,7 +1497,7 @@ useEffect(() => {
                         </>
                       ) : (
                         <div
-                          className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center select-none cursor-pointer transition-colors hover:bg-zinc-200/50 z-10"
+                          className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center select-none cursor-pointer transition-colors hover:bg-zinc-200/40 z-10"
                           onDragOver={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1538,15 +1573,60 @@ useEffect(() => {
                         </div>
                       )}
 
-                      {/* Top Right: Dark translucent badge with file count */}
-                      <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md text-white text-xs font-semibold shadow-sm">
-                        <FileText className="h-3.5 w-3.5 stroke-[2]" />
-                        <span>{task.files?.length || 0}</span>
-                      </div>
+                      {/* Top Right: Replace/Edit actions for cards with thumbnail, or File count badge */}
+                      {hasThumbnail ? (
+                        <>
+                          <div
+                            className={`absolute top-3 right-3 z-20 items-center gap-1.5 ${
+                              isLongForm ? "flex" : "hidden group-hover:flex"
+                            }`}
+                          >
+                            <label
+                              className="text-xs font-medium text-white bg-black/50 hover:bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-md cursor-pointer transition-colors shadow-xs"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Replace thumbnail"
+                            >
+                              Replace
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleStillUpload(task, file);
+                                }}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-white bg-black/50 hover:bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-md transition-colors shadow-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTaskClick(task);
+                              }}
+                              title="Review & edit task"
+                            >
+                              Edit
+                            </button>
+                          </div>
+
+                          {!isLongForm && (
+                            <div className="absolute top-3 right-3 z-20 flex group-hover:hidden items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md text-white text-xs font-semibold shadow-sm">
+                              <FileText className="h-3.5 w-3.5 stroke-[2]" />
+                              <span>{task.files?.length || 0}</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md text-white text-xs font-semibold shadow-sm">
+                          <FileText className="h-3.5 w-3.5 stroke-[2]" />
+                          <span>{task.files?.length || 0}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Card Body */}
-                    <div className={`p-4 pt-3.5 pb-4 flex flex-col justify-between flex-1 gap-2.5 ${deliverableColors.bg}`}>
+                    <div className={`p-4 pt-3.5 pb-4 flex flex-col justify-between flex-1 gap-2.5 ${!hasThumbnail ? 'bg-transparent' : 'bg-white'}`}>
                       {/* Row 1: Task Title & Guidelines Button */}
                       <div className="flex items-center justify-between gap-2">
                         <h4
@@ -1584,7 +1664,7 @@ useEffect(() => {
                         ) : (
                           <span />
                         )}
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/90 text-zinc-700 border border-black/5 shadow-xs shrink-0">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-700 border border-black/5 shadow-xs shrink-0">
                           V{latestVideoVersion}
                         </span>
                       </div>
