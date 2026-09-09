@@ -14,14 +14,13 @@ import { Plus } from 'lucide-react';
 import { DateRangePicker } from '../ui/date-range-picker';
 import { LinkLfTask } from '../tasks/LinkLfTask';
 import {
-  ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight, ChevronDown,
+  ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight,
   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
   Calendar, User, Users, Pencil, Trash2, Edit, CloudUpload, Youtube,
 } from 'lucide-react';
 import { EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '../auth/AuthContext';
-import { useViewAsRole } from '../auth/ViewAsRoleContext';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuTrigger, DropdownMenuSeparator,
@@ -32,12 +31,6 @@ import {
 } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { TagPicker } from '../workflow/TagPicker';
-import {
-  TotpSetupDialog,
-  TotpResetDialog,
-  fetchTotpEnabled,
-} from '../auth/TotpDialogs';
-import { Smartphone, KeyRound } from 'lucide-react';
 
 // ─────────────────────────────────────────
 // Types
@@ -80,39 +73,29 @@ interface TeamMember { id: number; name: string; role: string; roles?: string[];
 interface Client { id: string; name: string; companyName: string | null; }
 
 // ─────────────────────────────────────────
-// Status pill — flat rounded-full badge, colored per status
+// Status Badge
 // ─────────────────────────────────────────
 
-const statusConfig: Record<string, { label: string; bg: string; text: string }> = {
-  PENDING: { label: 'Pending', bg: 'bg-amber-100', text: 'text-amber-700' },
-  IN_PROGRESS: { label: 'In Progress', bg: 'bg-violet-100', text: 'text-violet-700' },
-  READY_FOR_QC: { label: 'Quality Control', bg: 'bg-orange-100', text: 'text-orange-700' },
-  QC_IN_PROGRESS: { label: 'QC In Progress', bg: 'bg-violet-100', text: 'text-violet-700' },
-  COMPLETED: { label: 'Completed', bg: 'bg-green-100', text: 'text-green-700' },
-  SCHEDULED: { label: 'Scheduled', bg: 'bg-blue-100', text: 'text-blue-700' },
-  ON_HOLD: { label: 'On Hold', bg: 'bg-gray-100', text: 'text-gray-700' },
-  REJECTED_BY_QC: { label: 'Rejected by QC', bg: 'bg-red-100', text: 'text-red-700' },
-  REJECTED_BY_CLIENT: { label: 'Rejected by Client', bg: 'bg-rose-100', text: 'text-rose-700' },
-  CLIENT_REVIEW: { label: 'Client Review', bg: 'bg-sky-100', text: 'text-sky-700' },
-  VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', bg: 'bg-sky-100', text: 'text-sky-700' },
-  HIDDEN: { label: 'Hidden', bg: 'bg-gray-100', text: 'text-gray-500' },
+const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ReactNode }> = {
+  PENDING: { label: 'Pending', variant: 'secondary', icon: <Clock className="h-3 w-3" /> },
+  IN_PROGRESS: { label: 'In Progress', variant: 'default', icon: <RefreshCw className="h-3 w-3" /> },
+  READY_FOR_QC: { label: 'Ready for QC', variant: 'outline', icon: <Eye className="h-3 w-3" /> },
+  QC_IN_PROGRESS: { label: 'QC In Progress', variant: 'default', icon: <RefreshCw className="h-3 w-3" /> },
+  COMPLETED: { label: 'Completed', variant: 'default', icon: <CheckCircle2 className="h-3 w-3" /> },
+  SCHEDULED: { label: 'Scheduled', variant: 'default', icon: <Calendar className="h-3 w-3" /> },
+  ON_HOLD: { label: 'On Hold', variant: 'secondary', icon: <AlertCircle className="h-3 w-3" /> },
+  REJECTED: { label: 'Rejected', variant: 'destructive', icon: <XCircle className="h-3 w-3" /> },
+  CLIENT_REVIEW: { label: 'Client Review', variant: 'outline', icon: <User className="h-3 w-3" /> },
+  VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', variant: 'outline', icon: <Users className="h-3 w-3" /> },
+  HIDDEN: { label: 'Hidden', variant: 'secondary', icon: <EyeOff className="h-3 w-3" /> },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const config = statusConfig[status] || { label: status, bg: 'bg-gray-100', text: 'text-gray-600' };
+  const config = statusConfig[status] || { label: status, variant: 'secondary' as const, icon: null };
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${config.bg} ${config.text}`}>
-      {config.label}
-    </span>
-  );
-}
-
-function MonthPill({ month }: { month: string | null }) {
-  if (!month) return <span className="text-muted-foreground text-xs">-</span>;
-  return (
-    <span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium bg-white text-foreground">
-      {month}
-    </span>
+    <Badge variant={config.variant} className="flex items-center gap-1">
+      {config.icon}{config.label}
+    </Badge>
   );
 }
 
@@ -123,12 +106,10 @@ function MonthPill({ month }: { month: string | null }) {
 function SkeletonRow() {
   return (
     <tr className="border-b">
-      <td className="py-3 px-4">
-        <div className="h-4 w-4 rounded bg-muted animate-pulse" />
-      </td>
-      {[180, 90, 100, 80, 60, 90, 70, 60, 40].map((w, i) => (
+      <td className="py-3 px-4"><div className="h-4 w-4 rounded bg-muted animate-pulse" /></td>
+      {[200, 80, 100, 80, 60, 80, 90, 70, 70, 40].map((w, i) => (
         <td key={i} className="py-3 px-4">
-          <div className="h-4 rounded bg-muted animate-pulse" style={{ width: w }} />
+          <div className={`h-4 rounded bg-muted animate-pulse`} style={{ width: w }} />
         </td>
       ))}
     </tr>
@@ -151,7 +132,6 @@ const fetcher = (url: string) =>
 
 export function TaskManagementTab() {
   const { user } = useAuth();
-  const { viewingAsRole } = useViewAsRole();
 
   // ── Filters ───────────────────────────
   const [filters, setFilters] = useState<FilterState>({
@@ -178,7 +158,7 @@ export function TaskManagementTab() {
 
   // ── Edit / delete dialogs ─────────────
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [editForm, setEditForm] = useState({ status: '', assignedTo: '', qc_specialist: '', scheduler: '', videographer: '', dueDate: '' });
+  const [editForm, setEditForm] = useState({ status: '', assignedTo: '', qc_specialist: '', scheduler: '', videographer: '', priority: '', dueDate: '' });
   const [editTags, setEditTags] = useState<string[]>([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [bulkEditForm, setBulkEditForm] = useState({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' });
@@ -193,14 +173,14 @@ export function TaskManagementTab() {
   const [taskFiles, setTaskFiles] = useState<any[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
-  const [filePendingDelete, setFilePendingDelete] = useState<{ id: string; name: string } | null>(null);
-  const [fileDeleteTotp, setFileDeleteTotp] = useState('');
-  const [fileDeleteTotpError, setFileDeleteTotpError] = useState('');
-  const [showFileTotpSetup, setShowFileTotpSetup] = useState(false);
-  const [showFileTotpReset, setShowFileTotpReset] = useState(false);
+  const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
-  const canManageVideos = user?.role?.toLowerCase() === 'admin';
-  const isAdmin = canManageVideos;
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  // 🔥 Videographer can now delete task files too (see DELETE
+  // /api/files/[id]) — kept separate from isAdmin so this doesn't also
+  // grant videographer other admin-only things (e.g. tag removal below).
+  const canManageVideos = isAdmin || user?.role?.toLowerCase() === 'videographer';
 
   const SUPER_ADMIN_EMAIL = "sahilsagvekar230@gmail.com";
   const canDeleteTasks = user?.email === SUPER_ADMIN_EMAIL;
@@ -228,25 +208,9 @@ export function TaskManagementTab() {
   }, [page, filters, debouncedSearch]);
 
   // ── SWR: tasks (main data) ─────────────
-  // Sends x-viewing-as so a multi-role account (e.g. a scheduler who's also
-  // qc) viewing this tab from the QC portal resolves to their real access
-  // server-side, instead of only their primary role — see
-  // /api/admin/tasks/route.ts's resolveEffectiveRole.
-  const tasksFetcher = useCallback(
-    (url: string) =>
-      fetch(url, {
-        credentials: 'include',
-        headers: viewingAsRole ? { 'x-viewing-as': viewingAsRole } : {},
-      }).then(r => {
-        if (!r.ok) throw new Error('fetch failed');
-        return r.json();
-      }),
-    [viewingAsRole]
-  );
-
   const { data: taskData, isLoading: tasksLoading, isValidating, mutate: mutateTasks } = useSWR(
     user ? `/api/admin/tasks?${queryString}` : null,
-    tasksFetcher,
+    fetcher,
     { keepPreviousData: true, dedupingInterval: 10000 }
   );
 
@@ -256,10 +220,12 @@ export function TaskManagementTab() {
   });
 
   // ── SWR: clients for dropdown (stable, cache 5min) ──
+  // Use a lightweight endpoint — just id + name
   const { data: clientsData } = useSWR('/api/employee/list?role=client', fetcher, {
     dedupingInterval: 300000, revalidateOnFocus: false,
   });
 
+  // Fetch clients via the full clients API only once
   const [clients, setClients] = useState<Client[]>([]);
   useEffect(() => {
     fetch('/api/clients', { credentials: 'include' })
@@ -276,6 +242,9 @@ export function TaskManagementTab() {
   const availableDeliverableTypes: string[] = taskData?.deliverableTypes || [];
 
   const teamMembers: TeamMember[] = teamData?.employees || [];
+  // Match on primary role OR the roles[] array — a multi-role account (e.g.
+  // Daena: editor + scheduler + qc) has one primary `role` but should still
+  // show up in every dropdown for a role it actually holds.
   const hasRole = (m: TeamMember, role: string) =>
     m.role === role || (Array.isArray(m.roles) && m.roles.includes(role));
   const editors = teamMembers.filter(m => hasRole(m, 'editor'));
@@ -297,6 +266,7 @@ export function TaskManagementTab() {
     return () => window.removeEventListener('task-updated', handler);
   }, [mutateTasks]);
 
+  // Clear selection on page change
   useEffect(() => { setSelectedTasks(new Set()); }, [page, queryString]);
 
   // ── Filter helpers ─────────────────────
@@ -335,6 +305,7 @@ export function TaskManagementTab() {
       qc_specialist: task.qc_specialist?.toString() || 'none',
       scheduler: task.scheduler?.toString() || 'none',
       videographer: task.videographer?.toString() || 'none',
+      priority: task.priority || 'none',
       dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
     });
     setEditTags((task.tags || []).map(t => t.name));
@@ -350,20 +321,13 @@ export function TaskManagementTab() {
       if (editForm.qc_specialist !== (editingTask.qc_specialist?.toString() || 'none')) updates.qc_specialist = editForm.qc_specialist !== 'none' ? parseInt(editForm.qc_specialist) : null;
       if (editForm.scheduler !== (editingTask.scheduler?.toString() || 'none')) updates.scheduler = editForm.scheduler !== 'none' ? parseInt(editForm.scheduler) : null;
       if (editForm.videographer !== (editingTask.videographer?.toString() || 'none')) updates.videographer = editForm.videographer !== 'none' ? parseInt(editForm.videographer) : null;
+      if (editForm.priority !== (editingTask.priority || 'none')) updates.priority = editForm.priority !== 'none' ? editForm.priority : null;
       const currentDue = editingTask.dueDate ? new Date(editingTask.dueDate).toISOString().split('T')[0] : '';
       if (editForm.dueDate !== currentDue) updates.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
 
       if (Object.keys(updates).length === 0) { toast({ title: 'No changes' }); setEditingTask(null); return; }
 
-      const res = await fetch(`/api/admin/tasks/${editingTask.id}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(viewingAsRole ? { 'x-viewing-as': viewingAsRole } : {}),
-        },
-        body: JSON.stringify(updates),
-      });
+      const res = await fetch(`/api/admin/tasks/${editingTask.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.message || 'Failed to update task'); }
       toast({ title: 'Success', description: 'Task updated successfully' });
       setEditingTask(null);
@@ -389,15 +353,7 @@ export function TaskManagementTab() {
 
       if (Object.keys(updates).length === 0) { toast({ title: 'No changes' }); setShowBulkEdit(false); return; }
 
-      const res = await fetch('/api/admin/tasks/bulk', {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(viewingAsRole ? { 'x-viewing-as': viewingAsRole } : {}),
-        },
-        body: JSON.stringify({ taskIds: Array.from(selectedTasks), updates }),
-      });
+      const res = await fetch('/api/admin/tasks/bulk', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskIds: Array.from(selectedTasks), updates }) });
       if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
       const result = await res.json();
       toast({ title: 'Success', description: `Updated ${result.updated || selectedTasks.size} tasks` });
@@ -449,11 +405,20 @@ export function TaskManagementTab() {
     setManageVideosTask(task);
     setLoadingFiles(true);
     setTaskFiles([]);
+    setDeletionRequests([]);
     try {
-      const res = await fetch(`/api/tasks/${task.id}/files`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load files');
-      setTaskFiles(data.files || []);
+      const [filesRes, requestsRes] = await Promise.all([
+        fetch(`/api/tasks/${task.id}/files`),
+        fetch(`/api/tasks/${task.id}/files/deletion-requests`),
+      ]);
+      const filesData = await filesRes.json();
+      if (!filesRes.ok) throw new Error(filesData.error || 'Failed to load files');
+      setTaskFiles(filesData.files || []);
+
+      if (requestsRes.ok) {
+        const requestsData = await requestsRes.json();
+        setDeletionRequests((requestsData.requests || []).filter((r: any) => r.status === 'PENDING'));
+      }
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to load videos', variant: 'destructive' });
     } finally {
@@ -461,50 +426,43 @@ export function TaskManagementTab() {
     }
   }
 
-  async function handleDeleteVideo(fileId: string, fileName: string) {
-    if (!canManageVideos) return;
-    const enabled = await fetchTotpEnabled();
-    if (!enabled) {
-      setFilePendingDelete({ id: fileId, name: fileName });
-      setShowFileTotpSetup(true);
-      return;
-    }
-    setFilePendingDelete({ id: fileId, name: fileName });
-    setFileDeleteTotp('');
-    setFileDeleteTotpError('');
-  }
-
-  async function confirmDeleteVideo() {
-    if (!filePendingDelete || !canManageVideos) return;
-    const clean = fileDeleteTotp.replace(/\s/g, '');
-    if (clean.length !== 6) {
-      setFileDeleteTotpError('Enter the 6-digit code from your authenticator app');
-      return;
-    }
-    setDeletingFileId(filePendingDelete.id);
-    setFileDeleteTotpError('');
+  async function handleDeletionRequestDecision(requestId: string, action: 'approve' | 'reject', fileId: string) {
+    setProcessingRequestId(requestId);
     try {
-      const res = await fetch(`/api/files/${filePendingDelete.id}`, {
-        method: 'DELETE',
+      const res = await fetch(`/api/files/deletion-requests/${requestId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ totpCode: clean }),
+        body: JSON.stringify({ action }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        if (data.code === 'NOT_SETUP' || data.code === 'NOT_ENABLED') {
-          setShowFileTotpSetup(true);
-          throw new Error(data.error || 'Authenticator not set up');
-        }
-        if (data.requiresTotp || data.code === 'INVALID' || data.code === 'MISSING') {
-          setFileDeleteTotpError(data.error || 'Invalid authenticator code');
-          return;
-        }
-        throw new Error(data.error || 'Failed to delete file');
+      if (!res.ok) throw new Error(data.error || `Failed to ${action} request`);
+
+      setDeletionRequests(prev => prev.filter(r => r.id !== requestId));
+      if (action === 'approve') {
+        setTaskFiles(prev => prev.filter(f => f.id !== fileId));
+        mutateTasks();
       }
-      setTaskFiles(prev => prev.filter(f => f.id !== filePendingDelete.id));
-      toast({ title: 'Video deleted', description: `"${filePendingDelete.name}" removed.` });
-      setFilePendingDelete(null);
-      setFileDeleteTotp('');
+      toast({
+        title: action === 'approve' ? 'Deletion approved' : 'Request rejected',
+        description: action === 'approve' ? 'File removed.' : 'The editor was notified.',
+      });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || `Failed to ${action} request`, variant: 'destructive' });
+    } finally {
+      setProcessingRequestId(null);
+    }
+  }
+
+  async function handleDeleteVideo(fileId: string, fileName: string) {
+    if (!canManageVideos) return;
+    if (!confirm(`Delete "${fileName}"? This removes it from storage and cannot be undone.`)) return;
+    setDeletingFileId(fileId);
+    try {
+      const res = await fetch(`/api/files/${fileId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete file');
+      setTaskFiles(prev => prev.filter(f => f.id !== fileId));
+      toast({ title: 'Video deleted', description: `"${fileName}" removed.` });
       mutateTasks();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to delete video', variant: 'destructive' });
@@ -561,19 +519,6 @@ export function TaskManagementTab() {
     }
   }
 
-  // ── Filter column config (drives the label-above-select row) ──
-  const filterColumns: { label: string; key: keyof FilterState; items: { id: string | number; name: string }[] }[] = [
-    { label: 'Editors', key: 'editor', items: editors.map(m => ({ id: m.id, name: m.name })) },
-    { label: 'QCs', key: 'qc', items: qcMembers.map(m => ({ id: m.id, name: m.name })) },
-    { label: 'Schedulers', key: 'scheduler', items: schedulers.map(m => ({ id: m.id, name: m.name })) },
-    { label: 'Videographers', key: 'videographer', items: videographers.map(m => ({ id: m.id, name: m.name })) },
-    { label: 'Clients', key: 'client', items: clients.map(c => ({ id: c.id, name: c.companyName || c.name })) },
-    { label: 'Statuses', key: 'status', items: Object.entries(statusConfig).map(([k, c]) => ({ id: k, name: c.label })) },
-    { label: 'Types', key: 'deliverableType', items: availableDeliverableTypes.map(t => ({ id: t, name: t.replace(/_/g, ' ') })) },
-    { label: 'Months', key: 'month', items: availableMonths.map(m => ({ id: m, name: m })) },
-    { label: 'Tags', key: 'tag', items: allTags.map(t => ({ id: t, name: t })) },
-  ];
-
   // ─────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────
@@ -582,18 +527,18 @@ export function TaskManagementTab() {
     <div className="space-y-6">
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
           {[
-            { label: 'Total Tasks', value: stats.total, bg: 'bg-blue-50', text: 'text-blue-700', sub: 'text-blue-600' },
-            { label: 'Pending', value: stats.byStatus?.PENDING || 0, bg: 'bg-yellow-50', text: 'text-yellow-700', sub: 'text-yellow-600' },
-            { label: 'In Progress', value: stats.byStatus?.IN_PROGRESS || 0, bg: 'bg-purple-50', text: 'text-purple-700', sub: 'text-purple-600' },
-            { label: 'Quality Control', value: stats.byStatus?.READY_FOR_QC || 0, bg: 'bg-orange-50', text: 'text-orange-700', sub: 'text-orange-600' },
-            { label: 'Completed', value: stats.byStatus?.COMPLETED || 0, bg: 'bg-green-50', text: 'text-green-700', sub: 'text-green-600' },
-            { label: 'Overdue', value: stats.overdue, bg: 'bg-red-50', text: 'text-red-700', sub: 'text-red-600' },
+            { label: 'Total Tasks', value: stats.total, from: 'from-blue-50', to: 'to-blue-100', text: 'text-blue-700', sub: 'text-blue-600' },
+            { label: 'Pending', value: stats.byStatus?.PENDING || 0, from: 'from-yellow-50', to: 'to-yellow-100', text: 'text-yellow-700', sub: 'text-yellow-600' },
+            { label: 'In Progress', value: stats.byStatus?.IN_PROGRESS || 0, from: 'from-purple-50', to: 'to-purple-100', text: 'text-purple-700', sub: 'text-purple-600' },
+            { label: 'Ready for QC', value: stats.byStatus?.READY_FOR_QC || 0, from: 'from-orange-50', to: 'to-orange-100', text: 'text-orange-700', sub: 'text-orange-600' },
+            { label: 'Completed', value: stats.byStatus?.COMPLETED || 0, from: 'from-green-50', to: 'to-green-100', text: 'text-green-700', sub: 'text-green-600' },
+            { label: 'Overdue', value: stats.overdue, from: 'from-red-50', to: 'to-red-100', text: 'text-red-700', sub: 'text-red-600' },
           ].map(s => (
-            <div key={s.label} className={`rounded-xl p-5 ${s.bg} flex flex-col items-center text-center`}>
-              <div className={`text-sm font-medium ${s.sub}`}>{s.label}</div>
-              <div className={`text-3xl font-bold mt-1 ${s.text}`}>{s.value}</div>
+            <div key={s.label} className={`rounded-lg border p-4 bg-gradient-to-br ${s.from} ${s.to} flex flex-col items-center text-center`}>
+              <div className={`text-sm ${s.sub}`}>{s.label}</div>
+              <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
             </div>
           ))}
         </div>
@@ -601,49 +546,148 @@ export function TaskManagementTab() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="pt-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
-              {showFilters ? 'Hide Filters' : 'Show Filters'}
-              {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
-            </Button>
-            {activeFilterCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>Clear Filters</Button>
-            )}
-            <DateRangePicker
-              date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
-              setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
-            />
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full" />
-            </div>
-            <Button variant="outline" onClick={handleRefresh} disabled={isValidating}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />Refresh
-            </Button>
-            {user?.role?.toLowerCase() !== 'qc' && (
-              <CreateTaskDialog
-                onTaskCreated={() => { toast({ title: 'Success', description: 'Task created. Refreshing...' }); setTimeout(() => mutateTasks(), 800); }}
-                trigger={<Button className="bg-black text-white hover:bg-black/90"><Plus className="h-4 w-4 mr-2" />Create Task</Button>}
+        <CardContent className="pt-4">
+          <div className="flex items-center justify-between mb-4">
+            {/* <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                <Filter className="h-4 w-4 mr-2" />{showFilters ? 'Hide Filters' : 'Show Filters'}
+                {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
+              </Button>
+              {activeFilterCount > 0 && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
+            </div> */}
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
+                <Filter className="h-4 w-4 mr-2" />{showFilters ? 'Hide Filters' : 'Show Filters'}
+                {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
+              </Button>
+              {activeFilterCount > 0 && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
+              {/* Search — always visible */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10 h-9 w-48" />
+              </div>
+              {/* Due Date Range — always visible */}
+              <DateRangePicker
+                date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
+                setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
               />
-            )}
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedTasks.size > 0 && (
+                <>
+                  <Button variant="default" size="sm" onClick={() => { setBulkEditForm({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' }); setShowBulkEdit(true); }}>
+                    <Pencil className="h-4 w-4 mr-2" />Edit {selectedTasks.size}
+                  </Button>
+                  {canDeleteTasks && (
+                    <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
+                      <Trash2 className="h-4 w-4 mr-2" />Delete {selectedTasks.size}
+                    </Button>
+                  )}
+                </>
+              )}
+              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isValidating}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />Refresh
+              </Button>
+              {user?.role?.toLowerCase() !== 'qc' && (
+                <CreateTaskDialog
+                  onTaskCreated={() => { toast({ title: 'Success', description: 'Task created. Refreshing...' }); setTimeout(() => mutateTasks(), 800); }}
+                  trigger={<Button><Plus className="h-4 w-4 mr-2" />Create Task</Button>}
+                />
+              )}
+            </div>
           </div>
 
           {showFilters && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-3">
-              {filterColumns.map(({ label, key, items }) => (
-                <div key={key} className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">{label}</label>
-                  <Select value={(filters as any)[key]} onValueChange={v => { setFilters(f => ({ ...f, [key]: v })); setPage(1); }}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder={label} /></SelectTrigger>
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-3">
+                {[
+                  { label: 'Editor', key: 'editor', items: editors },
+                  { label: 'QC Specialist', key: 'qc', items: qcMembers },
+                  { label: 'Scheduler', key: 'scheduler', items: schedulers },
+                  { label: 'Videographer', key: 'videographer', items: videographers },
+                ].map(({ label, key, items }) => (
+                  <div key={key} className="space-y-1">
+                    <label className="text-xs text-muted-foreground">{label}</label>
+                    <Select value={(filters as any)[key]} onValueChange={v => { setFilters(f => ({ ...f, [key]: v })); setPage(1); }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder={`All ${label}s`} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All {label}s</SelectItem>
+                        {items.map(m => <SelectItem key={m.id} value={m.id.toString()}>{m.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Client</label>
+                  <Select value={filters.client} onValueChange={v => { setFilters(f => ({ ...f, client: v })); setPage(1); }}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="All Clients" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">{label}</SelectItem>
-                      {items.map(i => <SelectItem key={i.id} value={i.id.toString()}>{i.name}</SelectItem>)}
+                      <SelectItem value="all">All Clients</SelectItem>
+                      {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-              ))}
-            </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Status</label>
+                  <Select value={filters.status} onValueChange={v => { setFilters(f => ({ ...f, status: v })); setPage(1); }}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      {Object.entries(statusConfig).map(([k, c]) => <SelectItem key={k} value={k}>{c.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Type</label>
+                  <Select value={filters.deliverableType} onValueChange={v => { setFilters(f => ({ ...f, deliverableType: v })); setPage(1); }}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="All Types" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      {availableDeliverableTypes.map(t => <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Month</label>
+                  <Select value={filters.month} onValueChange={v => { setFilters(f => ({ ...f, month: v })); setPage(1); }}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="All Months" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Months</SelectItem>
+                      {availableMonths.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Tag</label>
+                  <Select value={filters.tag} onValueChange={v => { setFilters(f => ({ ...f, tag: v })); setPage(1); }}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="All Tags" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Tags</SelectItem>
+                      {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* <div className="flex items-end gap-4">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Due Date Range</label>
+                  <DateRangePicker
+                    date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
+                    setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
+                  />
+                </div>
+              </div> */}
+            </>
           )}
         </CardContent>
       </Card>
@@ -651,143 +695,109 @@ export function TaskManagementTab() {
       {/* Tasks Table */}
       <Card>
         <CardContent className="p-0">
-          {/* Bulk action bar — appears once one or more tasks are ticked */}
-          {selectedTasks.size > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
-              <div className="text-sm font-medium">
-                {selectedTasks.size} task{selectedTasks.size > 1 ? 's' : ''} selected
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setSelectedTasks(new Set())}>
-                  Clear Selection
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setBulkEditForm({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' });
-                    setShowBulkEdit(true);
-                  }}
-                >
-                  <Pencil className="h-4 w-4 mr-2" />Edit Selected
-                </Button>
-                {canDeleteTasks && (
-                  <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
-                    <Trash2 className="h-4 w-4 mr-2" />Delete Selected
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b">
-                  <th className="w-10 py-3 px-4">
-                    <Checkbox
-                      checked={allSelected ? true : someSelected ? 'indeterminate' : false}
-                      onCheckedChange={(checked) => handleSelectAll(checked === true)}
-                      aria-label="Select all tasks"
-                    />
+                <tr className="border-b bg-muted/50">
+                  <th className="py-3 px-4 w-12">
+                    <Checkbox checked={allSelected} ref={el => { if (el) (el as any).indeterminate = someSelected; }} onCheckedChange={handleSelectAll} aria-label="Select all" />
                   </th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Task Name</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Client</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Editor</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">QC</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scheduler</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Month</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actions</th>
+                  <th className="text-left py-3 px-4 font-medium">Task</th>
+                  <th className="text-left py-3 px-4 font-medium">Type</th>
+                  <th className="text-left py-3 px-4 font-medium">Client</th>
+                  <th className="text-left py-3 px-4 font-medium">Editor</th>
+                  <th className="text-left py-3 px-4 font-medium">QC</th>
+                  <th className="text-left py-3 px-4 font-medium">Scheduler</th>
+                  <th className="text-left py-3 px-4 font-medium">Status</th>
+                  <th className="text-left py-3 px-4 font-medium">Month</th>
+                  <th className="text-left py-3 px-4 font-medium">Due Date</th>
+                  <th className="text-left py-3 px-4 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {tasksLoading && tasks.length === 0
                   ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
                   : tasks.length === 0
-                    ? <tr><td colSpan={10} className="text-center py-12 text-muted-foreground">No tasks found matching your filters</td></tr>
+                    ? <tr><td colSpan={11} className="text-center py-12 text-muted-foreground">No tasks found matching your filters</td></tr>
                     : tasks.map(task => {
+                        const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !['COMPLETED', 'SCHEDULED'].includes(task.status);
                         const isSelected = selectedTasks.has(task.id);
                         return (
-                          <tr
-                            key={task.id}
-                            onClick={() => handleSelectTask(task.id, !isSelected)}
-                            className={`border-b hover:bg-muted/50 cursor-pointer ${isSelected ? 'bg-primary/5' : ''} ${tasksLoading ? 'opacity-60' : ''}`}
-                          >
-                            <td className="py-4 px-4" onClick={e => e.stopPropagation()}>
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={(checked) => handleSelectTask(task.id, checked === true)}
-                                aria-label={`Select ${task.title || 'task'}`}
-                              />
-                            </td>
-                            <td className="py-4 px-4"><div className="max-w-xs font-semibold truncate">{task.title || task.description?.slice(0, 50) || 'Untitled Task'}</div></td>
-                            <td className="py-4 px-4">
+                          <tr key={task.id} className={`border-b hover:bg-muted/50 ${isSelected ? 'bg-primary/5' : ''} ${tasksLoading ? 'opacity-60' : ''}`}>
+                            <td className="py-3 px-4"><Checkbox checked={isSelected} onCheckedChange={c => handleSelectTask(task.id, !!c)} /></td>
+                            <td className="py-3 px-4"><div className="max-w-xs font-medium truncate">{task.title || task.description?.slice(0, 50) || 'Untitled Task'}</div></td>
+                            <td className="py-3 px-4">
                               <div className="text-sm flex flex-col gap-1">
                                 <span>{task.monthlyDeliverable?.type?.replace(/_/g, ' ') || task.oneOffDeliverable?.type?.replace(/_/g, ' ') || '-'}</span>
                                 {task.oneOffDeliverable && <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">One-Off</Badge>}
                               </div>
                             </td>
-                            <td className="py-4 px-4"><div className="text-sm">{task.client?.companyName || task.client?.name || '-'}</div></td>
-                            <td className="py-4 px-4"><div className="text-sm">{task.editor?.name || '-'}</div></td>
-                            <td className="py-4 px-4"><div className="text-sm">{task.qcSpecialist?.name || '-'}</div></td>
-                            <td className="py-4 px-4"><div className="text-sm">{task.schedulerUser?.name || '-'}</div></td>
-                            <td className="py-4 px-4"><StatusBadge status={task.status} /></td>
-                            <td className="py-4 px-4"><MonthPill month={task.monthFolder} /></td>
-                            <td className="py-4 px-4" onClick={e => e.stopPropagation()}>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="icon" className="h-8 w-8 rounded-full">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => openEditDialog(task)}><Edit className="h-4 w-4 mr-2" />Edit Task</DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  {canManageVideos && (
-                                    <DropdownMenuItem onClick={() => openManageVideos(task)}>
-                                      <Trash2 className="h-4 w-4 mr-2" />Manage Videos
-                                    </DropdownMenuItem>
-                                  )}
-                                  <DropdownMenuItem
-                                    onClick={() => handleDriveMirror(task.id)}
-                                    disabled={mirroringTaskId === task.id}
-                                    className="text-blue-600 focus:text-blue-600"
-                                  >
-                                    <CloudUpload className="h-4 w-4 mr-2" />
-                                    {mirroringTaskId === task.id ? 'Mirroring...' : 'Trigger Drive Mirror'}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => handleYoutubeMirror(task.id)}
-                                    disabled={youtubeMirroringTaskId === task.id}
-                                    className="text-red-600 focus:text-red-600"
-                                  >
-                                    <Youtube className="h-4 w-4 mr-2" />
-                                    {youtubeMirroringTaskId === task.id ? 'Uploading...' : 'Trigger YouTube Upload'}
-                                  </DropdownMenuItem>
-                                  {(() => {
-                                    const dtype = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || '';
-                                    const isLF = dtype.toLowerCase().includes('long') || dtype.toUpperCase().includes('LF');
-                                    if (!isLF) return null;
-                                    return (
-                                      <>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => openEditDialog(task)}>
-                                          <span className="mr-2 text-sm">🔗</span>Link SF Tasks
-                                        </DropdownMenuItem>
-                                      </>
-                                    );
-                                  })()}
-                                  {canDeleteTasks && (
-                                    <>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteConfirmTask(task)}>
-                                        <Trash2 className="h-4 w-4 mr-2" />Delete Task
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                            <td className="py-3 px-4"><div className="text-sm">{task.client?.companyName || task.client?.name || '-'}</div></td>
+                            <td className="py-3 px-4"><div className="text-sm">{task.editor?.name || '-'}</div></td>
+                            <td className="py-3 px-4"><div className="text-sm">{task.qcSpecialist?.name || '-'}</div></td>
+                            <td className="py-3 px-4"><div className="text-sm">{task.schedulerUser?.name || '-'}</div></td>
+                            <td className="py-3 px-4"><StatusBadge status={task.status} /></td>
+                            <td className="py-3 px-4">
+                              {task.monthFolder
+                                ? <Badge variant="outline" className="text-xs whitespace-nowrap bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300">{task.monthFolder}</Badge>
+                                : <span className="text-muted-foreground text-xs">-</span>}
                             </td>
+                            <td className="py-3 px-4">
+                              {task.dueDate
+                                ? <div className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : ''}`}>{new Date(task.dueDate).toLocaleDateString()}{isOverdue && <div className="text-xs text-red-500">Overdue</div>}</div>
+                                : <span className="text-muted-foreground">-</span>}
+                            </td>
+                            <td className="py-3 px-4">
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      <DropdownMenuItem onClick={() => openEditDialog(task)}><Edit className="h-4 w-4 mr-2" />Edit Task</DropdownMenuItem>
+      <DropdownMenuSeparator />
+      {canManageVideos && (
+        <DropdownMenuItem onClick={() => openManageVideos(task)}>
+          <Trash2 className="h-4 w-4 mr-2" />Manage Videos
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem
+        onClick={() => handleDriveMirror(task.id)}
+        disabled={mirroringTaskId === task.id}
+        className="text-blue-600 focus:text-blue-600"
+      >
+        <CloudUpload className="h-4 w-4 mr-2" />
+        {mirroringTaskId === task.id ? 'Mirroring...' : 'Trigger Drive Mirror'}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onClick={() => handleYoutubeMirror(task.id)}
+        disabled={youtubeMirroringTaskId === task.id}
+        className="text-red-600 focus:text-red-600"
+      >
+        <Youtube className="h-4 w-4 mr-2" />
+        {youtubeMirroringTaskId === task.id ? 'Uploading...' : 'Trigger YouTube Upload'}
+      </DropdownMenuItem>
+      {(() => {
+        const dtype = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || '';
+        const isLF = dtype.toLowerCase().includes('long') || dtype.toUpperCase().includes('LF');
+        if (!isLF) return null;
+        return (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => openEditDialog(task)}>
+              <span className="mr-2 text-sm">🔗</span>Link SF Tasks
+            </DropdownMenuItem>
+          </>
+        );
+      })()}
+      {canDeleteTasks && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteConfirmTask(task)}>
+            <Trash2 className="h-4 w-4 mr-2" />Delete Task
+          </DropdownMenuItem>
+        </>
+      )}
+    </DropdownMenuContent>
+  </DropdownMenu>
+</td>
                           </tr>
                         );
                       })}
@@ -810,10 +820,7 @@ export function TaskManagementTab() {
 
       {/* Single Edit Dialog */}
       <Dialog open={!!editingTask} onOpenChange={o => !o && setEditingTask(null)}>
-        <DialogContent
-          className="max-h-[90vh] overflow-y-auto"
-          style={{ width: 'min(calc(100vw - 2rem), 900px)', maxWidth: 'none' }}
-        >
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit Task</DialogTitle>
             <DialogDescription>{editingTask?.title || editingTask?.description?.slice(0, 50) || 'Untitled Task'}</DialogDescription>
@@ -825,6 +832,7 @@ export function TaskManagementTab() {
               { label: 'QC Specialist', key: 'qc_specialist', items: qcMembers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Scheduler', key: 'scheduler', items: schedulers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Videographer', key: 'videographer', items: videographers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
+              { label: 'Priority', key: 'priority', items: ['low', 'medium', 'high', 'urgent'].map(v => ({ id: v, name: v.charAt(0).toUpperCase() + v.slice(1) })), hasNone: true },
             ].map(({ label, key, items, hasNone }) => (
               <div key={key} className="grid gap-2">
                 <Label>{label}</Label>
@@ -891,6 +899,7 @@ export function TaskManagementTab() {
               <p className="text-xs text-muted-foreground">Leave unchanged to keep existing due dates</p>
             </div>
           </div>
+          {/* SF → LF linking — only shown for Short Form tasks (linking initiated from the SF side) */}
           {editingTask && (() => {
             const dtype = editingTask.monthlyDeliverable?.type || editingTask.oneOffDeliverable?.type || '';
             const isSF = dtype.toLowerCase().includes('short') || dtype.toUpperCase().includes('SF');
@@ -949,8 +958,8 @@ export function TaskManagementTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Manage Videos Dialog */}
+      {/* Manage Videos Dialog — admin + videographer, per instructions delete
+          bypasses the QC/Completed/Posted/Scheduled lock (see /api/files/[id]/route.ts) */}
       <Dialog open={!!manageVideosTask} onOpenChange={o => !o && setManageVideosTask(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -960,6 +969,45 @@ export function TaskManagementTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto space-y-2">
+            {deletionRequests.length > 0 && (
+              <div className="space-y-2 mb-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Pending Deletion Requests ({deletionRequests.length})
+                </p>
+                {deletionRequests.map((req) => {
+                  const requestedFile = taskFiles.find(f => f.id === req.fileId);
+                  return (
+                    <div key={req.id} className="flex items-center justify-between gap-3 p-3 border border-amber-300 bg-amber-50 rounded-lg dark:border-amber-900 dark:bg-amber-950/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{requestedFile?.name || req.fileId}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          Requested by {req.requester?.name || req.requester?.email || 'an editor'}
+                          {req.reason ? ` — "${req.reason}"` : ''}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeletionRequestDecision(req.id, 'reject', req.fileId)}
+                          disabled={processingRequestId === req.id}
+                        >
+                          Reject
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeletionRequestDecision(req.id, 'approve', req.fileId)}
+                          disabled={processingRequestId === req.id}
+                        >
+                          {processingRequestId === req.id ? 'Working...' : 'Approve & Delete'}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {loadingFiles && (
               <p className="text-sm text-muted-foreground py-6 text-center">Loading videos...</p>
             )}
@@ -994,107 +1042,6 @@ export function TaskManagementTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Delete video — authenticator required */}
-      <Dialog
-        open={!!filePendingDelete && !showFileTotpSetup && !showFileTotpReset}
-        onOpenChange={(o) => {
-          if (!o) {
-            setFilePendingDelete(null);
-            setFileDeleteTotp('');
-            setFileDeleteTotpError('');
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
-              <Trash2 className="h-5 w-5" />
-              Delete video?
-            </DialogTitle>
-            <DialogDescription>
-              Delete <strong>{filePendingDelete?.name}</strong>? This removes it from storage and cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="file-delete-totp" className="flex items-center gap-2">
-              <Smartphone className="h-4 w-4 text-blue-600" />
-              Authenticator code
-            </Label>
-            <Input
-              id="file-delete-totp"
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={fileDeleteTotp}
-              onChange={(e) => {
-                setFileDeleteTotp(e.target.value.replace(/\D/g, ''));
-                setFileDeleteTotpError('');
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !deletingFileId) confirmDeleteVideo();
-              }}
-              placeholder="000000"
-              className="text-center text-xl tracking-[0.4em] font-mono"
-              autoFocus
-            />
-            {fileDeleteTotpError && (
-              <p className="text-sm text-red-500">{fileDeleteTotpError}</p>
-            )}
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline inline-flex items-center gap-1"
-              onClick={() => setShowFileTotpReset(true)}
-            >
-              <KeyRound className="h-3 w-3" />
-              Reset authenticator &amp; set up again
-            </button>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setFilePendingDelete(null);
-                setFileDeleteTotp('');
-                setFileDeleteTotpError('');
-              }}
-              disabled={!!deletingFileId}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDeleteVideo}
-              disabled={!!deletingFileId || fileDeleteTotp.length !== 6}
-            >
-              {deletingFileId ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <TotpSetupDialog
-        open={showFileTotpSetup}
-        purposeNote="After setup, you'll need this code every time you delete files."
-        onCancel={() => {
-          setShowFileTotpSetup(false);
-          setFilePendingDelete(null);
-        }}
-        onEnabled={async () => {
-          setShowFileTotpSetup(false);
-          setFileDeleteTotp('');
-          setFileDeleteTotpError('');
-        }}
-      />
-
-      <TotpResetDialog
-        open={showFileTotpReset}
-        onCancel={() => setShowFileTotpReset(false)}
-        onReset={async () => {
-          setShowFileTotpReset(false);
-          setShowFileTotpSetup(true);
-        }}
-      />
     </div>
   );
 }

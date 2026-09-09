@@ -8,6 +8,8 @@ import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { TagPicker } from "./TagPicker";
 import { FileUploadDialog } from "./FileUploadDialog-Resumable";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { toast } from "sonner";
 import {
   CheckCircle,
   AlertCircle,
@@ -87,6 +89,28 @@ export function TaskUploadSections({
   const [textContent, setTextContent] = useState(task.textContent || "");
   const [savingText, setSavingText] = useState(false);
   const [taskTags, setTaskTags] = useState<string[]>((task.tags || []).map((t: any) => t.name));
+
+  // 🗑️ Request deletion — editors can't delete files directly, they ask
+  // admin/videographer (see POST /api/tasks/[id]/files/deletion-requests).
+  // Tracks which files already have a request in flight so the button can
+  // swap to a "Requested" badge instead of letting someone double-submit.
+  const [pendingDeletionFileIds, setPendingDeletionFileIds] = useState<Set<string>>(new Set());
+  const [requestPopoverFileId, setRequestPopoverFileId] = useState<string | null>(null);
+  const [requestReason, setRequestReason] = useState("");
+  const [submittingRequestFileId, setSubmittingRequestFileId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/tasks/${task.id}/files/deletion-requests`)
+      .then((res) => (res.ok ? res.json() : { requests: [] }))
+      .then((data) => {
+        if (cancelled) return;
+        const pending = (data.requests || []).filter((r: any) => r.status === "PENDING");
+        setPendingDeletionFileIds(new Set(pending.map((r: any) => r.fileId)));
+      })
+      .catch(() => {}); // non-critical — worst case the button doesn't show "Requested" yet
+    return () => { cancelled = true; };
+  }, [task.id]);
 
   const isHardPostDeliverable = (deliverableType: string) => {
     const t = (deliverableType || '').toLowerCase();
@@ -301,38 +325,30 @@ export function TaskUploadSections({
     }));
   };
 
-  // Delete file handler
-  const handleDeleteFile = async (fileId: string, folderType: string) => {
-    if (!confirm("Delete this file? This cannot be undone.")) return;
-    
+  // Request deletion handler — editors can't delete directly; this asks
+  // admin/videographer to do it, with an optional reason ("uploaded the
+  // wrong version" etc).
+  const handleRequestDeletion = async (fileId: string) => {
+    setSubmittingRequestFileId(fileId);
     try {
-      const res = await fetch(`/api/files/${fileId}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/tasks/${task.id}/files/deletion-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: [fileId], reason: requestReason.trim() || undefined }),
       });
-      
-      if (!res.ok) {
-        throw new Error("Failed to delete file");
-      }
-      
-      // Remove from local state
-      setUploadedFiles((prev) => ({
-        ...prev,
-        [folderType]: prev[folderType]?.filter((f) => f.id !== fileId) || [],
-      }));
-      
-      // Update section uploaded status
-      setSections((prev) =>
-        prev.map((section) =>
-          section.folderType === folderType
-            ? { ...section, uploaded: (uploadedFiles[folderType]?.length || 0) > 1 }
-            : section
-        )
-      );
-      
-      onUploadComplete([]);
-    } catch (error) {
-      console.error("Delete failed:", error);
-      alert("Failed to delete file. Try again.");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send request");
+
+      setPendingDeletionFileIds((prev) => new Set(prev).add(fileId));
+      setRequestPopoverFileId(null);
+      setRequestReason("");
+      toast.success("Deletion request sent", {
+        description: "Admin or the videographer will review it shortly.",
+      });
+    } catch (error: any) {
+      toast.error("Couldn't send request", { description: error.message || "Please try again." });
+    } finally {
+      setSubmittingRequestFileId(null);
     }
   };
 
@@ -353,17 +369,16 @@ export function TaskUploadSections({
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Failed to submit to QC");
+        throw new Error("Failed to submit to QC");
       }
 
       onUploadComplete([]);
 
       // Reload page to refresh task status
       window.location.reload();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to submit to QC:", error);
-      alert(error?.message || "Failed to submit to QC. Please try again.");
+      alert("Failed to submit to QC. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -469,7 +484,9 @@ export function TaskUploadSections({
                   {/* Show uploaded files for this section */}
                   {sectionFiles.length > 0 && (
                     <div className="space-y-1 p-1.5 bg-white/50 rounded border">
-                      {sectionFiles.map((file, idx) => (
+                      {sectionFiles.map((file, idx) => {
+                        const isPending = pendingDeletionFileIds.has(file.id);
+                        return (
                         <div
                           key={idx}
                           className="flex items-center justify-between p-1.5 bg-white rounded text-xs"
@@ -494,9 +511,69 @@ export function TaskUploadSections({
                             >
                               <Eye className="h-3 w-3 text-gray-600" />
                             </button>
+                            {isPending ? (
+                              <span
+                                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-medium whitespace-nowrap"
+                                title="Waiting on admin or videographer"
+                              >
+                                <Clock className="h-2.5 w-2.5" />
+                                Requested
+                              </span>
+                            ) : (
+                              <Popover
+                                open={requestPopoverFileId === file.id}
+                                onOpenChange={(open) => {
+                                  setRequestPopoverFileId(open ? file.id : null);
+                                  if (!open) setRequestReason("");
+                                }}
+                              >
+                                <PopoverTrigger asChild>
+                                  <button
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-1 hover:bg-red-100 rounded"
+                                    title="Request deletion — uploaded the wrong file?"
+                                  >
+                                    <Trash2 className="h-3 w-3 text-gray-500 hover:text-red-500" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  className="w-72 text-sm"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <p className="font-medium mb-1">Request deletion?</p>
+                                  <p className="text-xs text-gray-500 mb-2">
+                                    Admin or the videographer will review and delete it — you can't undo this once they approve.
+                                  </p>
+                                  <Textarea
+                                    value={requestReason}
+                                    onChange={(e) => setRequestReason(e.target.value)}
+                                    placeholder="Why? (optional) e.g. wrong version uploaded"
+                                    className="text-xs mb-2 min-h-[60px]"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => { setRequestPopoverFileId(null); setRequestReason(""); }}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      disabled={submittingRequestFileId === file.id}
+                                      onClick={() => handleRequestDeletion(file.id)}
+                                    >
+                                      {submittingRequestFileId === file.id ? "Sending..." : "Send Request"}
+                                    </Button>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            )}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 

@@ -9,84 +9,88 @@ datasource db {
 }
 
 model User {
-  id                      Int                      @id @default(autoincrement())
-  name                    String?
-  email                   String
-  password                String?
-  image                   String?
-  role                    Role?                    // primary role — default landing dashboard, unchanged behavior for single-role users
-  roles                   Role[]                   @default([]) // full set of roles this account can act as; empty = single-role via `role` only
-  hourlyRate              Decimal?                 @db.Decimal(10, 2)
-  monthlyBaseHours        Int?
-  employeeStatus          EmployeeStatus?          @default(ACTIVE)
-  joinedAt                DateTime?
-  worksOnSaturday         Boolean                  @default(false)
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
-  resetOTP                String?
-  resetOTPExpiry          DateTime?
-  loginOTP                String?
-  loginOTPExpiry          DateTime?
-  hoursPerWeek            Decimal?                 @default(0) @db.Decimal(5, 2)
-  phone                   String?                  @unique
-  monthlyRate             Int?
-  linkedClientId          String?
-  emailNotifications      Boolean                  @default(true)
-  slackNotifications      Boolean                  @default(false)
-  employeeDocuments       EmployeeDocument[]       @relation("EmployeeDocumentOwner")
-  uploadedEmployeeDocs    EmployeeDocument[]       @relation("EmployeeDocumentUploader")
-  slackUserId             String?
-  accounts                Account[]
-  affiliateCommissions    AffiliateCommission[]
-  commissionAdjustments   CommissionAdjustment[]
-  commissionPayouts       CommissionPayout[]
-  payoutProfile           SalesRepPayoutProfile?
-  auditLogs               AuditLog[]
-  bids                    Bid[]
-  bonuses                 Bonus[]
-  client                  Client?
-  ClientPortalAccess      ClientPortalAccess[]
-  createdContracts        Contract[]               @relation("ContractCreator")
-  deductions              Deduction[]
-  editorClientPermissions EditorClientPermission[] @relation("EditorPermissions")
-  eodReports              EditorEodReport[]
-  feedbackSent            Feedback[]               @relation("FeedbackSender")
-  feedbackResponses       FeedbackResponse[]       @relation("FeedbackResponseSender")
-  invoicesCreated         Invoice[]                @relation("InvoiceCreator")
-  assignedJobs            Job[]                    @relation("JobAssignee")
-  createdJobs             Job[]                    @relation("JobCreator")
-  leaves                  Leave[]
-  loginAuditLogs          LoginAuditLog[]
-  payrolls                Payroll[]
-  PreClient               PreClient[]
-  helpVideos              HelpVideo[]
-  achievements            QCAchievement[]
-  qcAnalytics             QCAnalytics[]
-  categoryMetrics         QCCategoryMetrics[]
-  monthlyTrends           QCMonthlyTrend[]
-  rejectionReasons        QCRejectionReason[]
-  salesActivityLogs       SalesActivityLog[]
-  salesLeads              SalesLead[]
-  salesLeadGenerationJobs SalesLeadGenerationJob[]
-  salesManagerPermissions SalesManagerPermission[] @relation("SalesManagerPermissions")
-  salesRepPermissions     SalesManagerPermission[] @relation("SalesRepPermissions")
-  schedulerActivityEvents SchedulerActivityEvent[]
+  id                              Int                             @id @default(autoincrement())
+  name                            String?
+  email                           String
+  password                        String?
+  image                           String?
+  role                            Role?
+  hourlyRate                      Decimal?                        @db.Decimal(10, 2)
+  monthlyBaseHours                Int?
+  employeeStatus                  EmployeeStatus?                 @default(ACTIVE)
+  joinedAt                        DateTime?
+  worksOnSaturday                 Boolean                         @default(false)
+  createdAt                       DateTime                        @default(now())
+  updatedAt                       DateTime                        @updatedAt
+  resetOTP                        String?
+  resetOTPExpiry                  DateTime?
+  hoursPerWeek                    Decimal?                        @default(0) @db.Decimal(5, 2)
+  phone                           String?                         @unique
+  monthlyRate                     Int?
+  linkedClientId                  String?
+  emailNotifications              Boolean                         @default(true)
+  slackNotifications              Boolean                         @default(false)
+  slackUserId                     String?
+  loginOTP                        String?
+  loginOTPExpiry                  DateTime?
+  roles                           Role[]                          @default([])
+  accounts                        Account[]
+  affiliateCommissions            AffiliateCommission[]
+  auditLogs                       AuditLog[]
+  bids                            Bid[]
+  bonuses                         Bonus[]
+  client                          Client?
+  ClientExpense                   ClientExpense[]
+  ClientPortalAccess              ClientPortalAccess[]
+  commissionAdjustments           CommissionAdjustment[]
+  commissionPayouts               CommissionPayout[]
+  createdContracts                Contract[]                      @relation("ContractCreator")
+  deductions                      Deduction[]
+  DriveNote                       DriveNote[]
+  editorClientPermissions         EditorClientPermission[]        @relation("EditorPermissions")
+  eodReports                      EditorEodReport[]
+  employeeDocuments               EmployeeDocument[]              @relation("EmployeeDocumentOwner")
+  uploadedEmployeeDocs            EmployeeDocument[]              @relation("EmployeeDocumentUploader")
+  Equipment                       Equipment[]
+  ExpenseTrip                     ExpenseTrip[]
+  feedbackSent                    Feedback[]                      @relation("FeedbackSender")
+  feedbackResponses               FeedbackResponse[]              @relation("FeedbackResponseSender")
+  folderStatusUpdates             FolderStatus[]
+  helpVideos                      HelpVideo[]
+  convertedFromCandidate          HiringCandidate?                @relation("ConvertedCandidateUser")
+  hiringCandidatesAdded           HiringCandidate[]
+  hiringTestTasksReviewed         HiringTestTask[]
+  invoicesCreated                 Invoice[]                       @relation("InvoiceCreator")
+  assignedJobs                    Job[]                           @relation("JobAssignee")
+  createdJobs                     Job[]                           @relation("JobCreator")
+  leaves                          Leave[]
+  loginAuditLogs                  LoginAuditLog[]
+  NasMirrorJob                    NasMirrorJob[]
+  payrolls                        Payroll[]
+  PreClient                       PreClient[]
+  achievements                    QCAchievement[]
+  qcAnalytics                     QCAnalytics[]
+  categoryMetrics                 QCCategoryMetrics[]
+  monthlyTrends                   QCMonthlyTrend[]
+  rejectionReasons                QCRejectionReason[]
+  salesActivityLogs               SalesActivityLog[]
+  salesLeads                      SalesLead[]
+  salesLeadGenerationJobs         SalesLeadGenerationJob[]
+  salesManagerPermissions         SalesManagerPermission[]        @relation("SalesManagerPermissions")
+  salesRepPermissions             SalesManagerPermission[]        @relation("SalesRepPermissions")
+  payoutProfile                   SalesRepPayoutProfile?
   schedulerActivityDailySummaries SchedulerActivityDailySummary[]
-  sessions                Session[]
-  NasMirrorJob            NasMirrorJob[]
-  shootDetails            ShootDetail[]            @relation("VideographerShootDetails")
-  updatedSocialLogins     SocialLogin[]            @relation("LoginUpdatedBy")
-  assignedTasks           Task[]                   @relation("AssignedTasks")
-  clientTasks             Task[]                   @relation("ClientUserTasks")
-  qcReviewedTasks         Task[]                   @relation("QCReviewedTasks")
-  taskFeedback            TaskFeedback[]           @relation("TaskFeedbackAuthor")
-  linkedClient            Client?                  @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
-  securityPin             UserSecurityPin?
-  twoFactorAuth           UserTwoFactorAuth?
-  folderStatusUpdates     FolderStatus[]
-  hiringCandidatesAdded   HiringCandidate[]
-  hiringTestTasksReviewed HiringTestTask[]
-  convertedFromCandidate  HiringCandidate?         @relation("ConvertedCandidateUser")
+  schedulerActivityEvents         SchedulerActivityEvent[]
+  sessions                        Session[]
+  shootDetails                    ShootDetail[]                   @relation("VideographerShootDetails")
+  updatedSocialLogins             SocialLogin[]                   @relation("LoginUpdatedBy")
+  assignedTasks                   Task[]                          @relation("AssignedTasks")
+  clientTasks                     Task[]                          @relation("ClientUserTasks")
+  qcReviewedTasks                 Task[]                          @relation("QCReviewedTasks")
+  taskFeedback                    TaskFeedback[]                  @relation("TaskFeedbackAuthor")
+  linkedClient                    Client?                         @relation("LinkedClientUsers", fields: [linkedClientId], references: [id])
+  securityPin                     UserSecurityPin?
+  twoFactorAuth                   UserTwoFactorAuth?
 
   @@index([email])
   @@index([role])
@@ -129,86 +133,90 @@ model VerificationToken {
 }
 
 model Task {
-  id                   String                @id @default(cuid())
-  title                String?
-  description          String
-  taskType             String?
-  status               TaskStatus?           @default(PENDING)
-  dueDate              DateTime?
-  clientUserId         Int?
-  folderType           String?
-  assignedTo           Int
-  qc_specialist        Int?
-  scheduler            Int?
-  videographer         Int?
-  createdBy            Int?
-  clientId             String?
-  monthlyDeliverableId String?
-  driveFolderId        String?
-  attachments          Json?
-  driveLinks           String[]
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  priority             String?
-  taskCategory         String?
-  nextDestination      String?
-  clientReview         Boolean?              @default(false)
-  requiresClientReview Boolean?              @default(false)
-  workflowStep         String?
-  feedback             String?
-  qcNotes              String?
-  qcResult             String?
-  route                String?
-  monthFolder          String?
-  outputFolderId       String?
-  deliverableType      String?
-  textContent          String?
-  tags                 Tag[]
-  hasCovers            Boolean               @default(false)
-  hasMainFile          Boolean               @default(false)
-  hasMusicLicense      Boolean               @default(false)
-  hasThumbnails        Boolean               @default(false)
-  hasTiles             Boolean               @default(false)
-  socialMediaLinks     Json                  @default("[]")
-  platform             String?
-  suggestedTitles      Json?
-  titlingError         String?
-  titlingStatus        String                @default("NONE")
-  transcript           String?
-  transcriptSummary    String?
-  qcReviewedAt         DateTime?
-  qcReviewedBy         Int?
-  oneOffDeliverableId  String?
-  recurringMonth       String?
-  billedAt             DateTime?
-  invoiceId            String?
-  isTrial              Boolean               @default(false)
-  extraSequence        Int?
-  isExtra              Boolean               @default(false)
-  relatedTaskId        String?
-  titleSetByQC         Boolean               @default(false)
-  postingTitle         String?
-  isSponsored          Boolean               @default(false)
-  titleSetByClient     Boolean               @default(false)
-  postingDescriptions  Json?
-  postingTags          Json?
-  postingTitles        Json?
-  eodReportItems       EditorEodReportItem[]
-  files                File[]
-  templateFor          RecurringTask[]       @relation("TemplateTask")
-  shootDetail          ShootDetail?
-  SocialPost           SocialPost[]
-  user                 User                  @relation("AssignedTasks", fields: [assignedTo], references: [id])
-  client               Client?               @relation(fields: [clientId], references: [id])
-  clientUser           User?                 @relation("ClientUserTasks", fields: [clientUserId], references: [id])
-  invoice              Invoice?              @relation(fields: [invoiceId], references: [id])
-  monthlyDeliverable   MonthlyDeliverable?   @relation(fields: [monthlyDeliverableId], references: [id])
-  oneOffDeliverable    OneOffDeliverable?    @relation(fields: [oneOffDeliverableId], references: [id])
-  qcReviewer           User?                 @relation("QCReviewedTasks", fields: [qcReviewedBy], references: [id])
-  relatedTask          Task?                 @relation("RelatedTasks", fields: [relatedTaskId], references: [id])
-  relatedTasks         Task[]                @relation("RelatedTasks")
-  taskFeedback         TaskFeedback[]
-  titlingJob           TitlingJob?
+  id                    String                @id @default(cuid())
+  title                 String?
+  description           String
+  taskType              String?
+  status                TaskStatus?           @default(PENDING)
+  dueDate               DateTime?
+  clientUserId          Int?
+  folderType            String?
+  assignedTo            Int
+  qc_specialist         Int?
+  scheduler             Int?
+  videographer          Int?
+  createdBy             Int?
+  clientId              String?
+  monthlyDeliverableId  String?
+  driveFolderId         String?
+  attachments           Json?
+  driveLinks            String[]
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  priority              String?
+  taskCategory          String?
+  nextDestination       String?
+  clientReview          Boolean?              @default(false)
+  requiresClientReview  Boolean?              @default(false)
+  workflowStep          String?
+  feedback              String?
+  qcNotes               String?
+  qcResult              String?
+  route                 String?
+  monthFolder           String?
+  outputFolderId        String?
+  deliverableType       String?
+  hasCovers             Boolean               @default(false)
+  hasMainFile           Boolean               @default(false)
+  hasMusicLicense       Boolean               @default(false)
+  hasThumbnails         Boolean               @default(false)
+  hasTiles              Boolean               @default(false)
+  socialMediaLinks      Json                  @default("[]")
+  platform              String?
+  suggestedTitles       Json?
+  titlingError          String?
+  titlingStatus         String                @default("NONE")
+  transcript            String?
+  transcriptSummary     String?
+  qcReviewedAt          DateTime?
+  qcReviewedBy          Int?
+  oneOffDeliverableId   String?
+  recurringMonth        String?
+  billedAt              DateTime?
+  invoiceId             String?
+  isTrial               Boolean               @default(false)
+  extraSequence         Int?
+  isExtra               Boolean               @default(false)
+  relatedTaskId         String?
+  titleSetByQC          Boolean               @default(false)
+  postingTitle          String?
+  isSponsored           Boolean               @default(false)
+  titleSetByClient      Boolean               @default(false)
+  postingDescriptions   Json?
+  postingTags           Json?
+  postingTitles         Json?
+  textContent           String?
+  clientReviewStartedAt DateTime?
+  lastReminderSentAt    DateTime?
+  linkedRawFootagePaths String[]
+  shootScriptRef        String?
+  eodReportItems        EditorEodReportItem[]
+  files                 File[]
+  templateFor           RecurringTask[]       @relation("TemplateTask")
+  shootDetail           ShootDetail?
+  SocialPost            SocialPost[]
+  user                  User                  @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  client                Client?               @relation(fields: [clientId], references: [id])
+  clientUser            User?                 @relation("ClientUserTasks", fields: [clientUserId], references: [id])
+  invoice               Invoice?              @relation(fields: [invoiceId], references: [id])
+  monthlyDeliverable    MonthlyDeliverable?   @relation(fields: [monthlyDeliverableId], references: [id])
+  oneOffDeliverable     OneOffDeliverable?    @relation(fields: [oneOffDeliverableId], references: [id])
+  qcReviewer            User?                 @relation("QCReviewedTasks", fields: [qcReviewedBy], references: [id])
+  relatedTask           Task?                 @relation("RelatedTasks", fields: [relatedTaskId], references: [id])
+  relatedTasks          Task[]                @relation("RelatedTasks")
+  taskFeedback          TaskFeedback[]
+  titlingJob            TitlingJob?
+  tags                  Tag[]                 @relation("TagToTask")
 
   @@index([assignedTo])
   @@index([clientId])
@@ -225,26 +233,39 @@ model Task {
   @@index([qcReviewedBy])
   @@index([clientId, monthlyDeliverableId, monthFolder])
   @@index([isExtra])
+  @@index([clientReviewStartedAt])
 }
 
 model ShootDetail {
-  id                String    @id @default(cuid())
-  taskId            String    @unique
-  location          String?
-  shootDate         DateTime?
-  referenceLinks    String[]
-  referenceFiles    Json?
-  camera            String?
-  quality           String?
-  frameRate         String?
-  lighting          String?
-  exclusions        String?
-  videographerNotes String?
-  videographerId    Int?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  task              Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  videographer      User?     @relation("VideographerShootDetails", fields: [videographerId], references: [id])
+  id                         String    @id @default(cuid())
+  taskId                     String    @unique
+  location                   String?
+  shootDate                  DateTime?
+  referenceLinks             String[]
+  referenceFiles             Json?
+  camera                     String?
+  quality                    String?
+  frameRate                  String?
+  lighting                   String?
+  exclusions                 String?
+  videographerNotes          String?
+  videographerId             Int?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+  hostName                   String?
+  equipmentIds               String[]
+  equipmentReturnedAt        DateTime?
+  equipmentReturnedPhotoUrl  String?
+  equipmentReturnedBy        Int?
+  equipmentReturnedPhotoUrls String[]
+  scriptContent              String?
+  scriptStatus               String    @default("draft")
+  scriptSentAt               DateTime?
+  scriptSentBy               Int?
+  scriptLastEditedAt         DateTime?
+  scriptLastEditedBy         Int?
+  task                       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  videographer               User?     @relation("VideographerShootDetails", fields: [videographerId], references: [id])
 }
 
 model TitlingJob {
@@ -269,22 +290,27 @@ model TitlingJob {
 }
 
 model TaskFeedback {
-  id             String    @id @default(cuid())
-  taskId         String
-  fileId         String?
-  folderType     String
-  feedback       String
-  status         String    @default("needs_revision")
-  timestamp      String?
-  category       String?
-  createdBy      Int
-  resolvedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  acknowledgedAt DateTime?
-  acknowledgedBy Int?
-  user           User      @relation("TaskFeedbackAuthor", fields: [createdBy], references: [id])
-  file           File?     @relation(fields: [fileId], references: [id])
-  task           Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id               String    @id @default(cuid())
+  taskId           String
+  fileId           String?
+  folderType       String
+  feedback         String
+  status           String    @default("needs_revision")
+  timestamp        String?
+  category         String?
+  createdBy        Int
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  acknowledgedAt   DateTime?
+  acknowledgedBy   Int?
+  screenshotUrl    String?
+  annotations      Json?
+  voiceUrl         String?
+  voiceDurationSec Int?
+  attachments      Json?
+  user             User      @relation("TaskFeedbackAuthor", fields: [createdBy], references: [id])
+  file             File?     @relation(fields: [fileId], references: [id])
+  task             Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@index([taskId])
   @@index([fileId])
@@ -311,24 +337,22 @@ model RecurringTask {
 }
 
 model Client {
-  id                           String                    @id @default(cuid())
-  userId                       Int?                      @unique
+  id                           String                   @id @default(cuid())
+  userId                       Int?                     @unique
   name                         String
   email                        String
   companyName                  String?
   phone                        String
-  address                      String?
   createdBy                    String?
-  status                       String                    @default("active")
+  status                       String                   @default("active")
   accountManagerId             String?
   startDate                    DateTime?
   renewalDate                  DateTime?
   lastActivity                 DateTime?
-  requiresClientReview         Boolean                   @default(false)
-  requiresVideographer         Boolean                   @default(false)
-  requiresCoverImage           Boolean                   @default(false)
-  createdAt                    DateTime                  @default(now())
-  updatedAt                    DateTime                  @updatedAt
+  requiresClientReview         Boolean                  @default(false)
+  requiresVideographer         Boolean                  @default(false)
+  createdAt                    DateTime                 @default(now())
+  updatedAt                    DateTime                 @updatedAt
   uploadedFiles                Json?
   brandGuidelines              Json?
   projectSettings              Json?
@@ -338,51 +362,55 @@ model Client {
   driveFolderId                String?
   rawFootageFolderId           String?
   essentialsFolderId           String?
-  emails                       String[]                  @default([])
-  phones                       String[]                  @default([])
+  emails                       String[]                 @default([])
+  phones                       String[]                 @default([])
   outputsFolderId              String?
   slackChannelName             String?
-  slackEnabled                 Boolean                   @default(false)
+  slackEnabled                 Boolean                  @default(false)
   slackWebhookUrl              String?
-  hasPostingServices           Boolean                   @default(true)
-  rawFootageStorageUsed        BigInt?                   @default(0)
-  rawFootageStorageLimit       BigInt?                   @default(3298534883328)
-  storageAlert90Sent           Boolean?                  @default(false)
-  storageAlert95Sent           Boolean?                  @default(false)
-  storageLastCalculated        DateTime?                 @db.Timestamp(6)
-  isTrial                      Boolean                   @default(false)
-  clientReviewDeliverableTypes String[]                  @default([])
-  rawFootageLinks              Json                      @default("[]")
-  portalPasswordSet            Boolean                   @default(false)
-  preClientId                  String?                   @unique
-  welcomeVideoWatched          Boolean                   @default(false)
-  templateHashtags             String[]                  @default([])
+  hasPostingServices           Boolean                  @default(true)
+  rawFootageStorageUsed        BigInt?                  @default(0)
+  rawFootageStorageLimit       BigInt?                  @default(3298534883328)
+  storageAlert90Sent           Boolean?                 @default(false)
+  storageAlert95Sent           Boolean?                 @default(false)
+  storageLastCalculated        DateTime?                @db.Timestamp(6)
+  isTrial                      Boolean                  @default(false)
+  clientReviewDeliverableTypes String[]                 @default([])
+  rawFootageLinks              Json                     @default("[]")
+  portalPasswordSet            Boolean                  @default(false)
+  preClientId                  String?                  @unique
+  welcomeVideoWatched          Boolean                  @default(false)
+  requiresCoverImage           Boolean                  @default(false)
+  templateHashtags             String[]                 @default([])
+  address                      String?
   brandAssets                  BrandAsset[]
-  user                         User?                     @relation(fields: [userId], references: [id])
+  user                         User?                    @relation(fields: [userId], references: [id])
   portalAccess                 ClientPortalAccess?
-  meetingNotes                 MeetingNote[]
   revenues                     ClientRevenue[]
-  editorClientPermissions      EditorClientPermission[]  @relation("EditorClientPerms")
+  DriveNote                    DriveNote[]
+  editorClientPermissions      EditorClientPermission[] @relation("EditorClientPerms")
+  ExpenseTrip                  ExpenseTrip[]
   facebookPages                FacebookPage[]
+  folderStatuses               FolderStatus[]
   guidelines                   Guideline[]
   jobs                         Job[]
+  meetingNotes                 MeetingNote[]
   metaAccount                  MetaAccount?
   metaSnapshots                MetaSnapshot[]
   monthlyDeliverables          MonthlyDeliverable[]
   monthlyRuns                  MonthlyRun[]
   OnboardingToken              OnboardingToken?
   oneOffDeliverables           OneOffDeliverable[]
-  postedContents                PostedContent[]
+  postedContents               PostedContent[]
   postingTargets               PostingTarget[]
   recurringTasks               RecurringTask[]
   SocialAccount                SocialAccount[]
   socialLogins                 SocialLogin[]
-  stripeCustomer                StripeCustomer?
+  stripeCustomer               StripeCustomer?
   tasks                        Task[]
-  linkedUsers                  User[]                    @relation("LinkedClientUsers")
-  youtubeChannel                YouTubeChannel?
-  youtubeSnapshots              YouTubeSnapshot[]
-  folderStatuses                FolderStatus[]
+  linkedUsers                  User[]                   @relation("LinkedClientUsers")
+  youtubeChannel               YouTubeChannel?
+  youtubeSnapshots             YouTubeSnapshot[]
 
   @@index([status])
 }
@@ -462,14 +490,14 @@ model File {
   archivedToNas      Boolean        @default(false)
   nasArchivedAt      DateTime?
   nasPath            String?
-  deletedFromCloud   Boolean        @default(false)
-  deletedFromCloudAt DateTime?
   proxyUrl           String?
   optimizationError  String?
   optimizationStatus String         @default("NONE")
   reviewDriveUrl     String?
-  youtubeVideoId     String?
+  deletedFromCloud   Boolean        @default(false)
+  deletedFromCloudAt DateTime?
   youtubeUploadedAt  DateTime?
+  youtubeVideoId     String?
   task               Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   feedback           TaskFeedback[]
 
@@ -477,8 +505,6 @@ model File {
   @@index([taskId, isActive])
 }
 
-// Generated video preview metadata. `s3Key` remains unique because Drive
-// uploads may not create a File row, whereas every preview has a source key.
 model MediaPreview {
   id                    String   @id @default(cuid())
   s3Key                 String   @unique
@@ -597,7 +623,6 @@ model FolderStatus {
   updatedById Int?
   updatedAt   DateTime @updatedAt
   createdAt   DateTime @default(now())
-
   client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedBy   User?    @relation(fields: [updatedById], references: [id])
 
@@ -624,15 +649,11 @@ model AuditLog {
   @@index([userId])
 }
 
-// Raw interaction events — clicks, page opens, idle transitions — captured
-// client-side for scheduler-role users only. Pruned after 30 days by the
-// nightly rollup job; SchedulerActivityDailySummary is what survives long
-// term for reporting.
 model SchedulerActivityEvent {
   id          String   @id @default(cuid())
   userId      Int
   sessionId   String
-  eventType   String   // click | navigation | idle_start | idle_end | session_start | session_end | visibility_hidden | visibility_visible
+  eventType   String
   path        String?
   targetLabel String?
   targetTag   String?
@@ -645,14 +666,10 @@ model SchedulerActivityEvent {
   @@index([eventType])
 }
 
-// One row per scheduler per calendar day. Built by the nightly rollup job
-// from SchedulerActivityEvent before the raw rows for that day get pruned.
-// This is what the admin dashboard actually queries — never the raw table
-// directly, so it stays fast no matter how much raw data has accumulated.
 model SchedulerActivityDailySummary {
   id            String    @id @default(cuid())
   userId        Int
-  date          DateTime  // normalized to midnight UTC — one row per user per day
+  date          DateTime
   activeMinutes Int       @default(0)
   idleMinutes   Int       @default(0)
   clickCount    Int       @default(0)
@@ -665,14 +682,9 @@ model SchedulerActivityDailySummary {
   @@index([userId, date])
 }
 
-// Tracks daily YouTube Data API quota consumption (default budget: 10,000
-// units/day, an upload costs ~1600). One row per calendar day (Pacific
-// time — that's when YouTube's quota actually resets). Checked before every
-// upload attempt so we can fall back to Drive mirroring proactively instead
-// of waiting for a quotaExceeded error.
 model YoutubeQuotaUsage {
   id        String   @id @default(cuid())
-  date      String   @unique // YYYY-MM-DD, Pacific time
+  date      String   @unique
   unitsUsed Int      @default(0)
   updatedAt DateTime @updatedAt
 }
@@ -685,10 +697,6 @@ model Feedback {
   priority  String
   status    String             @default("pending")
   senderId  Int
-  // Populated when this came from the "Report a Problem" widget (every
-  // portal) — lets the admin queue show the screen it was reported from.
-  screenshotBase64 String?      @db.Text
-  pageUrl          String?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
   sender    User               @relation("FeedbackSender", fields: [senderId], references: [id])
@@ -803,7 +811,7 @@ model SocialLogin {
   passwordChangedAt   DateTime        @default(now())
   allowedRoles        String[]        @default([])
   allowedUserIds      Int[]           @default([])
-  accessRole          String?         // For platforms added via email-invite (Facebook, YouTube) — e.g. "Editor", "Admin", "Advertiser" — instead of a shared password
+  accessRole          String?
   auditLogs           LoginAuditLog[]
   client              Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   updatedByUser       User            @relation("LoginUpdatedBy", fields: [updatedById], references: [id])
@@ -1365,7 +1373,7 @@ model SalesLeadGenerationJob {
 model SalesActivityLog {
   id        String   @id @default(cuid())
   userId    Int
-  type      String // 'call' | 'dealClosed' | 'meeting'
+  type      String
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1391,28 +1399,27 @@ model SalesDashboardColumn {
 }
 
 model AffiliateCommission {
-  id             String    @id @default(cuid())
+  id             String                 @id @default(cuid())
   salesUserId    Int
-  leadId         String    @unique
-  clientName     String    @default("")
-  dealValue      Decimal   @db.Decimal(12, 2)
-  commissionRate Decimal   @default(0.15) @db.Decimal(5, 4)
-  commissionAmt  Decimal   @db.Decimal(12, 2)
+  leadId         String                 @unique
+  clientName     String                 @default("")
+  dealValue      Decimal                @db.Decimal(12, 2)
+  commissionRate Decimal                @default(0.15) @db.Decimal(5, 4)
+  commissionAmt  Decimal                @db.Decimal(12, 2)
   month          DateTime
-  // status: PENDING -> HOLDING -> APPROVED -> PAYOUT_PENDING -> PAID / FAILED
-  status         String    @default("PENDING")
-  currency       String    @default("usd")
-  holdUntil      DateTime?
-  payoutId       String?
+  status         String                 @default("PENDING")
   paidAt         DateTime?
   approvedAt     DateTime?
   approvedBy     Int?
   notes          String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  lead           SalesLead        @relation(fields: [leadId], references: [id])
-  user           User             @relation(fields: [salesUserId], references: [id])
-  payout         CommissionPayout? @relation(fields: [payoutId], references: [id])
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  currency       String                 @default("usd")
+  holdUntil      DateTime?
+  payoutId       String?
+  lead           SalesLead              @relation(fields: [leadId], references: [id])
+  payout         CommissionPayout?      @relation(fields: [payoutId], references: [id])
+  user           User                   @relation(fields: [salesUserId], references: [id])
   adjustments    CommissionAdjustment[]
 
   @@index([salesUserId])
@@ -1422,21 +1429,20 @@ model AffiliateCommission {
 }
 
 model SalesRepPayoutProfile {
-  id                      String    @id @default(cuid())
-  userId                  Int       @unique
-  stripeConnectAccountId  String?   @unique
-  // onboardingStatus: NOT_STARTED -> IN_PROGRESS -> COMPLETE
-  onboardingStatus        String    @default("NOT_STARTED")
-  payoutsEnabled          Boolean   @default(false)
-  taxFormType             String? // W9 | W8BEN
-  taxFormCollectedAt      DateTime?
-  taxFormS3Key            String?
-  commissionRate          Decimal?  @db.Decimal(5, 4) // overrides the 0.15 platform default when set
-  country                 String?
-  currency                String    @default("usd")
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  user                    User      @relation(fields: [userId], references: [id])
+  id                     String    @id @default(cuid())
+  userId                 Int       @unique
+  stripeConnectAccountId String?   @unique
+  onboardingStatus       String    @default("NOT_STARTED")
+  payoutsEnabled         Boolean   @default(false)
+  taxFormType            String?
+  taxFormCollectedAt     DateTime?
+  country                String?
+  currency               String    @default("usd")
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  taxFormS3Key           String?
+  commissionRate         Decimal?  @db.Decimal(5, 4)
+  user                   User      @relation(fields: [userId], references: [id])
 
   @@index([stripeConnectAccountId])
 }
@@ -1445,7 +1451,6 @@ model CommissionAdjustment {
   id             String              @id @default(cuid())
   commissionId   String
   editedById     Int
-  // adjustmentType: EDIT | BONUS
   adjustmentType String
   previousAmount Decimal             @db.Decimal(12, 2)
   newAmount      Decimal             @db.Decimal(12, 2)
@@ -1458,24 +1463,23 @@ model CommissionAdjustment {
 }
 
 model CommissionPayout {
-  id               String    @id @default(cuid())
+  id               String                @id @default(cuid())
   batchId          String?
   salesUserId      Int
-  stripeTransferId String?   @unique
-  amount           Decimal   @db.Decimal(12, 2)
-  currency         String    @default("usd")
-  // status: PENDING -> SENT -> PAID / FAILED
-  status           String    @default("PENDING")
+  stripeTransferId String?               @unique
+  amount           Decimal               @db.Decimal(12, 2)
+  currency         String                @default("usd")
+  status           String                @default("PENDING")
   failureReason    String?
-  idempotencyKey   String    @unique
+  idempotencyKey   String                @unique
   sentAt           DateTime?
   paidAt           DateTime?
   failedAt         DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  batch            PayoutBatchRun?      @relation(fields: [batchId], references: [id])
-  user             User                 @relation(fields: [salesUserId], references: [id])
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
   commissions      AffiliateCommission[]
+  batch            PayoutBatchRun?       @relation(fields: [batchId], references: [id])
+  user             User                  @relation(fields: [salesUserId], references: [id])
 
   @@index([salesUserId])
   @@index([status])
@@ -1483,13 +1487,12 @@ model CommissionPayout {
 }
 
 model PayoutBatchRun {
-  id           String    @id @default(cuid())
-  runDate      DateTime  @default(now())
-  // status: RUNNING -> COMPLETED / FAILED
-  status       String    @default("RUNNING")
-  totalAmount  Decimal   @default(0) @db.Decimal(12, 2)
-  totalPayouts Int       @default(0)
-  createdAt    DateTime  @default(now())
+  id           String             @id @default(cuid())
+  runDate      DateTime           @default(now())
+  status       String             @default("RUNNING")
+  totalAmount  Decimal            @default(0) @db.Decimal(12, 2)
+  totalPayouts Int                @default(0)
+  createdAt    DateTime           @default(now())
   completedAt  DateTime?
   payouts      CommissionPayout[]
 }
@@ -1506,7 +1509,7 @@ model Tag {
   id        String   @id @default(cuid())
   name      String   @unique
   createdAt DateTime @default(now())
-  tasks     Task[]
+  tasks     Task[]   @relation("TagToTask")
 }
 
 model EditorClientPermission {
@@ -1539,8 +1542,8 @@ model TrainingCourse {
   order       Int                @default(0)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
-  videos      TrainingVideo[]
   documents   TrainingDocument[]
+  videos      TrainingVideo[]
 
   @@index([role])
   @@index([role, order])
@@ -1638,11 +1641,9 @@ model PortfolioVideo {
   @@index([isActive])
 }
 
-// Photography gallery images for the public /portfolio "Photography" section
-// (no subcategories — category key is always "photography").
 model PortfolioImage {
   id           String   @id @default(cuid())
-  title        String   @default("")
+  title        String
   description  String   @default("")
   imageUrl     String
   thumbnailUrl String?
@@ -1657,15 +1658,12 @@ model PortfolioImage {
   @@index([isActive])
 }
 
-// Single-row UI flags for the public portfolio (e.g. How It Works visibility).
 model PortfolioUiSetting {
-  id                String   @id @default("default")
+  id                String   @id
   howItWorksVisible Boolean  @default(true)
   updatedAt         DateTime @updatedAt
 }
 
-// Admin-managed content for the public /portfolio "Before & After" tab —
-// replaces the hardcoded picsum.photos placeholder client list.
 model PortfolioJourneyClient {
   id        String                 @id @default(cuid())
   label     String
@@ -1797,18 +1795,14 @@ model EmployeeDocument {
   fileSize     Int
   uploadedById Int
   createdAt    DateTime @default(now())
-
-  employee   User @relation("EmployeeDocumentOwner", fields: [employeeId], references: [id], onDelete: Cascade)
-  uploadedBy User @relation("EmployeeDocumentUploader", fields: [uploadedById], references: [id])
+  employee     User     @relation("EmployeeDocumentOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation("EmployeeDocumentUploader", fields: [uploadedById], references: [id])
 
   @@index([employeeId])
 }
 
-// Idempotency table for Stripe webhook delivery. The event id is the primary
-// key — a second delivery of the same event hits a unique-constraint error
-// (P2002) instead of being processed twice. See src/app/api/stripe/webhook/route.ts.
 model StripeWebhookEvent {
-  id        String   @id // Stripe event id, e.g. evt_xxx
+  id        String   @id
   type      String
   createdAt DateTime @default(now())
 
@@ -1898,6 +1892,7 @@ model Invoice {
   sentAt                 DateTime?
   createdAt              DateTime            @default(now())
   updatedAt              DateTime            @updatedAt
+  ClientExpense          ClientExpense[]
   creator                User?               @relation("InvoiceCreator", fields: [createdBy], references: [id])
   stripeCustomer         StripeCustomer      @relation(fields: [stripeCustomerId], references: [id], onDelete: Cascade)
   oneOffDeliverables     OneOffDeliverable[]
@@ -2053,24 +2048,23 @@ model NasSyncLog {
 }
 
 model ClientPortalAccess {
-  id                  String             @id @default(cuid())
-  clientId            String             @unique
-  status              PortalAccessStatus @default(ONBOARDING)
-  billingAnchorDate   DateTime?
-  nextBillingDate     DateTime?
-  arrearsPolicy       String             @default("current_only")
-  adminUnlockedById   Int?
-  adminUnlockedAt     DateTime?
-  lockedAt            DateTime?
-  // ── Recurring auto-invoice settings (admin-configured once per client) ──
-  autoInvoiceActive   Boolean            @default(false)
-  recurringAmount     Int? // cents
+  id                   String             @id @default(cuid())
+  clientId             String             @unique
+  status               PortalAccessStatus @default(ONBOARDING)
+  billingAnchorDate    DateTime?
+  nextBillingDate      DateTime?
+  arrearsPolicy        String             @default("current_only")
+  adminUnlockedById    Int?
+  adminUnlockedAt      DateTime?
+  lockedAt             DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  autoInvoiceActive    Boolean            @default(false)
+  dueDays              Int                @default(15)
+  recurringAmount      Int?
   recurringDescription String?
-  dueDays             Int                @default(15) // grace period before an unpaid invoice is OVERDUE
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  User                User?              @relation(fields: [adminUnlockedById], references: [id])
-  Client              Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  User                 User?              @relation(fields: [adminUnlockedById], references: [id])
+  Client               Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([nextBillingDate])
   @@index([status])
@@ -2088,65 +2082,42 @@ model OnboardingToken {
   client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 }
 
-enum HiringCandidateStatus {
-  NEW
-  CONTACTED
-  TEST_SENT
-  TEST_SUBMITTED
-  IN_REVIEW
-  HIRED
-  REJECTED
-}
-
-enum HiringTestTaskStatus {
-  PENDING
-  SENT
-  SUBMITTED
-  IN_REVIEW
-  APPROVED
-  REJECTED
-}
-
 model MeetingNote {
   id          String    @id @default(cuid())
   clientId    String
-  client      Client    @relation(fields: [clientId], references: [id])
   driveDocId  String
   driveDocUrl String
   title       String
   meetingDate DateTime
-  status      String    @default("draft") // draft | sent
+  status      String    @default("draft")
   sentAt      DateTime?
   sentBy      String?
   createdBy   String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  client      Client    @relation(fields: [clientId], references: [id])
 
   @@index([clientId])
 }
 
-// Editor hiring pipeline: candidate DB -> emailed test task (token link,
-// no login required) -> candidate submits (pasted link or direct upload) ->
-// admin reviews in QC-style approve/reject flow.
 model HiringCandidate {
-  id           String                @id @default(cuid())
-  name         String
-  email        String
-  phone        String?
-  portfolioUrl String?
-  resumeUrl    String?
-  source       String?
-  notes        String?
-  status       HiringCandidateStatus @default(NEW)
-  createdById  Int?
-  createdBy    User?                 @relation(fields: [createdById], references: [id])
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  testTasks    HiringTestTask[]
-
-  convertedUserId Int?      @unique
-  convertedUser   User?     @relation("ConvertedCandidateUser", fields: [convertedUserId], references: [id])
+  id              String                @id @default(cuid())
+  name            String
+  email           String
+  phone           String?
+  portfolioUrl    String?
+  resumeUrl       String?
+  source          String?
+  notes           String?
+  status          HiringCandidateStatus @default(NEW)
+  createdById     Int?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
   convertedAt     DateTime?
+  convertedUserId Int?                  @unique
+  convertedUser   User?                 @relation("ConvertedCandidateUser", fields: [convertedUserId], references: [id])
+  createdBy       User?                 @relation(fields: [createdById], references: [id])
+  testTasks       HiringTestTask[]
 
   @@index([status])
   @@index([email])
@@ -2155,7 +2126,6 @@ model HiringCandidate {
 model HiringTestTask {
   id              String               @id @default(cuid())
   candidateId     String
-  candidate       HiringCandidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   title           String
   instructions    String
   rawFootageUrl   String?
@@ -2166,12 +2136,13 @@ model HiringTestTask {
   sentAt          DateTime?
   submittedAt     DateTime?
   reviewedById    Int?
-  reviewedBy      User?                @relation(fields: [reviewedById], references: [id])
   reviewNotes     String?
   reviewedAt      DateTime?
   expiresAt       DateTime?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
+  candidate       HiringCandidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  reviewedBy      User?                @relation(fields: [reviewedById], references: [id])
 
   @@index([candidateId])
   @@index([status])
@@ -2183,11 +2154,11 @@ model PreClient {
   email       String
   phone       String?
   companyName String?
-  address     String?
   status      PreClientStatus @default(QUALIFIED)
   createdById Int
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+  address     String?
   createdBy   User            @relation(fields: [createdById], references: [id])
   quotes      Quote[]
 
@@ -2225,29 +2196,187 @@ model Quote {
 }
 
 model NasMirrorJob {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   clientName    String
   monthFolder   String
-  status        String   @default("pending") // pending | running | completed | failed
-  scannedCount  Int      @default(0)
-  copiedCount   Int      @default(0)
-  verifiedCount Int      @default(0)
-  deletedCount  Int      @default(0)
-  failedCount   Int      @default(0)
-  folderType    String   @default("outputs") // 'outputs' | 'raw-footage'
-  folderPath    String?  // full relative path under clientName for raw-footage jobs, e.g. "June-2025/SF12"
+  status        String    @default("pending")
+  scannedCount  Int       @default(0)
+  copiedCount   Int       @default(0)
+  verifiedCount Int       @default(0)
+  deletedCount  Int       @default(0)
+  failedCount   Int       @default(0)
   currentFile   String?
   errorMessage  String?
   triggeredById Int?
   startedAt     DateTime?
   completedAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  TriggeredBy   User?    @relation(fields: [triggeredById], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  folderPath    String?
+  folderType    String    @default("outputs")
+  TriggeredBy   User?     @relation(fields: [triggeredById], references: [id])
 
   @@index([status])
   @@index([clientName, monthFolder])
   @@index([createdAt])
+}
+
+model ClientExpense {
+  id              String              @id
+  tripId          String
+  description     String
+  amount          Int
+  expenseDate     DateTime
+  receiptS3Key    String
+  receiptUrl      String
+  receiptFileName String
+  status          ClientExpenseStatus @default(PENDING)
+  invoiceId       String?
+  createdById     Int
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime
+  User            User                @relation(fields: [createdById], references: [id])
+  Invoice         Invoice?            @relation(fields: [invoiceId], references: [id])
+  ExpenseTrip     ExpenseTrip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([tripId])
+}
+
+model DriveNote {
+  id          String   @id
+  clientId    String
+  s3Key       String
+  isFolder    Boolean  @default(false)
+  content     String
+  createdById Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  Client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  User        User     @relation(fields: [createdById], references: [id])
+
+  @@index([clientId, s3Key])
+}
+
+model Equipment {
+  id          String   @id
+  name        String
+  category    String?
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdById Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  User        User?    @relation(fields: [createdById], references: [id])
+}
+
+model ExpenseTrip {
+  id            String          @id
+  clientId      String
+  name          String
+  createdById   Int
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  ClientExpense ClientExpense[]
+  Client        Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  User          User            @relation(fields: [createdById], references: [id])
+
+  @@index([clientId])
+}
+
+model NasBackupRecord {
+  id                 String    @id
+  clientId           String
+  folderType         String
+  s3Key              String    @unique
+  fileName           String
+  fileSize           BigInt?
+  archivedToNas      Boolean   @default(false)
+  nasArchivedAt      DateTime?
+  nasPath            String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime
+  deletedFromCloud   Boolean   @default(false)
+  deletedFromCloudAt DateTime?
+
+  @@index([clientId])
+}
+
+model PortfolioChannel {
+  id            String   @id
+  name          String
+  channelUrl    String
+  avatarUrl     String?
+  followerCount String   @default("")
+  category      String
+  order         Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+
+  @@index([category])
+  @@index([category, order])
+  @@index([isActive])
+}
+
+model ShareRecipient {
+  id             String    @id
+  shareId        String
+  email          String
+  status         String    @default("invited")
+  otpCode        String?
+  otpExpiresAt   DateTime?
+  lastAccessedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime
+
+  @@unique([shareId, email])
+  @@index([shareId])
+}
+
+model FileDeletionRequest {
+  id          String                    @id @default(cuid())
+  fileId      String
+  taskId      String
+  requestedBy Int
+  reason      String?
+  status      FileDeletionRequestStatus @default(PENDING)
+  reviewedBy  Int?
+  reviewedAt  DateTime?
+  batchId     String?
+  createdAt   DateTime                  @default(now())
+
+  @@index([taskId])
+  @@index([fileId])
+  @@index([status])
+  @@index([batchId])
+  @@index([requestedBy])
+}
+
+enum FileDeletionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+
+enum HiringCandidateStatus {
+  NEW
+  CONTACTED
+  TEST_SENT
+  TEST_SUBMITTED
+  IN_REVIEW
+  HIRED
+  REJECTED
+}
+
+enum HiringTestTaskStatus {
+  PENDING
+  SENT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
 }
 
 enum SubscriptionStatus {
@@ -2410,4 +2539,10 @@ enum QuoteStatus {
   VIEWED
   ACCEPTED
   REJECTED
+}
+
+enum ClientExpenseStatus {
+  PENDING
+  INVOICED
+  PAID
 }
