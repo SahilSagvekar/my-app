@@ -1,6 +1,7 @@
 'use client';
 
 import { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { YoutubePlayer } from '../review/YoutubePlayer';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
 import { Button } from '../ui/button';
@@ -1464,12 +1465,18 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 </button>
 
                                                 <button
-                                                    onClick={() => p.handleStatusChange('needs_changes')}
-                                                    disabled={unresolvedCount === 0 || p.savingFeedback}
-                                                    className={`w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 px-3 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed ${
+                                                    onClick={() => {
+                                                        if (unresolvedCount === 0) {
+                                                            toast.error('Please add at least one comment before sending back');
+                                                            return;
+                                                        }
+                                                        p.handleStatusChange('needs_changes');
+                                                    }}
+                                                    disabled={p.savingFeedback}
+                                                    className={`w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 px-3 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed hover:bg-[#dc2626] hover:border-[#dc2626] hover:text-white ${
                                                         unresolvedCount > 0
-                                                            ? 'bg-[#a6303a] hover:bg-[#8e252e] border-[#a6303a] text-white'
-                                                            : 'bg-[#18181b] hover:bg-[#27272a] border-[#38383d] text-zinc-400'
+                                                            ? 'bg-[#a6303a] border-[#a6303a] text-white'
+                                                            : 'bg-[#18181b] border-[#38383d] text-zinc-300'
                                                     }`}
                                                 >
                                                     {p.savingFeedback
@@ -1487,7 +1494,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                         p.handleStatusChange('approved');
                                                     }}
                                                     disabled={p.savingFeedback || unresolvedCount > 0}
-                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-medium py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-white/10 text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#2563eb] hover:border-[#3b82f6] hover:text-white text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title="Send directly to client review"
                                                 >
                                                     <Send className="h-3.5 w-3.5" />
@@ -1500,7 +1507,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                         p.handleStatusChange('approved');
                                                     }}
                                                     disabled={p.savingFeedback || unresolvedCount > 0}
-                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-medium py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-white/10 text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#eab308] hover:border-[#facc15] hover:text-black text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title="Bypass client review and finalize delivery"
                                                 >
                                                     <CheckSquare className="h-3.5 w-3.5" />
@@ -1520,12 +1527,18 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             </button>
 
                                             <button
-                                                onClick={() => p.handleStatusChange('needs_changes')}
-                                                disabled={unresolvedCount === 0 || p.savingFeedback}
-                                                className={`w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed ${
+                                                onClick={() => {
+                                                    if (unresolvedCount === 0) {
+                                                        toast.error('Please add at least one comment before sending back');
+                                                        return;
+                                                    }
+                                                    p.handleStatusChange('needs_changes');
+                                                }}
+                                                disabled={p.savingFeedback}
+                                                className={`w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed hover:bg-[#dc2626] hover:border-[#dc2626] hover:text-white ${
                                                     unresolvedCount > 0
-                                                        ? 'bg-[#a6303a] hover:bg-[#8e252e] border-[#a6303a] text-white'
-                                                        : 'bg-[#18181b] hover:bg-[#27272a] border-[#38383d] text-zinc-400'
+                                                        ? 'bg-[#a6303a] border-[#a6303a] text-white'
+                                                        : 'bg-[#18181b] border-[#38383d] text-zinc-300'
                                                 }`}
                                             >
                                                 {p.savingFeedback
