@@ -2020,11 +2020,22 @@ useEffect(() => {
             onApprove={() => { }}
             onRequestRevisions={() => { }}
             userRole="qc"
-            // 🔀 Switch to thumbnail review without leaving the modal — only
+            // // 🔀 Switch to thumbnail review without leaving the modal — only
+            // // offered when this task actually has a thumbnail to review.
+            // onSwitchToThumbnail={
+            //   switchToThumbnailFile ? () => handleFileSelect(switchToThumbnailFile) : undefined
+            // }
+            // onSendToClient={handleSendToClient}
+
+                        // 🔀 Switch to thumbnail review without leaving the modal — only
             // offered when this task actually has a thumbnail to review.
             onSwitchToThumbnail={
               switchToThumbnailFile ? () => handleFileSelect(switchToThumbnailFile) : undefined
             }
+            // 🧭 Step wizard: Comments → Titles → (Thumbnails, if this task
+            // has one) — same mechanic as ClientDashboard's video review.
+            enableStepWizard
+            hasThumbnailStep={!!switchToThumbnailFile}
             onSendToClient={handleSendToClient}
             onSendBackToEditor={handleSendBackToEditor}
             forceClientReviewOverride={forceClientReviewOverride}
