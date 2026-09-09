@@ -494,7 +494,7 @@ export function ThumbnailReviewModal({
                                             <Button
                                                 variant="ghost" size="sm"
                                                 onClick={onSwitchToVideo}
-                                                className="bg-white hover:bg-white text-black hover:text-black h-8 px-2.5 gap-1.5 rounded-md font-semibold text-xs"
+                                                className="bg-white hover:bg-white text-black hover:text-black h-[38px] px-3 gap-1.5 rounded-md font-semibold text-xs"
                                             >
                                                 <Film className="h-4 w-4" />
                                                 <span>Video</span>

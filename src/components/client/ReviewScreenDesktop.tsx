@@ -603,7 +603,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         variant="ghost"
                                         size="sm"
                                         onClick={p.onSwitchToThumbnail}
-                                        className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
+                                        className="bg-white hover:bg-white text-black hover:text-black h-[38px] px-3 gap-1.5 rounded-md font-semibold text-xs"
                                     >
                                         <ImageIcon className="h-4 w-4" />
                                         <span className="text-xs hidden sm:inline">Thumbnails</span>
@@ -618,7 +618,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
                                     <SelectTrigger
                                         className="h-[38px] w-auto min-w-[170px] text-sm font-medium rounded-md"
-                                        style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border)', color: 'var(--review-v2-gray-100)' }}
+                                        style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
                                     >
                                         <SelectValue placeholder="Version" />
                                     </SelectTrigger>
@@ -634,7 +634,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         ) : (
                             <Badge
                                 className="text-xs h-[38px] w-[38px] p-0 flex items-center justify-center rounded-md"
-                                style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border)', color: 'var(--review-v2-gray-100)' }}
+                                style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
                             >
                                 V{p.asset.versions[0]?.number || '1'}
                             </Badge>
@@ -659,54 +659,68 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         {p.userRole === 'client' && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={p.handleGenerateShareLink} disabled={p.generatingLink} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
+                                    <button
+                                        onClick={p.handleGenerateShareLink}
+                                        disabled={p.generatingLink}
+                                        title="Share link"
+                                        className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                        style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-bg-tertiary)'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                    >
                                         {p.generatingLink
                                             ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                            : <Share className="h-4 w-4" />
+                                            : <Share className="h-[18px] w-[18px]" strokeWidth={1.5} />
                                         }
-                                    </Button>
+                                    </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">Share link</TooltipContent>
                             </Tooltip>
                         )}
 
-                            {p.allClientComments.length > 0 && (
-                                <DropdownMenu>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="sm" className="relative text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0">
-                                                    <MessageSquare className="h-4 w-4" />
-                                                    <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
-                                                        {p.allClientComments.length}
-                                                    </span>
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">Client comments — all versions</TooltipContent>
-                                    </Tooltip>
-                                    <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
-                                        <DropdownMenuLabel className="text-white text-xs">
-                                            Client comments — all versions
-                                        </DropdownMenuLabel>
-                                        <DropdownMenuSeparator className="bg-[var(--review-border)]" />
-                                        {p.allClientComments.map(comment => (
-                                            <DropdownMenuItem
-                                                key={comment.id}
-                                                onClick={() => p.onJumpToClientComment(comment)}
-                                                className="flex flex-col items-start gap-0.5 whitespace-normal text-[var(--review-text-secondary)] focus:bg-[var(--review-bg-tertiary)] focus:text-white cursor-pointer"
+                        {p.allClientComments.length > 0 && (
+                            <DropdownMenu>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <DropdownMenuTrigger asChild>
+                                            <button
+                                                title="Client comments — all versions"
+                                                className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors relative"
+                                                style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-bg-tertiary)'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
                                             >
-                                                <div className="flex items-center gap-2 w-full">
-                                                    <span className="text-xs font-semibold text-white truncate">{comment.authorName}</span>
-                                                    <Badge className="bg-[var(--review-bg-tertiary)] text-[10px] px-1.5 py-0 shrink-0">V{comment.version ?? 1}</Badge>
-                                                    <span className="text-[10px] text-[var(--review-text-muted)] ml-auto shrink-0">{comment.timestamp}</span>
-                                                </div>
-                                                <p className="text-xs leading-snug break-words">{comment.content}</p>
-                                            </DropdownMenuItem>
-                                        ))}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            )}
+                                                <MessageSquare className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white pointer-events-none">
+                                                    {p.allClientComments.length}
+                                                </span>
+                                            </button>
+                                        </DropdownMenuTrigger>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">Client comments — all versions</TooltipContent>
+                                </Tooltip>
+                                <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto bg-[var(--review-bg-elevated)] border-[var(--review-border)]">
+                                    <DropdownMenuLabel className="text-white text-xs">
+                                        Client comments — all versions
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator className="bg-[var(--review-border)]" />
+                                    {p.allClientComments.map(comment => (
+                                        <DropdownMenuItem
+                                            key={comment.id}
+                                            onClick={() => p.onJumpToClientComment(comment)}
+                                            className="flex flex-col items-start gap-0.5 whitespace-normal text-[var(--review-text-secondary)] focus:bg-[var(--review-bg-tertiary)] focus:text-white cursor-pointer"
+                                        >
+                                            <div className="flex items-center gap-2 w-full">
+                                                <span className="text-xs font-semibold text-white truncate">{comment.authorName}</span>
+                                                <Badge className="bg-[var(--review-bg-tertiary)] text-[10px] px-1.5 py-0 shrink-0">V{comment.version ?? 1}</Badge>
+                                                <span className="text-[10px] text-[var(--review-text-muted)] ml-auto shrink-0">{comment.timestamp}</span>
+                                            </div>
+                                            <p className="text-xs leading-snug break-words">{comment.content}</p>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
