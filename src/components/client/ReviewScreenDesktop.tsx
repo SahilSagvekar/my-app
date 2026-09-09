@@ -518,7 +518,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         <TooltipProvider delayDuration={300}>
             <div
                 ref={p.containerRef}
-                className="relative w-full h-full flex flex-col"
+                className="relative w-full h-full flex flex-col overflow-hidden min-h-0"
                 style={{ background: 'var(--review-bg-primary)' }}
             >
                 {p.showApprovalSuccess && (

@@ -261,11 +261,44 @@ html {
   display: none !important;
 }
 
+/* Scrollbar Styling for Review Components & Comment Lists */
+.review-scrollbar {
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.review-scrollbar::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+  display: block !important;
+}
+
+.review-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.review-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-radius: 9999px !important;
+}
+
+.review-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.45) !important;
+}
+
 /* Eliminate root html and body scrollbars whenever a review modal is active */
 html.e8-review-open,
 body.e8-review-shell,
 html:has(.fullscreen-dialog),
 body:has(.fullscreen-dialog),
+html:has(.review-modal),
+body:has(.review-modal),
+html:has([data-slot="dialog-content"].fullscreen-dialog),
+body:has([data-slot="dialog-content"].fullscreen-dialog),
+[data-radix-portal]:has(.review-modal),
+[data-radix-portal]:has(.fullscreen-dialog),
 html:has(body.e8-review-shell) {
   overflow: hidden !important;
   height: 100% !important;
@@ -278,6 +311,10 @@ html.e8-review-open::-webkit-scrollbar,
 body.e8-review-shell::-webkit-scrollbar,
 html:has(.fullscreen-dialog)::-webkit-scrollbar,
 body:has(.fullscreen-dialog)::-webkit-scrollbar,
+html:has(.review-modal)::-webkit-scrollbar,
+body:has(.review-modal)::-webkit-scrollbar,
+[data-radix-portal]:has(.review-modal)::-webkit-scrollbar,
+[data-radix-portal]:has(.fullscreen-dialog)::-webkit-scrollbar,
 html:has(body.e8-review-shell)::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
