@@ -274,26 +274,42 @@ html {
 
 /* Review System Dark Theme Variables */
 :root {
-  --review-bg-primary: #0b0b0f;
-  --review-bg-secondary: #131318;
-  --review-bg-tertiary: #1a1a22;
-  --review-bg-elevated: #22222c;
-  --review-border: rgba(255, 255, 255, 0.08);
-  --review-border-hover: rgba(255, 255, 255, 0.15);
-  --review-text-primary: #f2f2f4;
-  --review-text-secondary: #a1a1aa;
-  --review-text-muted: #6b6b76;
-  --review-accent-purple: #8b5cf6;
-  --review-accent-blue: #3b82f6;
-  --review-accent-cyan: #06b6d4;
+  --review-bg-primary: #000000;
+  --review-bg-secondary: #131316;
+  --review-bg-tertiary: #0a0a0b;
+  --review-bg-elevated: #222225;
+  --review-border: #38383d;
+  --review-border-hover: #505056;
+  --review-text-primary: #ffffff;
+  --review-text-secondary: #8a8a91;
+  --review-text-muted: #6b6b72;
+  --review-accent-purple: #f4f4f5;
+  --review-accent-blue: #8a8a91;
+  --review-accent-cyan: #8a8a91;
   --review-status-approved: #22c55e;
-  --review-status-changes: #f97316;
-  --review-status-progress: #3b82f6;
-  --review-status-pending: #6b7280;
-  --review-comment-marker: #8b5cf6;
-  --review-timeline-bg: rgba(255, 255, 255, 0.1);
+  --review-status-changes: #a6303a;
+  --review-status-progress: #8a8a91;
+  --review-status-pending: #505056;
+  --review-comment-marker: #b0b0b5;
+  --review-timeline-bg: #38383d;
   --review-timeline-progress: #ffffff;
-  --review-timeline-hover: rgba(255, 255, 255, 0.3);
+  --review-timeline-hover: #6b6b72;
+
+  --review-v2-gray-950: #0a0a0b;
+  --review-v2-gray-900: #131316;
+  --review-v2-gray-800: #222225;
+  --review-v2-gray-700: #38383d;
+  --review-v2-gray-600: #505056;
+  --review-v2-gray-500: #6b6b72;
+  --review-v2-gray-400: #8a8a91;
+  --review-v2-gray-300: #b0b0b5;
+  --review-v2-gray-200: #d3d3d6;
+  --review-v2-gray-100: #e7e7e9;
+  --review-v2-gray-50: #f4f4f5;
+  --review-v2-hover-download: #2F5490;
+  --review-v2-hover-info: #8A6A2E;
+  --review-v2-approve: #22c55e;
+  --review-v2-send-back: #a6303a;
 }
 
 /* ================================================
