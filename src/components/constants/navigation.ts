@@ -77,6 +77,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'client-review', label: 'Client Review', icon: Clock },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Target },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'logins', label: 'Logins', icon: LogIn },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
     { id: 'training', label: 'Training', icon: Layout },
