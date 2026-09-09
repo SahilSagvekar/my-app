@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 // app/api/tasks/[id]/files/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getDbHttp } from "@/lib/db";
-import { file as fileTable } from "@/lib/db/schema";
+import { file as fileTable, user as userTable } from "@/lib/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -33,21 +33,44 @@ async function generateSignedUrl(s3Key: string): Promise<string> {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const db = getDbHttp();
   try {
-    const { id } = await params;
+    const resolvedParams = await params;
+    const id = resolvedParams.id;
     
-    const files = await db.select().from(fileTable)
+    const files = await db
+      .select({
+        id: fileTable.id,
+        name: fileTable.name,
+        url: fileTable.url,
+        s3Key: fileTable.s3Key,
+        mimeType: fileTable.mimeType,
+        size: fileTable.size,
+        version: fileTable.version,
+        isActive: fileTable.isActive,
+        folderType: fileTable.folderType,
+        createdAt: fileTable.createdAt,
+        uploadedAt: fileTable.uploadedAt,
+        replacedAt: fileTable.replacedAt,
+        uploadedBy: fileTable.uploadedBy,
+        uploaderName: userTable.name,
+        uploaderRole: userTable.role,
+      })
+      .from(fileTable)
+      .leftJoin(userTable, eq(fileTable.uploadedBy, userTable.id))
       .where(eq(fileTable.taskId, id))
-      .orderBy(asc(fileTable.folderType), desc(fileTable.version));
+      .orderBy(asc(fileTable.folderType), desc(fileTable.version), desc(fileTable.createdAt));
 
     console.log("📁 Found files:", files.map(f => ({ 
       id: f.id, 
       name: f.name, 
       s3Key: f.s3Key,
-      url: f.url 
+      url: f.url,
+      isActive: f.isActive,
+      version: f.version,
+      folderType: f.folderType,
     })));
 
     const filesWithSignedUrls = await Promise.all(
@@ -74,7 +97,12 @@ export async function GET(
           isActive: file.isActive,
           folderType: file.folderType,
           createdAt: file.createdAt,
+          uploadedAt: file.uploadedAt,
           replacedAt: file.replacedAt,
+          uploader: file.uploaderName ? {
+            name: file.uploaderName,
+            role: file.uploaderRole,
+          } : null,
         };
       })
     );

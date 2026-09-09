@@ -17,6 +17,7 @@ import {
   ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight,
   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
   Calendar, User, Users, Pencil, Trash2, Edit, CloudUpload, Youtube,
+  ExternalLink, FileText, Video, Image as ImageIcon, Music, Archive,
 } from 'lucide-react';
 import { EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -99,6 +100,47 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function formatFileSize(bytes?: number | null) {
+  if (typeof bytes !== 'number' || isNaN(bytes) || bytes <= 0) return null;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function formatFolderType(type?: string | null) {
+  if (!type) return 'Main Task File';
+  switch (type.toLowerCase()) {
+    case 'main': return 'Main Task File';
+    case 'thumbnails': return 'Thumbnail';
+    case 'music-license': return 'Music License';
+    case 'covers': return 'Cover Image';
+    case 'tiles': return 'Tile';
+    case 'rawfootage': return 'Raw Footage';
+    case 'essentials': return 'Essentials';
+    default: return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+}
+
+function getFileIcon(mimeType?: string | null, name?: string) {
+  const ext = (name?.split('.').pop() || '').toLowerCase();
+  const mime = (mimeType || '').toLowerCase();
+
+  if (mime.startsWith('video/') || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
+    return <Video className="h-4 w-4 text-purple-500" />;
+  }
+  if (mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(ext)) {
+    return <ImageIcon className="h-4 w-4 text-blue-500" />;
+  }
+  if (mime.startsWith('audio/') || ['mp3', 'wav', 'aac', 'ogg'].includes(ext)) {
+    return <Music className="h-4 w-4 text-emerald-500" />;
+  }
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+    return <Archive className="h-4 w-4 text-amber-500" />;
+  }
+  return <FileText className="h-4 w-4 text-slate-500" />;
+}
+
 // ─────────────────────────────────────────
 // Skeleton row for perceived performance
 // ─────────────────────────────────────────
@@ -175,6 +217,25 @@ export function TaskManagementTab() {
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [fileFilterStatus, setFileFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [fileFolderFilter, setFileFolderFilter] = useState<string>('all');
+
+  const availableFolders = useMemo(() => {
+    const folders = new Set<string>();
+    taskFiles.forEach(f => {
+      if (f.folderType) folders.add(f.folderType);
+    });
+    return Array.from(folders);
+  }, [taskFiles]);
+
+  const filteredTaskFiles = useMemo(() => {
+    return taskFiles.filter((file) => {
+      if (fileFilterStatus === 'active' && !file.isActive) return false;
+      if (fileFilterStatus === 'inactive' && file.isActive) return false;
+      if (fileFolderFilter !== 'all' && (file.folderType || 'main') !== fileFolderFilter) return false;
+      return true;
+    });
+  }, [taskFiles, fileFilterStatus, fileFolderFilter]);
 
   const isAdmin = user?.role?.toLowerCase() === 'admin';
   // 🔥 Videographer can now delete task files too (see DELETE
@@ -400,12 +461,14 @@ export function TaskManagementTab() {
     toast({ title: 'Refreshed', description: 'Task list updated' });
   }
 
-  // ── Manage Videos ──────────────────────
+  // ── Manage Files ──────────────────────
   async function openManageVideos(task: Task) {
     setManageVideosTask(task);
     setLoadingFiles(true);
     setTaskFiles([]);
     setDeletionRequests([]);
+    setFileFilterStatus('all');
+    setFileFolderFilter('all');
     try {
       const [filesRes, requestsRes] = await Promise.all([
         fetch(`/api/tasks/${task.id}/files`),
@@ -420,7 +483,7 @@ export function TaskManagementTab() {
         setDeletionRequests((requestsData.requests || []).filter((r: any) => r.status === 'PENDING'));
       }
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to load videos', variant: 'destructive' });
+      toast({ title: 'Error', description: error.message || 'Failed to load task files', variant: 'destructive' });
     } finally {
       setLoadingFiles(false);
     }
@@ -462,10 +525,10 @@ export function TaskManagementTab() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to delete file');
       setTaskFiles(prev => prev.filter(f => f.id !== fileId));
-      toast({ title: 'Video deleted', description: `"${fileName}" removed.` });
+      toast({ title: 'File deleted', description: `"${fileName}" removed.` });
       mutateTasks();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to delete video', variant: 'destructive' });
+      toast({ title: 'Error', description: error.message || 'Failed to delete file', variant: 'destructive' });
     } finally {
       setDeletingFileId(null);
     }
@@ -755,7 +818,7 @@ export function TaskManagementTab() {
       <DropdownMenuSeparator />
       {canManageVideos && (
         <DropdownMenuItem onClick={() => openManageVideos(task)}>
-          <Trash2 className="h-4 w-4 mr-2" />Manage Videos
+          <Trash2 className="h-4 w-4 mr-2" />Manage Files
         </DropdownMenuItem>
       )}
       <DropdownMenuItem
@@ -958,86 +1021,208 @@ export function TaskManagementTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* Manage Videos Dialog — admin + videographer, per instructions delete
+      {/* Manage Files Dialog — admin + videographer, per instructions delete
           bypasses the QC/Completed/Posted/Scheduled lock (see /api/files/[id]/route.ts) */}
       <Dialog open={!!manageVideosTask} onOpenChange={o => !o && setManageVideosTask(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Trash2 className="h-5 w-5" />Manage Videos</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-500" />Manage Task Files
+            </DialogTitle>
             <DialogDescription>
               {manageVideosTask?.title || 'Untitled Task'} — {manageVideosTask?.client?.name || 'Unknown Client'}
+              {taskFiles.length > 0 && ` · ${taskFiles.length} file(s) total`}
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto space-y-2">
-            {deletionRequests.length > 0 && (
-              <div className="space-y-2 mb-4">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Pending Deletion Requests ({deletionRequests.length})
-                </p>
-                {deletionRequests.map((req) => {
-                  const requestedFile = taskFiles.find(f => f.id === req.fileId);
-                  return (
-                    <div key={req.id} className="flex items-center justify-between gap-3 p-3 border border-amber-300 bg-amber-50 rounded-lg dark:border-amber-900 dark:bg-amber-950/30">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{requestedFile?.name || req.fileId}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          Requested by {req.requester?.name || req.requester?.email || 'an editor'}
-                          {req.reason ? ` — "${req.reason}"` : ''}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeletionRequestDecision(req.id, 'reject', req.fileId)}
-                          disabled={processingRequestId === req.id}
-                        >
-                          Reject
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeletionRequestDecision(req.id, 'approve', req.fileId)}
-                          disabled={processingRequestId === req.id}
-                        >
-                          {processingRequestId === req.id ? 'Working...' : 'Approve & Delete'}
-                        </Button>
-                      </div>
+
+          {/* Pending Deletion Requests */}
+          {deletionRequests.length > 0 && (
+            <div className="space-y-2 mb-2 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-lg">
+              <p className="text-xs font-semibold text-amber-900 dark:text-amber-200 uppercase tracking-wide">
+                Pending Deletion Requests ({deletionRequests.length})
+              </p>
+              {deletionRequests.map((req) => {
+                const requestedFile = taskFiles.find(f => f.id === req.fileId);
+                return (
+                  <div key={req.id} className="flex items-center justify-between gap-3 p-2 bg-background/80 rounded border">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{requestedFile?.name || req.fileId}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        Requested by {req.requester?.name || req.requester?.email || 'an editor'}
+                        {req.reason ? ` — "${req.reason}"` : ''}
+                      </p>
                     </div>
-                  );
-                })}
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeletionRequestDecision(req.id, 'reject', req.fileId)}
+                        disabled={processingRequestId === req.id}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeletionRequestDecision(req.id, 'approve', req.fileId)}
+                        disabled={processingRequestId === req.id}
+                      >
+                        {processingRequestId === req.id ? 'Working...' : 'Approve & Delete'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Filters Bar */}
+          {!loadingFiles && taskFiles.length > 0 && (
+            <div className="flex items-center justify-between gap-2 py-2 border-b text-xs flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Button
+                  variant={fileFilterStatus === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7 text-xs px-2.5"
+                  onClick={() => setFileFilterStatus('all')}
+                >
+                  All ({taskFiles.length})
+                </Button>
+                <Button
+                  variant={fileFilterStatus === 'active' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7 text-xs px-2.5"
+                  onClick={() => setFileFilterStatus('active')}
+                >
+                  Active ({taskFiles.filter(f => f.isActive).length})
+                </Button>
+                <Button
+                  variant={fileFilterStatus === 'inactive' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7 text-xs px-2.5"
+                  onClick={() => setFileFilterStatus('inactive')}
+                >
+                  Superseded / Inactive ({taskFiles.filter(f => !f.isActive).length})
+                </Button>
               </div>
-            )}
+
+              {availableFolders.length > 1 && (
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-muted-foreground text-xs">Folder:</span>
+                  <select
+                    className="h-7 rounded border border-input bg-background px-2 text-xs"
+                    value={fileFolderFilter}
+                    onChange={(e) => setFileFolderFilter(e.target.value)}
+                  >
+                    <option value="all">All Folders</option>
+                    {availableFolders.map(folder => (
+                      <option key={folder} value={folder}>
+                        {formatFolderType(folder)} ({taskFiles.filter(f => (f.folderType || 'main') === folder).length})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Scrollable File List */}
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[55vh]">
             {loadingFiles && (
-              <p className="text-sm text-muted-foreground py-6 text-center">Loading videos...</p>
+              <p className="text-sm text-muted-foreground py-8 text-center">Loading task files...</p>
             )}
             {!loadingFiles && taskFiles.length === 0 && (
-              <p className="text-sm text-muted-foreground py-6 text-center">No files on this task.</p>
+              <p className="text-sm text-muted-foreground py-8 text-center">No files uploaded on this task.</p>
             )}
-            {!loadingFiles && taskFiles.filter(f => f.isActive).map((file) => (
-              <div key={file.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {file.folderType || 'file'} · v{file.version}
-                    {typeof file.size === 'number' && file.size > 0
-                      ? ` · ${(file.size / (1024 * 1024)).toFixed(1)} MB`
-                      : ''}
-                  </p>
+            {!loadingFiles && taskFiles.length > 0 && filteredTaskFiles.length === 0 && (
+              <p className="text-sm text-muted-foreground py-8 text-center">
+                No files match the selected filter.
+              </p>
+            )}
+            {!loadingFiles && filteredTaskFiles.map((file) => (
+              <div
+                key={file.id}
+                className={`flex items-center justify-between gap-3 p-3 border rounded-lg transition-colors ${
+                  file.isActive
+                    ? 'bg-card hover:bg-muted/40 border-border'
+                    : 'bg-muted/20 border-dashed border-muted-foreground/30 hover:bg-muted/40'
+                }`}
+              >
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className="mt-0.5 p-2 rounded-md bg-muted shrink-0">
+                    {getFileIcon(file.mimeType, file.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium truncate max-w-[320px]" title={file.name}>
+                        {file.name}
+                      </p>
+                      {file.isActive ? (
+                        <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 font-medium">
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 text-amber-700 bg-amber-100 dark:bg-amber-950/60 dark:text-amber-400 font-medium">
+                          Superseded / Inactive
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 text-muted-foreground font-normal">
+                        v{file.version}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium text-foreground/80">{formatFolderType(file.folderType)}</span>
+                      {formatFileSize(file.size) && (
+                        <>
+                          <span>·</span>
+                          <span>{formatFileSize(file.size)}</span>
+                        </>
+                      )}
+                      {file.uploader?.name && (
+                        <>
+                          <span>·</span>
+                          <span>by {file.uploader.name}</span>
+                        </>
+                      )}
+                      {file.createdAt && (
+                        <>
+                          <span>·</span>
+                          <span>{new Date(file.createdAt).toLocaleDateString()}</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDeleteVideo(file.id, file.name)}
-                  disabled={deletingFileId === file.id}
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  {deletingFileId === file.id ? 'Deleting...' : 'Delete'}
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {file.url && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      title="Open / Download file"
+                      asChild
+                    >
+                      <a href={file.url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => handleDeleteVideo(file.id, file.name)}
+                    disabled={deletingFileId === file.id}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    {deletingFileId === file.id ? 'Deleting...' : 'Delete'}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="pt-2 border-t">
             <Button variant="outline" onClick={() => setManageVideosTask(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
