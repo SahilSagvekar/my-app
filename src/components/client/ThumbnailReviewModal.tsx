@@ -446,91 +446,108 @@ export function ThumbnailReviewModal({
                         )}
 
                         {/* ── HEADER ── */}
-                        <div className="flex-shrink-0 review-header px-6 py-3">
-                            <div className="flex items-center justify-between">
-                                {/* Left: back + title */}
-                                <div className="flex items-center gap-4">
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-white hover:text-white hover:bg-[var(--review-bg-tertiary)]">
-                                                <ArrowLeft className="h-4 w-4 mr-2" /> Back
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">Go back</TooltipContent>
-                                    </Tooltip>
+                        <div
+                            className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-[var(--review-border)] min-w-0"
+                            style={{ background: 'var(--review-bg-secondary)', height: 57 }}
+                        >
+                            {/* Left: back + title */}
+                            <div className="flex items-center gap-4 min-w-0">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={() => onOpenChange(false)}
+                                            title="Go back"
+                                            className="h-[38px] px-3 flex items-center justify-center gap-1.5 bg-transparent rounded-md cursor-pointer transition-colors text-sm font-medium text-white hover:bg-white/10"
+                                            style={{ border: '1px solid var(--review-border-hover)' }}
+                                        >
+                                            <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={1.5} /> Back
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">Go back</TooltipContent>
+                                </Tooltip>
 
-                                    <div className="w-8 h-8 rounded-lg bg-black border border-white/20 flex items-center justify-center font-black text-white text-sm select-none shrink-0 shadow-sm">
-                                        E
-                                    </div>
-
-                                    <div className="flex items-baseline gap-3">
-                                        <h1 className="text-base font-semibold text-white truncate max-w-md">{taskTitle}</h1>
-                                        <span className="text-xs text-[var(--review-text-muted)] font-medium">
-                                            Thumbnails &bull; {orderedThumbnails.length} image{orderedThumbnails.length !== 1 ? 's' : ''}
-                                        </span>
-                                    </div>
+                                <div className="w-8 h-8 rounded-lg bg-black border border-white/20 flex items-center justify-center font-black text-white text-sm select-none shrink-0 shadow-sm">
+                                    E
                                 </div>
 
-                                {/* Right: icon-only actions */}
-                                <div className="flex items-center gap-1">
-                                    {onSwitchToVideo && (
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant="ghost" size="sm"
-                                                    onClick={onSwitchToVideo}
-                                                    className="bg-white hover:bg-white/90 text-black hover:text-black h-8 px-3 gap-1.5 rounded-md font-semibold text-xs"
-                                                >
-                                                    <Film className="h-3.5 w-3.5" />
-                                                    <span>Video</span>
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="bottom">Switch to Video Review</TooltipContent>
-                                        </Tooltip>
-                                    )}
+                                <div className="flex items-baseline gap-3 min-w-0">
+                                    <h1 className="text-base font-semibold text-white truncate max-w-md" style={{ letterSpacing: '-0.01em' }}>{taskTitle}</h1>
+                                    <span style={{ width: 1, height: 14, background: 'var(--review-border)', flex: 'none', alignSelf: 'center' }} />
+                                    <span className="text-xs text-[var(--review-text-muted)] font-medium">
+                                        Thumbnails &bull; {orderedThumbnails.length} image{orderedThumbnails.length !== 1 ? 's' : ''}
+                                    </span>
+                                </div>
+                            </div>
 
+                            {/* Right: icon-only actions */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                {onSwitchToVideo && (
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <Button
                                                 variant="ghost" size="sm"
-                                                onClick={() => setViewMode(v => v === 'gallery' ? 'single' : 'gallery')}
-                                                className={`text-white hover:text-white hover:bg-[var(--review-bg-tertiary)] h-8 w-8 p-0 ${viewMode === 'single' ? 'bg-[var(--review-bg-tertiary)]' : ''}`}
+                                                onClick={onSwitchToVideo}
+                                                className="bg-white hover:bg-white text-black hover:text-black h-8 px-2.5 gap-1.5 rounded-md font-semibold text-xs"
                                             >
-                                                <LayoutGrid className="h-4 w-4" />
+                                                <Film className="h-4 w-4" />
+                                                <span>Video</span>
                                             </Button>
                                         </TooltipTrigger>
-                                        <TooltipContent side="bottom">{viewMode === 'gallery' ? 'Single view' : 'Gallery view'}</TooltipContent>
+                                        <TooltipContent side="bottom">Switch to Video Review</TooltipContent>
                                     </Tooltip>
+                                )}
 
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost" size="sm"
-                                                onClick={handleDownload}
-                                                className="text-white hover:text-white bg-blue-600 hover:bg-blue-700 h-8 w-8 p-0"
-                                            >
-                                                <Download className="h-4 w-4" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">Download</TooltipContent>
-                                    </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={() => setViewMode(v => v === 'gallery' ? 'single' : 'gallery')}
+                                            title={viewMode === 'gallery' ? 'Single view' : 'Gallery view'}
+                                            className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                            style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                        >
+                                            <LayoutGrid className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">{viewMode === 'gallery' ? 'Single view' : 'Gallery view'}</TooltipContent>
+                                </Tooltip>
 
-                                    <Button
-                                        variant="ghost" size="sm"
-                                        onClick={() => onOpenChange(false)}
-                                        className="text-black hover:text-black bg-red-500 hover:bg-red-600 h-8 w-8 p-0"
-                                    >
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                </div>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={handleDownload}
+                                            title="Download"
+                                            className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                            style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-hover-download)'; e.currentTarget.style.borderColor = 'var(--review-v2-hover-download)'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                        >
+                                            <Download className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom">Download</TooltipContent>
+                                </Tooltip>
+
+                                <button
+                                    onClick={() => onOpenChange(false)}
+                                    title="Close"
+                                    className="w-[38px] h-[38px] flex items-center justify-center bg-transparent rounded-md cursor-pointer transition-colors"
+                                    style={{ border: `1px solid var(--review-border-hover)`, color: 'var(--review-v2-gray-100)' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-send-back)'; e.currentTarget.style.borderColor = 'var(--review-v2-send-back)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--review-border-hover)'; }}
+                                >
+                                    <X className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                                </button>
                             </div>
                         </div>
 
                         {/* ── BODY ── */}
-                        <div className="flex-1 flex overflow-hidden min-h-0">
+                        <div className="flex-1 flex overflow-hidden min-h-0" style={{ background: 'var(--review-bg-primary)' }}>
 
                             {/* ── IMAGE AREA ── */}
-                            <div className="flex-1 flex flex-col overflow-hidden">
+                            <div
+                                className="flex-1 flex flex-col overflow-hidden m-4 mr-2"
+                                style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-v2-gray-800)', borderRadius: 16 }}
+                            >
                                 {viewMode === 'gallery' ? (
                                     /* Gallery grid */
                                     <div className="flex-1 overflow-auto p-6">
@@ -668,8 +685,8 @@ export function ThumbnailReviewModal({
                             {/* ── SIDEBAR — hidden entirely in read-only playback mode ── */}
                             {!readOnly && (
                             <div
-                                className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden border-l border-[var(--review-border)]"
-                                style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
+                                className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden m-4 ml-2"
+                                style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)', borderRadius: 16 }}
                             >
                                 {/* Tab switcher matching Screenshot 2 */}
                                 <div className="grid grid-cols-3 border-b border-[var(--review-border)]" style={{ background: 'var(--review-bg-secondary)' }}>

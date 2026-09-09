@@ -450,22 +450,26 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     const [okThumbnails, setOkThumbnails] = useState(false);
     const [confirmingApproval, setConfirmingApproval] = useState(false);
 
-    const allOthersApproved = (
-        sidebarTab === 'comments' ? okTitles && okThumbnails :
-        sidebarTab === 'titles' ? okComments && okThumbnails :
-        okComments && okTitles
-    );
+    const hasThumbnails = Boolean(p.onSwitchToThumbnail);
+    const totalSteps = hasThumbnails ? 3 : 2;
+
+    const allOthersApproved = hasThumbnails
+        ? (sidebarTab === 'comments' ? okTitles && okThumbnails :
+           sidebarTab === 'titles' ? okComments && okThumbnails :
+           okComments && okTitles)
+        : (sidebarTab === 'comments' ? okTitles : okComments);
+
     const approveLabel = allOthersApproved ? 'Approve Final' : 'Approve';
     const currentStepNum = sidebarTab === 'comments' ? 1 : sidebarTab === 'titles' ? 2 : 3;
     const currentStepName = sidebarTab === 'comments' ? 'COMMENTS' : sidebarTab === 'titles' ? 'TITLES' : 'THUMBNAILS';
-    const stepLabel = `STEP ${currentStepNum} OF 3 — ${currentStepName}`;
+    const stepLabel = `STEP ${currentStepNum} OF ${totalSteps} — ${currentStepName}`;
 
     const startApprove = () => {
         if (sidebarTab === 'comments') {
             setOkComments(true);
             if (!okTitles) {
                 setSidebarTab('titles');
-            } else if (!okThumbnails) {
+            } else if (hasThumbnails && !okThumbnails) {
                 if (p.onSwitchToThumbnail) p.onSwitchToThumbnail();
                 else setSidebarTab('thumbnails');
             } else {
@@ -473,7 +477,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
             }
         } else if (sidebarTab === 'titles') {
             setOkTitles(true);
-            if (!okThumbnails) {
+            if (hasThumbnails && !okThumbnails) {
                 if (p.onSwitchToThumbnail) p.onSwitchToThumbnail();
                 else setSidebarTab('thumbnails');
             } else if (!okComments) {
@@ -1031,7 +1035,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden m-4 ml-2"
                         style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)', borderRadius: 16 }}
                     >
-                        <div className="grid grid-cols-3" style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
+                        <div className={`grid ${hasThumbnails ? 'grid-cols-3' : 'grid-cols-2'}`} style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
                             {sidebarTab === 'comments' ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -1081,21 +1085,23 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             >
                                 Titles
                             </button>
-                            <button
-                                onClick={() => {
-                                    if (p.onSwitchToThumbnail) {
-                                        p.onSwitchToThumbnail();
-                                    } else {
-                                        handleTabChange('thumbnails');
-                                    }
-                                }}
-                                className="text-sm py-3.5 px-2 -mb-px cursor-pointer transition-colors"
-                                style={sidebarTab === 'thumbnails'
-                                    ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
-                                    : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
-                            >
-                                Thumbnails
-                            </button>
+                            {hasThumbnails && (
+                                <button
+                                    onClick={() => {
+                                        if (p.onSwitchToThumbnail) {
+                                            p.onSwitchToThumbnail();
+                                        } else {
+                                            handleTabChange('thumbnails');
+                                        }
+                                    }}
+                                    className="text-sm py-3.5 px-2 -mb-px cursor-pointer transition-colors"
+                                    style={sidebarTab === 'thumbnails'
+                                        ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                        : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                                >
+                                    Thumbnails
+                                </button>
+                            )}
                         </div>
 
                         {sidebarTab === 'comments' && (<>
@@ -1361,7 +1367,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             {confirmingApproval ? (
                                 <div className="flex flex-col gap-2">
                                     <p className="text-sm leading-normal m-0" style={{ color: 'var(--review-v2-gray-100)' }}>
-                                        Comments, titles, and thumbnails are all approved. Approving closes this version
+                                        {hasThumbnails ? 'Comments, titles, and thumbnails are all approved.' : 'Comments and titles are all approved.'} Approving closes this version
                                         {unresolvedCount > 0
                                             ? ` — your ${unresolvedCount} comment${unresolvedCount === 1 ? '' : 's'} will not be sent.`
                                             : ' and releases it for delivery.'}
@@ -1419,15 +1425,17 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 className="border-none cursor-pointer p-0"
                                                 style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'titles' ? 'var(--review-v2-gray-50)' : (okTitles ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
                                             />
-                                            <button
-                                                onClick={() => {
-                                                    if (p.onSwitchToThumbnail) p.onSwitchToThumbnail();
-                                                    else handleTabChange('thumbnails');
-                                                }}
-                                                title="Thumbnails"
-                                                className="border-none cursor-pointer p-0"
-                                                style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'thumbnails' ? 'var(--review-v2-gray-50)' : (okThumbnails ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
-                                            />
+                                            {hasThumbnails && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (p.onSwitchToThumbnail) p.onSwitchToThumbnail();
+                                                        else handleTabChange('thumbnails');
+                                                    }}
+                                                    title="Thumbnails"
+                                                    className="border-none cursor-pointer p-0"
+                                                    style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'thumbnails' ? 'var(--review-v2-gray-50)' : (okThumbnails ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
+                                                />
+                                            )}
                                         </div>
                                     </div>
 
