@@ -21,6 +21,8 @@ import {
     ListOrdered,
     ChevronDown,
     ImageIcon,
+    Send,
+    CheckSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ReviewCommentCard, CommentInput } from '../review';
@@ -941,35 +943,95 @@ export function ThumbnailReviewModal({
                                         </div>
                                     </div>
 
-                                    <button
-                                        onClick={handleStepApprove}
-                                        disabled={savingFeedback || unresolvedCount > 0}
-                                        className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                                        style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
-                                    >
-                                        <CheckCircle2 className="h-[17px] w-[17px]" strokeWidth={1.75} />
-                                        {approveLabel}
-                                    </button>
+                                    {userRole === 'qc' ? (
+                                        <div className="flex flex-col gap-2">
+                                            {/* Row 1: Approve & Send Back */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    onClick={handleStepApprove}
+                                                    disabled={savingFeedback || unresolvedCount > 0}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 px-2 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                                    style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
+                                                >
+                                                    <CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />
+                                                    {approveLabel}
+                                                </button>
 
-                                    <button
-                                        onClick={handleRequestRevisionsClick}
-                                        disabled={unresolvedCount === 0 || savingFeedback}
-                                        className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:cursor-not-allowed"
-                                        style={unresolvedCount === 0
-                                            ? { background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-500)' }
-                                            : { background: 'var(--review-v2-send-back)', border: '1px solid var(--review-v2-send-back)', color: 'var(--review-v2-gray-50)' }}
-                                    >
-                                        {savingFeedback ? (
-                                            <div className="h-[17px] w-[17px] animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                        ) : (
-                                            <MessageSquare className="h-[17px] w-[17px]" strokeWidth={1.5} />
-                                        )}
-                                        Send Back ({unresolvedCount} comment{unresolvedCount === 1 ? '' : 's'})
-                                    </button>
-                                    {unresolvedCount === 0 && (
-                                        <span className="text-xs leading-normal text-center" style={{ color: 'var(--review-v2-gray-500)' }}>
-                                            Add at least one comment to send this version back.
-                                        </span>
+                                                <button
+                                                    onClick={handleRequestRevisionsClick}
+                                                    disabled={unresolvedCount === 0 || savingFeedback}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 px-2 rounded-md cursor-pointer transition-all disabled:cursor-not-allowed"
+                                                    style={unresolvedCount === 0
+                                                        ? { background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-500)' }
+                                                        : { background: 'var(--review-v2-send-back)', border: '1px solid var(--review-v2-send-back)', color: 'var(--review-v2-gray-50)' }}
+                                                >
+                                                    {savingFeedback ? (
+                                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                    ) : (
+                                                        <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
+                                                    )}
+                                                    Send Back ({unresolvedCount})
+                                                </button>
+                                            </div>
+
+                                            {/* Row 2: Send to Client Review & Bypass Client Review */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    onClick={handleApproveClick}
+                                                    disabled={savingFeedback || unresolvedCount > 0}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-medium py-2 px-2 rounded-md cursor-pointer transition-all bg-transparent text-[var(--review-v2-gray-100)] hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    style={{ border: '1px solid var(--review-border)' }}
+                                                    title="Send directly to client review"
+                                                >
+                                                    <Send className="h-3.5 w-3.5" />
+                                                    <span className="truncate">Send to Client Review</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={handleApproveClick}
+                                                    disabled={savingFeedback || unresolvedCount > 0}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-medium py-2 px-2 rounded-md cursor-pointer transition-all bg-transparent text-[var(--review-v2-gray-100)] hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    style={{ border: '1px solid var(--review-border)' }}
+                                                    title="Bypass client review and finalize delivery"
+                                                >
+                                                    <CheckSquare className="h-3.5 w-3.5" />
+                                                    <span className="truncate">Bypass Client Review</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={handleStepApprove}
+                                                disabled={savingFeedback || unresolvedCount > 0}
+                                                className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                                style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
+                                            >
+                                                <CheckCircle2 className="h-[17px] w-[17px]" strokeWidth={1.75} />
+                                                {approveLabel}
+                                            </button>
+
+                                            <button
+                                                onClick={handleRequestRevisionsClick}
+                                                disabled={unresolvedCount === 0 || savingFeedback}
+                                                className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:cursor-not-allowed"
+                                                style={unresolvedCount === 0
+                                                    ? { background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-500)' }
+                                                    : { background: 'var(--review-v2-send-back)', border: '1px solid var(--review-v2-send-back)', color: 'var(--review-v2-gray-50)' }}
+                                            >
+                                                {savingFeedback ? (
+                                                    <div className="h-[17px] w-[17px] animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                ) : (
+                                                    <MessageSquare className="h-[17px] w-[17px]" strokeWidth={1.5} />
+                                                )}
+                                                Send Back ({unresolvedCount} comment{unresolvedCount === 1 ? '' : 's'})
+                                            </button>
+                                            {unresolvedCount === 0 && (
+                                                <span className="text-xs leading-normal text-center" style={{ color: 'var(--review-v2-gray-500)' }}>
+                                                    Add at least one comment to send this version back.
+                                                </span>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>

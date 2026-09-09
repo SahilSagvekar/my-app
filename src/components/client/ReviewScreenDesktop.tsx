@@ -29,7 +29,7 @@ import {
     CheckCircle2, MessageSquare, ChevronRight, ChevronDown,
     AlertCircle, ArrowLeft,
     Info, Copy, Check, Plus, Smartphone,
-    PenLine, ImageIcon, Maximize, Minimize,
+    PenLine, ImageIcon, Maximize, Minimize, Send, CheckSquare,
 } from 'lucide-react';
 import {
     ReviewCommentCard,
@@ -1439,37 +1439,105 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         </div>
                                     </div>
 
-                                    <button
-                                        onClick={startApprove}
-                                        disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}
-                                        className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                                        style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
-                                        onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}
-                                        onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = 'var(--review-v2-gray-50)'; }}
-                                    >
-                                        <CheckCircle2 className="h-[17px] w-[17px]" strokeWidth={1.75} />
-                                        {approveLabel}
-                                    </button>
+                                    {p.userRole === 'qc' ? (
+                                        <div className="flex flex-col gap-2">
+                                            {/* Row 1: Approve & Send Back */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    onClick={startApprove}
+                                                    disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 px-2 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                                    style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
+                                                    onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}
+                                                    onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = 'var(--review-v2-gray-50)'; }}
+                                                >
+                                                    <CheckCircle2 className="h-4 w-4" strokeWidth={1.75} />
+                                                    {approveLabel}
+                                                </button>
 
-                                    <button
-                                        onClick={() => p.handleStatusChange('needs_changes')}
-                                        disabled={unresolvedCount === 0 || p.savingFeedback}
-                                        className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:cursor-not-allowed"
-                                        style={unresolvedCount === 0
-                                            ? { background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-500)' }
-                                            : { background: 'var(--review-v2-send-back)', border: '1px solid var(--review-v2-send-back)', color: 'var(--review-v2-gray-50)' }}
-                                        onMouseEnter={e => { if (unresolvedCount > 0) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}
-                                        onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = unresolvedCount === 0 ? 'var(--review-v2-gray-500)' : 'var(--review-v2-gray-50)'; }}
-                                    >
-                                        {p.savingFeedback
-                                            ? <div className="h-[17px] w-[17px] animate-spin rounded-full border-2 border-current border-t-transparent" />
-                                            : <MessageSquare className="h-[17px] w-[17px]" strokeWidth={1.5} />}
-                                        Send Back ({unresolvedCount} comment{unresolvedCount === 1 ? '' : 's'})
-                                    </button>
-                                    {unresolvedCount === 0 && (
-                                        <span className="text-xs leading-normal text-center" style={{ color: 'var(--review-v2-gray-500)' }}>
-                                            Add at least one comment to send this version back.
-                                        </span>
+                                                <button
+                                                    onClick={() => p.handleStatusChange('needs_changes')}
+                                                    disabled={unresolvedCount === 0 || p.savingFeedback}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-sm font-medium py-2.5 px-2 rounded-md cursor-pointer transition-all disabled:cursor-not-allowed"
+                                                    style={unresolvedCount === 0
+                                                        ? { background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-500)' }
+                                                        : { background: 'var(--review-v2-send-back)', border: '1px solid var(--review-v2-send-back)', color: 'var(--review-v2-gray-50)' }}
+                                                    onMouseEnter={e => { if (unresolvedCount > 0) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}
+                                                    onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = unresolvedCount === 0 ? 'var(--review-v2-gray-500)' : 'var(--review-v2-gray-50)'; }}
+                                                >
+                                                    {p.savingFeedback
+                                                        ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                        : <MessageSquare className="h-4 w-4" strokeWidth={1.5} />}
+                                                    Send Back ({unresolvedCount})
+                                                </button>
+                                            </div>
+
+                                            {/* Row 2: Send to Client Review & Bypass Client Review */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        p.onForceClientReviewOverrideChange?.(true);
+                                                        p.handleStatusChange('approved');
+                                                    }}
+                                                    disabled={p.savingFeedback || unresolvedCount > 0}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-medium py-2 px-2 rounded-md cursor-pointer transition-all bg-transparent text-[var(--review-v2-gray-100)] hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    style={{ border: '1px solid var(--review-border)' }}
+                                                    title="Send directly to client review"
+                                                >
+                                                    <Send className="h-3.5 w-3.5" />
+                                                    <span className="truncate">Send to Client Review</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        p.onForceClientReviewOverrideChange?.(false);
+                                                        p.handleStatusChange('approved');
+                                                    }}
+                                                    disabled={p.savingFeedback || unresolvedCount > 0}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-medium py-2 px-2 rounded-md cursor-pointer transition-all bg-transparent text-[var(--review-v2-gray-100)] hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    style={{ border: '1px solid var(--review-border)' }}
+                                                    title="Bypass client review and finalize delivery"
+                                                >
+                                                    <CheckSquare className="h-3.5 w-3.5" />
+                                                    <span className="truncate">Bypass Client Review</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={startApprove}
+                                                disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}
+                                                className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                                style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
+                                                onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}
+                                                onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = 'var(--review-v2-gray-50)'; }}
+                                            >
+                                                <CheckCircle2 className="h-[17px] w-[17px]" strokeWidth={1.75} />
+                                                {approveLabel}
+                                            </button>
+
+                                            <button
+                                                onClick={() => p.handleStatusChange('needs_changes')}
+                                                disabled={unresolvedCount === 0 || p.savingFeedback}
+                                                className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:cursor-not-allowed"
+                                                style={unresolvedCount === 0
+                                                    ? { background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-500)' }
+                                                    : { background: 'var(--review-v2-send-back)', border: '1px solid var(--review-v2-send-back)', color: 'var(--review-v2-gray-50)' }}
+                                                onMouseEnter={e => { if (unresolvedCount > 0) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}
+                                                onMouseLeave={e => { e.currentTarget.style.filter = 'none'; e.currentTarget.style.color = unresolvedCount === 0 ? 'var(--review-v2-gray-500)' : 'var(--review-v2-gray-50)'; }}
+                                            >
+                                                {p.savingFeedback
+                                                    ? <div className="h-[17px] w-[17px] animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                                    : <MessageSquare className="h-[17px] w-[17px]" strokeWidth={1.5} />}
+                                                Send Back ({unresolvedCount} comment{unresolvedCount === 1 ? '' : 's'})
+                                            </button>
+                                            {unresolvedCount === 0 && (
+                                                <span className="text-xs leading-normal text-center" style={{ color: 'var(--review-v2-gray-500)' }}>
+                                                    Add at least one comment to send this version back.
+                                                </span>
+                                            )}
+                                        </>
                                     )}
                                 </>
                             )}
