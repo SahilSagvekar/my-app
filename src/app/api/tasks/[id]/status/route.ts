@@ -111,7 +111,7 @@ export async function PATCH(
         : role;
 
     const body = await req.json();
-    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags, forceClientReview } = body;
+    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags, forceClientReview, imageOrder } = body;
 
     if (!status)
       return NextResponse.json({ message: "Status is required" }, { status: 400 });
@@ -161,6 +161,9 @@ export async function PATCH(
       updateData.postingTags = postingTags
         .filter((t: any) => t?.text?.trim())
         .map((t: any) => ({ id: t.id, text: t.text.trim() }));
+    }
+    if (Array.isArray(imageOrder)) {
+      updateData.attachments = { imageOrder: imageOrder.map(String) };
     }
 
     let task: any;

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useGlobalTasks } from '../workflow/GlobalTaskManager';
 import { getPostingScheduleForClient, getClients } from '../utils/clientData';
 import { FilePreviewModal } from '../FileViewerModal';
+import { sortTaskImages } from '@/lib/task-image-order';
 
 interface ScheduledPost {
   id: string;
@@ -35,9 +36,10 @@ function isHardPostTask(task: any): boolean {
 
 function getHardPostImages(task: any) {
   if (!task?.files || task.files.length === 0) return [];
-  return task.files
-    .filter((f: any) => f.mimeType?.startsWith('image/') && f.isActive !== false)
-    .sort((a: any, b: any) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+  const activeImages = task.files.filter(
+    (f: any) => f.mimeType?.startsWith('image/') && f.isActive !== false
+  );
+  return sortTaskImages(activeImages, task?.attachments?.imageOrder);
 }
 
 export function SchedulerSchedulingPage() {

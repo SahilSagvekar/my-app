@@ -41,6 +41,7 @@ import { TextPostReviewModal } from '../client/TextPostReviewModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ShareDialog } from '../review/ShareDialog';
 import { Checkbox } from '../ui/checkbox';
+import { sortTaskImages } from '@/lib/task-image-order';
 
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
@@ -1100,9 +1101,10 @@ export function ClientDashboard() {
 
     // Hard post tasks → skip file selector, open ThumbnailReviewModal with images
     if (isHardPostTask(task)) {
-      const images = (task.files || [])
-        .filter(f => f.mimeType?.startsWith('image/') && f.isActive !== false)
-        .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+      const activeImages = (task.files || []).filter(
+        f => f.mimeType?.startsWith('image/') && f.isActive !== false
+      );
+      const images = sortTaskImages(activeImages, (task as any)?.attachments?.imageOrder);
       if (images.length > 0) {
         setSelectedFile(images[0]);
         setShowThumbnailReview(true);
@@ -1754,6 +1756,15 @@ export function ClientDashboard() {
               onPostingTitlesChange={setPostingTitles}
               onPostingDescriptionsChange={setPostingDescriptions}
               onPostingTagsChange={setPostingTags}
+              taskAttachments={(selectedTask as any)?.attachments}
+              onImageOrderChange={(newOrder) => {
+                if (selectedTask) {
+                  (selectedTask as any).attachments = {
+                    ...((selectedTask as any).attachments || {}),
+                    imageOrder: newOrder,
+                  };
+                }
+              }}
             />
           )}
 

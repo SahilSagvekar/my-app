@@ -22,6 +22,7 @@ import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
+import { sortTaskImages } from '@/lib/task-image-order';
 import { Share2, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -1025,13 +1026,13 @@ useEffect(() => {
 
     // Hard post tasks → open ThumbnailReviewModal directly with sequential images
     if (isHardPostTask(task)) {
-      const images = (task.files || [])
+      const activeImages = (task.files || [])
         .filter(f => {
           const mime = getMimeType(f);
           return (mime.startsWith('image/png') || mime.startsWith('image/jpeg') || mime.startsWith('image/jpg') || mime.startsWith('image/webp') || mime.startsWith('image/'))
             && f.isActive !== false;
-        })
-        .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
+        });
+      const images = sortTaskImages(activeImages, (task as any)?.attachments?.imageOrder);
 
       if (images.length > 0) {
         setSelectedFile(images[0]);
@@ -2072,6 +2073,15 @@ useEffect(() => {
             onPostingTitlesChange={setQcPostingTitles}
             onPostingDescriptionsChange={setQcPostingDescriptions}
             onPostingTagsChange={setQcPostingTags}
+            taskAttachments={(selectedTask as any)?.attachments}
+            onImageOrderChange={(newOrder) => {
+              if (selectedTask) {
+                (selectedTask as any).attachments = {
+                  ...((selectedTask as any).attachments || {}),
+                  imageOrder: newOrder,
+                };
+              }
+            }}
           />
         )}
 

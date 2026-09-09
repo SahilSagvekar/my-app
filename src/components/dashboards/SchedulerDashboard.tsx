@@ -10,6 +10,7 @@ import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle,
 import { useTaskWorkflow, WorkflowTask, TaskFeedbackItem } from '../workflow/TaskWorkflowEngine';
 import { FilePreviewModal } from '../FileViewerModal';
 import { toast } from 'sonner';
+import { sortTaskImages } from '@/lib/task-image-order';
 
 // Mock current scheduler user
 const currentUser = {
@@ -61,11 +62,11 @@ function getTaskThumbnails(task: WorkflowTask): string[] {
   if (!task.files || task.files.length === 0) return [];
 
   if (isHardPostTask(task)) {
-    // Hard post tasks store all their images under the main folder — show every one, in upload order
-    const images = task.files
-      .filter((f) => f.mimeType?.startsWith('image/') && (f as any).isActive !== false)
-      .sort((a, b) => new Date((a as any).uploadedAt).getTime() - new Date((b as any).uploadedAt).getTime());
-    return images.map((f) => f.url);
+    // Hard post tasks store all their images under the main folder — show every one in custom or upload order
+    const activeImages = task.files
+      .filter((f) => f.mimeType?.startsWith('image/') && (f as any).isActive !== false);
+    const sorted = sortTaskImages(activeImages, (task as any)?.attachments?.imageOrder);
+    return sorted.map((f) => f.url);
   }
 
   // All images from the thumbnails folder

@@ -17,6 +17,7 @@ import {
     Plus,
     PenLine,
     Film,
+    ListOrdered,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ReviewCommentCard, CommentInput } from '../review';
@@ -24,6 +25,8 @@ import { ReviewComment } from '../review/types';
 import { useAuth } from '../auth/AuthContext';
 import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
+import { ImageOrderModal } from './ImageOrderModal';
+import { sortTaskImages } from '@/lib/task-image-order';
 
 /* ─── Types ────────────────────────────────────────────────────── */
 interface TaskFile {
@@ -62,6 +65,9 @@ interface ThumbnailReviewModalProps {
     onPostingTitlesChange?: (items: { id: string; text: string }[]) => void;
     onPostingDescriptionsChange?: (items: { id: string; text: string }[]) => void;
     onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
+    taskAttachments?: any;
+    imageOrder?: string[];
+    onImageOrderChange?: (newOrder: string[]) => void;
     // Pure playback mode — hides the entire sidebar (comments/titles tabs,
     // approve/reject actions). Used for the client's "Rejected" section.
     readOnly?: boolean;
@@ -86,6 +92,9 @@ export function ThumbnailReviewModal({
     onPostingTitlesChange,
     onPostingDescriptionsChange,
     onPostingTagsChange,
+    taskAttachments,
+    imageOrder: propImageOrder,
+    onImageOrderChange,
     readOnly = false,
 }: ThumbnailReviewModalProps) {
     const { user } = useAuth();
@@ -104,6 +113,8 @@ export function ThumbnailReviewModal({
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
     const [viewMode, setViewMode] = useState<'single' | 'gallery'>('gallery');
+    const [showOrderModal, setShowOrderModal] = useState(false);
+    const [isSavingOrder, setIsSavingOrder] = useState(false);
 
     /* ── Sidebar tabs ── */
     type SidebarTab = 'comments' | 'titles';
@@ -115,13 +126,48 @@ export function ThumbnailReviewModal({
     const [newTexts, setNewTexts] = useState({ titles: '', descriptions: '' });
     const CAPS = { titles: 3, descriptions: 3 };
 
-    /* ── Derived data ── */
-    const orderedThumbnails = useMemo(() =>
-        allFiles
-            .filter(f => f.folderType === (file?.folderType || 'thumbnails'))
-            .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime()),
-        [file, allFiles],
-    );
+    /* ── Initial image order computation ── */
+    const initialImageOrder = useMemo(() => {
+        if (Array.isArray(propImageOrder) && propImageOrder.length > 0) return propImageOrder;
+        if (taskAttachments?.imageOrder && Array.isArray(taskAttachments.imageOrder)) {
+            return taskAttachments.imageOrder;
+        }
+        return undefined;
+    }, [propImageOrder, taskAttachments]);
+
+    /* ── Ordered Thumbnails State ── */
+    const [orderedThumbnails, setOrderedThumbnails] = useState<TaskFile[]>([]);
+
+    useEffect(() => {
+        const folder = file?.folderType || 'thumbnails';
+        const filtered = allFiles.filter(f => f.folderType === folder);
+        const sorted = sortTaskImages(filtered, initialImageOrder);
+        setOrderedThumbnails(sorted);
+    }, [allFiles, file?.folderType, initialImageOrder]);
+
+    const handleReorderImages = async (newFiles: any[]) => {
+        const typedFiles = newFiles as TaskFile[];
+        setOrderedThumbnails(typedFiles);
+        const newOrderIds = typedFiles.map(f => f.id);
+        if (onImageOrderChange) {
+            onImageOrderChange(newOrderIds);
+        }
+        try {
+            setIsSavingOrder(true);
+            const res = await fetch(`/api/tasks/${taskId}/image-order`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageOrder: newOrderIds }),
+            });
+            if (!res.ok) throw new Error('Failed to save image order');
+            toast.success('Image order saved');
+        } catch (err) {
+            console.error('Error saving image order:', err);
+            toast.error('Failed to save image order');
+        } finally {
+            setIsSavingOrder(false);
+        }
+    };
 
     const currentNumber = useMemo(() => {
         if (!currentFile) return 1;
@@ -516,10 +562,44 @@ export function ThumbnailReviewModal({
                                             <button
                                                 onClick={() => setViewMode('gallery')}
                                                 className="p-1.5 rounded-lg text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 transition-all"
+                                                title="Gallery view"
                                             >
                                                 <LayoutGrid className="h-4 w-4" />
                                             </button>
+                                            {orderedThumbnails.length > 1 && (
+                                                <>
+                                                    <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowOrderModal(true)}
+                                                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all border border-white/20 hover:border-white/40 cursor-pointer shadow-sm"
+                                                        title="Change image order"
+                                                    >
+                                                        <ListOrdered className="h-3.5 w-3.5 text-blue-400" />
+                                                        <span>Order</span>
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* Floating Order button in gallery view */}
+                                {viewMode === 'gallery' && orderedThumbnails.length > 1 && (
+                                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[var(--review-bg-secondary)]/90 backdrop-blur-md border border-[var(--review-border)] rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl z-20">
+                                        <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-1">
+                                            {imageLabel} ({orderedThumbnails.length})
+                                        </span>
+                                        <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowOrderModal(true)}
+                                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all border border-white/20 hover:border-white/40 cursor-pointer shadow-sm"
+                                            title="Change image order"
+                                        >
+                                            <ListOrdered className="h-3.5 w-3.5 text-blue-400" />
+                                            <span>Order</span>
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -734,6 +814,20 @@ export function ThumbnailReviewModal({
                             )}
                         </div>
                     </div>
+
+                    {/* Drag-and-Drop Image Order Modal */}
+                    <ImageOrderModal
+                        open={showOrderModal}
+                        onClose={() => setShowOrderModal(false)}
+                        files={orderedThumbnails}
+                        currentFileId={currentFile?.id}
+                        onSelectFile={(f) => {
+                            setCurrentFile(f as TaskFile);
+                            setViewMode('single');
+                        }}
+                        onReorder={handleReorderImages}
+                        isSaving={isSavingOrder}
+                    />
                 </TooltipProvider>
             </DialogContent>
         </Dialog>

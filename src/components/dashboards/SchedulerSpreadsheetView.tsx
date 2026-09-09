@@ -27,6 +27,7 @@ import { FilePreviewModal } from '../FileViewerModal';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TagPicker } from '../workflow/TagPicker';
 import { formatInEST, utcToESTWallClock, estWallClockToUTC } from '@/lib/timezone';
+import { sortTaskImages } from '@/lib/task-image-order';
 
 const TikTokIcon = ({ className }: { className?: string }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -1057,7 +1058,10 @@ export function SchedulerSpreadsheetView() {
                                                               <span className="font-normal opacity-60">({folderFiles.length})</span>
                                                             </h5>
                                                             <div className="space-y-2">
-                                                              {folderFiles.map((file) => {
+                                                              {(isHardPostImages
+                                                                ? sortTaskImages(folderFiles, (task as any)?.attachments?.imageOrder)
+                                                                : folderFiles
+                                                              ).map((file) => {
                                                                 const isVideo = file.mimeType?.startsWith("video/");
                                                                 const isImage = file.mimeType?.startsWith("image/");
                                                                 return (
