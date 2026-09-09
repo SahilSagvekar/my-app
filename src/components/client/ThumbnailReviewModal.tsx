@@ -110,7 +110,7 @@ export function ThumbnailReviewModal({
     /* ── UI state ── */
     const [currentFile, setCurrentFile] = useState<TaskFile | null>(null);
     const [comments, setComments] = useState<ReviewComment[]>([]);
-    const [showCommentInput, setShowCommentInput] = useState(false);
+    const [showCommentInput, setShowCommentInput] = useState(true);
     const imageRef = useRef<HTMLImageElement>(null);
     const [savingFeedback, setSavingFeedback] = useState(false);
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
@@ -668,7 +668,7 @@ export function ThumbnailReviewModal({
                             {/* ── SIDEBAR — hidden entirely in read-only playback mode ── */}
                             {!readOnly && (
                             <div
-                                className="w-80 flex-shrink-0 flex flex-col overflow-hidden border-l border-[var(--review-border)]"
+                                className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden border-l border-[var(--review-border)]"
                                 style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
                             >
                                 {/* Tab switcher matching Screenshot 2 */}
