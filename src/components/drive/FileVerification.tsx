@@ -166,7 +166,7 @@ export function FileVerification({ role }: FileVerificationProps) {
   const normalizedRole = role?.toLowerCase();
   // Videographer gets the same "browse any client" experience as admin here,
   // matching the access level already granted elsewhere in the portal (Drive).
-  const isAdminLike = normalizedRole === "admin" || normalizedRole === "videographer";
+  const isAdminLike = normalizedRole === "admin" || normalizedRole === "videographer" || normalizedRole === "scheduler";
   const isAllowed = isAdminLike || normalizedRole === "client";
 
   // ── Admin/videographer: client selector ───────────────────────────────────
