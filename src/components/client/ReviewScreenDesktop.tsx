@@ -213,7 +213,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
             document.exitFullscreen?.().catch(() => {});
         }
     }, []);
-    type SidebarTab = 'comments' | 'titles';
+    type SidebarTab = 'comments' | 'titles' | 'thumbnails';
     const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
 
     const fileCode = useMemo(
@@ -447,19 +447,49 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
     const [okComments, setOkComments] = useState(false);
     const [okTitles, setOkTitles] = useState(false);
+    const [okThumbnails, setOkThumbnails] = useState(false);
     const [confirmingApproval, setConfirmingApproval] = useState(false);
-    const otherSectionApproved = sidebarTab === 'comments' ? okTitles : okComments;
-    const approveLabel = otherSectionApproved ? 'Approve Final' : 'Approve';
-    const stepLabel = `Step ${otherSectionApproved ? '2' : '1'} of 2 — ${sidebarTab === 'comments' ? 'Comments' : 'Titles'}`;
+
+    const allOthersApproved = (
+        sidebarTab === 'comments' ? okTitles && okThumbnails :
+        sidebarTab === 'titles' ? okComments && okThumbnails :
+        okComments && okTitles
+    );
+    const approveLabel = allOthersApproved ? 'Approve Final' : 'Approve';
+    const currentStepNum = sidebarTab === 'comments' ? 1 : sidebarTab === 'titles' ? 2 : 3;
+    const currentStepName = sidebarTab === 'comments' ? 'COMMENTS' : sidebarTab === 'titles' ? 'TITLES' : 'THUMBNAILS';
+    const stepLabel = `STEP ${currentStepNum} OF 3 — ${currentStepName}`;
 
     const startApprove = () => {
-        const onComments = sidebarTab === 'comments';
-        if (onComments) setOkComments(true); else setOkTitles(true);
-        const otherDone = onComments ? okTitles : okComments;
-        if (otherDone) {
-            setConfirmingApproval(true);
+        if (sidebarTab === 'comments') {
+            setOkComments(true);
+            if (!okTitles) {
+                setSidebarTab('titles');
+            } else if (!okThumbnails) {
+                if (p.onSwitchToThumbnail) p.onSwitchToThumbnail();
+                else setSidebarTab('thumbnails');
+            } else {
+                setConfirmingApproval(true);
+            }
+        } else if (sidebarTab === 'titles') {
+            setOkTitles(true);
+            if (!okThumbnails) {
+                if (p.onSwitchToThumbnail) p.onSwitchToThumbnail();
+                else setSidebarTab('thumbnails');
+            } else if (!okComments) {
+                setSidebarTab('comments');
+            } else {
+                setConfirmingApproval(true);
+            }
         } else {
-            setSidebarTab(onComments ? 'titles' : 'comments');
+            setOkThumbnails(true);
+            if (okComments && okTitles) {
+                setConfirmingApproval(true);
+            } else if (!okComments) {
+                setSidebarTab('comments');
+            } else {
+                setSidebarTab('titles');
+            }
         }
     };
     const cancelApproveConfirmation = () => setConfirmingApproval(false);
@@ -1051,6 +1081,21 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             >
                                 Titles
                             </button>
+                            <button
+                                onClick={() => {
+                                    if (p.onSwitchToThumbnail) {
+                                        p.onSwitchToThumbnail();
+                                    } else {
+                                        handleTabChange('thumbnails');
+                                    }
+                                }}
+                                className="text-sm py-3.5 px-2 -mb-px cursor-pointer transition-colors"
+                                style={sidebarTab === 'thumbnails'
+                                    ? { background: 'var(--review-bg-tertiary)', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                    : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                            >
+                                Thumbnails
+                            </button>
                         </div>
 
                         {sidebarTab === 'comments' && (<>
@@ -1288,11 +1333,35 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </div>
                         )}
 
+                        {sidebarTab === 'thumbnails' && (
+                            <div className="flex-1 overflow-y-auto review-scrollbar min-h-0 p-4 space-y-4">
+                                <div className="rounded-xl border border-[var(--review-border)] p-6 text-center space-y-3 bg-[var(--review-bg-tertiary)]">
+                                    <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto text-white">
+                                        <ImageIcon className="h-6 w-6" />
+                                    </div>
+                                    <h4 className="text-sm font-semibold text-white">Thumbnail Review</h4>
+                                    <p className="text-xs text-[var(--review-text-muted)] max-w-xs mx-auto">
+                                        Inspect, annotate, and approve candidate thumbnail options for this video.
+                                    </p>
+                                    {p.onSwitchToThumbnail ? (
+                                        <Button
+                                            onClick={p.onSwitchToThumbnail}
+                                            className="bg-white hover:bg-white/90 text-black font-semibold text-xs px-4 py-2 rounded-lg"
+                                        >
+                                            Open Thumbnail Gallery →
+                                        </Button>
+                                    ) : (
+                                        <p className="text-xs text-amber-400">No thumbnail attachments uploaded for this task.</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="p-4 border-t flex flex-col gap-2" style={{ background: 'var(--review-bg-secondary)', borderColor: 'var(--review-border)' }}>
                             {confirmingApproval ? (
                                 <div className="flex flex-col gap-2">
                                     <p className="text-sm leading-normal m-0" style={{ color: 'var(--review-v2-gray-100)' }}>
-                                        Comments and titles are both approved. Approving closes this version
+                                        Comments, titles, and thumbnails are all approved. Approving closes this version
                                         {unresolvedCount > 0
                                             ? ` — your ${unresolvedCount} comment${unresolvedCount === 1 ? '' : 's'} will not be sent.`
                                             : ' and releases it for delivery.'}
@@ -1340,6 +1409,15 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 title="Titles"
                                                 className="border-none cursor-pointer p-0"
                                                 style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'titles' ? 'var(--review-v2-gray-50)' : (okTitles ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    if (p.onSwitchToThumbnail) p.onSwitchToThumbnail();
+                                                    else handleTabChange('thumbnails');
+                                                }}
+                                                title="Thumbnails"
+                                                className="border-none cursor-pointer p-0"
+                                                style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'thumbnails' ? 'var(--review-v2-gray-50)' : (okThumbnails ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
                                             />
                                         </div>
                                     </div>

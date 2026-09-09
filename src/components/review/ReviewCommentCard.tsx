@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, memo } from 'react';
-import { ReviewComment as ReviewCommentType, COMMENT_CATEGORIES, CommentCategory } from './types';
+import { ReviewComment as ReviewCommentType, COMMENT_CATEGORIES, CommentCategory, THUMBNAIL_CATEGORIES } from './types';
 import { MessageSquare, Check, Reply, MoreHorizontal, Trash2, Mic, File as FileIcon, Image as ImageIcon, Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -36,8 +36,8 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
     const [tempContent, setTempContent] = useState(comment.content);
 
     const categories = (Array.isArray(comment.category) ? comment.category : [comment.category])
-        .map((v) => COMMENT_CATEGORIES.find((c) => c.value === v))
-        .filter((c): c is CommentCategory => !!c);
+        .map((v) => COMMENT_CATEGORIES.find((c) => c.value === v) || THUMBNAIL_CATEGORIES.find((c) => c.value === v))
+        .filter((c): c is { label: string; value: string; color?: string; description?: string } => !!c);
 
     const handleEditSave = () => {
         if (tempContent.trim() && onEdit) {
@@ -136,7 +136,11 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
 
             {/* Timestamp & Category */}
             <div className="flex items-center gap-2 mb-2">
-                {comment.isGeneral ? (
+                {comment.thumbnailIndex !== undefined ? (
+                    <span className="px-2 py-0.5 text-xs font-bold rounded bg-white text-black leading-none select-none">
+                        #{comment.thumbnailIndex}
+                    </span>
+                ) : comment.isGeneral ? (
                     <span className="review-comment-timestamp opacity-80">
                         General
                     </span>

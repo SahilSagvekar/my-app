@@ -14,7 +14,8 @@ export interface ReviewComment {
     endTimestampSeconds?: number; // Optional end timestamp in seconds for ranges
     isGeneral?: boolean; // True for a comment not tied to any specific time — shown as "General", excluded from timeline markers
     content: string;
-    category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles' | 'audio')[];
+    category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles' | 'audio' | 'composition' | 'color' | 'text' | 'branding')[];
+    thumbnailIndex?: number; // Optional 1-based index (e.g., 1, 2, 3 for #1, #2, #3) when comment is on a thumbnail variant
 
     screenshotUrl?: string; // R2 URL of captured (optionally drawn-on) video frame
     annotations?: Annotation[]; // Raw drawn strokes/shapes, relative (0-1) coords, tied to screenshotUrl
@@ -118,6 +119,19 @@ export const COMMENT_CATEGORIES: CommentCategory[] = [
     { value: 'broll', label: 'Broll', color: '#6b7280' },
     { value: 'subtitles', label: 'Subtitles', color: '#3b82f2' },
     { value: 'audio', label: 'Audio', color: '#06b6d4' },
+];
+
+export interface ThumbnailCategory {
+    value: 'composition' | 'color' | 'text' | 'branding';
+    label: string;
+    color: string;
+}
+
+export const THUMBNAIL_CATEGORIES: ThumbnailCategory[] = [
+    { value: 'composition', label: 'COMPOSITION', color: '#8b5cf6' },
+    { value: 'color', label: 'COLOR', color: '#f59e0b' },
+    { value: 'text', label: 'TEXT', color: '#3b82f6' },
+    { value: 'branding', label: 'BRANDING', color: '#10b981' },
 ];
 
 export type AnnotationTool = 'select' | 'freehand' | 'arrow' | 'rectangle' | 'circle';

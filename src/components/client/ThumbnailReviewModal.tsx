@@ -6,6 +6,7 @@ import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Input } from '../ui/input';
+import { Checkbox } from '../ui/checkbox';
 import {
     X,
     Download,
@@ -18,6 +19,8 @@ import {
     PenLine,
     Film,
     ListOrdered,
+    ChevronDown,
+    ImageIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ReviewCommentCard, CommentInput } from '../review';
@@ -123,9 +126,55 @@ export function ThumbnailReviewModal({
     // won't be available on this image until it loads cleanly again.
     const [imgCrossOriginFailed, setImgCrossOriginFailed] = useState(false);
 
-    /* ── Sidebar tabs ── */
-    type SidebarTab = 'comments' | 'titles';
+    /* ── Sidebar tabs & 3-step state ── */
+    type SidebarTab = 'comments' | 'titles' | 'thumbnails';
     const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
+
+    const [okComments, setOkComments] = useState(false);
+    const [okTitles, setOkTitles] = useState(false);
+    const [okThumbnails, setOkThumbnails] = useState(false);
+    const [confirmFinal, setConfirmFinal] = useState(false);
+
+    const allOthersApproved = (
+        sidebarTab === 'comments' ? okTitles && okThumbnails :
+        sidebarTab === 'titles' ? okComments && okThumbnails :
+        okComments && okTitles
+    );
+    const approveLabel = allOthersApproved ? 'Approve Final' : 'Approve';
+    const currentStepNum = sidebarTab === 'comments' ? 1 : sidebarTab === 'titles' ? 2 : 3;
+    const currentStepName = sidebarTab === 'comments' ? 'COMMENTS' : sidebarTab === 'titles' ? 'TITLES' : 'THUMBNAILS';
+    const stepLabel = `STEP ${currentStepNum} OF 3 — ${currentStepName}`;
+
+    const handleStepApprove = () => {
+        if (sidebarTab === 'comments') {
+            setOkComments(true);
+            if (!okTitles) {
+                setSidebarTab('titles');
+            } else if (!okThumbnails) {
+                setSidebarTab('thumbnails');
+            } else {
+                handleApproveClick();
+            }
+        } else if (sidebarTab === 'titles') {
+            setOkTitles(true);
+            if (!okThumbnails) {
+                setSidebarTab('thumbnails');
+            } else if (!okComments) {
+                setSidebarTab('comments');
+            } else {
+                handleApproveClick();
+            }
+        } else {
+            setOkThumbnails(true);
+            if (okComments && okTitles) {
+                handleApproveClick();
+            } else if (!okComments) {
+                setSidebarTab('comments');
+            } else {
+                setSidebarTab('titles');
+            }
+        }
+    };
 
     /* ── Titles / descriptions editing state ── */
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -410,18 +459,15 @@ export function ThumbnailReviewModal({
                                         <TooltipContent side="bottom">Go back</TooltipContent>
                                     </Tooltip>
 
-                                    <div className="h-6 w-px bg-[var(--review-border)]" />
+                                    <div className="w-8 h-8 rounded-lg bg-black border border-white/20 flex items-center justify-center font-black text-white text-sm select-none shrink-0 shadow-sm">
+                                        E
+                                    </div>
 
-                                    <div>
-                                        <h1 className="text-lg font-medium text-white">{taskTitle}</h1>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <Badge className="bg-purple-600/80 text-white text-xs border-none capitalize">
-                                                {currentFile.folderType}
-                                            </Badge>
-                                            <span className="text-sm text-[var(--review-text-muted)]">
-                                                {imageLabel} &bull; {orderedThumbnails.length} image{orderedThumbnails.length !== 1 ? 's' : ''}
-                                            </span>
-                                        </div>
+                                    <div className="flex items-baseline gap-3">
+                                        <h1 className="text-base font-semibold text-white truncate max-w-md">{taskTitle}</h1>
+                                        <span className="text-xs text-[var(--review-text-muted)] font-medium">
+                                            Thumbnails &bull; {orderedThumbnails.length} image{orderedThumbnails.length !== 1 ? 's' : ''}
+                                        </span>
                                     </div>
                                 </div>
 
@@ -433,10 +479,10 @@ export function ThumbnailReviewModal({
                                                 <Button
                                                     variant="ghost" size="sm"
                                                     onClick={onSwitchToVideo}
-                                                    className="bg-white hover:bg-white text-black hover:text-black h-8 px-2 gap-1.5"
+                                                    className="bg-white hover:bg-white/90 text-black hover:text-black h-8 px-3 gap-1.5 rounded-md font-semibold text-xs"
                                                 >
-                                                    <Film className="h-4 w-4" />
-                                                    <span className="text-xs hidden sm:inline">Video</span>
+                                                    <Film className="h-3.5 w-3.5" />
+                                                    <span>Video</span>
                                                 </Button>
                                             </TooltipTrigger>
                                             <TooltipContent side="bottom">Switch to Video Review</TooltipContent>
@@ -625,28 +671,36 @@ export function ThumbnailReviewModal({
                                 className="w-80 flex-shrink-0 flex flex-col overflow-hidden border-l border-[var(--review-border)]"
                                 style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
                             >
-                                {/* Tab switcher */}
-                                <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {(['comments', 'titles'] as const).map(tab => {
-                                            const isComments = tab === 'comments';
-                                            const isActive = sidebarTab === tab;
-                                            const colorClasses = isComments
-                                                ? `bg-blue-500 text-white hover:bg-blue-600 ${isActive ? '' : 'opacity-60 hover:opacity-100'}`
-                                                : `bg-orange-500 text-white hover:bg-orange-600 ${isActive ? '' : 'opacity-60 hover:opacity-100'}`;
-                                            return (
-                                                <button
-                                                    key={tab}
-                                                    onClick={() => handleTabChange(tab)}
-                                                    className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize ${colorClasses}`}
-                                                >
-                                                    {tab === 'comments'
-                                                        ? `Comments${comments.length ? ` (${comments.length})` : ''}`
-                                                        : 'Titles'}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
+                                {/* Tab switcher matching Screenshot 2 */}
+                                <div className="flex items-center px-4 border-b border-[var(--review-border)] gap-6" style={{ background: 'var(--review-bg-secondary)' }}>
+                                    <button
+                                        onClick={() => setSidebarTab('comments')}
+                                        className="text-sm flex items-center justify-center gap-1.5 py-3.5 px-1 -mb-px cursor-pointer transition-colors"
+                                        style={sidebarTab === 'comments'
+                                            ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                            : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                                    >
+                                        Comments
+                                        <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} />
+                                    </button>
+                                    <button
+                                        onClick={() => setSidebarTab('titles')}
+                                        className="text-sm py-3.5 px-1 -mb-px cursor-pointer transition-colors"
+                                        style={sidebarTab === 'titles'
+                                            ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                            : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                                    >
+                                        Titles
+                                    </button>
+                                    <button
+                                        onClick={() => setSidebarTab('thumbnails')}
+                                        className="text-sm py-3.5 px-1 -mb-px cursor-pointer transition-colors"
+                                        style={sidebarTab === 'thumbnails'
+                                            ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                            : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                                    >
+                                        Thumbnails
+                                    </button>
                                 </div>
 
                                 {/* ── COMMENTS TAB ── */}
@@ -655,10 +709,12 @@ export function ThumbnailReviewModal({
                                         <CommentInput
                                             taskId={taskId}
                                             currentTime={0}
-                                            currentTimestamp={`Thumbnail #${currentNumber}`}
+                                            currentTimestamp={`#${currentNumber}`}
                                             authorId={user?.id ? String(user.id) : 'guest'}
                                             authorName={user?.name || 'Client'}
                                             imageRef={imageRef}
+                                            mode="thumbnail"
+                                            thumbnailIndex={currentNumber}
                                             onSubmit={handleCommentSubmit}
                                             onCancel={() => setShowCommentInput(false)}
                                             isExpanded={showCommentInput}
@@ -792,38 +848,118 @@ export function ThumbnailReviewModal({
                                     </div>
                                 )}
 
-                                {/* ── ACTION FOOTER ── */}
+                                {/* ── THUMBNAILS TAB ── */}
+                                {sidebarTab === 'thumbnails' && (
+                                    <div className="flex-1 overflow-y-auto review-scrollbar min-h-0 p-4 space-y-4">
+                                        <div className="rounded-xl border border-[var(--review-border)] p-4 bg-[var(--review-bg-tertiary)]">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className="text-xs font-bold uppercase tracking-wide text-white">Candidate Thumbnails</span>
+                                                <span className="text-xs font-medium text-[var(--review-text-muted)]">{orderedThumbnails.length} variants</span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {orderedThumbnails.map((t, idx) => (
+                                                    <div
+                                                        key={t.id}
+                                                        onClick={() => setCurrentFile(t)}
+                                                        className={`flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all ${
+                                                            currentFile.id === t.id
+                                                                ? 'border-white bg-white/10'
+                                                                : 'border-[var(--review-border)] hover:border-white/20'
+                                                        }`}
+                                                    >
+                                                        <div className="w-16 aspect-video rounded overflow-hidden bg-black shrink-0 relative">
+                                                            <img src={t.url} alt={t.name} className="w-full h-full object-cover" />
+                                                            <span className="absolute top-0.5 left-1 text-[10px] font-bold text-white bg-black/60 px-1 rounded">#{idx + 1}</span>
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs font-medium text-white truncate">{t.name}</p>
+                                                            <p className="text-[10px] text-[var(--review-text-muted)]">Option #{idx + 1}</p>
+                                                        </div>
+                                                        {currentFile.id === t.id && (
+                                                            <span className="text-[10px] bg-white text-black px-2 py-0.5 rounded-full font-bold">Selected</span>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* ── ACTION FOOTER MATCHING SCREENSHOT 2 ── */}
                                 <div
-                                    className="p-4 pb-6 border-t border-[var(--review-border)] flex flex-col gap-2.5 flex-shrink-0"
+                                    className="p-4 border-t border-[var(--review-border)] flex flex-col gap-2 flex-shrink-0"
                                     style={{ background: 'var(--review-bg-secondary)' }}
                                 >
-                                    <Button
-                                        size="sm"
-                                        className="w-full bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white h-9 text-xs font-medium"
-                                        onClick={handleApproveClick}
-                                        disabled={savingFeedback || unresolvedCount > 0}
+                                    <div className="flex items-center justify-between gap-2 pb-1">
+                                        <span className="text-xs font-bold uppercase" style={{ letterSpacing: '.06em', color: 'var(--review-v2-gray-400)' }}>
+                                            {stepLabel}
+                                        </span>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => setSidebarTab('comments')}
+                                                title="Comments"
+                                                className="border-none cursor-pointer p-0"
+                                                style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'comments' ? 'var(--review-v2-gray-50)' : (okComments ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
+                                            />
+                                            <button
+                                                onClick={() => setSidebarTab('titles')}
+                                                title="Titles"
+                                                className="border-none cursor-pointer p-0"
+                                                style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'titles' ? 'var(--review-v2-gray-50)' : (okTitles ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
+                                            />
+                                            <button
+                                                onClick={() => setSidebarTab('thumbnails')}
+                                                title="Thumbnails"
+                                                className="border-none cursor-pointer p-0"
+                                                style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'thumbnails' ? 'var(--review-v2-gray-50)' : (okThumbnails ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {userRole === 'client' && (
+                                        <div className="flex items-start gap-2 px-0.5 pb-1">
+                                            <Checkbox
+                                                id="confirm-final-thumb"
+                                                checked={confirmFinal}
+                                                onCheckedChange={v => setConfirmFinal(v as boolean)}
+                                                className="mt-0.5"
+                                            />
+                                            <label htmlFor="confirm-final-thumb" className="text-xs cursor-pointer" style={{ color: 'var(--review-v2-gray-400)' }}>
+                                                I confirm this is the final version for publishing
+                                            </label>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={handleStepApprove}
+                                        disabled={savingFeedback || unresolvedCount > 0 || (userRole === 'client' && !confirmFinal)}
+                                        className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                        style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
                                     >
-                                        <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
-                                        Approve Final
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        className="w-full bg-red-500 hover:bg-red-600 text-white h-9 text-xs font-medium"
+                                        <CheckCircle2 className="h-[17px] w-[17px]" strokeWidth={1.75} />
+                                        {approveLabel}
+                                    </button>
+
+                                    <button
                                         onClick={handleRequestRevisionsClick}
-                                        disabled={savingFeedback || unresolvedCount === 0}
+                                        disabled={unresolvedCount === 0 || savingFeedback}
+                                        className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:cursor-not-allowed"
+                                        style={unresolvedCount === 0
+                                            ? { background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-500)' }
+                                            : { background: 'var(--review-v2-send-back)', border: '1px solid var(--review-v2-send-back)', color: 'var(--review-v2-gray-50)' }}
                                     >
                                         {savingFeedback ? (
-                                            <>
-                                                <div className="h-3.5 w-3.5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                                Saving...
-                                            </>
+                                            <div className="h-[17px] w-[17px] animate-spin rounded-full border-2 border-current border-t-transparent" />
                                         ) : (
-                                            <>
-                                                <MessageSquare className="h-3.5 w-3.5 mr-2 text-white" />
-                                                Request Revisions{unresolvedCount > 0 ? ` (${unresolvedCount})` : ''}
-                                            </>
+                                            <MessageSquare className="h-[17px] w-[17px]" strokeWidth={1.5} />
                                         )}
-                                    </Button>
+                                        Send Back ({unresolvedCount} comment{unresolvedCount === 1 ? '' : 's'})
+                                    </button>
+                                    {unresolvedCount === 0 && (
+                                        <span className="text-xs leading-normal text-center" style={{ color: 'var(--review-v2-gray-500)' }}>
+                                            Add at least one comment to send this version back.
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                             )}

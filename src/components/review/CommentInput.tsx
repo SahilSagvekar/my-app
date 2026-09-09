@@ -8,12 +8,11 @@ import {
     forwardRef,
     useCallback,
 } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
-import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment } from './types';
+import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment, THUMBNAIL_CATEGORIES, ThumbnailCategory } from './types';
 import {
-    Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon, Loader2, Globe,
+    Plus, Send, X, Camera, Crop, Clock, Mic, Square, FileIcon, Loader2, Globe, MessageSquare,
 } from 'lucide-react';
 
 import { Button } from '../ui/button';
@@ -193,6 +192,10 @@ interface CommentInputProps {
     hideInlineTools?: boolean;
     /** Hide the "General" (untimed) toggle — for screens where every comment is already untimed by nature (e.g. script review). */
     hideGeneralToggle?: boolean;
+    /** 'video' for timeline-based comments, 'thumbnail' for static thumbnail variant comments */
+    mode?: 'video' | 'thumbnail';
+    /** 1-based index of the thumbnail currently being reviewed (e.g. 1, 2, 3 for #1, #2, #3) */
+    thumbnailIndex?: number;
 }
 
 export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(function CommentInput({
@@ -211,11 +214,21 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
     onToggleExpand,
     hideInlineTools = false,
     hideGeneralToggle = false,
+    mode = 'video',
+    thumbnailIndex,
 }, ref) {
     const [content, setContent] = useState('');
-    const [category, setCategory] = useState<CommentCategory['value']>('design');
+    const [category, setCategory] = useState<string>(mode === 'thumbnail' ? 'composition' : 'design');
     const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (mode === 'thumbnail') {
+            setCategory('composition');
+        } else {
+            setCategory('design');
+        }
+    }, [mode]);
 
     // Snip (drag-select a partial region to screenshot)
     const [isSelectingArea, setIsSelectingArea] = useState(false);
@@ -588,13 +601,14 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 taskId,
                 authorId,
                 authorName,
-                timestamp: isGeneral ? 'General' : (useEndTimestamp ? startTimestamp : currentTimestamp),
-                timestampSeconds: isGeneral ? 0 : startSecs,
+                timestamp: mode === 'thumbnail' ? `#${thumbnailIndex ?? 1}` : (isGeneral ? 'General' : (useEndTimestamp ? startTimestamp : currentTimestamp)),
+                timestampSeconds: mode === 'thumbnail' ? (thumbnailIndex ?? 1) : (isGeneral ? 0 : startSecs),
+                thumbnailIndex: mode === 'thumbnail' ? (thumbnailIndex ?? 1) : undefined,
                 endTimestamp: endSeconds ? endTimestampInput : undefined,
                 endTimestampSeconds: endSeconds ?? undefined,
                 isGeneral: isGeneral || undefined,
                 content: body,
-                category: [category] as ReviewComment['category'],
+                category: [category as any],
                 screenshotUrl: finalScreenshotUrl,
                 voiceUrl: finalVoiceUrl,
                 voiceDurationSec: finalVoiceUrl ? voiceDurationSec : undefined,
@@ -648,7 +662,9 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 className="w-full p-3 rounded-lg bg-[var(--review-bg-tertiary)] border border-[var(--review-border)] hover:border-[var(--review-accent-purple)] transition-colors flex items-center gap-2 text-[var(--review-text-muted)] hover:text-[var(--review-text-secondary)]"
             >
                 <Plus className="h-4 w-4" />
-                <span className="text-sm">Add comment at {currentTimestamp}</span>
+                <span className="text-sm">
+                    {mode === 'thumbnail' ? `Add comment on #${thumbnailIndex ?? 1}` : `Add comment at ${currentTimestamp}`}
+                </span>
             </button>
         );
     }
@@ -667,118 +683,126 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             {/* Header */}
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                    {/* Timestamp display with optional range */}
-                    <div className="flex items-center gap-1">
-                        <span className="review-comment-timestamp flex items-center gap-1">
-                            {isGeneral
-                                ? 'General'
-                                : useEndTimestamp && rangeStartSeconds !== null
-                                    ? formatSecondsToTimestamp(rangeStartSeconds)
-                                    : currentTimestamp}
+                    {mode === 'thumbnail' ? (
+                        <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-white text-black leading-none select-none">
+                            #{thumbnailIndex ?? 1}
                         </span>
-                        {useEndTimestamp && (
-                            <>
-                                <span className="text-[var(--review-text-muted)]">–</span>
-                                <div className="relative">
-                                    <div className="relative">
-                                        <Input
-                                            type="text"
-                                            value={endTimestampInput}
-                                            onChange={(e) => {
-                                                setIsEndTracking(false);
-                                                setEndTimestampInput(e.target.value);
-                                            }}
-                                            placeholder="M:SS"
-                                            className={`w-16 h-6 px-1.5 text-xs bg-[var(--review-bg-elevated)] border rounded text-center font-mono ${
-                                                endTimestampError
-                                                    ? 'border-red-500 text-red-400'
-                                                    : isEndTracking
-                                                        ? 'border-[var(--review-accent-purple)] text-[var(--review-accent-purple)]'
-                                                        : 'border-[var(--review-border)] text-white'
-                                            }`}
-                                        />
-                                        {isEndTracking && (
-                                            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--review-accent-purple)] animate-pulse" title="Tracking live" />
+                    ) : (
+                        <>
+                            {/* Timestamp display with optional range */}
+                            <div className="flex items-center gap-1">
+                                <span className="review-comment-timestamp flex items-center gap-1">
+                                    {isGeneral
+                                        ? 'General'
+                                        : useEndTimestamp && rangeStartSeconds !== null
+                                            ? formatSecondsToTimestamp(rangeStartSeconds)
+                                            : currentTimestamp}
+                                </span>
+                                {useEndTimestamp && (
+                                    <>
+                                        <span className="text-[var(--review-text-muted)]">–</span>
+                                        <div className="relative">
+                                            <div className="relative">
+                                                <Input
+                                                    type="text"
+                                                    value={endTimestampInput}
+                                                    onChange={(e) => {
+                                                        setIsEndTracking(false);
+                                                        setEndTimestampInput(e.target.value);
+                                                    }}
+                                                    placeholder="M:SS"
+                                                    className={`w-16 h-6 px-1.5 text-xs bg-[var(--review-bg-elevated)] border rounded text-center font-mono ${
+                                                        endTimestampError
+                                                            ? 'border-red-500 text-red-400'
+                                                            : isEndTracking
+                                                                ? 'border-[var(--review-accent-purple)] text-[var(--review-accent-purple)]'
+                                                                : 'border-[var(--review-border)] text-white'
+                                                    }`}
+                                                />
+                                                {isEndTracking && (
+                                                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--review-accent-purple)] animate-pulse" title="Tracking live" />
+                                                )}
+                                            </div>
+                                            {endTimestampError && (
+                                                <div className="absolute top-full left-0 mt-1 text-[10px] text-red-400 whitespace-nowrap">
+                                                    {endTimestampError}
+                                                </div>
+                                            )}
+                                            {isEndTracking && !endTimestampError && (
+                                                <div className="absolute top-full left-0 mt-1 text-[10px] text-[var(--review-accent-purple)] whitespace-nowrap">
+                                                    Live • click to lock
+                                                </div>
+                                            )}
+                                        </div>
+                                        {!hideInlineTools && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={disableRangeMode}
+                                                className="h-5 w-5 p-0 text-[var(--review-text-muted)] hover:text-red-400"
+                                                title="Remove end time"
+                                            >
+                                                <X className="h-3 w-3" />
+                                            </Button>
                                         )}
-                                    </div>
-                                    {endTimestampError && (
-                                        <div className="absolute top-full left-0 mt-1 text-[10px] text-red-400 whitespace-nowrap">
-                                            {endTimestampError}
-                                        </div>
-                                    )}
-                                    {isEndTracking && !endTimestampError && (
-                                        <div className="absolute top-full left-0 mt-1 text-[10px] text-[var(--review-accent-purple)] whitespace-nowrap">
-                                            Live • click to lock
-                                        </div>
-                                    )}
-                                </div>
-                                {!hideInlineTools && (
+                                    </>
+                                )}
+                                {!hideInlineTools && !useEndTimestamp && !isGeneral && videoRef && (
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={disableRangeMode}
-                                        className="h-5 w-5 p-0 text-[var(--review-text-muted)] hover:text-red-400"
-                                        title="Remove end time"
+                                        onClick={enableRangeMode}
+                                        className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
+                                        title="Add end time for a range (e.g., 1:00 - 1:28)"
                                     >
-                                        <X className="h-3 w-3" />
+                                        <Clock className="h-3.5 w-3.5" />
+                                        <span className="text-[10px] uppercase font-bold tracking-wider">Range</span>
                                     </Button>
                                 )}
-                            </>
-                        )}
-                        {!hideInlineTools && !useEndTimestamp && !isGeneral && videoRef && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={enableRangeMode}
-                                className="h-6 gap-1 px-2 text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)] hover:bg-[var(--review-bg-elevated)]"
-                                title="Add end time for a range (e.g., 1:00 - 1:28)"
-                            >
-                                <Clock className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">Range</span>
-                            </Button>
-                        )}
-                        {!hideInlineTools && !hideGeneralToggle && !useEndTimestamp && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={toggleGeneral}
-                                className={`h-6 gap-1 px-2 hover:bg-[var(--review-bg-elevated)] ${
-                                    isGeneral
-                                        ? 'text-[var(--review-accent-purple)]'
-                                        : 'text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)]'
-                                }`}
-                                title="Not tied to a specific time"
-                            >
-                                <Globe className="h-3.5 w-3.5" />
-                                <span className="text-[10px] uppercase font-bold tracking-wider">General</span>
-                            </Button>
-                        )}
-                    </div>
-                    {hasCaptureSource && (
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={captureFullFrame}
-                                title={videoRef ? 'Capture full frame' : 'Capture full image'}
-                                className="flex items-center gap-1.5 h-7 text-xs font-bold uppercase rounded-full cursor-pointer bg-transparent transition-colors"
-                                style={{ letterSpacing: '.06em', padding: '0 12px', border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; e.currentTarget.style.color = '#fff'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
-                            >
-                                <Camera className="h-[15px] w-[15px]" strokeWidth={1.5} />
-                                Full
-                            </button>
-                            <button
-                                onClick={handleStartSnip}
-                                title="Select area to snip"
-                                className="flex items-center gap-1.5 h-7 text-xs font-bold uppercase rounded-full cursor-pointer bg-transparent transition-colors"
-                                style={{ letterSpacing: '.06em', padding: '0 12px', border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; e.currentTarget.style.color = '#fff'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
-                            >
-                                <Crop className="h-[15px] w-[15px]" strokeWidth={1.5} />
-                                Snip
-                            </button>
-                        </div>
+                                {!hideInlineTools && !hideGeneralToggle && !useEndTimestamp && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={toggleGeneral}
+                                        className={`h-6 gap-1 px-2 hover:bg-[var(--review-bg-elevated)] ${
+                                            isGeneral
+                                                ? 'text-[var(--review-accent-purple)]'
+                                                : 'text-[var(--review-text-muted)] hover:text-[var(--review-accent-purple)]'
+                                        }`}
+                                        title="Not tied to a specific time"
+                                    >
+                                        <Globe className="h-3.5 w-3.5" />
+                                        <span className="text-[10px] uppercase font-bold tracking-wider">General</span>
+                                    </Button>
+                                )}
+                            </div>
+                            {hasCaptureSource && (
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={captureFullFrame}
+                                        title={videoRef ? 'Capture full frame' : 'Capture full image'}
+                                        className="flex items-center gap-1.5 h-7 text-xs font-bold uppercase rounded-full cursor-pointer bg-transparent transition-colors"
+                                        style={{ letterSpacing: '.06em', padding: '0 12px', border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; e.currentTarget.style.color = '#fff'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
+                                    >
+                                        <Camera className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                        Full
+                                    </button>
+                                    <button
+                                        onClick={handleStartSnip}
+                                        title="Select area to snip"
+                                        className="flex items-center gap-1.5 h-7 text-xs font-bold uppercase rounded-full cursor-pointer bg-transparent transition-colors"
+                                        style={{ letterSpacing: '.06em', padding: '0 12px', border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; e.currentTarget.style.color = '#fff'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
+                                    >
+                                        <Crop className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                        Snip
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
                 <button
@@ -878,13 +902,13 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Add your feedback..."
+                placeholder={mode === 'thumbnail' ? `Add a comment on variant #${thumbnailIndex ?? 1}...` : 'Add your feedback...'}
                 className="min-h-[80px] bg-transparent border border-[var(--review-border)] rounded-lg resize-y text-white placeholder:text-[var(--review-text-muted)] focus-visible:ring-1 focus-visible:ring-[var(--review-v2-gray-500)] p-2"
             />
 
             {/* Category Selector — single-select, neutral (E8 Review Screen v2) */}
             <div className="flex items-center gap-2 mt-3 mb-3 flex-wrap">
-                {COMMENT_CATEGORIES.map((cat) => {
+                {(mode === 'thumbnail' ? THUMBNAIL_CATEGORIES : COMMENT_CATEGORIES).map((cat) => {
                     const active = category === cat.value;
                     return (
                         <button
@@ -925,14 +949,16 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                         onClick={handleSubmit}
                         disabled={(!content.trim() && !audioUrl && attachedFiles.length === 0 && !screenshotUrl) || isSubmitting || isRecording}
                         style={{ background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }}
-                        className="rounded-full hover:opacity-85"
+                        className="rounded-full hover:opacity-85 font-medium px-4"
                     >
                         {isUploadingAttachments ? (
-                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                        ) : mode === 'thumbnail' ? (
+                            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
                         ) : (
                             <Plus className="h-4 w-4 mr-1" />
                         )}
-                        {isUploadingAttachments ? 'Uploading…' : 'Add'}
+                        {isUploadingAttachments ? 'Uploading…' : mode === 'thumbnail' ? `Comment on #${thumbnailIndex ?? 1}` : 'Add'}
                     </Button>
                 </div>
             </div>
