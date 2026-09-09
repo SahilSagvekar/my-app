@@ -115,6 +115,13 @@ export function ThumbnailReviewModal({
     const [viewMode, setViewMode] = useState<'single' | 'gallery'>('gallery');
     const [showOrderModal, setShowOrderModal] = useState(false);
     const [isSavingOrder, setIsSavingOrder] = useState(false);
+    // 🩹 CORS fallback — the single-image view loads with crossOrigin="anonymous"
+    // so CommentInput can read the image onto a canvas for screenshot capture.
+    // If that specific load fails (R2 not returning CORS headers for this
+    // request, a transient network hiccup, etc.), retry the same URL without
+    // crossOrigin so the client still sees the image — screenshot capture just
+    // won't be available on this image until it loads cleanly again.
+    const [imgCrossOriginFailed, setImgCrossOriginFailed] = useState(false);
 
     /* ── Sidebar tabs ── */
     type SidebarTab = 'comments' | 'titles';
@@ -182,6 +189,7 @@ export function ThumbnailReviewModal({
             setCurrentFile(file);
             setComments([]);
             setShowCommentInput(false);
+            setImgCrossOriginFailed(false);
             fetchFeedback(file.id);
         }
     }, [file]);
@@ -520,11 +528,18 @@ export function ThumbnailReviewModal({
                                     <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden p-8">
                                         <div className="relative group max-w-full max-h-full">
                                             <img
+                                                key={currentFile.id + (imgCrossOriginFailed ? '-nocors' : '')}
                                                 ref={imageRef}
-                                                crossOrigin="anonymous"
+                                                crossOrigin={imgCrossOriginFailed ? undefined : "anonymous"}
                                                 src={currentFile.url}
                                                 alt={currentFile.name}
                                                 className="max-w-full max-h-[calc(100vh-200px)] object-contain shadow-2xl rounded-sm"
+                                                onError={() => {
+                                                    if (!imgCrossOriginFailed) {
+                                                        console.warn(`[ThumbnailReviewModal] "${currentFile.name}" failed to load with crossOrigin="anonymous" — retrying without it. Screenshot/draw capture will be unavailable for this image until it reloads cleanly.`);
+                                                        setImgCrossOriginFailed(true);
+                                                    }
+                                                }}
                                             />
                                             <div className="absolute top-4 left-4 bg-purple-600 text-white px-4 py-1.5 rounded-lg font-bold text-lg shadow-xl">
                                                 #{currentNumber}

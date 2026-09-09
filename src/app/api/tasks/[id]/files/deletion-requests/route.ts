@@ -1,35 +1,32 @@
 // src/app/api/tasks/[id]/files/deletion-requests/route.ts
 //
-// Editor-facing half of the file-deletion-request feature. Editors can't
-// delete files directly (see DELETE /api/files/[id] — admin + videographer
-// only); this is how they ask someone who can, for when they've uploaded
-// the wrong file to a task.
-//
-// POST creates one FileDeletionRequest row per fileId, all sharing a
-// batchId when more than one file is selected at once, so the reviewer can
-// act on the whole batch together at PATCH /api/files/deletion-requests/[id].
-// GET lists requests for this task — non-admin/videographer callers only
-// see their own requests, so one editor can't see another's.
+// Editor-facing half of the file-deletion-request feature.
+// Converted to Drizzle (getDbHttp) for Cloudflare Workers edge runtime.
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getDbHttp } from "@/lib/db";
+import { file as fileTable, fileDeletionRequest, user as userTable } from "@/lib/db/schema";
+import { eq, inArray, and, desc } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import { notifyUser } from "@/lib/notify";
+import { createId } from "@/lib/db/id";
 import crypto from "crypto";
 
 const REVIEWER_ROLES = ["admin", "videographer"] as const;
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: taskId } = await params;
+    const resolvedParams = await params;
+    const taskId = resolvedParams.id;
     const body = await request.json();
     const { fileIds, reason } = body as { fileIds?: string[]; reason?: string };
 
@@ -37,53 +34,42 @@ export async function POST(
       return NextResponse.json({ error: "fileIds array is required" }, { status: 400 });
     }
 
-    // Confirm every file actually belongs to this task — prevents someone
-    // from requesting deletion of a file on a task they don't have via a
-    // crafted fileId.
-    const files = await prisma.file.findMany({
-      where: { id: { in: fileIds }, taskId },
-      select: { id: true, name: true },
-    });
+    // Confirm every file actually belongs to this task
+    const files = await db
+      .select({ id: fileTable.id, name: fileTable.name })
+      .from(fileTable)
+      .where(and(inArray(fileTable.id, fileIds), eq(fileTable.taskId, taskId)));
 
     if (files.length === 0) {
       return NextResponse.json({ error: "No matching files found on this task" }, { status: 404 });
     }
-    if (files.length < fileIds.length) {
-      const foundIds = new Set(files.map((f) => f.id));
-      const missing = fileIds.filter((fid) => !foundIds.has(fid));
-      console.warn(`[deletion-requests] ${missing.length} fileId(s) not on task ${taskId}, skipping:`, missing);
-    }
 
-    // Group under one batchId even for a single file — keeps the reviewer
-    // API uniform (it always reads/updates by batchId when present).
     const batchId = crypto.randomUUID();
 
-    const created = await prisma.$transaction(
-      files.map((f) =>
-        prisma.fileDeletionRequest.create({
-          data: {
-            fileId: f.id,
-            taskId,
-            requestedBy: user.id,
-            reason: reason?.trim() || null,
-            batchId,
-          },
+    const createdRows = [];
+    for (const f of files) {
+      const [row] = await db
+        .insert(fileDeletionRequest)
+        .values({
+          id: createId(),
+          fileId: f.id,
+          taskId,
+          requestedBy: user.id,
+          reason: reason?.trim() || null,
+          batchId,
+          status: 'PENDING',
+          createdAt: new Date().toISOString(),
         })
-      )
-    );
+        .returning();
+      createdRows.push(row);
+    }
 
-    // Notify everyone who can act on it — admin + videographer, by primary
-    // role or by the secondary `roles` array (switch-role users).
+    // Notify reviewers (admin + videographer)
     try {
-      const reviewers = await prisma.user.findMany({
-        where: {
-          OR: [
-            { role: { in: REVIEWER_ROLES as unknown as string[] } },
-            { roles: { hasSome: REVIEWER_ROLES as unknown as string[] } },
-          ],
-        },
-        select: { id: true },
-      });
+      const reviewers = await db
+        .select({ id: userTable.id })
+        .from(userTable)
+        .where(inArray(userTable.role, ['admin', 'videographer']));
 
       const fileNames = files.map((f) => f.name).join(", ");
       await Promise.allSettled(
@@ -100,50 +86,68 @@ export async function POST(
         )
       );
     } catch (notifyError) {
-      // Never let a notification failure roll back a request that already saved.
       console.error("[deletion-requests] Failed to notify reviewers:", notifyError);
     }
 
-    return NextResponse.json({ success: true, batchId, requests: created });
-  } catch (error) {
+    return NextResponse.json({ success: true, batchId, requests: createdRows });
+  } catch (error: any) {
     console.error("[deletion-requests] POST error:", error);
-    return NextResponse.json({ error: "Failed to create deletion request" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Failed to create deletion request" }, { status: 500 });
   }
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
+  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: taskId } = await params;
+    const resolvedParams = await params;
+    const taskId = resolvedParams.id;
     const isReviewer = REVIEWER_ROLES.includes(user.role as any);
 
-    const requests = await prisma.fileDeletionRequest.findMany({
-      where: {
-        taskId,
-        // Non-reviewers (editors) only ever see their own requests.
-        ...(isReviewer ? {} : { requestedBy: user.id }),
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const conditions = [eq(fileDeletionRequest.taskId, taskId)];
+    if (!isReviewer) {
+      conditions.push(eq(fileDeletionRequest.requestedBy, user.id));
+    }
 
-    const requesterIds = [...new Set(requests.map((r) => r.requestedBy))];
-    const requesters = await prisma.user.findMany({
-      where: { id: { in: requesterIds } },
-      select: { id: true, name: true, email: true },
-    });
-    const requesterMap = new Map(requesters.map((r) => [r.id, r]));
-    const hydrated = requests.map((r) => ({ ...r, requester: requesterMap.get(r.requestedBy) || null }));
+    const requests = await db
+      .select({
+        id: fileDeletionRequest.id,
+        fileId: fileDeletionRequest.fileId,
+        taskId: fileDeletionRequest.taskId,
+        requestedBy: fileDeletionRequest.requestedBy,
+        reason: fileDeletionRequest.reason,
+        status: fileDeletionRequest.status,
+        reviewedBy: fileDeletionRequest.reviewedBy,
+        reviewedAt: fileDeletionRequest.reviewedAt,
+        batchId: fileDeletionRequest.batchId,
+        createdAt: fileDeletionRequest.createdAt,
+        requesterName: userTable.name,
+        requesterEmail: userTable.email,
+      })
+      .from(fileDeletionRequest)
+      .leftJoin(userTable, eq(fileDeletionRequest.requestedBy, userTable.id))
+      .where(and(...conditions))
+      .orderBy(desc(fileDeletionRequest.createdAt));
+
+    const hydrated = requests.map((r) => ({
+      ...r,
+      requester: r.requesterName || r.requesterEmail ? {
+        id: r.requestedBy,
+        name: r.requesterName,
+        email: r.requesterEmail,
+      } : null,
+    }));
 
     return NextResponse.json({ requests: hydrated });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[deletion-requests] GET error:", error);
-    return NextResponse.json({ error: "Failed to load deletion requests" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Failed to load deletion requests" }, { status: 500 });
   }
 }

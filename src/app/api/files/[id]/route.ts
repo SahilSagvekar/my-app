@@ -1,7 +1,8 @@
 // src/app/api/files/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-
+import { getDbHttp } from "@/lib/db";
+import { file as fileTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { getCurrentUser2 } from '@/lib/auth';
 import { deleteFileHard } from '@/lib/file-deletion';
 
@@ -16,21 +17,17 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    const db = getDbHttp();
 
-    // Get file with task info
-    const file = await prisma.file.findUnique({
-      where: { id },
-      include: {
-        task: {
-          select: {
-            id: true,
-            assignedTo: true,
-            clientId: true,
-            status: true,
-          },
-        },
-      },
-    });
+    // Check if file exists
+    const [file] = await db
+      .select({
+        id: fileTable.id,
+        taskId: fileTable.taskId,
+      })
+      .from(fileTable)
+      .where(eq(fileTable.id, id))
+      .limit(1);
 
     if (!file) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
@@ -44,11 +41,6 @@ export async function DELETE(
     if (!canDelete) {
       return NextResponse.json({ error: "Not authorized to delete this file" }, { status: 403 });
     }
-
-    // Admins and videographers can delete regardless of task status
-    // (QC/Completed/Posted/Scheduled included) — the lockedStatuses check
-    // that used to block this for non-admins applied to a path that no
-    // longer exists on this route.
 
     await deleteFileHard(id, { id: user.id, role: user.role });
 

@@ -4,9 +4,14 @@
 // factored out so DELETE /api/files/[id] (admin/videographer direct
 // delete) and the deletion-request approval route both go through the
 // exact same path instead of two copies drifting apart.
+//
+// Converted to Drizzle (getDbHttp) for Cloudflare Workers edge runtime.
 
-import { prisma } from "@/lib/prisma";
+import { getDbHttp } from "@/lib/db";
+import { file as fileTable } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 
 const s3 = new S3Client({
   region: "auto",
@@ -24,15 +29,21 @@ export type FileDeletionActor = {
 
 /**
  * Hard-deletes a file: removes the R2 object (best-effort — a storage
- * error doesn't block the DB delete, matching the original route's
- * behavior), deletes the File row, and writes an AuditLog entry.
+ * error doesn't block the DB delete), deletes the File row, and writes an AuditLog entry.
  * Returns null if the file doesn't exist (already deleted).
  */
 export async function deleteFileHard(fileId: string, actor: FileDeletionActor) {
-  const file = await prisma.file.findUnique({
-    where: { id: fileId },
-    include: { task: { select: { id: true } } },
-  });
+  const db = getDbHttp();
+  const [file] = await db
+    .select({
+      id: fileTable.id,
+      name: fileTable.name,
+      s3Key: fileTable.s3Key,
+      taskId: fileTable.taskId,
+    })
+    .from(fileTable)
+    .where(eq(fileTable.id, fileId))
+    .limit(1);
 
   if (!file) return null;
 
@@ -40,7 +51,7 @@ export async function deleteFileHard(fileId: string, actor: FileDeletionActor) {
     try {
       await s3.send(
         new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET_NAME!,
+          Bucket: process.env.R2_BUCKET_NAME || process.env.AWS_S3_BUCKET_NAME || "e8-app-r2-prod",
           Key: file.s3Key,
         })
       );
@@ -49,22 +60,20 @@ export async function deleteFileHard(fileId: string, actor: FileDeletionActor) {
     }
   }
 
-  await prisma.file.delete({ where: { id: fileId } });
+  await db.delete(fileTable).where(eq(fileTable.id, fileId));
 
   try {
-    await prisma.auditLog.create({
-      data: {
-        userId: actor.id,
-        action: "file_deleted",
-        entity: "File",
-        entityId: fileId,
-        details: `Deleted "${file.name}" from task ${file.task.id}`,
-        metadata: {
-          taskId: file.task.id,
-          fileName: file.name,
-          s3Key: file.s3Key,
-          deletedByRole: actor.role,
-        },
+    await createAuditLog({
+      userId: actor.id,
+      action: AuditAction.FILE_DELETED,
+      entity: "File",
+      entityId: fileId,
+      details: `Deleted "${file.name}" from task ${file.taskId}`,
+      metadata: {
+        taskId: file.taskId,
+        fileName: file.name,
+        s3Key: file.s3Key,
+        deletedByRole: actor.role,
       },
     });
   } catch (auditError) {

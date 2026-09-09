@@ -23,6 +23,7 @@ export const signerStatus = pgEnum("SignerStatus", ['PENDING', 'VIEWED', 'SIGNED
 export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'TRIALING', 'PAUSED'])
 export const syncStatus = pgEnum("SyncStatus", ['PENDING', 'SYNCING', 'COMPLETED', 'FAILED'])
 export const taskStatus = pgEnum("TaskStatus", ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED', 'SCHEDULED', 'ON_HOLD', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW', 'VIDEOGRAPHER_ASSIGNED', 'POSTED', 'HIDDEN'])
+export const fileDeletionRequestStatus = pgEnum("FileDeletionRequestStatus", ['PENDING', 'APPROVED', 'REJECTED'])
 
 
 export const verificationToken = pgTable("VerificationToken", {
@@ -1250,6 +1251,25 @@ export const file = pgTable("File", {
 		foreignColumns: [task.id],
 		name: "File_taskId_fkey"
 	}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const fileDeletionRequest = pgTable("FileDeletionRequest", {
+	id: text().primaryKey().notNull(),
+	fileId: text().notNull(),
+	taskId: text().notNull(),
+	requestedBy: integer().notNull(),
+	reason: text(),
+	status: fileDeletionRequestStatus().default('PENDING').notNull(),
+	reviewedBy: integer(),
+	reviewedAt: timestamp({ precision: 3, mode: 'string' }),
+	batchId: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("FileDeletionRequest_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+	index("FileDeletionRequest_fileId_idx").using("btree", table.fileId.asc().nullsLast().op("text_ops")),
+	index("FileDeletionRequest_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("FileDeletionRequest_batchId_idx").using("btree", table.batchId.asc().nullsLast().op("text_ops")),
+	index("FileDeletionRequest_requestedBy_idx").using("btree", table.requestedBy.asc().nullsLast().op("int4_ops")),
 ]);
 
 // A generated preview belongs to the storage object, not exclusively to a
