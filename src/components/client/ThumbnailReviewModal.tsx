@@ -135,29 +135,33 @@ export function ThumbnailReviewModal({
     const [okThumbnails, setOkThumbnails] = useState(false);
     const [confirmFinal, setConfirmFinal] = useState(false);
 
-    const allOthersApproved = (
-        sidebarTab === 'comments' ? okTitles && okThumbnails :
-        sidebarTab === 'titles' ? okComments && okThumbnails :
-        okComments && okTitles
-    );
+    const is3Step = imageLabel === 'Thumbnails';
+    const totalSteps = is3Step ? 3 : 2;
+
+    const allOthersApproved = is3Step
+        ? (sidebarTab === 'comments' ? okTitles && okThumbnails :
+           sidebarTab === 'titles' ? okComments && okThumbnails :
+           okComments && okTitles)
+        : (sidebarTab === 'comments' ? okTitles : okComments);
+
     const approveLabel = allOthersApproved ? 'Approve Final' : 'Approve';
     const currentStepNum = sidebarTab === 'comments' ? 1 : sidebarTab === 'titles' ? 2 : 3;
-    const currentStepName = sidebarTab === 'comments' ? 'COMMENTS' : sidebarTab === 'titles' ? 'TITLES' : 'THUMBNAILS';
-    const stepLabel = `STEP ${currentStepNum} OF 3 — ${currentStepName}`;
+    const currentStepName = sidebarTab === 'comments' ? 'COMMENTS' : sidebarTab === 'titles' ? 'TITLES' : imageLabel.toUpperCase();
+    const stepLabel = `STEP ${currentStepNum} OF ${totalSteps} — ${currentStepName}`;
 
     const handleStepApprove = () => {
         if (sidebarTab === 'comments') {
             setOkComments(true);
             if (!okTitles) {
                 setSidebarTab('titles');
-            } else if (!okThumbnails) {
+            } else if (is3Step && !okThumbnails) {
                 setSidebarTab('thumbnails');
             } else {
                 handleApproveClick();
             }
         } else if (sidebarTab === 'titles') {
             setOkTitles(true);
-            if (!okThumbnails) {
+            if (is3Step && !okThumbnails) {
                 setSidebarTab('thumbnails');
             } else if (!okComments) {
                 setSidebarTab('comments');
@@ -689,7 +693,7 @@ export function ThumbnailReviewModal({
                                 style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)', borderRadius: 16 }}
                             >
                                 {/* Tab switcher matching Screenshot 2 */}
-                                <div className="grid grid-cols-3 border-b border-[var(--review-border)]" style={{ background: 'var(--review-bg-secondary)' }}>
+                                <div className={`grid ${is3Step ? 'grid-cols-3' : 'grid-cols-2'} border-b border-[var(--review-border)]`} style={{ background: 'var(--review-bg-secondary)' }}>
                                     <button
                                         onClick={() => setSidebarTab('comments')}
                                         className="text-sm flex items-center justify-center gap-1.5 py-3.5 px-1 -mb-px cursor-pointer transition-colors"
@@ -709,15 +713,17 @@ export function ThumbnailReviewModal({
                                     >
                                         Titles
                                     </button>
-                                    <button
-                                        onClick={() => setSidebarTab('thumbnails')}
-                                        className="text-sm py-3.5 px-1 -mb-px cursor-pointer transition-colors"
-                                        style={sidebarTab === 'thumbnails'
-                                            ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
-                                            : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
-                                    >
-                                        Thumbnails
-                                    </button>
+                                    {is3Step && (
+                                        <button
+                                            onClick={() => setSidebarTab('thumbnails')}
+                                            className="text-sm py-3.5 px-1 -mb-px cursor-pointer transition-colors"
+                                            style={sidebarTab === 'thumbnails'
+                                                ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                                : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
+                                        >
+                                            {imageLabel}
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* ── COMMENTS TAB ── */}
@@ -870,7 +876,7 @@ export function ThumbnailReviewModal({
                                     <div className="flex-1 overflow-y-auto review-scrollbar min-h-0 p-4 space-y-4">
                                         <div className="rounded-xl border border-[var(--review-border)] p-4 bg-[var(--review-bg-tertiary)]">
                                             <div className="flex items-center justify-between mb-3">
-                                                <span className="text-xs font-bold uppercase tracking-wide text-white">Candidate Thumbnails</span>
+                                                <span className="text-xs font-bold uppercase tracking-wide text-white">Candidate {imageLabel}</span>
                                                 <span className="text-xs font-medium text-[var(--review-text-muted)]">{orderedThumbnails.length} variants</span>
                                             </div>
                                             <div className="space-y-2">
@@ -924,12 +930,14 @@ export function ThumbnailReviewModal({
                                                 className="border-none cursor-pointer p-0"
                                                 style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'titles' ? 'var(--review-v2-gray-50)' : (okTitles ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
                                             />
-                                            <button
-                                                onClick={() => setSidebarTab('thumbnails')}
-                                                title="Thumbnails"
-                                                className="border-none cursor-pointer p-0"
-                                                style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'thumbnails' ? 'var(--review-v2-gray-50)' : (okThumbnails ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
-                                            />
+                                            {is3Step && (
+                                                <button
+                                                    onClick={() => setSidebarTab('thumbnails')}
+                                                    title="Thumbnails"
+                                                    className="border-none cursor-pointer p-0"
+                                                    style={{ width: 18, height: 6, borderRadius: 999, background: sidebarTab === 'thumbnails' ? 'var(--review-v2-gray-50)' : (okThumbnails ? 'var(--review-v2-gray-300)' : 'var(--review-v2-gray-700)') }}
+                                                />
+                                            )}
                                         </div>
                                     </div>
 
