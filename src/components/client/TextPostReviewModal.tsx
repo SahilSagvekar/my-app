@@ -8,6 +8,7 @@ import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { CheckCircle2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 
 interface TextPostReviewModalProps {
     open: boolean;
@@ -30,6 +31,7 @@ export function TextPostReviewModal({
     onRequestRevisions,
     onAddComment,
 }: TextPostReviewModalProps) {
+    useHideFeedbackWidgetWhileOpen(open);
     void taskId;
     const [revisionNote, setRevisionNote] = useState('');
     const [submitting, setSubmitting] = useState(false);

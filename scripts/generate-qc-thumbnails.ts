@@ -16,10 +16,10 @@ import { isLikelyImageFile } from '../src/lib/task-thumbnail';
 import { generateThumbnailForVideoKey } from '../src/lib/media-preview-generator';
 
 async function main() {
-  console.log('🚀 Starting Thumbnail Generation for CLIENT_REVIEW tasks...\n');
+  console.log('🚀 Starting Thumbnail Generation for READY_FOR_QC tasks...\n');
   const db = getDbHttp();
 
-  // 1. Fetch all CLIENT_REVIEW tasks
+  // 1. Fetch all READY_FOR_QC tasks
   const qcTasks = await db
     .select({
       id: taskTable.id,
@@ -27,12 +27,12 @@ async function main() {
       status: taskTable.status,
     })
     .from(taskTable)
-    .where(eq(taskTable.status, 'CLIENT_REVIEW'));
+    .where(eq(taskTable.status, 'READY_FOR_QC'));
 
-  console.log(`📋 Found ${qcTasks.length} tasks in CLIENT_REVIEW status.`);
+  console.log(`📋 Found ${qcTasks.length} tasks in READY_FOR_QC status.`);
 
   if (qcTasks.length === 0) {
-    console.log('No tasks in CLIENT_REVIEW status. Done.');
+    console.log('No tasks in READY_FOR_QC status. Done.');
     process.exit(0);
   }
 
@@ -141,7 +141,7 @@ async function main() {
   console.log(`  - Queued for thumbnail generation: ${queue.length}\n`);
 
   if (queue.length === 0) {
-    console.log('✅ All CLIENT_REVIEW tasks already have thumbnails or previews!');
+    console.log('✅ All READY_FOR_QC tasks already have thumbnails or previews!');
     process.exit(0);
   }
 

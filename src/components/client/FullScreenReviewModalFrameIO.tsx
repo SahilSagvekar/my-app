@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { getVideoSource } from '../workflow/VideoUrlHelper';
 import { ReviewComment, ReviewStatus } from '../review/types';
 import { useAuth } from '../auth/AuthContext';
+import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import { ReviewScreenDesktop } from './ReviewScreenDesktop';
 import { ReviewScreenMobile } from './ReviewScreenMobile';
@@ -209,6 +210,8 @@ export function FullScreenReviewModalFrameIO({
         }
         return 'desktop';
     });
+
+    useHideFeedbackWidgetWhileOpen(open);
 
     /* ── Video state ── */
     const [isPlaying, setIsPlaying] = useState(false);

@@ -216,6 +216,7 @@ export function ClientFeedbackWidget() {
       {!isHidden && (
         <button
           type="button"
+          data-feedback-widget-root
           data-feedback-widget-ignore
           onClick={handleOpen}
           aria-label="Report a problem"

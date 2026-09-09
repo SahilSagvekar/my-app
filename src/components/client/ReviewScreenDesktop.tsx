@@ -45,6 +45,7 @@ import type { CommentInputHandle, ReviewMode } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
 import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
+import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 
 function resolveFileCode(folderType?: string | null, deliverableType?: string | null): string {
     const raw = (folderType || deliverableType || '').trim();
@@ -160,6 +161,7 @@ export interface ReviewScreenProps {
 }
 
 export function ReviewScreenDesktop(p: ReviewScreenProps) {
+    useHideFeedbackWidgetWhileOpen(true);
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
     const unresolvedCount = p.sortedComments.filter(c => !c.resolved).length;

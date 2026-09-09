@@ -841,6 +841,23 @@ body:has(.review-modal)::-webkit-scrollbar,
   height: 0 !important;
 }
 
+/* Never display the floating feedback / Report Problem button on any review screen */
+html.e8-review-open [data-feedback-widget-root],
+body.e8-review-shell [data-feedback-widget-root],
+html:has(.fullscreen-dialog) [data-feedback-widget-root],
+body:has(.fullscreen-dialog) [data-feedback-widget-root],
+html:has(.review-modal) [data-feedback-widget-root],
+body:has(.review-modal) [data-feedback-widget-root],
+html:has([data-slot="dialog-content"].fullscreen-dialog) [data-feedback-widget-root],
+body:has([data-slot="dialog-content"].fullscreen-dialog) [data-feedback-widget-root],
+[data-radix-portal]:has(.review-modal) ~ [data-feedback-widget-root],
+[data-radix-portal]:has(.fullscreen-dialog) ~ [data-feedback-widget-root] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
 
 /* Add to your globals.css or a component-level style */
 .rdp {

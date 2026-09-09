@@ -20,6 +20,7 @@ import { ShareDialog } from '../review/ShareDialog';
 import { ReviewConnectionIndicator } from './ReviewConnectionIndicator';
 import { YoutubePlayer } from '../review/YoutubePlayer';
 import type { ReviewScreenProps } from './ReviewScreenDesktop';
+import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 
 type MobileTab = 'comments' | 'actions' | 'info' | 'titles';
 
@@ -32,6 +33,7 @@ function isMobileTabVisible(tab: MobileTab) {
 
 /* ─────────────────────────────────────────────────────────────── */
 export function ReviewScreenMobile(p: ReviewScreenProps) {
+    useHideFeedbackWidgetWhileOpen(true);
     const [mobileTab, setMobileTab] = useState<MobileTab>('comments');
     const [controlsExpanded, setControlsExpanded] = useState(false);
 
