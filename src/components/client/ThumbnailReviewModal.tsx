@@ -31,6 +31,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ImageOrderModal } from './ImageOrderModal';
+import { ImageOrderPopover } from './ImageOrderPopover';
 import { sortTaskImages } from '@/lib/task-image-order';
 
 /* ─── Types ────────────────────────────────────────────────────── */
@@ -653,15 +654,16 @@ export function ThumbnailReviewModal({
                                             {orderedThumbnails.length > 1 && (
                                                 <>
                                                     <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowOrderModal(true)}
-                                                        className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all border border-white/20 hover:border-white/40 cursor-pointer shadow-sm"
-                                                        title="Change image order"
-                                                    >
-                                                        <ListOrdered className="h-3.5 w-3.5 text-blue-400" />
-                                                        <span>Order</span>
-                                                    </button>
+                                                    <ImageOrderPopover
+                                                        files={orderedThumbnails}
+                                                        currentFileId={currentFile?.id}
+                                                        onSelectFile={(f) => {
+                                                            setCurrentFile(f);
+                                                            setViewMode('single');
+                                                        }}
+                                                        onReorder={handleReorderImages}
+                                                        isSaving={isSavingOrder}
+                                                    />
                                                 </>
                                             )}
                                         </div>
@@ -675,15 +677,16 @@ export function ThumbnailReviewModal({
                                             {imageLabel} ({orderedThumbnails.length})
                                         </span>
                                         <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowOrderModal(true)}
-                                            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all border border-white/20 hover:border-white/40 cursor-pointer shadow-sm"
-                                            title="Change image order"
-                                        >
-                                            <ListOrdered className="h-3.5 w-3.5 text-blue-400" />
-                                            <span>Order</span>
-                                        </button>
+                                        <ImageOrderPopover
+                                            files={orderedThumbnails}
+                                            currentFileId={currentFile?.id}
+                                            onSelectFile={(f) => {
+                                                setCurrentFile(f);
+                                                setViewMode('single');
+                                            }}
+                                            onReorder={handleReorderImages}
+                                            isSaving={isSavingOrder}
+                                        />
                                     </div>
                                 )}
                             </div>
