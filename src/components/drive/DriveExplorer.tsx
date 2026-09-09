@@ -38,6 +38,7 @@ import {
   List,
   Smartphone,
   KeyRound,
+  FolderInput,
 } from "lucide-react";
 import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
@@ -96,6 +97,7 @@ import {
 } from "@/components/ui/sheet";
 import MeetingNotesPanel from "../admin/MeetingNotesPanel";
 import { DriveNotesPopover, type DriveNoteEntry } from "./Drivenotespopover";
+import { MoveToDialog } from "./MoveToDialog";
 import { cn } from "@/lib/utils";
 import { formatFolderDisplayName } from "@/lib/format-folder-display-name";
 import { toast } from "sonner";
@@ -1601,7 +1603,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       }
 
       toast.success(`"${movingName}" moved to "${targetFolder.name}"`);
-      await loadDriveStructure();
+      if (draggedItem.type === 'file') {
+        spliceMovedItemsLocally([draggedItem], targetFolder);
+      } else {
+        await loadDriveStructure();
+      }
     } catch (err: any) {
       toast.error(err.message || 'Failed to move item');
     } finally {
@@ -1613,6 +1619,114 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const handleDragEnd = () => {
     setDraggedItem(null);
     setDragOverTarget(null);
+  };
+
+  // ─── "Move to…" (non-drag) ───────────────────────────────────────────────
+  // Files moved this way (and file drags above) update the on-screen tree
+  // directly instead of re-fetching /api/drive/structure — the full
+  // rescan is what made every move feel slow on a big client folder.
+  // Folder moves still trigger a full reload afterward: correctly
+  // rewriting every descendant's key client-side is riskier than it's
+  // worth for what should be a rarer action than moving files.
+  const [moveDialogItems, setMoveDialogItems] = useState<DriveItem[] | null>(null);
+  const [isSubmittingMove, setIsSubmittingMove] = useState(false);
+
+  const openMoveDialog = (items: DriveItem[]) => {
+    if (items.length === 0) return;
+    setMoveDialogItems(items);
+  };
+
+  // Removes the given items from wherever `currentFolder` is inside the
+  // (cloned) tree, and inserts freshly-keyed copies into wherever
+  // `destFolder` is — so the visible list updates without a network round
+  // trip. Only correct for file moves (see comment above); folder moves
+  // fall back to loadDriveStructure().
+  const spliceMovedItemsLocally = (movedFiles: DriveItem[], destFolder: DriveItem) => {
+    if (movedFiles.length === 0 || !currentFolder) return;
+    const movedNames = new Set(movedFiles.map(f => f.name));
+
+    const destKeyRaw = destFolder.s3Key || getS3Key(destFolder);
+    const destPrefix = destKeyRaw.endsWith('/') ? destKeyRaw : `${destKeyRaw}/`;
+    const destPathPrefix = destFolder.path === '/' || !destFolder.path ? '' : `${destFolder.path}/`;
+
+    const movedCopies: DriveItem[] = movedFiles.map(f => ({
+      ...f,
+      s3Key: `${destPrefix}${f.name}`,
+      path: `${destPathPrefix}${f.name}`,
+    }));
+
+    setDriveStructure(prev => {
+      if (!prev) return prev;
+      const cloneAndUpdate = (node: DriveItem): DriveItem => {
+        if (!node.children) return node;
+        let children = node.children.map(cloneAndUpdate);
+
+        if (node.path === currentFolder.path) {
+          children = children.filter(c => !(c.type === 'file' && movedNames.has(c.name)));
+        }
+        if (node.path === destFolder.path) {
+          children = [...children, ...movedCopies];
+        }
+        return { ...node, children };
+      };
+      return cloneAndUpdate(prev);
+    });
+
+    // driveStructure and currentFolder are separate state — update the
+    // visible list directly rather than relying on the clone above (whose
+    // new node identities currentFolder doesn't automatically pick up).
+    setCurrentFolder(prevFolder => {
+      if (!prevFolder) return prevFolder;
+      return {
+        ...prevFolder,
+        children: (prevFolder.children || []).filter(
+          c => !(c.type === 'file' && movedNames.has(c.name)),
+        ),
+      };
+    });
+  };
+
+  const handleMoveConfirm = async (destination: DriveItem) => {
+    if (!moveDialogItems || moveDialogItems.length === 0) return;
+    setIsSubmittingMove(true);
+
+    const destKey = destination.s3Key || getS3Key(destination);
+    let failed = 0;
+
+    for (const item of moveDialogItems) {
+      const sourceKey = item.s3Key || getS3Key(item);
+      try {
+        const res = await fetch('/api/drive/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourceKey, destinationFolderKey: destKey, type: item.type }),
+        });
+        if (!res.ok) failed++;
+      } catch {
+        failed++;
+      }
+    }
+
+    const succeededCount = moveDialogItems.length - failed;
+    if (succeededCount > 0) {
+      toast.success(
+        `Moved ${succeededCount} item${succeededCount !== 1 ? 's' : ''} to "${destination.name || 'Root'}"`,
+      );
+    }
+    if (failed > 0) {
+      toast.error(`${failed} item${failed !== 1 ? 's' : ''} failed to move`);
+    }
+
+    const anyFolders = moveDialogItems.some(i => i.type === 'folder');
+    if (anyFolders) {
+      await loadDriveStructure();
+    } else if (succeededCount > 0) {
+      spliceMovedItemsLocally(moveDialogItems, destination);
+    }
+
+    setIsSubmittingMove(false);
+    setMoveDialogItems(null);
+    clearChecked();
   };
 
   const getFileIcon = (fileName: string) => {
@@ -2195,6 +2309,17 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         </SheetContent>
       </Sheet>
 
+      {/* Move To… Dialog */}
+      <MoveToDialog
+        open={!!moveDialogItems}
+        onOpenChange={(open) => { if (!open) setMoveDialogItems(null); }}
+        root={driveStructure}
+        itemsToMove={moveDialogItems || []}
+        currentParent={currentFolder}
+        onConfirm={handleMoveConfirm}
+        isSubmitting={isSubmittingMove}
+      />
+
       {/* Main Content Area */}
       <div className="relative flex-1 flex flex-col min-w-0">
         {isMoving && (
@@ -2541,6 +2666,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     <span className="hidden sm:inline">Download</span>
                     <span className="sm:hidden">{checkedItems.size}</span>
                   </Button>
+                  {role !== 'client' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-9"
+                      onClick={() => {
+                        const items = filteredItems.filter(i => checkedItems.has(i.s3Key || getS3Key(i)));
+                        openMoveDialog(items);
+                      }}
+                    >
+                      <FolderInput className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Move</span>
+                    </Button>
+                  )}
                   {role === 'admin' && (
                     <Button
                       size="sm"
@@ -2985,6 +3124,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           )}
                           Copy shareable link
                         </DropdownMenuItem>
+                        {role !== 'client' && (
+                          <DropdownMenuItem
+                            onClick={(e) => { e.stopPropagation(); openMoveDialog([item]); }}
+                          >
+                            <FolderInput className="h-4 w-4 mr-2" />
+                            Move to...
+                          </DropdownMenuItem>
+                        )}
                         {isClientInDeliverableFolder && item.type === "folder" && (
                           <DropdownMenuItem
                             onClick={() => handleRenameClick(item)}
@@ -3198,6 +3345,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                               )}
                               Copy shareable link
                             </DropdownMenuItem>
+                            {role !== 'client' && (
+                              <DropdownMenuItem
+                                onClick={(e) => { e.stopPropagation(); openMoveDialog([item]); }}
+                              >
+                                <FolderInput className="h-4 w-4 mr-2" />
+                                Move to...
+                              </DropdownMenuItem>
+                            )}
                             {isClientInDeliverableFolder && item.type === "folder" && (
                               <DropdownMenuItem onClick={() => handleRenameClick(item)}>
                                 <Pencil className="h-4 w-4 mr-2" />
