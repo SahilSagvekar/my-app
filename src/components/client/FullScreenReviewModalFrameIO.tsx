@@ -239,7 +239,7 @@ export function FullScreenReviewModalFrameIO({
     /* ── Review state ── */
     const [comments, setComments] = useState<ReviewComment[]>([]);
     const [activeCommentId, setActiveCommentId] = useState<string | undefined>();
-    const [showCommentInput, setShowCommentInput] = useState(false);
+    const [showCommentInput, setShowCommentInput] = useState(true);
     const [confirmFinal, setConfirmFinal] = useState(false);
     const [savingFeedback, setSavingFeedback] = useState(false);
 

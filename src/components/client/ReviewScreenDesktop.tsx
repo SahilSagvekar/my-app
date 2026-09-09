@@ -1031,13 +1031,13 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden m-4 ml-2"
                         style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)', borderRadius: 16 }}
                     >
-                        <div className="grid grid-cols-2" style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
+                        <div className="grid grid-cols-3" style={{ background: 'var(--review-bg-secondary)', borderBottom: '1px solid var(--review-border)' }}>
                             {sidebarTab === 'comments' ? (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <button
-                                            className="text-sm flex items-center justify-center gap-2 py-3.5 px-2 -mb-px cursor-pointer transition-colors"
-                                            style={{ background: 'var(--review-bg-tertiary)', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }}
+                                            className="text-sm flex items-center justify-center gap-1.5 py-3.5 px-2 -mb-px cursor-pointer transition-colors"
+                                            style={{ background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }}
                                         >
                                             Comments
                                             <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -1065,7 +1065,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             ) : (
                                 <button
                                     onClick={() => handleTabChange('comments')}
-                                    className="text-sm flex items-center justify-center gap-2 py-3.5 px-2 -mb-px cursor-pointer transition-colors"
+                                    className="text-sm flex items-center justify-center gap-1.5 py-3.5 px-2 -mb-px cursor-pointer transition-colors"
                                     style={{ background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
                                 >
                                     Comments
@@ -1076,7 +1076,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 onClick={() => handleTabChange('titles')}
                                 className="text-sm py-3.5 px-2 -mb-px cursor-pointer transition-colors"
                                 style={sidebarTab === 'titles'
-                                    ? { background: 'var(--review-bg-tertiary)', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                    ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
                                     : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
                             >
                                 Titles
@@ -1091,7 +1091,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 }}
                                 className="text-sm py-3.5 px-2 -mb-px cursor-pointer transition-colors"
                                 style={sidebarTab === 'thumbnails'
-                                    ? { background: 'var(--review-bg-tertiary)', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
+                                    ? { background: 'transparent', color: '#fff', fontWeight: 600, border: 'none', borderBottom: '2px solid #fff' }
                                     : { background: 'transparent', color: 'var(--review-v2-gray-400)', fontWeight: 400, border: 'none', borderBottom: '2px solid transparent' }}
                             >
                                 Thumbnails
@@ -1366,6 +1366,15 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             ? ` — your ${unresolvedCount} comment${unresolvedCount === 1 ? '' : 's'} will not be sent.`
                                             : ' and releases it for delivery.'}
                                     </p>
+                                    {p.userRole === 'qc' && !p.requiresClientReview && (
+                                        <label className="flex items-center gap-2 px-1 py-1 text-xs cursor-pointer select-none" style={{ color: 'var(--review-v2-gray-400)' }}>
+                                            <Checkbox
+                                                checked={!!p.forceClientReviewOverride}
+                                                onCheckedChange={(checked) => p.onForceClientReviewOverrideChange?.(checked === true)}
+                                            />
+                                            Send this video to client review anyway
+                                        </label>
+                                    )}
                                     <div className="flex gap-2">
                                         <button
                                             onClick={cancelApproveConfirmation}
@@ -1422,32 +1431,9 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         </div>
                                     </div>
 
-                                    {p.userRole === 'qc' && !p.requiresClientReview && (
-                                        <label className="flex items-center gap-2 px-1 pb-1 text-xs cursor-pointer select-none" style={{ color: 'var(--review-v2-gray-400)' }}>
-                                            <Checkbox
-                                                checked={!!p.forceClientReviewOverride}
-                                                onCheckedChange={(checked) => p.onForceClientReviewOverrideChange?.(checked === true)}
-                                            />
-                                            Send this video to client review anyway
-                                        </label>
-                                    )}
-                                    {p.userRole === 'client' && (
-                                        <div className="flex items-start gap-2 px-0.5 pb-1">
-                                            <Checkbox
-                                                id="confirm-final-desktop"
-                                                checked={p.confirmFinal}
-                                                onCheckedChange={v => p.setConfirmFinal(v as boolean)}
-                                                className="mt-0.5"
-                                            />
-                                            <label htmlFor="confirm-final-desktop" className="text-xs cursor-pointer" style={{ color: 'var(--review-v2-gray-400)' }}>
-                                                I confirm this is the final version for publishing
-                                            </label>
-                                        </div>
-                                    )}
-
                                     <button
                                         onClick={startApprove}
-                                        disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0 || (p.userRole === 'client' && !p.confirmFinal)}
+                                        disabled={p.asset.approvalLocked || p.savingFeedback || unresolvedCount > 0}
                                         className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                                         style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
                                         onMouseEnter={e => { if (!e.currentTarget.disabled) { e.currentTarget.style.filter = 'brightness(1.15)'; e.currentTarget.style.color = '#fff'; } }}

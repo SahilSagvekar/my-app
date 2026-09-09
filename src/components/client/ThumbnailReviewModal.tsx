@@ -672,7 +672,7 @@ export function ThumbnailReviewModal({
                                 style={{ background: 'var(--review-bg-secondary)', height: 'calc(100vh - 57px)' }}
                             >
                                 {/* Tab switcher matching Screenshot 2 */}
-                                <div className="flex items-center px-4 border-b border-[var(--review-border)] gap-6" style={{ background: 'var(--review-bg-secondary)' }}>
+                                <div className="grid grid-cols-3 border-b border-[var(--review-border)]" style={{ background: 'var(--review-bg-secondary)' }}>
                                     <button
                                         onClick={() => setSidebarTab('comments')}
                                         className="text-sm flex items-center justify-center gap-1.5 py-3.5 px-1 -mb-px cursor-pointer transition-colors"
@@ -916,23 +916,9 @@ export function ThumbnailReviewModal({
                                         </div>
                                     </div>
 
-                                    {userRole === 'client' && (
-                                        <div className="flex items-start gap-2 px-0.5 pb-1">
-                                            <Checkbox
-                                                id="confirm-final-thumb"
-                                                checked={confirmFinal}
-                                                onCheckedChange={v => setConfirmFinal(v as boolean)}
-                                                className="mt-0.5"
-                                            />
-                                            <label htmlFor="confirm-final-thumb" className="text-xs cursor-pointer" style={{ color: 'var(--review-v2-gray-400)' }}>
-                                                I confirm this is the final version for publishing
-                                            </label>
-                                        </div>
-                                    )}
-
                                     <button
                                         onClick={handleStepApprove}
-                                        disabled={savingFeedback || unresolvedCount > 0 || (userRole === 'client' && !confirmFinal)}
+                                        disabled={savingFeedback || unresolvedCount > 0}
                                         className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-md cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                                         style={{ background: 'var(--review-v2-approve)', border: '1px solid var(--review-v2-approve)', color: 'var(--review-v2-gray-50)' }}
                                     >

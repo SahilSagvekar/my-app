@@ -902,7 +902,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={mode === 'thumbnail' ? `Add a comment on variant #${thumbnailIndex ?? 1}...` : 'Add your feedback...'}
+                placeholder="Add your feedback..."
                 className="min-h-[80px] bg-transparent border border-[var(--review-border)] rounded-lg resize-y text-white placeholder:text-[var(--review-text-muted)] focus-visible:ring-1 focus-visible:ring-[var(--review-v2-gray-500)] p-2"
             />
 
@@ -936,30 +936,30 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                     ⌘/Ctrl + Enter to submit
                 </span>
                 <div className="flex items-center gap-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
+                    <button
+                        type="button"
                         onClick={handleCancel}
-                        className="rounded-full text-[var(--review-text-secondary)] hover:text-white hover:bg-[var(--review-bg-elevated)]"
+                        className="rounded-full text-xs font-semibold px-4 py-1.5 cursor-pointer transition-colors"
+                        style={{ background: 'var(--review-v2-gray-800)', border: '1px solid var(--review-v2-gray-700)', color: 'var(--review-v2-gray-200)' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-700)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; }}
                     >
                         Cancel
-                    </Button>
-                    <Button
-                        size="sm"
+                    </button>
+                    <button
+                        type="button"
                         onClick={handleSubmit}
                         disabled={(!content.trim() && !audioUrl && attachedFiles.length === 0 && !screenshotUrl) || isSubmitting || isRecording}
-                        style={{ background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }}
-                        className="rounded-full hover:opacity-85 font-medium px-4"
+                        className="rounded-full text-xs font-bold px-4 py-1.5 cursor-pointer flex items-center gap-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{ background: '#fff', color: '#000', border: '1px solid #fff' }}
                     >
                         {isUploadingAttachments ? (
-                            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                        ) : mode === 'thumbnail' ? (
-                            <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                            <Plus className="h-4 w-4 mr-1" />
+                            <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
                         )}
-                        {isUploadingAttachments ? 'Uploading…' : mode === 'thumbnail' ? `Comment on #${thumbnailIndex ?? 1}` : 'Add'}
-                    </Button>
+                        {isUploadingAttachments ? 'Uploading…' : 'Add'}
+                    </button>
                 </div>
             </div>
 
