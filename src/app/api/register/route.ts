@@ -58,6 +58,19 @@ export async function POST(req: NextRequest) {
     // Check if user exists
     const [existingUser] = await db.select().from(user).where(eq(user.email, email)).limit(1);
 
+    // The User table has a unique constraint on phone (User_phone_key) that
+    // this route never checked for — a duplicate phone number throws a raw
+    // Postgres constraint violation from the insert/update below, caught
+    // only by the generic catch-all at the bottom (opaque "Server error",
+    // real cause never surfaced). Checked here the same way email already
+    // is, excluding the current user's own row so re-registering with your
+    // own unchanged phone still works.
+    const [existingPhone] = await db.select({ id: user.id }).from(user)
+      .where(eq(user.phone, String(phone))).limit(1);
+    if (existingPhone && existingPhone.id !== existingUser?.id) {
+      return NextResponse.json({ message: "This phone number is already registered to another account" }, { status: 409 });
+    }
+
     if (existingUser) {
       if (existingUser.role === "client") {
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -166,8 +179,13 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-  } catch (err) {
-    console.error("Register error:", err);
+  } catch (err: any) {
+    // Public endpoint — never leak err.stack/cause to the client (unlike
+    // the internal /api/drive/structure route). Logged in full here instead,
+    // since a prior version of this catch block only logged the Error
+    // object itself, which Cloudflare's logger serializes as just the
+    // stack trace — the actual err.message never made it into the logs.
+    console.error('Register error:', { message: err?.message, stack: err?.stack, cause: err?.cause });
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }

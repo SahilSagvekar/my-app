@@ -193,14 +193,22 @@ export function FullScreenReviewModal({
 
   useEffect(() => {
     if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+      const prevHtmlOverflow = document.documentElement.style.overflow;
+      const prevBodyOverflow = document.body.style.overflow;
+      const prevHtmlScrollbar = document.documentElement.style.scrollbarWidth;
 
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
+      document.documentElement.classList.add('e8-review-open');
+      document.documentElement.style.overflow = 'hidden';
+      document.documentElement.style.scrollbarWidth = 'none';
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        document.documentElement.classList.remove('e8-review-open');
+        document.documentElement.style.overflow = prevHtmlOverflow;
+        document.documentElement.style.scrollbarWidth = prevHtmlScrollbar;
+        document.body.style.overflow = prevBodyOverflow;
+      };
+    }
   }, [open]);
 
   // Keyboard shortcuts
@@ -474,7 +482,7 @@ export function FullScreenReviewModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !bg-black/95 !backdrop-blur-sm !overflow-hidden !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog"
+        className="!fixed !inset-0 !z-50 !w-full !h-full !max-w-none !max-h-none !m-0 !p-0 !bg-black/95 !backdrop-blur-sm !overflow-hidden !transform-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog"
       >
         {/* Accessibility: Hidden title and description for screen readers */}
         <div className="sr-only">

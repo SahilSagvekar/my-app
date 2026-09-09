@@ -803,10 +803,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         params.append("userId", user.id.toString());
       }
 
-      // Use override (captured at call time) or current effectiveClientId
+      // Use override (captured at call time) or current effectiveClientId.
+      // Guarded against ever becoming an actual URL param: something
+      // upstream has intermittently handed this a non-string value (seen
+      // in production as a literal clientId=[object+Object] query param,
+      // which silently breaks the file-server lookup). typeof-checking
+      // here means a bad caller now gets a loud console.warn pointing at
+      // the actual value instead of a silent broken request.
       const resolvedClientId = clientIdOverride !== undefined ? clientIdOverride : effectiveClientId;
       if (resolvedClientId) {
-        params.append("clientId", resolvedClientId);
+        if (typeof resolvedClientId === 'string') {
+          params.append("clientId", resolvedClientId);
+        } else {
+          console.warn('[loadDriveStructure] resolvedClientId is not a string, dropping it:', resolvedClientId);
+        }
       }
 
       const response = await fetch(`/api/drive/structure?${params.toString()}`);

@@ -22,7 +22,7 @@ const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler",
 // this only when the request ALSO supplies the matching clientId, so
 // adding an entry here is the only place this needs to be granted.
 const CLIENT_PREVIEW_MAP: Record<string, { clientId: string; label: string }> = {
-    "eric@e8productions.com": { clientId: "cmk2diuay001donns7yy1ihix", label: "The Drew Meyers" },
+    "eric@e8productions.com": { clientId: "cmtssco9a000001s64o80aqy8", label: "E8 Client" },
 };
 
 interface ViewAsRoleContextType {

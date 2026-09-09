@@ -202,7 +202,11 @@ export function FileVerification({ role }: FileVerificationProps) {
       const params = new URLSearchParams();
       params.append("role", role);
       if (user?.id) params.append("userId", user.id.toString());
-      if (clientId) params.append("clientId", clientId);
+      if (clientId && typeof clientId === 'string') {
+        params.append("clientId", clientId);
+      } else if (clientId) {
+        console.warn('[loadRemoteTree] clientId is not a string, dropping it:', clientId);
+      }
 
       const res = await fetch(`/api/drive/structure?${params.toString()}`);
       if (!res.ok) {

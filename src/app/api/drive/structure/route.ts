@@ -13,15 +13,29 @@ export async function GET(request: NextRequest) {
   const { env } = getCloudflareContext();
   console.log('api started')
 
+  // Hoisted above the try block so the catch handler below can log them —
+  // they were previously declared inside try, which would have thrown a
+  // ReferenceError from inside catch instead of the intended error log.
+  const { searchParams } = new URL(request.url);
+  const rawClientId = searchParams.get('clientId');
+  const role = searchParams.get('role') || 'admin';
+  const userId = searchParams.get('userId') || '0';
+  let prefix = '';
+
   try {
-    const { searchParams } = new URL(request.url);
-    const clientId = searchParams.get('clientId');
-    const role = searchParams.get('role') || 'admin';
-    const userId = searchParams.get('userId') || '0';
+    // Defense in depth: a bad caller has, at least once in production,
+    // sent a literal "[object Object]" string here (a JS object landed in
+    // a URL param upstream). Treat any clientId that doesn't look like a
+    // real ID as if none were provided, rather than querying the DB with
+    // garbage and silently falling through to an empty-prefix scan.
+    const clientId = rawClientId && !/^\[object /i.test(rawClientId) && rawClientId !== 'undefined' && rawClientId !== 'null'
+      ? rawClientId
+      : null;
+    if (rawClientId && !clientId) {
+      console.warn('⚠️  Rejected malformed clientId param:', rawClientId);
+    }
 
     console.log('🔍 Drive structure request:', { clientId, role, userId });
-
-    let prefix = '';
 
     if (role === 'client') {
       let clientRecord = null;
@@ -134,7 +148,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(tree);
 
   } catch (error: any) {
-    console.error('❌ Structure error:', error);
+    console.error('❌ Structure error:', { clientId: rawClientId, role, userId, prefix, message: error?.message, stack: error?.stack });
     return NextResponse.json({
       error: 'Failed to fetch structure',
       details: error.message,

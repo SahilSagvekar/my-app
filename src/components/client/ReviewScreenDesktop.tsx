@@ -190,9 +190,25 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     // Applied on <body> — not a local wrapper class — because Radix
     // dropdown/select portals render into document.body and would
     // otherwise miss a wrapper-scoped CSS variable override.
+    // Also locks documentElement and body scrolling to remove browser scrollbars.
     useEffect(() => {
         document.body.classList.add('e8-review-shell');
-        return () => document.body.classList.remove('e8-review-shell');
+        document.documentElement.classList.add('e8-review-open');
+        const prevHtmlOverflow = document.documentElement.style.overflow;
+        const prevBodyOverflow = document.body.style.overflow;
+        const prevHtmlScrollbar = document.documentElement.style.scrollbarWidth;
+
+        document.documentElement.style.overflow = 'hidden';
+        document.documentElement.style.scrollbarWidth = 'none';
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.body.classList.remove('e8-review-shell');
+            document.documentElement.classList.remove('e8-review-open');
+            document.documentElement.style.overflow = prevHtmlOverflow;
+            document.documentElement.style.scrollbarWidth = prevHtmlScrollbar;
+            document.body.style.overflow = prevBodyOverflow;
+        };
     }, []);
 
     // Escape also exits fullscreen — matches the design's Escape-to-close.
@@ -484,7 +500,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         <TooltipProvider delayDuration={300}>
             <div
                 ref={p.containerRef}
-                className="relative w-full h-full max-h-screen flex flex-col overflow-hidden min-h-0"
+                className="relative w-full h-full max-h-full flex flex-col overflow-hidden min-h-0"
                 style={{ background: 'var(--review-bg-primary)' }}
             >
                 {p.showApprovalSuccess && (
