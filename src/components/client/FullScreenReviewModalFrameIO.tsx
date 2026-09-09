@@ -10,7 +10,6 @@ import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import { ReviewScreenDesktop } from './ReviewScreenDesktop';
 import { ReviewScreenMobile } from './ReviewScreenMobile';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
-import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
 
 /* ─── Types ───────────────────────────────────────────────────── */
 interface Version {
@@ -83,11 +82,16 @@ interface FullScreenReviewModalProps {
     onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
     // 🔥 Client's template hashtags — shown as selectable chips in the tags tab
     templateHashtags?: string[];
-    // Pure playback mode — hides the entire comments/titles sidebar and all
-    // approve/reject actions. Used for the client's "Rejected" section,
-    // where they're just rewatching something they already sent back, not
-    // reviewing it fresh.
-    readOnly?: boolean;
+    // 🧭 Step wizard — Comments → Titles → (Thumbnails, if this task has one).
+    // Only ClientDashboard's client-facing review flow opts into this; every
+    // other call site (QC review, the shared-link page) keeps today's
+    // single-pass Approve/Send Back behavior unless it also passes this.
+    enableStepWizard?: boolean;
+    // Whether this task has a thumbnail file to review — same check that
+    // already gates onSwitchToThumbnail today (getPrimaryThumbnailFile).
+    // When true, the wizard has 3 steps and the final Approve inside this
+    // modal hands off to onSwitchToThumbnail instead of finalizing.
+    hasThumbnailStep?: boolean;
 }
 
 interface RevisionRequest {
@@ -205,14 +209,13 @@ export function FullScreenReviewModalFrameIO({
     onPostingDescriptionsChange,
     onPostingTagsChange,
     templateHashtags = [],
-    readOnly = false,
+    enableStepWizard = false,
+    hasThumbnailStep = false,
 }: FullScreenReviewModalProps) {
     const { user } = useAuth();
 
-    // Hide the floating "Report a Problem" widget while this full-screen
-    // review is open — it otherwise floats on top of the Approve/Send Back
-    // buttons.
-    useHideFeedbackWidgetWhileOpen(open);
+    /* ── Step wizard: Comments → Titles → (Thumbnails elsewhere) ── */
+    const [wizardStep, setWizardStep] = useState<'comments' | 'titles'>('comments');
 
     /* ── View mode: auto-detect on mount, user can toggle ── */
     const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
@@ -502,6 +505,7 @@ export function FullScreenReviewModalFrameIO({
         setIframeLoaded(false);
         setActiveCommentId(undefined);
         setShowCommentInput(false);
+        setWizardStep('comments');
 
         if ((asset as any).taskFeedback) {
             setComments(
@@ -518,7 +522,6 @@ export function FullScreenReviewModalFrameIO({
                         content: fb.feedback,
                         timestamp: ts,
                         timestampSeconds: tsSeconds,
-                        isGeneral: ts === 'General' || undefined,
                         category: fb.category ? fb.category.split(',') : ['other'],
                         createdAt: new Date(fb.createdAt),
                         resolved: fb.status === 'resolved',
@@ -585,24 +588,10 @@ export function FullScreenReviewModalFrameIO({
         } catch {/* silent */ }
     };
 
-    /* ── Lock scroll on html and body ── */
+    /* ── Lock scroll ── */
     useEffect(() => {
-        if (!open) return;
-        const prevHtmlOverflow = document.documentElement.style.overflow;
-        const prevBodyOverflow = document.body.style.overflow;
-        const prevHtmlScrollbar = document.documentElement.style.scrollbarWidth;
-
-        document.documentElement.classList.add('e8-review-open');
-        document.documentElement.style.overflow = 'hidden';
-        document.documentElement.style.scrollbarWidth = 'none';
-        document.body.style.overflow = 'hidden';
-
-        return () => {
-            document.documentElement.classList.remove('e8-review-open');
-            document.documentElement.style.overflow = prevHtmlOverflow;
-            document.documentElement.style.scrollbarWidth = prevHtmlScrollbar;
-            document.body.style.overflow = prevBodyOverflow;
-        };
+        document.body.style.overflow = open ? 'hidden' : 'unset';
+        return () => { document.body.style.overflow = 'unset'; };
     }, [open]);
 
     /* ── Keyboard shortcuts (desktop only) ── */
@@ -848,14 +837,6 @@ export function FullScreenReviewModalFrameIO({
                     feedback: c.content,
                     timestamp: c.timestamp,
                     category: Array.isArray(c.category) ? c.category.join(',') : c.category,
-                    // 🔥 NEW: forward already-uploaded attachment URLs so they
-                    // actually reach the database — CommentInput uploads these
-                    // to R2 at submit time before the comment ever lands here.
-                    screenshotUrl: c.screenshotUrl,
-                    annotations: c.annotations,
-                    voiceUrl: c.voiceUrl,
-                    voiceDurationSec: c.voiceDurationSec,
-                    attachments: c.attachments,
                 };
             });
             
@@ -883,6 +864,23 @@ export function FullScreenReviewModalFrameIO({
         if (savingFeedback) return;
         
         if (status === 'approved') {
+            // 🧭 Step wizard: Comments → Titles → (Thumbnails, if this task
+            // has one). Only active when enableStepWizard is passed in —
+            // every other call site keeps today's single-pass behavior.
+            if (enableStepWizard) {
+                if (wizardStep === 'comments') {
+                    setWizardStep('titles');
+                    return; // don't finalize yet — just advance to the next step
+                }
+                // wizardStep === 'titles' — the last step inside THIS modal.
+                if (hasThumbnailStep && onSwitchToThumbnail) {
+                    onSwitchToThumbnail(); // hand off to the Thumbnails step
+                    return;
+                }
+                // No thumbnail step for this task — Titles is the final
+                // step, so fall through and finalize below like normal.
+            }
+
             if (userRole === 'qc' && onSendToClient) onSendToClient(asset);
             else onApprove(asset, true);
             setShowApprovalSuccess(true);
@@ -1042,7 +1040,6 @@ export function FullScreenReviewModalFrameIO({
     /* ── Shared props object ── */
     const screenProps = {
         asset,
-        readOnly,
         currentFileSection,
         userRole,
         requiresClientReview,
@@ -1128,11 +1125,14 @@ export function FullScreenReviewModalFrameIO({
         onSwitchToMobile: () => setViewMode('mobile'),
         onSwitchToDesktop: () => setViewMode('desktop'),
         handleRejectWithComment,
+        enableStepWizard,
+        hasThumbnailStep,
+        wizardStep,
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={`!fixed !inset-0 !z-50 !w-full !h-full !max-w-none !max-h-none !m-0 !p-0 !transform-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none !flex !flex-col !gap-0 !overflow-hidden fullscreen-dialog review-modal ${viewMode === 'mobile' ? '!overflow-y-auto' : '!overflow-hidden'}`}>
+            <DialogContent className={`!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !max-h-none !m-0 !p-0 !transform-none !top-0 !left-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none fullscreen-dialog review-modal ${viewMode === 'mobile' ? '!overflow-y-auto' : '!overflow-hidden'}`}>
                 {/* Accessibility */}
                 <div className="sr-only">
                     <DialogTitle>{asset.title ? `Review ${asset.title}` : 'Asset Review'}</DialogTitle>

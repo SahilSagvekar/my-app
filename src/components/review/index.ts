@@ -12,3 +12,4 @@ export type { ReviewMode } from './ReviewModePills';
 export { ReviewDrawOverlay } from './ReviewDrawOverlay';
 export { ReviewInstagramOverlay } from './ReviewInstagramOverlay';
 export { StatusDropdown } from './StatusDropdown';
+export { ReviewStepProgress } from './ReviewStepProgress';

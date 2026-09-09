@@ -37,23 +37,20 @@ import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
-import { ScriptReviewModal } from '../client/ScriptReviewModal';
+import { TextPostReviewModal } from '../client/TextPostReviewModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ShareDialog } from '../review/ShareDialog';
 import { Checkbox } from '../ui/checkbox';
 
 import { useAuth } from '../auth/AuthContext';
-import { isRejectedStatus } from '@/lib/task-status';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
 import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
 
 // 🚀 Performance imports
 import { useClientTasks } from '../../lib/hooks/useClientTasks';
-import { useEffectiveClientId } from '../../lib/hooks/useEffectiveClientId';
 import { ClientTaskCard } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
-import { getTaskCardThumbnailUrl } from '@/lib/task-thumbnail';
 
 interface TaskFile {
   id: string;
@@ -143,8 +140,8 @@ const persistClientResult = async ({
     if (feedback) metaBody.clientFeedback = feedback;
   } else {
     // Client requested revisions → Send back to Editor
-    // Use REJECTED_BY_CLIENT as the TaskStatus for client revision requests
-    metaBody.status = "REJECTED_BY_CLIENT";
+    // Use REJECTED as the valid TaskStatus
+    metaBody.status = "REJECTED";
     metaBody.clientResult = "REVISION_REQUESTED";
     metaBody.route = "editor";
     if (feedback) {
@@ -182,11 +179,6 @@ const persistClientResult = async ({
 /* -------------------------------------------------------------------------- */
 
 export function ClientDashboard() {
-  // Scopes task-fetching to a specific client when an admin/manager is
-  // previewing that client's portal (e.g. eric -> "The Drew Meyers");
-  // null for a real client user, who needs no override.
-  const effectiveClientId = useEffectiveClientId();
-
   // 🚀 SWR for cached data fetching
   const { 
     tasks, 
@@ -196,7 +188,6 @@ export function ClientDashboard() {
     hasActiveJobs 
   } = useClientTasks({
     revalidateOnFocus: true,
-    clientIdOverride: effectiveClientId,
   });
 
   // 🚀 Auto-refresh when optimization jobs are active
@@ -230,14 +221,7 @@ export function ClientDashboard() {
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showTextPostReview, setShowTextPostReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
-  const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted' | 'rejected'>('pending');
-  // 🔥 Client-side batching — render CLIENT_TASK_PAGE_SIZE cards per tab, "Load
-  // more" adds another batch. Reset back to one batch whenever the tab changes.
-  const CLIENT_TASK_PAGE_SIZE = 25;
-  const [visibleCount, setVisibleCount] = useState(CLIENT_TASK_PAGE_SIZE);
-  useEffect(() => {
-    setVisibleCount(CLIENT_TASK_PAGE_SIZE);
-  }, [currentFilter]);
+  const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted'>('pending');
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -525,19 +509,19 @@ export function ClientDashboard() {
         postingTags,
       });
 
-      // Keep the task in the list under Rejected so clients can still find
-      // REJECTED_BY_CLIENT (and REJECTED_BY_QC) items in the Rejected tab.
-      refreshTasks(
-        (prev) =>
-          prev
-            ? prev.map((t) =>
-                t.id === selectedTask.id
-                  ? { ...t, status: "REJECTED_BY_CLIENT", feedback: revisionNotes }
-                  : t
-              )
-            : prev,
-        { revalidate: true }
-      );
+      // Update task status or keep it?
+      // For revision requests, it might be better to keep it if they want to see "Revision Requested"
+      // But usually they want to move it out or keep it at the end too.
+      // Given the prompt "once approved... should be moved to the end", maybe focus only on approved.
+      // However, if I change the logic for approved, I should probably handle REJECTED too so it doesn't just disappear if they expect consistency.
+      // But the user ONLY asked for approved tasks.
+      // Let's stick strictly to the user's request for approved tasks first.
+      // Wait, if I don't remove REJECTED ones, they will also stay.
+
+      // Let's just remove REJECTED ones as before, UNLESS the user wants them to stay too.
+      // The prompt specifically said "once the client has approved a task".
+
+      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
       toast.success("📝 Revision Requested – Sent to Editor", {
         description: "Your feedback has been sent to the editor.",
@@ -611,18 +595,8 @@ export function ClientDashboard() {
         postingTags,
       });
 
-      // Keep under Rejected tab (REJECTED_BY_CLIENT) instead of removing
-      refreshTasks(
-        (prev) =>
-          prev
-            ? prev.map((t) =>
-                t.id === selectedTask.id
-                  ? { ...t, status: "REJECTED_BY_CLIENT", feedback: notes }
-                  : t
-              )
-            : prev,
-        { revalidate: true }
-      );
+      // Remove task from list - Revision requested tasks should disappear as they go back to the editor
+      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
       toast.success("📝 Revision Requested – Sent to Editor", {
         description: "Your feedback has been sent to the editor.",
@@ -691,18 +665,7 @@ export function ClientDashboard() {
         postingTags,
       });
 
-      // Keep under Rejected tab (REJECTED_BY_CLIENT) instead of removing
-      refreshTasks(
-        (prev) =>
-          prev
-            ? prev.map((t) =>
-                t.id === selectedTask.id
-                  ? { ...t, status: "REJECTED_BY_CLIENT", feedback: notes }
-                  : t
-              )
-            : prev,
-        { revalidate: true }
-      );
+      refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
       toast.success("📝 Revisions Requested", {
         description: "Your feedback on the thumbnail has been sent.",
@@ -1100,7 +1063,16 @@ export function ClientDashboard() {
   };
 
   const getTaskThumbnail = (task: ClientTask) => {
-    return getTaskCardThumbnailUrl(task.files as any);
+    if (!task.files || task.files.length === 0) return null;
+    // 1. Try to find an active thumbnail
+    const thumbFile = task.files.find(f => f.folderType === 'thumbnails' && f.mimeType?.startsWith('image/') && f.isActive !== false);
+    if (thumbFile) return thumbFile.url;
+    // 2. Try to find any active image
+    const activeImage = task.files.find(f => f.mimeType?.startsWith('image/') && f.isActive !== false);
+    if (activeImage) return activeImage.url;
+    // 3. Fallback to any image
+    const anyImage = task.files.find(f => f.mimeType?.startsWith('image/'));
+    return anyImage?.url || null;
   };
 
   const isOverdue = (task: ClientTask) => new Date(task.dueDate) < new Date();
@@ -1143,15 +1115,11 @@ export function ClientDashboard() {
 
   /* ----------------------------- STATS (memoized) -------------------------- */
 
-  const { pendingReviews, approvedCount, postedCount, rejectedCount, overdueReviews } = useMemo(() => ({
+  const { pendingReviews, approvedCount, postedCount, overdueReviews } = useMemo(() => ({
     // pendingReviews: tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length,
     pendingReviews: tasks.filter(task => task.status === 'CLIENT_REVIEW').length,
     approvedCount: tasks.filter(task => task.status === 'COMPLETED').length,
     postedCount: tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length,
-    // Currently-pending rejections only — a task leaves this count the moment
-    // the editor fixes it and resubmits (status moves on from REJECTED), not
-    // a permanent history of everything ever rejected.
-    rejectedCount: tasks.filter(task => isRejectedStatus(task.status)).length,
     overdueReviews: tasks.filter(task => isOverdue(task)).length,
   }), [tasks]);
 
@@ -1170,19 +1138,9 @@ export function ClientDashboard() {
       if (currentFilter === 'posted') {
         return task.status === 'POSTED' || task.status === 'SCHEDULED';
       }
-      if (currentFilter === 'rejected') {
-        return isRejectedStatus(task.status);
-      }
       return true;
     });
   }, [tasks, currentFilter]);
-
-  // 🔥 Only the current batch is rendered; "Load more" reveals the next 25.
-  const visibleTasks = useMemo(
-    () => filteredTasks.slice(0, visibleCount),
-    [filteredTasks, visibleCount]
-  );
-  const remainingTaskCount = Math.max(0, filteredTasks.length - visibleCount);
 
   /* -------------------------------------------------------------------------- */
 
@@ -1261,7 +1219,7 @@ export function ClientDashboard() {
               onValueChange={(val: any) => setCurrentFilter(val)}
               className="w-full lg:w-auto"
             >
-              <TabsList className="bg-zinc-100 p-0.5 grid grid-cols-4 w-full lg:w-auto">
+              <TabsList className="bg-zinc-100 p-0.5 grid grid-cols-3 w-full lg:w-auto">
                 <TabsTrigger
                   value="pending"
                   className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-yellow-500"
@@ -1304,20 +1262,6 @@ export function ClientDashboard() {
                     </Badge>
                   )}
                 </TabsTrigger>
-                <TabsTrigger
-                  value="rejected"
-                  className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-red-600"
-                >
-                  Rejected
-                  {rejectedCount > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="h-6 px-2 text-xs bg-red-100 text-red-800"
-                    >
-                      {rejectedCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -1336,7 +1280,6 @@ export function ClientDashboard() {
               </p>
             </div>
           ) : (
-            <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
               {/* 🚀 Show subtle revalidating indicator */}
               {isValidating && (
@@ -1345,7 +1288,7 @@ export function ClientDashboard() {
                   <span className="text-xs text-muted-foreground">Refreshing...</span>
                 </div>
               )}
-              {visibleTasks.map((task) => (
+              {filteredTasks.map((task) => (
                 /* 🚀 Memoized task card component */
                 <ClientTaskCard
                   key={task.id}
@@ -1359,17 +1302,6 @@ export function ClientDashboard() {
                 />
               ))}
             </div>
-            {remainingTaskCount > 0 && (
-              <div className="flex justify-center mt-8">
-                <Button
-                  variant="outline"
-                  onClick={() => setVisibleCount((c) => c + CLIENT_TASK_PAGE_SIZE)}
-                >
-                  Load more ({remainingTaskCount} remaining)
-                </Button>
-              </div>
-            )}
-            </>
           )}
         </div>
 
@@ -1523,6 +1455,60 @@ export function ClientDashboard() {
                 )}
               </div>
 
+              {/* 🔧 FIX: Changed mt-4 to mt-auto + flex-shrink-0 so buttons stay pinned at bottom */}
+              {/* <div className="flex items-center justify-end gap-3 pt-4 border-t mt-auto flex-shrink-0">
+                <Button
+                  variant="outline"
+                  className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 mr-auto "
+                  onClick={() => handleDownloadAllFiles()}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Files
+                </Button>
+
+                {!(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED' || selectedTask.status === 'POSTED') && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowFileSelector(false);
+                        setShowRevisionDialog(true);
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Request Revisions
+                    </Button>
+                    <Button
+                      onClick={() => handleApprove()}
+                      disabled={isSubmitting}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approve All
+                    </Button>
+                  </>
+                )}
+
+                {user?.hasPostingServices !== false && (selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED') && (
+                  <Button
+                    onClick={() => handleMarkAsPosted()}
+                    disabled={isSubmitting}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Mark as Posted
+                  </Button>
+                )}
+
+                {selectedTask.status === 'POSTED' && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 rounded-md border border-orange-100 font-medium">
+                    <ExternalLink className="h-4 w-4" />
+                    Content Posted
+                  </div>
+                )}
+              </div> */}
+
               {/* Bottom Action Bar */}
               <div className="flex flex-col gap-3 pt-4 border-t mt-auto flex-shrink-0">
                 {/* Share + Download, matching the card buttons: orange Share,
@@ -1555,6 +1541,29 @@ export function ClientDashboard() {
                   selectedTask.status === "POSTED"
                 ) && (
                     <div className="flex items-center gap-3">
+                      {/* <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setShowFileSelector(false);
+                          setShowRevisionDialog(true);
+                        }}
+                        disabled={isSubmitting}
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Request Revisions
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => handleApprove()}
+                        disabled={isSubmitting}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve All
+                      </Button> */}
                     </div>
                   )}
 
@@ -1667,9 +1676,6 @@ export function ClientDashboard() {
               onApprove={handleVideoApprove}
               onRequestRevisions={handleVideoRequestRevisions}
               userRole="client"
-              // Pure playback when reopening something already rejected —
-              // no comments/approve actions, just rewatch it.
-              readOnly={isRejectedStatus(selectedTask.status)}
               // 🔀 Switch to thumbnail review without leaving the modal — only
               // offered when this task actually has a thumbnail to review.
               onSwitchToThumbnail={
@@ -1694,6 +1700,11 @@ export function ClientDashboard() {
               onPostingDescriptionsChange={setPostingDescriptions}
               onPostingTagsChange={setPostingTags}
               templateHashtags={clientTemplateHashtags}
+              // 🧭 Step wizard: Comments → Titles → (Thumbnails, if this
+              // task has one). hasThumbnailStep reuses the same check that
+              // already gates onSwitchToThumbnail above.
+              enableStepWizard
+              hasThumbnailStep={!!switchToThumbnailFile}
             />
           )}
         {/* File Preview Modal */}
@@ -1732,9 +1743,6 @@ export function ClientDashboard() {
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
               userRole="client"
-              // Pure playback when reopening something already rejected —
-              // no comments/approve actions, just rewatch it.
-              readOnly={isRejectedStatus(selectedTask.status)}
               imageLabel={selectedTask && isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
               onSwitchToVideo={
                 switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined
@@ -1750,7 +1758,7 @@ export function ClientDashboard() {
           )}
 
         {selectedTask && isTextPostTask(selectedTask) && (
-          <ScriptReviewModal
+          <TextPostReviewModal
             open={showTextPostReview}
             onOpenChange={(open: boolean) => {
               setShowTextPostReview(open);
@@ -1761,8 +1769,6 @@ export function ClientDashboard() {
             textContent={(selectedTask as any).textContent || ''}
             onApprove={() => handleThumbnailApprove(null as any)}
             onRequestRevisions={(items) => handleThumbnailRequestRevisions(null as any, items)}
-            userRole="client"
-            readOnly={isRejectedStatus(selectedTask.status)}
           />
         )}
 
