@@ -30,7 +30,7 @@ import {
     AlertCircle, SkipBack, SkipForward, ArrowLeft,
     Info, Copy, Check, UserCheck, Plus, Smartphone,
     PenLine, ImageIcon,
-} from 'lucide-react';import { ReviewCommentCard, CommentInput, ReviewTimeline, ReviewStepProgress } from '../review';
+} from 'lucide-react';import { ReviewCommentCard, CommentInput, ReviewTimeline } from '../review';
 import { ReviewComment } from '../review/types';
 import { ShareDialog } from '../review/ShareDialog';
 // import { ReviewConnectionIndicator, type ReviewConnectionInsight } from './ReviewConnectionIndicator';
@@ -56,12 +56,6 @@ export interface ReviewScreenProps {
     onPostingTagsChange: (items: { id: string; text: string }[]) => void;
     // 🔥 Client's template hashtags — selectable chips above the freeform tags box
     templateHashtags?: string[];
-    // 🧭 Step wizard — Comments → Titles → (Thumbnails, if this task has one).
-    // Set by FullScreenReviewModalFrameIO; when enableStepWizard is false
-    // these are ignored and the sidebar behaves exactly as it does today.
-    enableStepWizard?: boolean;
-    hasThumbnailStep?: boolean;
-    wizardStep?: 'comments' | 'titles';
 
     /* video state */
     videoRef: RefObject<HTMLVideoElement | null>;
@@ -161,17 +155,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     // 🔥 Sidebar tab switcher
     type SidebarTab = 'comments' | 'titles';
     const [sidebarTab, setSidebarTab] = useState<SidebarTab>('comments');
-    // 🧭 Step wizard: when Approve advances p.wizardStep (comments → titles)
-    // in the parent, follow it here. The user can still click back to a
-    // previous tab to re-check it — that only moves this local tab, it
-    // doesn't move p.wizardStep back, so Approve still does the right thing.
-    useEffect(() => {
-        if (p.enableStepWizard && p.wizardStep) {
-            setSidebarTab(p.wizardStep);
-        }
-    }, [p.enableStepWizard, p.wizardStep]);
-    const wizardTotalSteps = p.hasThumbnailStep ? 3 : 2;
-    const wizardStepNumber = sidebarTab === 'comments' ? 1 : 2;
     // inline-edit state: which item id is currently being edited, per type
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState('');
@@ -658,10 +641,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                 {(['comments', 'titles'] as const).map(tab => {
                                     const isComments = tab === 'comments';
                                     const isActive = sidebarTab === tab;
-                                    // 🧭 In wizard mode, can't jump ahead to Titles until Comments
-                                    // has been approved (p.wizardStep advances past 'comments').
-                                    // Going back to a completed step is still allowed.
-                                    const isLocked = !!p.enableStepWizard && tab === 'titles' && p.wizardStep === 'comments';
                                     const colorClasses = isComments
                                         ? `border-blue-500 text-white bg-transparent hover:bg-blue-500 hover:text-white ${isActive ? 'bg-blue-500/20' : ''}`
                                         : `border-orange-500 text-white bg-transparent hover:bg-orange-500 hover:text-white ${isActive ? 'bg-orange-500/20' : ''}`;
@@ -669,10 +648,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                     return (
                                         <button
                                             key={tab}
-                                            onClick={() => !isLocked && handleTabChange(tab)}
-                                            disabled={isLocked}
-                                            title={isLocked ? 'Approve Comments first' : undefined}
-                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize border ${colorClasses} ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                            onClick={() => handleTabChange(tab)}
+                                            className={`text-[11px] font-semibold py-1.5 px-2 rounded-md transition-colors capitalize border ${colorClasses}`}
                                         >
                                             {tab === 'comments' ? 'Comments' : 'Titles'}
                                         </button>
@@ -924,13 +901,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                         {/* Action footer */}
                         <div className="p-4 pb-6 border-t border-[var(--review-border)] flex flex-col gap-2.5 flex-shrink-0" style={{ background: 'var(--review-bg-secondary)' }}>
-                            {p.enableStepWizard && (
-                                <ReviewStepProgress
-                                    currentStep={wizardStepNumber}
-                                    totalSteps={wizardTotalSteps}
-                                    label={sidebarTab.toUpperCase()}
-                                />
-                            )}
                             {p.userRole === 'qc' ? (
                                 <>
                                     {!p.requiresClientReview && (

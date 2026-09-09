@@ -82,16 +82,6 @@ interface FullScreenReviewModalProps {
     onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
     // 🔥 Client's template hashtags — shown as selectable chips in the tags tab
     templateHashtags?: string[];
-    // 🧭 Step wizard — Comments → Titles → (Thumbnails, if this task has one).
-    // Only ClientDashboard's client-facing review flow opts into this; every
-    // other call site (QC review, the shared-link page) keeps today's
-    // single-pass Approve/Send Back behavior unless it also passes this.
-    enableStepWizard?: boolean;
-    // Whether this task has a thumbnail file to review — same check that
-    // already gates onSwitchToThumbnail today (getPrimaryThumbnailFile).
-    // When true, the wizard has 3 steps and the final Approve inside this
-    // modal hands off to onSwitchToThumbnail instead of finalizing.
-    hasThumbnailStep?: boolean;
 }
 
 interface RevisionRequest {
@@ -209,13 +199,8 @@ export function FullScreenReviewModalFrameIO({
     onPostingDescriptionsChange,
     onPostingTagsChange,
     templateHashtags = [],
-    enableStepWizard = false,
-    hasThumbnailStep = false,
 }: FullScreenReviewModalProps) {
     const { user } = useAuth();
-
-    /* ── Step wizard: Comments → Titles → (Thumbnails elsewhere) ── */
-    const [wizardStep, setWizardStep] = useState<'comments' | 'titles'>('comments');
 
     /* ── View mode: auto-detect on mount, user can toggle ── */
     const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
@@ -505,7 +490,6 @@ export function FullScreenReviewModalFrameIO({
         setIframeLoaded(false);
         setActiveCommentId(undefined);
         setShowCommentInput(false);
-        setWizardStep('comments');
 
         if ((asset as any).taskFeedback) {
             setComments(
@@ -864,23 +848,6 @@ export function FullScreenReviewModalFrameIO({
         if (savingFeedback) return;
         
         if (status === 'approved') {
-            // 🧭 Step wizard: Comments → Titles → (Thumbnails, if this task
-            // has one). Only active when enableStepWizard is passed in —
-            // every other call site keeps today's single-pass behavior.
-            if (enableStepWizard) {
-                if (wizardStep === 'comments') {
-                    setWizardStep('titles');
-                    return; // don't finalize yet — just advance to the next step
-                }
-                // wizardStep === 'titles' — the last step inside THIS modal.
-                if (hasThumbnailStep && onSwitchToThumbnail) {
-                    onSwitchToThumbnail(); // hand off to the Thumbnails step
-                    return;
-                }
-                // No thumbnail step for this task — Titles is the final
-                // step, so fall through and finalize below like normal.
-            }
-
             if (userRole === 'qc' && onSendToClient) onSendToClient(asset);
             else onApprove(asset, true);
             setShowApprovalSuccess(true);
@@ -1125,9 +1092,6 @@ export function FullScreenReviewModalFrameIO({
         onSwitchToMobile: () => setViewMode('mobile'),
         onSwitchToDesktop: () => setViewMode('desktop'),
         handleRejectWithComment,
-        enableStepWizard,
-        hasThumbnailStep,
-        wizardStep,
     };
 
     return (
