@@ -236,7 +236,7 @@ export const ReviewCompactTransport = memo(function ReviewCompactTransport({
                     aria-valuenow={currentTime}
                     aria-label={rangeMode ? 'Select comment range' : 'Seek'}
             >
-                <div className="absolute inset-x-0 h-[3px] rounded-full bg-white/15 overflow-hidden">
+                <div className="absolute inset-x-0 h-[6px] rounded-full bg-white/15 overflow-hidden">
                         <div
                             className="h-full rounded-full bg-[var(--review-accent-purple)] transition-[width] duration-75 ease-linear"
                             style={{ width: `${progressPct}%` }}
