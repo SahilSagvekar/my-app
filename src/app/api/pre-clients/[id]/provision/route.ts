@@ -29,10 +29,14 @@ export async function POST(
     const { id: preClientId } = await params;
 
     // At most one may be true — see onboardNewClient's own precedence rule
-    // if a caller (bug) sends both.
+    // if a caller (bug) sends both. No admin UI currently lets someone
+    // choose here (PreClientsTab's "Provision" button sends no body), so
+    // default to sendMagicLink to preserve this route's original
+    // always-send-a-magic-link behavior — same reasoning as sales-leads/
+    // convert's explicit sendWelcomeEmail:true default.
     const body = await req.json().catch(() => ({}));
     const sendWelcomeEmail = body?.sendWelcomeEmail === true;
-    const sendMagicLink = body?.sendMagicLink === true;
+    const sendMagicLink = body?.sendMagicLink === true || (!body?.sendWelcomeEmail && !body?.sendMagicLink);
 
     const preClient = await db.query.preClient.findFirst({
       where: (pc, { eq }) => eq(pc.id, preClientId),

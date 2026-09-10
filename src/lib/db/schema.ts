@@ -2767,3 +2767,48 @@ export const tagToTask = pgTable("_TagToTask", {
 		}).onUpdate("cascade").onDelete("cascade"),
 	primaryKey({ columns: [table.a, table.b], name: "_TagToTask_AB_pkey"}),
 ]);
+
+// Records a Tech Fee lookup that couldn't get a fee from Stripe after one
+// immediate retry (see captureTechFeeFromCharge in stripe.ts) — instead of
+// silently dropping the fee, it's queued here for the cron/tech-fee-retry
+// sweep to keep retrying. `resolved` flips true once a fee is successfully
+// queued for the customer; rows are never deleted, so this doubles as an
+// audit trail of any tech fee that was ever at risk of being lost.
+export const techFeeFailure = pgTable("TechFeeFailure", {
+	id: text().primaryKey().notNull(),
+	stripeCustomerId: text().notNull(),
+	chargeId: text().notNull(),
+	sourceDescription: text().notNull(),
+	attempts: integer().default(1).notNull(),
+	lastError: text(),
+	resolved: boolean().default(false).notNull(),
+	resolvedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("TechFeeFailure_resolved_idx").using("btree", table.resolved.asc().nullsLast().op("bool_ops")),
+	uniqueIndex("TechFeeFailure_chargeId_key").using("btree", table.chargeId.asc().nullsLast().op("text_ops")),
+]);
+
+// One row per client per calendar month, kept in sync automatically as
+// payments land (see the Stripe webhook's updateMonthlyPaymentLedger calls)
+// — not computed on demand. `month` is stored as 'YYYY-MM'. What this feeds
+// into is still open; for now it's just an accurate running record.
+export const monthlyPaymentLedger = pgTable("MonthlyPaymentLedger", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	month: text().notNull(),
+	totalPaidCents: integer().default(0).notNull(),
+	paymentCount: integer().default(0).notNull(),
+	currency: text().default('usd').notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("MonthlyPaymentLedger_clientId_month_key").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.month.asc().nullsLast().op("text_ops")),
+	index("MonthlyPaymentLedger_month_idx").using("btree", table.month.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "MonthlyPaymentLedger_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);

@@ -10,7 +10,9 @@ import {
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../ui/dialog';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -544,6 +546,115 @@ function QuoteBuilderDialog({
   );
 }
 
+// ─── Provision Client Dialog ────────────────────────────────────────────────
+// Lets the admin pick at most one of welcome-email / magic-link before
+// converting a QUOTE_ACCEPTED pre-client into a real client — same
+// mutually-exclusive pattern as QuickAddClientDialog. A Slack channel is
+// always created regardless of what's picked here.
+
+function ProvisionClientDialog({
+  preClient,
+  onClose,
+  onProvisioned,
+}: {
+  preClient: PreClient;
+  onClose: () => void;
+  onProvisioned: () => void;
+}) {
+  const [sendWelcomeEmail, setSendWelcomeEmail] = useState(false);
+  const [sendMagicLink, setSendMagicLink] = useState(true); // matches this route's prior always-magic-link default
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleChange = (field: 'sendWelcomeEmail' | 'sendMagicLink', checked: boolean) => {
+    if (field === 'sendWelcomeEmail') {
+      setSendWelcomeEmail(checked);
+      if (checked) setSendMagicLink(false);
+    } else {
+      setSendMagicLink(checked);
+      if (checked) setSendWelcomeEmail(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/pre-clients/${preClient.id}/provision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendWelcomeEmail, sendMagicLink }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const emailNote = sendWelcomeEmail
+          ? 'Welcome email sent.'
+          : sendMagicLink
+          ? 'Magic link sent.'
+          : 'No email sent.';
+        toast.success(`${preClient.name} provisioned! ${emailNote}`);
+        onProvisioned();
+        onClose();
+      } else {
+        toast.error(data.error || 'Provisioning failed');
+      }
+    } catch (err) {
+      toast.error('Server error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md bg-white border-gray-200">
+        <DialogHeader>
+          <DialogTitle className="text-gray-900">Provision {preClient.name}</DialogTitle>
+          <DialogDescription className="text-gray-600">
+            Converts this pre-client into a full client. A Slack channel is always created.
+            Pick at most one onboarding email — leave both unchecked to create just the client and Slack channel.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="provisionWelcomeEmail"
+              checked={sendWelcomeEmail}
+              onCheckedChange={(checked) => handleChange('sendWelcomeEmail', checked === true)}
+            />
+            <Label htmlFor="provisionWelcomeEmail" className="text-gray-700 font-normal cursor-pointer">
+              Send welcome email
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="provisionMagicLink"
+              checked={sendMagicLink}
+              onCheckedChange={(checked) => handleChange('sendMagicLink', checked === true)}
+            />
+            <Label htmlFor="provisionMagicLink" className="text-gray-700 font-normal cursor-pointer">
+              Send magic link (portal setup)
+            </Label>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            {submitting ? 'Provisioning...' : 'Provision Client'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 // ─── Create PreClient Dialog ──────────────────────────────────────────────────
 
 function CreatePreClientDialog({
@@ -638,6 +749,8 @@ function CreatePreClientDialog({
   );
 }
 
+
+
 // ─── Main Tab ─────────────────────────────────────────────────────────────────
 
 export function PreClientsTab() {
@@ -647,6 +760,7 @@ export function PreClientsTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [quoteTarget, setQuoteTarget] = useState<{ preClient: PreClient; quote: Quote | null } | null>(null);
+  const [provisionTarget, setProvisionTarget] = useState<PreClient | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -785,7 +899,7 @@ export function PreClientsTab() {
                           <Edit2 size={13} className="mr-1" /> Edit Latest Quote
                         </Button>
                       )}
-                      {pc.status === 'QUOTE_ACCEPTED' && (
+                      {/* {pc.status === 'QUOTE_ACCEPTED' && (
                         <Button
                           size="sm"
                           onClick={async () => {
@@ -799,6 +913,16 @@ export function PreClientsTab() {
                               toast.error(data.error || 'Provisioning failed');
                             }
                           }}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          <CheckCircle size={13} className="mr-1" /> Provision Client
+                        </Button>
+                      )} */}
+
+                      {pc.status === 'QUOTE_ACCEPTED' && (
+                        <Button
+                          size="sm"
+                          onClick={() => setProvisionTarget(pc)}
                           className="bg-green-600 hover:bg-green-700 text-white"
                         >
                           <CheckCircle size={13} className="mr-1" /> Provision Client
@@ -904,12 +1028,29 @@ export function PreClientsTab() {
         />
       )}
 
-      {quoteTarget && (
+      {/* {quoteTarget && (
         <QuoteBuilderDialog
           preClient={quoteTarget.preClient}
           existingQuote={quoteTarget.quote}
           onClose={() => setQuoteTarget(null)}
           onSaved={load}
+        />
+      )} */}
+
+       {quoteTarget && (
+        <QuoteBuilderDialog
+          preClient={quoteTarget.preClient}
+          existingQuote={quoteTarget.quote}
+          onClose={() => setQuoteTarget(null)}
+          onSaved={load}
+        />
+      )}
+
+      {provisionTarget && (
+        <ProvisionClientDialog
+          preClient={provisionTarget}
+          onClose={() => setProvisionTarget(null)}
+          onProvisioned={load}
         />
       )}
     </div>

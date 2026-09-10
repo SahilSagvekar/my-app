@@ -152,8 +152,11 @@ interface AutoInvoiceRow {
   portalStatus: string | null;
   autoInvoiceActive: boolean;
   recurringAmount: number | null; // dollars in UI after load
+  // recurringDescription: string;
+  // dueDays: number;
+  // nextBillingDate: string | null;
+
   recurringDescription: string;
-  dueDays: number;
   nextBillingDate: string | null;
   hasActiveSubscription?: boolean;
   warning?: string | null;
@@ -582,8 +585,10 @@ export function ClientManagement() {
           clientId: row.clientId,
           autoInvoiceActive: row.autoInvoiceActive,
           recurringAmount: row.recurringAmount, // dollars
+          // recurringDescription: row.recurringDescription,
+          // dueDays: row.dueDays,
+          // nextBillingDate: row.nextBillingDate
           recurringDescription: row.recurringDescription,
-          dueDays: row.dueDays,
           nextBillingDate: row.nextBillingDate
             ? String(row.nextBillingDate).slice(0, 10)
             : null,

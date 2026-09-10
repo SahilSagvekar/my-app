@@ -1628,38 +1628,10 @@ useEffect(() => {
                         </>
                       ) : (
                         <div
-                          className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center select-none cursor-pointer bg-[#14151a] hover:bg-[#181a20] transition-colors z-10"
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const file = e.dataTransfer.files?.[0];
-                            if (file) handleStillUpload(task, file);
-                          }}
+                          className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center select-none bg-[#14151a] z-10"
                         >
-                          <ImageIcon className="h-8 w-8 text-zinc-500 stroke-[1.5] mb-2" />
-                          <span className="text-sm font-semibold text-zinc-200">Drop a still</span>
-                          <span className="text-xs text-zinc-400 mt-1">
-                            or{" "}
-                            <label
-                              className="underline underline-offset-2 hover:text-white cursor-pointer"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              browse files
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleStillUpload(task, file);
-                                }}
-                              />
-                            </label>
-                          </span>
+                          <ImageIcon className="h-7 w-7 text-zinc-600 stroke-[1.5] mb-1.5" />
+                          <span className="text-xs font-medium text-zinc-500">No thumbnail</span>
                         </div>
                       )}
 
