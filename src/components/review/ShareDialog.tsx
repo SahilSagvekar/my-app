@@ -55,21 +55,23 @@ export function ShareDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[92vw] max-w-[480px] p-6 sm:p-7 rounded-2xl bg-white border border-zinc-200 shadow-2xl overflow-hidden box-border">
-                <DialogTitle className="text-xl sm:text-2xl font-bold text-zinc-950 tracking-tight">
-                    Share Review Link
-                </DialogTitle>
-                <DialogDescription className="text-xs sm:text-sm text-zinc-500 mt-1 leading-relaxed">
-                    Invite people by email, or share the link. External viewers get view-only access.
-                </DialogDescription>
+            <DialogContent className="!flex !flex-col w-[92vw] sm:w-[450px] !max-w-[450px] p-6 sm:p-7 rounded-2xl bg-white border border-zinc-200 shadow-2xl overflow-hidden box-border min-w-0">
+                <div className="w-full min-w-0">
+                    <DialogTitle className="text-xl sm:text-[22px] font-bold text-zinc-950 tracking-tight">
+                        Share Review Link
+                    </DialogTitle>
+                    <DialogDescription className="text-xs sm:text-[13px] text-zinc-500 mt-1 leading-relaxed">
+                        Invite people by email, or share the link. External viewers get view-only access.
+                    </DialogDescription>
+                </div>
 
-                <div className="pt-4 space-y-4 w-full">
+                <div className="pt-2 space-y-4 w-full min-w-0">
                     {/* Section 1: Invite by Email */}
-                    <div className="space-y-1.5 w-full">
+                    <div className="space-y-1.5 w-full min-w-0">
                         <label className="text-[11px] font-bold tracking-wider text-zinc-600 uppercase block">
                             INVITE BY EMAIL
                         </label>
-                        <div className="flex items-center gap-2.5 w-full">
+                        <div className="flex items-center gap-2 w-full min-w-0">
                             <div className="relative flex-1 min-w-0">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none shrink-0" />
                                 <Input
@@ -83,7 +85,7 @@ export function ShareDialog({
                                             handleSendEmail();
                                         }
                                     }}
-                                    className="w-full pl-9 pr-3 h-10 bg-white border-zinc-300 text-zinc-900 placeholder:text-zinc-400 rounded-lg text-xs sm:text-sm focus-visible:ring-1 focus-visible:ring-zinc-900"
+                                    className="w-full min-w-0 pl-9 pr-3 h-10 bg-white border-zinc-300 text-zinc-900 placeholder:text-zinc-400 rounded-lg text-xs sm:text-sm focus-visible:ring-1 focus-visible:ring-zinc-900"
                                 />
                             </div>
                             <Button
@@ -102,21 +104,21 @@ export function ShareDialog({
                     </div>
 
                     {/* Divider */}
-                    <div className="border-t border-zinc-200/80 my-4" />
+                    <div className="border-t border-zinc-200/80 my-3" />
 
                     {/* Section 2: Or Share a Link */}
-                    <div className="space-y-1.5 w-full">
+                    <div className="space-y-1.5 w-full min-w-0">
                         <label className="text-[11px] font-bold tracking-wider text-zinc-600 uppercase block">
                             OR SHARE A LINK
                         </label>
-                        <div className="flex items-center gap-2.5 w-full">
+                        <div className="flex items-center gap-2 w-full min-w-0">
                             <div
-                                className="flex-1 min-w-0 bg-black text-white text-xs sm:text-[13px] font-mono px-3.5 py-2.5 rounded-lg border border-black select-all overflow-hidden flex items-center"
+                                className="flex-1 min-w-0 bg-black text-white text-xs sm:text-[13px] font-mono px-3.5 py-2.5 rounded-lg border border-black select-all overflow-hidden"
                                 title={shareLink}
                             >
-                                <span className="truncate block w-full">
+                                <p className="truncate w-full m-0 p-0 block leading-tight">
                                     {shareLink || 'Generating link...'}
-                                </span>
+                                </p>
                             </div>
                             <Button
                                 type="button"
@@ -139,8 +141,8 @@ export function ShareDialog({
                     </div>
 
                     {/* Section 3: Read-only Note Box */}
-                    <div className="bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 mt-4 w-full">
-                        <p className="text-xs text-blue-900 leading-relaxed">
+                    <div className="bg-blue-50/80 border border-blue-100 rounded-xl p-3.5 mt-3 w-full min-w-0">
+                        <p className="text-xs text-blue-900 leading-relaxed m-0">
                             <strong className="font-bold text-blue-950">Note:</strong> External viewers have view-only access. They can view the content and add comments but cannot approve or submit final feedback through the link.
                         </p>
                     </div>
