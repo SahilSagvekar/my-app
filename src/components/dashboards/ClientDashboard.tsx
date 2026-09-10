@@ -42,6 +42,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { ShareDialog } from '../review/ShareDialog';
 import { Checkbox } from '../ui/checkbox';
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -49,7 +50,7 @@ import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
 
 // 🚀 Performance imports
 import { useClientTasks } from '../../lib/hooks/useClientTasks';
-import { ClientTaskCard } from '../client/ClientTaskCard';
+import { ClientTaskCard, formatDeliverableTypeTitle } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
 
 interface TaskFile {
@@ -221,7 +222,8 @@ export function ClientDashboard() {
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showTextPostReview, setShowTextPostReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
-  const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted'>('pending');
+  const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted' | 'rejected'>('pending');
+  const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>('all');
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1115,19 +1117,33 @@ export function ClientDashboard() {
 
   /* ----------------------------- STATS (memoized) -------------------------- */
 
-  const { pendingReviews, approvedCount, postedCount, overdueReviews } = useMemo(() => ({
-    // pendingReviews: tasks.filter(task => !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED')).length,
+  const { pendingReviews, approvedCount, postedCount, rejectedCount, overdueReviews } = useMemo(() => ({
     pendingReviews: tasks.filter(task => task.status === 'CLIENT_REVIEW').length,
     approvedCount: tasks.filter(task => task.status === 'COMPLETED').length,
     postedCount: tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length,
+    rejectedCount: tasks.filter(task => task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED').length,
     overdueReviews: tasks.filter(task => isOverdue(task)).length,
   }), [tasks]);
 
+  const availableDeliverableTypes = useMemo(() => {
+    const types = new Set<string>();
+    tasks.forEach((task) => {
+      const rawType = (task as any).deliverableType || task.monthlyDeliverable?.type || task.taskType;
+      if (rawType) {
+        types.add(formatDeliverableTypeTitle(rawType));
+      }
+    });
+    return Array.from(types).sort();
+  }, [tasks]);
+
   const filteredTasks = useMemo(() => {
     return tasks.filter(task => {
-      // if (currentFilter === 'pending') {
-      //   return !(task.status === 'COMPLETED' || task.status === 'SCHEDULED' || task.status === 'POSTED');
-      // }
+      // Deliverable type filter
+      if (deliverableTypeFilter !== 'all') {
+        const rawType = (task as any).deliverableType || task.monthlyDeliverable?.type || task.taskType || '';
+        const formatted = formatDeliverableTypeTitle(rawType);
+        if (formatted !== deliverableTypeFilter) return false;
+      }
 
       if (currentFilter === "pending") {
         return task.status === "CLIENT_REVIEW";
@@ -1138,9 +1154,12 @@ export function ClientDashboard() {
       if (currentFilter === 'posted') {
         return task.status === 'POSTED' || task.status === 'SCHEDULED';
       }
+      if (currentFilter === 'rejected') {
+        return task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED';
+      }
       return true;
     });
-  }, [tasks, currentFilter]);
+  }, [tasks, currentFilter, deliverableTypeFilter]);
 
   /* -------------------------------------------------------------------------- */
 
@@ -1187,83 +1206,106 @@ export function ClientDashboard() {
         {pageView === 'content' && (
           <>
         {/* Page Header & Filter Row */}
-        {/* lg:items-end so the filter tabs sit on the same baseline as the bottom
-            of the description line, rather than floating centered against the
-            two-line title block. */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b border-gray-200">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-zinc-200">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
-            <p className="text-muted-foreground mt-1 text-sm sm:text-lg hidden sm:block">
-              Review content from your team and approve or request revisions
+            <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-zinc-950 leading-tight">Content Review</h1>
+            <p className="text-zinc-500 mt-1 text-xs sm:text-[13px]">
+              Review submitted work and approve or reject with feedback
             </p>
           </div>
 
-          {/* 🔥 Desktop app only — lets the client switch off automatic
-              downloading and go back to picking files manually. */}
-          {typeof window !== 'undefined' && (window as any).e8?.isDesktopApp && (
-            <div className="flex items-center gap-2 shrink-0">
-              <Switch
-                id="auto-download-toggle"
-                checked={autoDownloadEnabled}
-                onCheckedChange={toggleAutoDownload}
-              />
-              <label htmlFor="auto-download-toggle" className="text-sm text-gray-600 whitespace-nowrap cursor-pointer">
-                Auto-download videos
-              </label>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Desktop App auto-download toggle */}
+            {typeof window !== 'undefined' && (window as any).e8?.isDesktopApp && (
+              <div className="flex items-center gap-2 shrink-0 mr-2">
+                <Switch
+                  id="auto-download-toggle"
+                  checked={autoDownloadEnabled}
+                  onCheckedChange={toggleAutoDownload}
+                />
+                <label htmlFor="auto-download-toggle" className="text-xs text-zinc-600 whitespace-nowrap cursor-pointer">
+                  Auto-download
+                </label>
+              </div>
+            )}
 
-          <div className="flex items-center gap-4 w-full lg:w-auto overflow-x-auto">
-            <Tabs
-              value={currentFilter}
-              onValueChange={(val: any) => setCurrentFilter(val)}
-              className="w-full lg:w-auto"
-            >
-              <TabsList className="bg-zinc-100 p-0.5 grid grid-cols-3 w-full lg:w-auto">
-                <TabsTrigger
-                  value="pending"
-                  className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-yellow-500"
-                >
-                  Pending
-                  {pendingReviews > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="h-6 px-2 text-xs bg-yellow-100 text-yellow-800"
-                    >
-                      {pendingReviews}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="approved"
-                  className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-green-700"
-                >
-                  Approved
-                  {approvedCount > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="h-6 px-2 text-xs bg-green-100 text-green-800"
-                    >
-                      {approvedCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="posted"
-                  className="w-full px-8 sm:px-10 py-3.5 min-h-[44px] sm:min-h-0 data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg text-sm font-semibold flex items-center justify-center gap-2 whitespace-nowrap text-blue-700"
-                >
-                  Posted
-                  {postedCount > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="h-6 px-2 text-xs bg-blue-100 text-blue-800"
-                    >
-                      {postedCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {/* Deliverables Dropdown Filter */}
+            <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
+              <SelectTrigger className="h-9 w-[155px] text-xs sm:text-sm font-medium bg-white border border-zinc-200 rounded-lg text-zinc-800 hover:bg-zinc-50/80 shadow-none focus:ring-0 focus:border-zinc-300 cursor-pointer">
+                <SelectValue placeholder="All Deliverables" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Deliverables</SelectItem>
+                {availableDeliverableTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Status Filter Badges */}
+            <div className="flex items-center gap-1.5 p-1 bg-zinc-100/80 rounded-xl border border-zinc-200/60">
+              <button
+                type="button"
+                onClick={() => setCurrentFilter('pending')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                  currentFilter === 'pending'
+                    ? 'bg-white text-amber-700 shadow-xs border border-amber-200/60'
+                    : 'text-zinc-600 hover:text-amber-700 hover:bg-white/50'
+                }`}
+              >
+                <span>Pending</span>
+                <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800">
+                  {pendingReviews}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCurrentFilter('approved')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                  currentFilter === 'approved'
+                    ? 'bg-white text-emerald-700 shadow-xs border border-emerald-200/60'
+                    : 'text-zinc-600 hover:text-emerald-700 hover:bg-white/50'
+                }`}
+              >
+                <span>Approved</span>
+                <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                  {approvedCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCurrentFilter('posted')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                  currentFilter === 'posted'
+                    ? 'bg-white text-blue-700 shadow-xs border border-blue-200/60'
+                    : 'text-zinc-600 hover:text-blue-700 hover:bg-white/50'
+                }`}
+              >
+                <span>Posted</span>
+                <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-800">
+                  {postedCount}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCurrentFilter('rejected')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                  currentFilter === 'rejected'
+                    ? 'bg-white text-red-700 shadow-xs border border-red-200/60'
+                    : 'text-zinc-600 hover:text-red-700 hover:bg-white/50'
+                }`}
+              >
+                <span>Rejected</span>
+                <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-red-100 text-red-800">
+                  {rejectedCount}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1280,7 +1322,7 @@ export function ClientDashboard() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
               {/* 🚀 Show subtle revalidating indicator */}
               {isValidating && (
                 <div className="col-span-full flex items-center justify-center py-2">

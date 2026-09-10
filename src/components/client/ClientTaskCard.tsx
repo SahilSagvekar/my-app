@@ -1,24 +1,17 @@
 'use client';
 
 import { memo, useState, useEffect } from 'react';
-import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { getDeliverableTypeColor } from '../constants/deliverableColors';
 import {
-  FileText,
-  Check,
-  Share,
+  Eye,
+  Send,
   Download,
+  Check,
 } from 'lucide-react';
 import {
   getTaskCardThumbnailUrl,
   taskThumbnailFallbackLabel,
 } from '@/lib/task-thumbnail';
-
-// Shared shape for both action buttons so they stay identical.
-const PILL =
-  'h-7 min-h-[36px] sm:min-h-0 rounded-full px-3 border text-[10px] font-bold ' +
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap transition-colors';
 
 interface TaskFile {
   id: string;
@@ -36,6 +29,7 @@ interface ClientTask {
   title: string;
   status: string;
   taskType?: string;
+  deliverableType?: string;
   files?: TaskFile[];
   monthlyDeliverable?: any;
 }
@@ -48,6 +42,28 @@ interface ClientTaskCardProps {
   onShare: (e: React.MouseEvent, task: ClientTask) => void;
   onDownload: (task: ClientTask) => void;
   isSharing: boolean;
+}
+
+// Helper to format deliverable type names into singular form (e.g., "Long Form Videos" -> "Long Form Video")
+export function formatDeliverableTypeTitle(title: string): string {
+  if (!title) return '';
+  return title
+    .replace(/_/g, ' ')
+    .replace(/\b(Long\s+Form\s+)Videos\b/gi, '$1Video')
+    .replace(/\b(Short\s+Form\s+)Videos\b/gi, '$1Video')
+    .replace(/\b(Square\s+Form\s+)Videos\b/gi, '$1Video')
+    .replace(/\b(Beta\s+Short\s+Form\s+)Videos\b/gi, '$1Video')
+    .replace(/\b(Snapchat\s+)Videos\b/gi, '$1Video')
+    .replace(/\bVideos\b/gi, 'Video')
+    .replace(/\bPosts\b/gi, 'Post')
+    .replace(/\bThumbnails\b/gi, 'Thumbnail')
+    .replace(/\bPodcasts\b/gi, 'Podcast');
+}
+
+// Helper to check if deliverable is widescreen long-form
+export function isLongFormTask(task: any): boolean {
+  const t = (task.deliverableType || task.monthlyDeliverable?.type || task.taskType || task.title || '').toLowerCase();
+  return t.includes('long form') || t.includes('longform') || t === 'lf';
 }
 
 // Helper to get thumbnail from task files
@@ -66,11 +82,16 @@ export const ClientTaskCard = memo(function ClientTaskCard({
 }: ClientTaskCardProps) {
   const displayThumbnail = thumbnail || getTaskThumbnailFromFiles(task.files);
 
-  // 🔥 Desktop app only — checks whether this task's video file(s) are
-  // already saved to the client's disk, so the Download button can show
-  // "Downloaded" instead once auto-download (or a manual click) has
-  // finished. window.e8 doesn't exist in a normal browser tab, so this
-  // is a no-op there.
+  const rawTitle = (task.taskType || '').toLowerCase().includes('text post')
+    ? task.title
+    : task.monthlyDeliverable?.type
+    ? task.monthlyDeliverable.type
+    : task.title || 'Content';
+
+  const cardTitle = formatDeliverableTypeTitle(rawTitle);
+  const isLongForm = isLongFormTask(task);
+
+  // Desktop app check for local cached files
   const [isFullyDownloaded, setIsFullyDownloaded] = useState(false);
 
   useEffect(() => {
@@ -93,76 +114,83 @@ export const ClientTaskCard = memo(function ClientTaskCard({
     };
   }, [task.files]);
 
-  // Same per-type colors QC and editors see, so a Short Form card reads the same
-  // to a client as it does internally.
-  const typeColors = getDeliverableTypeColor(
-    (task as any).deliverableType || (task as any).taskType || ''
-  );
-
   return (
-    <Card
-      // gap-0 overrides the Card component's default gap-6, which was adding 24px
-      // of dead space between the thumbnail and the title on top of the body padding.
-      className={`group cursor-pointer border shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col gap-0 h-full hover:shadow-md hover:ring-1 ${typeColors.bg} ${typeColors.border} ${typeColors.ring} ${
-        isSelected ? 'ring-2 ring-primary' : ''
+    <div
+      className={`group cursor-pointer rounded-2xl transition-all duration-200 overflow-hidden flex flex-col h-full bg-[#111113] border shadow-sm hover:shadow-md ${
+        isLongForm
+          ? 'col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2 xl:col-span-2'
+          : 'col-span-1'
+      } ${
+        isSelected
+          ? 'ring-2 ring-blue-500 border-blue-500'
+          : 'border-zinc-800 hover:border-zinc-700'
       }`}
       onClick={() => onTaskClick(task)}
     >
       {/* Visual Header / Thumbnail Area */}
-      <div className="h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold">
-        {displayThumbnail && (
-          <img
-            src={displayThumbnail}
-            alt={task.title}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 z-10"
-            loading="lazy"
-            onError={(e) => {
-              // Hide broken image so fallback shows through
-              (e.target as HTMLImageElement).style.opacity = '0';
-            }}
-          />
+      <div
+        className={`w-full ${
+          isLongForm ? 'aspect-video' : 'aspect-[4/5]'
+        } relative flex items-center justify-center bg-zinc-900 overflow-hidden select-none`}
+      >
+        {displayThumbnail ? (
+          <>
+            <img
+              src={displayThumbnail}
+              alt={cardTitle}
+              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 z-10"
+              loading="lazy"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.opacity = '0';
+              }}
+            />
+            <div className="absolute inset-0 bg-black/10 z-10 pointer-events-none" />
+          </>
+        ) : (
+          <div className="text-zinc-500 text-xs font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
+            {taskThumbnailFallbackLabel(task.files)}
+          </div>
         )}
-        {/* Fallback behind the image — "Generating…" while auto-thumb is pending */}
-        <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
-          {taskThumbnailFallbackLabel(task.files)}
-        </div>
-
-        {displayThumbnail && <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />}
       </div>
 
-      {/* Card Body */}
-      <div className="p-4 flex flex-col gap-3">
-        {/* Title takes all remaining width; the file count only takes what it
-            needs and sits flush right — which is the same edge as the Download
-            pill below, since both rows share this container's padding. */}
-        <div className="flex items-center gap-2">
-          <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-base leading-snug line-clamp-1">{(task.taskType || '').toLowerCase().includes('text post') ? task.title : task.monthlyDeliverable?.type ? task.monthlyDeliverable.type.replace(/_/g, " ") : "Content"}</h4>
-          <span className="shrink-0 flex items-center gap-1.5 text-zinc-500 text-xs font-semibold">
-            <FileText className="h-3.5 w-3.5" />
-            {task.files?.length || 0}
-          </span>
-        </div>
+      {/* Dark Action Bottom Bar */}
+      <div className="p-3 bg-black flex flex-col gap-2">
+        {/* Primary Action Button: Review */}
+        <Button
+          type="button"
+          className="w-full bg-white hover:bg-zinc-100 text-zinc-950 font-bold text-xs sm:text-sm h-9 rounded-lg flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            onTaskClick(task);
+          }}
+        >
+          <Eye className="h-4 w-4 stroke-[2.2]" />
+          Review
+        </Button>
 
-        {/* Actions Row — no status pill: every card in a given tab already shares
-            that status, so repeating it on each card said nothing. The two actions
-            split the row evenly instead. */}
-        <div className="flex items-stretch gap-2 text-[11px]">
+        {/* Secondary Actions Row: Share & Download */}
+        <div className="flex items-center gap-2">
           <Button
-            variant="secondary"
-            className={`${PILL} flex-1 bg-orange-500 text-white border-orange-500 shadow-sm hover:bg-orange-600 hover:border-orange-600 active:bg-orange-700`}
-            onClick={(e) => onShare(e, task)}
+            type="button"
+            variant="outline"
+            className="flex-1 bg-[#1c1c1f] hover:bg-[#28282d] text-zinc-200 hover:text-white border-white/10 text-xs font-semibold h-8 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare(e, task);
+            }}
             disabled={isSharing}
           >
-            <Share className="h-3 w-3" />
+            <Send className="h-3 w-3 stroke-[2]" />
             Share
           </Button>
 
           <Button
-            variant="secondary"
-            className={`${PILL} flex-1 text-white shadow-sm ${
+            type="button"
+            variant="outline"
+            className={`flex-1 text-xs font-semibold h-8 rounded-lg flex items-center justify-center gap-1.5 transition-colors border cursor-pointer ${
               isFullyDownloaded
-                ? 'bg-emerald-500 border-emerald-500 hover:bg-emerald-600 hover:border-emerald-600'
-                : 'bg-blue-600 border-blue-600 hover:bg-blue-700 hover:border-blue-700 active:bg-blue-800'
+                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/80 hover:text-emerald-200'
+                : 'bg-[#1c1c1f] hover:bg-[#28282d] text-zinc-200 hover:text-white border-white/10'
             }`}
             onClick={(e) => {
               e.stopPropagation();
@@ -170,18 +198,17 @@ export const ClientTaskCard = memo(function ClientTaskCard({
             }}
           >
             {isFullyDownloaded ? (
-              <Check className="h-3 w-3" />
+              <Check className="h-3 w-3 stroke-[2.5]" />
             ) : (
-              <Download className="h-3 w-3" />
+              <Download className="h-3 w-3 stroke-[2]" />
             )}
             {isFullyDownloaded ? 'Saved' : 'Download'}
           </Button>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison for better memoization
   return (
     prevProps.task.id === nextProps.task.id &&
     prevProps.task.status === nextProps.task.status &&
