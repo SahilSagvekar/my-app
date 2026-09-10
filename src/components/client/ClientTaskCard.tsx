@@ -173,7 +173,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
           <Button
             type="button"
             variant="outline"
-            className="flex-1 bg-[#1c1c1f] hover:bg-[#28282d] text-zinc-200 hover:text-white border-white/10 text-xs font-semibold h-8 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            className="flex-1 bg-[#1c1c1f] hover:bg-[#1c1c1f] text-zinc-300 hover:text-orange-500 border border-zinc-800 hover:border-orange-500 text-xs font-semibold h-8 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer shadow-none"
             onClick={(e) => {
               e.stopPropagation();
               onShare(e, task);
@@ -187,10 +187,10 @@ export const ClientTaskCard = memo(function ClientTaskCard({
           <Button
             type="button"
             variant="outline"
-            className={`flex-1 text-xs font-semibold h-8 rounded-lg flex items-center justify-center gap-1.5 transition-colors border cursor-pointer ${
+            className={`flex-1 text-xs font-semibold h-8 rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 border cursor-pointer shadow-none ${
               isFullyDownloaded
-                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/80 hover:text-emerald-200'
-                : 'bg-[#1c1c1f] hover:bg-[#28282d] text-zinc-200 hover:text-white border-white/10'
+                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/90 hover:border-emerald-400 hover:text-emerald-200'
+                : 'bg-[#1c1c1f] hover:bg-[#1c1c1f] text-zinc-300 hover:text-blue-400 border-zinc-800 hover:border-blue-500'
             }`}
             onClick={(e) => {
               e.stopPropagation();

@@ -1208,8 +1208,8 @@ export function ClientDashboard() {
         {/* Page Header & Filter Row */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-zinc-200">
           <div>
-            <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-zinc-950 leading-tight">Content Review</h1>
-            <p className="text-zinc-500 mt-1 text-xs sm:text-[13px]">
+            <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-zinc-950 leading-tight">Content Review</h1>
+            <p className="text-zinc-500 mt-1 text-xs sm:text-[13px] font-normal">
               Review submitted work and approve or reject with feedback
             </p>
           </div>
@@ -1217,7 +1217,7 @@ export function ClientDashboard() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Desktop App auto-download toggle */}
             {typeof window !== 'undefined' && (window as any).e8?.isDesktopApp && (
-              <div className="flex items-center gap-2 shrink-0 mr-2">
+              <div className="flex items-center gap-2 shrink-0 mr-1">
                 <Switch
                   id="auto-download-toggle"
                   checked={autoDownloadEnabled}
@@ -1231,7 +1231,7 @@ export function ClientDashboard() {
 
             {/* Deliverables Dropdown Filter */}
             <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-              <SelectTrigger className="h-9 w-[155px] text-xs sm:text-sm font-medium bg-white border border-zinc-200 rounded-lg text-zinc-800 hover:bg-zinc-50/80 shadow-none focus:ring-0 focus:border-zinc-300 cursor-pointer">
+              <SelectTrigger className="h-10 w-[160px] text-xs sm:text-[13px] font-semibold bg-white border border-zinc-200 rounded-xl text-zinc-900 hover:border-zinc-300 shadow-xs focus:ring-0 cursor-pointer">
                 <SelectValue placeholder="All Deliverables" />
               </SelectTrigger>
               <SelectContent>
@@ -1244,19 +1244,19 @@ export function ClientDashboard() {
               </SelectContent>
             </Select>
 
-            {/* Status Filter Badges */}
-            <div className="flex items-center gap-1.5 p-1 bg-zinc-100/80 rounded-xl border border-zinc-200/60">
+            {/* Status Filter Badges Track */}
+            <div className="flex items-center gap-1 p-1.5 bg-[#f1f1f4] rounded-2xl border border-black/5">
               <button
                 type="button"
                 onClick={() => setCurrentFilter('pending')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   currentFilter === 'pending'
-                    ? 'bg-white text-amber-700 shadow-xs border border-amber-200/60'
-                    : 'text-zinc-600 hover:text-amber-700 hover:bg-white/50'
+                    ? 'bg-white text-[#c25e00] shadow-[0_2px_8px_rgba(0,0,0,0.07)] border border-black/5'
+                    : 'text-[#c25e00] hover:bg-white/50'
                 }`}
               >
                 <span>Pending</span>
-                <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800">
+                <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-[#fef3c7] text-[#92400e]">
                   {pendingReviews}
                 </span>
               </button>
@@ -1264,14 +1264,14 @@ export function ClientDashboard() {
               <button
                 type="button"
                 onClick={() => setCurrentFilter('approved')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   currentFilter === 'approved'
-                    ? 'bg-white text-emerald-700 shadow-xs border border-emerald-200/60'
-                    : 'text-zinc-600 hover:text-emerald-700 hover:bg-white/50'
+                    ? 'bg-white text-[#15803d] shadow-[0_2px_8px_rgba(0,0,0,0.07)] border border-black/5'
+                    : 'text-[#15803d] hover:bg-white/50'
                 }`}
               >
                 <span>Approved</span>
-                <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-[#dcfce7] text-[#166534]">
                   {approvedCount}
                 </span>
               </button>
@@ -1279,29 +1279,32 @@ export function ClientDashboard() {
               <button
                 type="button"
                 onClick={() => setCurrentFilter('posted')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   currentFilter === 'posted'
-                    ? 'bg-white text-blue-700 shadow-xs border border-blue-200/60'
-                    : 'text-zinc-600 hover:text-blue-700 hover:bg-white/50'
+                    ? 'bg-white text-[#2563eb] shadow-[0_2px_8px_rgba(0,0,0,0.07)] border border-black/5'
+                    : 'text-[#2563eb] hover:bg-white/50'
                 }`}
               >
                 <span>Posted</span>
-                <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-800">
+                <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-[#dbeafe] text-[#1e40af]">
                   {postedCount}
                 </span>
               </button>
 
+              {/* Subtle Vertical Divider */}
+              <div className="w-[1px] h-4 bg-zinc-300/80 mx-0.5 self-center" />
+
               <button
                 type="button"
                 onClick={() => setCurrentFilter('rejected')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs sm:text-[13px] font-bold flex items-center gap-2 transition-all cursor-pointer ${
                   currentFilter === 'rejected'
-                    ? 'bg-white text-red-700 shadow-xs border border-red-200/60'
-                    : 'text-zinc-600 hover:text-red-700 hover:bg-white/50'
+                    ? 'bg-white text-[#dc2626] shadow-[0_2px_8px_rgba(0,0,0,0.07)] border border-black/5'
+                    : 'text-[#dc2626] hover:bg-white/50'
                 }`}
               >
                 <span>Rejected</span>
-                <span className="px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-red-100 text-red-800">
+                <span className="px-2 py-0.5 rounded-md text-xs font-bold bg-[#fee2e2] text-[#991b1b]">
                   {rejectedCount}
                 </span>
               </button>
