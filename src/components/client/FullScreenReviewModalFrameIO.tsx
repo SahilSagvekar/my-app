@@ -494,6 +494,50 @@ export function FullScreenReviewModalFrameIO({
         };
     }, []);
 
+    /* ── Fetch feedback from server ── */
+    const fetchFeedback = useCallback(async () => {
+        const id = taskId || asset?.id;
+        if (!id) return;
+        try {
+            const res = await fetch(`/api/tasks/${id}/feedback`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.feedback && Array.isArray(data.feedback)) {
+                const targetFolder = currentFileSection?.folderType || 'main';
+                const mappedComments: ReviewComment[] = data.feedback
+                    .filter((fb: any) => (fb.folderType || 'main') === targetFolder)
+                    .map((fb: any) => {
+                        const ts = fb.timestamp || '0:00';
+                        const parts = ts.split(':');
+                        const tsSeconds = parts.length === 2 ? parseInt(parts[0]) * 60 + parseInt(parts[1]) : 0;
+                        return {
+                            id: fb.id,
+                            taskId: id,
+                            authorId: String(fb.user?.id || fb.createdBy || 0),
+                            authorName: fb.user?.name || 'Member',
+                            authorRole: fb.user?.role || undefined,
+                            content: fb.feedback,
+                            timestamp: ts,
+                            timestampSeconds: tsSeconds,
+                            isGeneral: fb.timestamp === 'General' || undefined,
+                            category: fb.category ? fb.category.split(',') : ['other'],
+                            createdAt: new Date(fb.createdAt),
+                            resolved: fb.status === 'resolved',
+                            version: fb.file?.version || 1,
+                            screenshotUrl: fb.screenshotUrl || undefined,
+                            annotations: fb.annotations || undefined,
+                            voiceUrl: fb.voiceUrl || undefined,
+                            voiceDurationSec: fb.voiceDurationSec || undefined,
+                            attachments: fb.attachments || undefined,
+                        };
+                    });
+                setComments(mappedComments);
+            }
+        } catch (err) {
+            console.error('Error fetching feedback:', err);
+        }
+    }, [taskId, asset?.id, currentFileSection?.folderType]);
+
     /* ── Initialise on asset change ── */
     useEffect(() => {
         if (!asset) return;
@@ -514,34 +558,11 @@ export function FullScreenReviewModalFrameIO({
         setActiveCommentId(undefined);
         setShowCommentInput(false);
 
-        if ((asset as any).taskFeedback) {
-            setComments(
-                (asset as any).taskFeedback.map((fb: any) => {
-                    const ts = fb.timestamp || '0:00';
-                    const parts = ts.split(':');
-                    const tsSeconds = parts.length === 2 ? parseInt(parts[0]) * 60 + parseInt(parts[1]) : 0;
-                    return {
-                        id: fb.id,
-                        taskId: asset.id,
-                        authorId: String(fb.user?.id || 0),
-                        authorName: fb.user?.name || 'Member',
-                        authorRole: fb.user?.role || undefined,
-                        content: fb.feedback,
-                        timestamp: ts,
-                        timestampSeconds: tsSeconds,
-                        category: fb.category ? fb.category.split(',') : ['other'],
-                        createdAt: new Date(fb.createdAt),
-                        resolved: fb.status === 'resolved',
-                        version: fb.file?.version || 1,
-                    };
-                }),
-            );
-        } else {
-            setComments([]);
-        }
+        // Fetch fresh comments from the API whenever the asset opens
+        fetchFeedback();
 
         if (user) fetchExistingShareLinks(taskId || asset.id);
-    }, [asset, taskId, user]);
+    }, [asset, taskId, user, fetchFeedback]);
 
     useEffect(() => {
         setBufferingEvents(0);
@@ -745,24 +766,87 @@ export function FullScreenReviewModalFrameIO({
 
     /* ── Comment handlers ── */
     const handleCommentSubmit = async (comment: Omit<ReviewComment, 'id' | 'createdAt'>) => {
+        const tempId = Date.now().toString();
         const newComment: ReviewComment = {
             ...comment,
             authorRole: comment.authorRole ?? userRole,
-            id: Date.now().toString(),
+            id: tempId,
             createdAt: new Date(),
             version: currentVersionNumber,
         };
+        // Optimistic UI update
         setComments(prev => [...prev, newComment]);
         setShowCommentInput(false);
+
+        // Immediate background persistence to database
+        const id = taskId || asset?.id;
+        if (!id) return;
+        try {
+            const ver = asset?.versions.find(v => parseInt(v.number) === currentVersionNumber);
+            const res = await fetch(`/api/tasks/${id}/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    folderType: currentFileSection?.folderType || 'main',
+                    fileId: ver?.id || currentFileSection?.fileId || null,
+                    feedback: comment.content,
+                    timestamp: comment.timestamp || '0:00',
+                    category: Array.isArray(comment.category) ? comment.category.join(',') : comment.category,
+                    createdBy: user?.id || 0,
+                    screenshotUrl: (comment as any).screenshotUrl || null,
+                    annotations: (comment as any).annotations || null,
+                    voiceUrl: (comment as any).voiceUrl || null,
+                    voiceDurationSec: (comment as any).voiceDurationSec || null,
+                    attachments: (comment as any).attachments || null,
+                }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.feedback?.id) {
+                    setComments(prev => prev.map(c => c.id === tempId ? {
+                        ...c,
+                        id: data.feedback.id,
+                        authorId: String(data.feedback.user?.id || data.feedback.createdBy || user?.id || 0),
+                        authorName: data.feedback.user?.name || user?.name || 'Member',
+                        authorRole: data.feedback.user?.role || userRole,
+                    } : c));
+                }
+            } else {
+                toast.error('Failed to save comment to server');
+            }
+        } catch (err) {
+            console.error('Error saving comment:', err);
+            toast.error('Failed to save comment to server');
+        }
     };
 
-    const handleCommentResolve = useCallback((id: string, resolved: boolean) => {
+    const handleCommentResolve = useCallback(async (id: string, resolved: boolean) => {
         setComments(prev => prev.map(c => c.id === id ? { ...c, resolved } : c));
-    }, []);
+        const targetTaskId = taskId || asset?.id;
+        if (targetTaskId && !/^\d{13}$/.test(id)) {
+            try {
+                await fetch(`/api/tasks/${targetTaskId}/feedback?feedbackId=${id}&action=${resolved ? 'resolve' : 'delete'}`, {
+                    method: 'DELETE',
+                });
+            } catch (err) {
+                console.error('Error resolving feedback:', err);
+            }
+        }
+    }, [taskId, asset?.id]);
 
-    const handleCommentDelete = useCallback((id: string) => {
+    const handleCommentDelete = useCallback(async (id: string) => {
         setComments(prev => prev.filter(c => c.id !== id));
-    }, []);
+        const targetTaskId = taskId || asset?.id;
+        if (targetTaskId && !/^\d{13}$/.test(id)) {
+            try {
+                await fetch(`/api/tasks/${targetTaskId}/feedback?feedbackId=${id}`, {
+                    method: 'DELETE',
+                });
+            } catch (err) {
+                console.error('Error deleting feedback:', err);
+            }
+        }
+    }, [taskId, asset?.id]);
 
     const handleCommentEdit = useCallback(async (id: string, newContent: string) => {
         // Update local state immediately

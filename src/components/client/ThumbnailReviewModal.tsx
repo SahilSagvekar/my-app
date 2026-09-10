@@ -304,14 +304,54 @@ export function ThumbnailReviewModal({
 
     /* ── Comment handlers ── */
     const handleCommentSubmit = async (comment: Omit<ReviewComment, 'id' | 'createdAt'>) => {
+        const tempId = Date.now().toString();
         const newComment: ReviewComment = {
             ...comment,
-            id: Date.now().toString(),
+            id: tempId,
             createdAt: new Date(),
             version: currentNumber,
         };
+        // Optimistic UI update
         setComments(prev => [newComment, ...prev]);
         setShowCommentInput(false);
+
+        // Immediate background persistence to database
+        if (!taskId || !currentFile) return;
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    folderType: currentFile.folderType || 'thumbnails',
+                    fileId: currentFile.id,
+                    feedback: comment.content,
+                    timestamp: comment.timestamp || `#${currentNumber}`,
+                    category: Array.isArray(comment.category) ? comment.category.join(',') : comment.category,
+                    createdBy: user?.id || 0,
+                    screenshotUrl: (comment as any).screenshotUrl || null,
+                    annotations: (comment as any).annotations || null,
+                    voiceUrl: (comment as any).voiceUrl || null,
+                    voiceDurationSec: (comment as any).voiceDurationSec || null,
+                    attachments: (comment as any).attachments || null,
+                }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.feedback?.id) {
+                    setComments(prev => prev.map(c => c.id === tempId ? {
+                        ...c,
+                        id: data.feedback.id,
+                        authorId: String(data.feedback.user?.id || data.feedback.createdBy || user?.id || 0),
+                        authorName: data.feedback.user?.name || user?.name || 'Member',
+                    } : c));
+                }
+            } else {
+                toast.error('Failed to save comment to server');
+            }
+        } catch (err) {
+            console.error('Error saving thumbnail comment:', err);
+            toast.error('Failed to save comment to server');
+        }
     };
 
     /* ── Approval / revision handlers ── */
@@ -762,12 +802,18 @@ export function ThumbnailReviewModal({
                                                     <div key={comment.id}>
                                                         <ReviewCommentCard
                                                             comment={comment}
-                                                            onResolve={(id, resolved) =>
-                                                                setComments(prev => prev.map(c => c.id === id ? { ...c, resolved } : c))
-                                                            }
-                                                            onDelete={(id) =>
-                                                                setComments(prev => prev.filter(c => c.id !== id))
-                                                            }
+                                                            onResolve={(id, resolved) => {
+                                                                setComments(prev => prev.map(c => c.id === id ? { ...c, resolved } : c));
+                                                                if (taskId && !/^\d{13}$/.test(id)) {
+                                                                    fetch(`/api/tasks/${taskId}/feedback?feedbackId=${id}&action=${resolved ? 'resolve' : 'delete'}`, { method: 'DELETE' }).catch(console.error);
+                                                                }
+                                                            }}
+                                                            onDelete={(id) => {
+                                                                setComments(prev => prev.filter(c => c.id !== id));
+                                                                if (taskId && !/^\d{13}$/.test(id)) {
+                                                                    fetch(`/api/tasks/${taskId}/feedback?feedbackId=${id}`, { method: 'DELETE' }).catch(console.error);
+                                                                }
+                                                            }}
                                                             onTimestampClick={() => {}}
                                                         />
                                                     </div>
