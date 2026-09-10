@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
 import { sortTaskImages } from '@/lib/task-image-order';
-import { Share2, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Share2, Send, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
@@ -52,7 +52,6 @@ interface TaskFile {
   replacedBy?: string;
   s3Key?: string;
   revisionNote?: string;
-  s3Key?: string;
   codec?: string;
   optimizationStatus?: string;
   optimizationError?: string | null;
@@ -357,34 +356,40 @@ useEffect(() => {
       else if (/(?:^|[_\-\s])sf\d*(?:[_\-\s]|$)/i.test(t)) lower = 'sf';
     }
     if (!lower || lower === "other") return null;
-    let label = rawType || "";
+    let label = (rawType || "").toUpperCase();
     if (lower === 'sf' || lower === 'short form' || lower === 'short form videos' || lower.includes('short form')) {
-      label = 'Short Form Videos';
+      label = 'SHORT FORM';
     } else if (lower === 'lf' || lower === 'long form' || lower === 'long form videos' || lower.includes('long form')) {
-      label = 'Long Form Videos';
+      label = 'LONG FORM';
     } else if (lower === 'bsf' || lower.includes('beta')) {
-      label = 'Beta Short Form';
+      label = 'BETA SHORT FORM';
     } else if (lower === 'sqf' || lower.includes('super quick')) {
-      label = 'Super Quick Form';
+      label = 'SUPER QUICK FORM';
     } else if (lower === 'hp' || lower.includes('hard post') || lower.includes('graphic image')) {
-      label = 'Hard Post';
+      label = 'HARD POST';
     } else if (lower.includes('text post')) {
-      label = 'Text Post';
+      label = 'TEXT POST';
+    } else if (lower.includes('snap')) {
+      label = 'SNAPCHAT';
+    } else if (lower.includes('podcast') || lower.includes('audio')) {
+      label = 'PODCAST';
+    } else if (lower.includes('thumb') || lower.includes('image')) {
+      label = 'THUMBNAIL';
     }
 
     let colorClass = 'bg-[#dcfce7] text-[#15803d]';
     if (lower.includes('long') || lower === 'lf') {
-      colorClass = 'bg-blue-100 text-blue-800';
+      colorClass = 'bg-[#dbeafe] text-[#1d4ed8]';
     } else if (lower.includes('snap')) {
-      colorClass = 'bg-yellow-100 text-yellow-800';
+      colorClass = 'bg-[#fef9c3] text-[#a16207]';
     } else if (lower.includes('thumb') || lower.includes('image') || lower === 'hp' || lower.includes('hard post')) {
-      colorClass = 'bg-purple-100 text-purple-800';
+      colorClass = 'bg-[#f3e8ff] text-[#7e22ce]';
     } else if (lower.includes('audio') || lower.includes('podcast')) {
-      colorClass = 'bg-orange-100 text-orange-800';
+      colorClass = 'bg-[#ffedd5] text-[#c2410c]';
     } else if (lower.includes('beta') || lower.includes('bsf')) {
-      colorClass = 'bg-teal-100 text-teal-800';
+      colorClass = 'bg-[#ccfbf1] text-[#0f766e]';
     } else if (lower.includes('text post')) {
-      colorClass = 'bg-indigo-100 text-indigo-800';
+      colorClass = 'bg-[#e0e7ff] text-[#4338ca]';
     }
 
     return { label, colorClass };
@@ -1524,17 +1529,18 @@ useEffect(() => {
                 const editorName = getEditorName(task);
                 const dueDateFormatted = formatCardDate(task.dueDate || task.createdAt);
 
+                const imageFilesCount = task.files?.filter(f => {
+                  const mime = getMimeType(f);
+                  return mime.startsWith('image/') || f.folderType === 'thumbnails' || f.folderType === 'tiles' || f.folderType === 'covers' || (f.name && /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name));
+                }).length || (task.files?.length || 0);
+
                 return (
                   <div
                     key={task.id}
-                    className={`group cursor-pointer rounded-2xl transition-all duration-200 overflow-hidden flex flex-col h-full ${
+                    className={`group cursor-pointer rounded-2xl transition-all duration-200 overflow-hidden flex flex-col h-full bg-[#0e0f12] border border-zinc-800/90 hover:border-zinc-700 shadow-md hover:shadow-xl ${
                       isLongForm
                         ? "col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2 xl:col-span-2"
                         : "col-span-1"
-                    } ${
-                      !hasThumbnails
-                        ? "border-2 border-dashed border-zinc-300 bg-[#f8f8f9]/70 hover:border-zinc-400 hover:bg-[#f3f4f6]"
-                        : "bg-white border border-zinc-200 shadow-sm hover:shadow-md hover:border-zinc-300"
                     } ${
                       selectedTask?.id === task.id ? "ring-2 ring-primary" : ""
                     } ${isChecked ? "ring-2 ring-violet-500" : ""}`}
@@ -1544,9 +1550,7 @@ useEffect(() => {
                     <div
                       className={`w-full ${
                         isLongForm ? "aspect-video" : "aspect-[4/5]"
-                      } relative flex items-center justify-center ${
-                        !hasThumbnails ? "bg-transparent" : "bg-[#ebebeb]/60"
-                      } overflow-hidden select-none`}
+                      } relative flex items-center justify-center bg-[#14151a] overflow-hidden select-none`}
                     >
                       {hasThumbnails && currentThumb ? (
                         <>
@@ -1559,7 +1563,7 @@ useEffect(() => {
                               (e.target as HTMLImageElement).style.opacity = '0';
                             }}
                           />
-                          <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
+                          <div className="absolute inset-0 bg-black/10 z-10 pointer-events-none" />
 
                           {/* Left and Right Slider Arrows if more than 1 thumbnail */}
                           {thumbnails.length > 1 && (
@@ -1624,7 +1628,7 @@ useEffect(() => {
                         </>
                       ) : (
                         <div
-                          className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center select-none cursor-pointer transition-colors hover:bg-zinc-200/40 z-10"
+                          className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center select-none cursor-pointer bg-[#14151a] hover:bg-[#181a20] transition-colors z-10"
                           onDragOver={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1636,12 +1640,12 @@ useEffect(() => {
                             if (file) handleStillUpload(task, file);
                           }}
                         >
-                          <ImageIcon className="h-7 w-7 text-zinc-400 stroke-[1.5] mb-2" />
-                          <span className="text-xs font-semibold text-zinc-800">Drop a still</span>
-                          <span className="text-[11px] text-zinc-500 mt-0.5">
+                          <ImageIcon className="h-8 w-8 text-zinc-500 stroke-[1.5] mb-2" />
+                          <span className="text-sm font-semibold text-zinc-200">Drop a still</span>
+                          <span className="text-xs text-zinc-400 mt-1">
                             or{" "}
                             <label
-                              className="underline underline-offset-2 hover:text-zinc-900 cursor-pointer"
+                              className="underline underline-offset-2 hover:text-white cursor-pointer"
                               onClick={(e) => e.stopPropagation()}
                             >
                               browse files
@@ -1660,17 +1664,17 @@ useEffect(() => {
                       )}
 
                       {uploadingStillTaskId === task.id && (
-                        <div className="absolute inset-0 bg-white/85 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-30">
-                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                          <span className="text-xs font-medium text-zinc-700">Uploading still...</span>
+                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-30">
+                          <Loader2 className="h-6 w-6 animate-spin text-white" />
+                          <span className="text-xs font-medium text-zinc-200">Uploading still...</span>
                         </div>
                       )}
 
-                      {/* Top Left: Multi-select checkbox or Share + Reassign buttons */}
-                      {selectionMode ? (
+                      {/* Top Left: Multi-select checkbox when selection mode is active */}
+                      {selectionMode && (
                         <div className="absolute top-3 left-3 z-20">
                           <div
-                            className="h-8 w-8 rounded-full bg-white/90 backdrop-blur-sm border border-zinc-200/50 shadow-sm flex items-center justify-center"
+                            className="h-8 w-8 rounded-full bg-black/60 backdrop-blur-md border border-white/20 shadow-sm flex items-center justify-center"
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleTaskSelection(task.id);
@@ -1679,94 +1683,61 @@ useEffect(() => {
                             <Checkbox checked={isChecked} aria-label={`Select ${task.title}`} />
                           </div>
                         </div>
-                      ) : (
-                        <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            className="h-8 w-8 rounded-full bg-white/90 hover:bg-white backdrop-blur-md border border-black/5 shadow-sm flex items-center justify-center text-zinc-700 hover:text-zinc-900 transition-colors"
-                            onClick={(e) => handleShare(e, task)}
-                            title="Share"
-                          >
-                            <Share2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            className="h-8 w-8 rounded-full bg-white/90 hover:bg-white backdrop-blur-md border border-black/5 shadow-sm flex items-center justify-center text-zinc-700 hover:text-orange-600 transition-colors"
-                            onClick={(e) => handleOpenReassign(e, task)}
-                            title="Reassign to another QC"
-                          >
-                            <UserCheck className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
                       )}
 
-                      {/* Top Right: Replace/Edit actions for cards with thumbnail, or File count badge */}
-                      {hasThumbnails ? (
-                        <>
-                          <div
-                            className={`absolute top-3 right-3 z-20 items-center gap-1.5 ${
-                              isLongForm ? "flex" : "hidden group-hover:flex"
-                            }`}
+                      {/* Top Right: Replace/Edit actions for cards with thumbnail */}
+                      {hasThumbnails && (
+                        <div
+                          className={`absolute top-3 right-3 z-20 items-center gap-1.5 ${
+                            isLongForm ? "flex" : "hidden group-hover:flex"
+                          }`}
+                        >
+                          <label
+                            className="text-xs font-medium text-white bg-black/60 hover:bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-md cursor-pointer transition-colors shadow-xs border border-white/10"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Replace thumbnail"
                           >
-                            <label
-                              className="text-xs font-medium text-white bg-black/50 hover:bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-md cursor-pointer transition-colors shadow-xs"
-                              onClick={(e) => e.stopPropagation()}
-                              title="Replace thumbnail"
-                            >
-                              Replace
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) handleStillUpload(task, file);
-                                }}
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              className="text-xs font-medium text-white bg-black/50 hover:bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-md transition-colors shadow-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (currentThumb?.file) {
-                                  setSelectedTask(task);
-                                  setSelectedFile(currentThumb.file);
-                                  const mime = getMimeType(currentThumb.file);
-                                  if (mime.startsWith('image/')) {
-                                    setShowThumbnailReview(true);
-                                    return;
-                                  }
-                                }
-                                handleTaskClick(task);
+                            Replace
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleStillUpload(task, file);
                               }}
-                              title="Review & edit task"
-                            >
-                              Edit
-                            </button>
-                          </div>
-
-                          {!isLongForm && (
-                            <div className="absolute top-3 right-3 z-20 flex group-hover:hidden items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md text-white text-xs font-semibold shadow-sm">
-                              <FileText className="h-3.5 w-3.5 stroke-[2]" />
-                              <span>{task.files?.length || 0}</span>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/60 backdrop-blur-md text-white text-xs font-semibold shadow-sm">
-                          <FileText className="h-3.5 w-3.5 stroke-[2]" />
-                          <span>{task.files?.length || 0}</span>
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-white bg-black/60 hover:bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-md transition-colors shadow-xs border border-white/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (currentThumb?.file) {
+                                setSelectedTask(task);
+                                setSelectedFile(currentThumb.file);
+                                const mime = getMimeType(currentThumb.file);
+                                if (mime.startsWith('image/')) {
+                                  setShowThumbnailReview(true);
+                                  return;
+                                }
+                              }
+                              handleTaskClick(task);
+                            }}
+                            title="Review & edit task"
+                          >
+                            Edit
+                          </button>
                         </div>
                       )}
                     </div>
 
                     {/* Card Body */}
-                    <div className={`p-4 pt-3.5 pb-4 flex flex-col justify-between flex-1 gap-2.5 ${!hasThumbnails ? 'bg-transparent' : 'bg-white'}`}>
+                    <div className="p-4 pt-3 pb-3.5 flex flex-col justify-between flex-1 gap-2 bg-[#0e0f12]">
                       {/* Row 1: Task Title & Guidelines Button */}
                       <div className="flex items-center justify-between gap-2">
                         <h4
-                          className="text-[13px] font-bold text-zinc-900 truncate leading-snug"
+                          className="text-[13px] font-bold text-white truncate leading-snug tracking-tight"
                           title={task.title}
                         >
                           {task.title}
@@ -1780,7 +1751,7 @@ useEffect(() => {
                       </div>
 
                       {/* Row 2: Editor / Creator & Date */}
-                      <div className="flex items-center justify-between text-xs text-zinc-500 font-normal leading-none">
+                      <div className="flex items-center justify-between text-xs text-zinc-400 font-normal leading-none">
                         <span className="truncate max-w-[65%]">
                           {editorName || "Unassigned"}
                         </span>
@@ -1789,20 +1760,46 @@ useEffect(() => {
                         </span>
                       </div>
 
-                      {/* Row 3: Deliverable Badge & Version Badge */}
-                      <div className="flex items-center justify-between gap-2 pt-0.5">
-                        {deliverableBadge ? (
-                          <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${deliverableBadge.colorClass}`}
-                          >
-                            {deliverableBadge.label}
+                      {/* Row 3: Deliverable Badge, Version Badge & Action Icons */}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/70 mt-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {deliverableBadge ? (
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold tracking-wide uppercase shrink-0 ${deliverableBadge.colorClass}`}
+                            >
+                              {deliverableBadge.label}
+                            </span>
+                          ) : (
+                            <span />
+                          )}
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold bg-[#27272a] text-zinc-300 shrink-0">
+                            V{latestVideoVersion}
                           </span>
-                        ) : (
-                          <span />
-                        )}
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-700 border border-black/5 shadow-xs shrink-0">
-                          V{latestVideoVersion}
-                        </span>
+                        </div>
+
+                        {/* Right Icons: Media Count, Share, Reassign */}
+                        <div className="flex items-center gap-2.5 text-zinc-400 shrink-0">
+                          <div className="flex items-center gap-1 text-[11px] font-medium text-zinc-400" title={`${imageFilesCount} file(s)`}>
+                            <ImageIcon className="h-3.5 w-3.5 stroke-[1.75]" />
+                            <span>{imageFilesCount}</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="text-zinc-400 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800/80 focus:outline-none"
+                            onClick={(e) => handleShare(e, task)}
+                            title="Share review link"
+                          >
+                            <Send className="h-3.5 w-3.5 -rotate-45 stroke-[1.75]" />
+                          </button>
+                          <button
+                            type="button"
+                            className="text-zinc-400 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800/80 focus:outline-none"
+                            onClick={(e) => handleOpenReassign(e, task)}
+                            title="Reassign to another QC"
+                          >
+                            <User className="h-3.5 w-3.5 stroke-[1.75]" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
