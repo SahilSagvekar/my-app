@@ -95,6 +95,21 @@ export default {
         ctx.waitUntil(triggerCronRoute('/api/cron/auto-invoice-review-reminder', env, ctx));
         break;
 
+      // Automatic Stripe reconciliation — hourly. Replaces relying on someone
+      // remembering to click "Sync & Refresh"; webhooks handle real-time
+      // updates, this is just the safety net for anything one missed.
+      case '0 * * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/billing-sync', env, ctx));
+        break;
+
+      // Tech Fee failure retry sweep — hourly, offset 15m past billing-sync
+      // so they don't both fire on the same minute. Retries any Tech Fee
+      // whose Stripe balance_transaction fee still wasn't available even
+      // after captureTechFeeFromCharge's own immediate retry.
+      case '15 * * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/tech-fee-retry', env, ctx));
+        break;
+
 
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);

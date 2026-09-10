@@ -19,9 +19,13 @@
 // through subfolders on both sides — not by file size or content.
 //
 // Uploading missing files reuses the existing chunked/multipart upload
-// engine (see useMissingFilesUpload) and uploads flat into the root of the
-// selected remote folder — consistent with the name-only, structure-blind
-// comparison above.
+// engine (see useMissingFilesUpload). By default every missing file uploads
+// flat into the root of the selected remote (comparison) folder — but each
+// file can individually be routed to a different folder instead, via the
+// per-row folder picker below (reuses the same R2 tree/picker component as
+// the main remote-folder selector, opened in a popover). This is for cases
+// where different files logically belong in different places rather than
+// all dumping into one flat destination for later manual reorganization.
 
 "use client";
 
@@ -29,6 +33,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FolderOpen,
   Folder,
+  FolderInput,
   File as FileIcon,
   ChevronRight,
   ChevronDown,
@@ -41,6 +46,7 @@ import {
   ShieldAlert,
   UploadCloud,
   Loader2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -54,6 +60,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/components/auth/AuthContext";
 import { cn } from "@/lib/utils";
 import { useMissingFilesUpload } from "@/hooks/useMissingFilesUpload";
@@ -98,6 +105,8 @@ function normalizeName(name: string): string {
 }
 
 // ─── Remote (R2) folder tree picker ─────────────────────────────────────────
+// Shared by the main "Files & Drive" folder selector and the per-file
+// destination override popover below.
 function RemoteFolderNode({
   node,
   depth,
@@ -158,6 +167,90 @@ function RemoteFolderNode({
           />
         ))}
     </div>
+  );
+}
+
+// ─── Per-file destination picker ────────────────────────────────────────────
+// A small popover wrapping the same RemoteFolderNode tree, used to send an
+// individual missing file to a folder other than the batch default. Reused
+// for both the pre-upload assignment list and (read-only) the in-progress
+// upload list.
+function FolderPickerPopover({
+  tree,
+  loading,
+  error,
+  currentPath,
+  defaultLabel,
+  onSelect,
+  onClear,
+  disabled,
+}: {
+  tree: DriveItem | null;
+  loading: boolean;
+  error: string | null;
+  currentPath: string | null; // null = using the default folder
+  defaultLabel: string;
+  onSelect: (folder: DriveItem) => void;
+  onClear: () => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={disabled}
+          className="h-6 px-2 text-xs shrink-0 gap-1"
+        >
+          <FolderInput className="h-3 w-3" />
+          Change
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="end">
+        <div className="text-xs font-medium text-muted-foreground px-1 pb-1.5">
+          Upload this file to…
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onClear();
+            setOpen(false);
+          }}
+          className={cn(
+            "w-full flex items-center gap-1.5 text-sm px-1.5 py-1.5 rounded-md hover:bg-muted text-left",
+            !currentPath && "bg-primary/10 text-primary font-medium"
+          )}
+        >
+          <FolderCheck className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Default ({defaultLabel})</span>
+        </button>
+        <div className="h-px bg-border my-1.5" />
+        {loading && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-3 px-1.5">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            Loading folders…
+          </div>
+        )}
+        {error && <div className="text-xs text-destructive px-1.5 py-2">{error}</div>}
+        {!loading && tree && (
+          <ScrollArea className="h-56 rounded-md">
+            <RemoteFolderNode
+              node={tree}
+              depth={0}
+              selectedPath={currentPath}
+              onSelect={(folder) => {
+                onSelect(folder);
+                setOpen(false);
+              }}
+            />
+          </ScrollArea>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -273,6 +366,7 @@ export function FileVerification({ role }: FileVerificationProps) {
     setLocalFilesByKey(byKey);
     setComparisonRun(false);
     resetUpload();
+    setPendingDestinations({});
   };
 
   // ── Comparison ───────────────────────────────────────────────────────────
@@ -313,8 +407,36 @@ export function FileVerification({ role }: FileVerificationProps) {
   const resolvedClientId =
     isAdminLike ? selectedClientId : user?.linkedClientId || "";
 
-  const { items: uploadItems, overall: uploadOverall, startBatch, retryOne, reset: resetUpload } =
-    useMissingFilesUpload();
+  const {
+    items: uploadItems,
+    overall: uploadOverall,
+    startBatch,
+    retryOne,
+    reset: resetUpload,
+    setDestination,
+  } = useMissingFilesUpload();
+
+  // Per-file destination overrides chosen before the batch has started, keyed
+  // by normalized file name — mirrors the hook's internal overridesRef so the
+  // pre-upload list can show what's been picked. Once startBatch() runs, each
+  // MissingFileItem carries its own destinationPath/destinationLabel and this
+  // is no longer consulted for display.
+  const [pendingDestinations, setPendingDestinations] = useState<Record<string, { path: string; label: string }>>({});
+
+  const handlePickDestination = (key: string, folder: DriveItem) => {
+    const dest = { path: folder.path, label: folder.name };
+    setPendingDestinations((prev) => ({ ...prev, [key]: dest }));
+    setDestination(key, dest);
+  };
+
+  const handleClearDestination = (key: string) => {
+    setPendingDestinations((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setDestination(key, null);
+  };
 
   const handleUploadMissing = () => {
     if (!comparison || !selectedRemoteFolder || !resolvedClientId) return;
@@ -330,7 +452,7 @@ export function FileVerification({ role }: FileVerificationProps) {
     startBatch({
       files,
       clientId: resolvedClientId,
-      targetFolderPath: selectedRemoteFolder.path,
+      defaultTargetFolderPath: selectedRemoteFolder.path,
       onBatchSettled: () => {
         // Silently refetch the remote tree and re-run the diff, preserving
         // the currently-selected folder so the UI reflects newly-matched files.
@@ -454,6 +576,7 @@ export function FileVerification({ role }: FileVerificationProps) {
                   setSelectedRemoteFolder(folder);
                   setComparisonRun(false);
                   resetUpload();
+                  setPendingDestinations({});
                 }}
               />
             </ScrollArea>
@@ -521,7 +644,8 @@ export function FileVerification({ role }: FileVerificationProps) {
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Uploads the {comparison.onlyLocal.length} file
                   {comparison.onlyLocal.length === 1 ? "" : "s"} only found on your computer into{" "}
-                  <span className="font-medium">{selectedRemoteFolder?.name}</span>.
+                  <span className="font-medium">{selectedRemoteFolder?.name}</span> by default —
+                  use "Change" on any file below to send it somewhere else instead.
                 </p>
               )}
               {uploadOverall.total > 0 && uploadOverall.completed === uploadOverall.total && (
@@ -538,6 +662,57 @@ export function FileVerification({ role }: FileVerificationProps) {
               </Button>
             )}
           </div>
+
+          {/* Pre-upload: per-file destination assignment. Replaced by the
+              live progress list below once the batch has actually started. */}
+          {uploadOverall.total === 0 && (
+            <ScrollArea className="h-64 border rounded-md p-2">
+              <ul className="space-y-1">
+                {comparison.onlyLocal.map((name) => {
+                  const key = normalizeName(name);
+                  const override = pendingDestinations[key];
+                  return (
+                    <li
+                      key={key}
+                      className="flex items-center gap-2 text-sm px-1 py-1 rounded hover:bg-muted"
+                    >
+                      <FileIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate flex-1" title={name}>
+                        {name}
+                      </span>
+                      {override ? (
+                        <Badge
+                          variant="secondary"
+                          className="gap-1 shrink-0 max-w-[9rem] font-normal"
+                        >
+                          <span className="truncate">{override.label}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleClearDestination(key)}
+                            className="shrink-0"
+                            title="Use default folder instead"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground shrink-0">Default</span>
+                      )}
+                      <FolderPickerPopover
+                        tree={remoteTree}
+                        loading={remoteLoading}
+                        error={remoteError}
+                        currentPath={override?.path ?? null}
+                        defaultLabel={selectedRemoteFolder?.name || "comparison folder"}
+                        onSelect={(folder) => handlePickDestination(key, folder)}
+                        onClear={() => handleClearDestination(key)}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            </ScrollArea>
+          )}
 
           {uploadOverall.total > 0 && (
             <div className="space-y-3">
@@ -583,6 +758,15 @@ export function FileVerification({ role }: FileVerificationProps) {
                       <span className="truncate flex-1" title={item.name}>
                         {item.name}
                       </span>
+                      {item.destinationLabel && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 max-w-[8rem] font-normal text-muted-foreground"
+                          title={`Uploaded to ${item.destinationLabel}`}
+                        >
+                          <span className="truncate">{item.destinationLabel}</span>
+                        </Badge>
+                      )}
                       {item.status === "uploading" && (
                         <span className="text-xs text-muted-foreground shrink-0 w-9 text-right">
                           {item.progress}%

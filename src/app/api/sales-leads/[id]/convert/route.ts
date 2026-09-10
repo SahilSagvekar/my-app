@@ -127,12 +127,18 @@ export async function POST(
     // ── Invalidate cache ───────────────────────────────────────────────────
     await redis.del('clients:all');
 
-    // ── Onboarding: Slack channel + welcome email (non-blocking) ──────────
+    // ── Onboarding: Slack channel + welcome email (non-blocking). This
+    // route has no UI for choosing welcome-email vs magic-link (unlike
+    // QuickAddClientDialog), so it keeps its prior always-welcome-email
+    // behavior explicitly — onboardNewClient's new default with neither
+    // flag set is "no email at all", which would otherwise silently change
+    // what happens when a sales lead converts. ────────────────────────────
     onboardNewClient({
       clientId: client.id,
       clientName: name,
       companyName,
       email,
+      sendWelcomeEmail: true,
     }).catch(err => console.error('[Convert Lead] Onboarding error:', err));
 
     return NextResponse.json({

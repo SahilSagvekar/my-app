@@ -24,7 +24,9 @@ binding = "ASSETS"
 # 15 13 * * *    — enforce portal locks (≈ 9:15 AM ET)
 # 0 14 * * *     — billing warning emails (≈ 10:00 AM ET)
 # 30 14 * * *    — auto-invoice day-before review reminder (≈ 10:30 AM ET)
-crons = [ "* * * * *", "0 20 * * 6", "0 23 * * *", "0 13 * * *", "15 13 * * *", "0 14 * * *", "30 14 * * *" ]
+# 0 * * * *      — automatic Stripe reconciliation (hourly safety net for the manual "Sync & Refresh")
+# 15 * * * *     — Tech Fee failure retry sweep (hourly, offset 15m past billing-sync)
+crons = [ "* * * * *", "0 20 * * 6", "0 23 * * *", "0 13 * * *", "15 13 * * *", "0 14 * * *", "30 14 * * *", "0 * * * *", "15 * * * *" ]
 
 [[r2_buckets]]
 binding = "R2_VIDEOS"

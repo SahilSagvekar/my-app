@@ -21,6 +21,7 @@ import {
 } from '../ui/select';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { Checkbox } from '../ui/checkbox';
 
 interface QuickAddClientDialogProps {
   trigger?: React.ReactNode;
@@ -40,10 +41,26 @@ export function QuickAddClientDialog({ trigger, onClientCreated }: QuickAddClien
     clientReviewDeliverableTypes: [] as string[],
     videographerRequired: 'no',
     hasPostingServices: true,
+    // Onboarding: a Slack channel is always created. At most one of these
+    // two may be checked — the UI enforces mutual exclusivity below, and
+    // the backend re-checks it too. If neither is checked, only the client
+    // record + Slack channel are created — no email goes out.
+    sendWelcomeEmail: false,
+    sendMagicLink: false,
   });
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Checking one of these two always clears the other — only one can be
+  // active at a time, matching the backend's own enforcement.
+  const handleOnboardingActionChange = (field: 'sendWelcomeEmail' | 'sendMagicLink', checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      sendWelcomeEmail: field === 'sendWelcomeEmail' ? checked : false,
+      sendMagicLink: field === 'sendMagicLink' ? checked : false,
+    }));
   };
 
   const resetForm = () => {
@@ -57,6 +74,8 @@ export function QuickAddClientDialog({ trigger, onClientCreated }: QuickAddClien
       clientReviewDeliverableTypes: [] as string[],
       videographerRequired: 'no',
       hasPostingServices: true,
+      sendWelcomeEmail: false,
+      sendMagicLink: false,
     });
   };
 
@@ -286,6 +305,33 @@ export function QuickAddClientDialog({ trigger, onClientCreated }: QuickAddClien
                 <SelectItem value="no">No</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-gray-700">Onboarding</Label>
+          <p className="text-xs text-gray-500">
+            A Slack channel is always created. Pick at most one email to send — leave both unchecked to create just the client and Slack channel.
+          </p>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="sendWelcomeEmail"
+              checked={formData.sendWelcomeEmail}
+              onCheckedChange={(checked) => handleOnboardingActionChange('sendWelcomeEmail', checked === true)}
+            />
+            <Label htmlFor="sendWelcomeEmail" className="text-gray-700 font-normal cursor-pointer">
+              Send welcome email
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="sendMagicLink"
+              checked={formData.sendMagicLink}
+              onCheckedChange={(checked) => handleOnboardingActionChange('sendMagicLink', checked === true)}
+            />
+            <Label htmlFor="sendMagicLink" className="text-gray-700 font-normal cursor-pointer">
+              Send magic link (portal setup)
+            </Label>
           </div>
         </div>
 

@@ -1,4 +1,8 @@
 import Stripe from 'stripe';
+import { getDbHttp } from '@/lib/db';
+import { techFeeFailure } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { eq, sql } from 'drizzle-orm';
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
@@ -49,6 +53,11 @@ export const STRIPE_WEBHOOK_EVENTS = {
   // Payment Intent events
   PAYMENT_INTENT_SUCCEEDED: 'payment_intent.succeeded',
   PAYMENT_INTENT_FAILED: 'payment_intent.payment_failed',
+  // Fires the moment a payment is initiated but not yet settled (e.g. an
+  // ACH bank debit, which takes 3-5 business days to actually clear). We
+  // unlock the portal on this event rather than waiting for `succeeded` —
+  // see handlePaymentIntentProcessing in the webhook route.
+  PAYMENT_INTENT_PROCESSING: 'payment_intent.processing',
   
   // Invoice events
   INVOICE_PAID: 'invoice.paid',
@@ -297,7 +306,6 @@ export async function getStripeFeeForCharge(chargeId: string): Promise<number | 
     return null;
   }
 }
-
 /**
  * Given a PaymentIntent ID, resolves the charge ID it produced (needed to
  * look up the Stripe fee). Returns null if there's no charge yet.
@@ -343,6 +351,14 @@ export async function addTechFeeForCustomer(
  * pending Tech Fee for that customer, in one call. Safe to call from any
  * webhook handler — swallows errors internally so a Tech Fee capture issue
  * never blocks the underlying payment from being recorded.
+ *
+ * Reliability: Stripe's balance_transaction can lag the webhook by a second
+ * or two, so getStripeFeeForCharge can legitimately return null on the
+ * first try. Previously a null here meant the fee was silently dropped
+ * forever with nothing but a console.warn. Now: retry once after a short
+ * delay, and if it's STILL null, persist a TechFeeFailure row instead of
+ * giving up — cron/tech-fee-retry sweeps these and keeps trying, so a fee
+ * is never lost without a record of it somewhere.
  */
 export async function captureTechFeeFromCharge(
   stripeCustomerId: string | null | undefined,
@@ -350,9 +366,42 @@ export async function captureTechFeeFromCharge(
   sourceDescription: string
 ): Promise<void> {
   if (!stripeCustomerId || !chargeId) return;
-  const fee = await getStripeFeeForCharge(chargeId);
-  if (fee === null) return;
-  await addTechFeeForCustomer(stripeCustomerId, fee, sourceDescription);
+
+  let fee = await getStripeFeeForCharge(chargeId);
+  if (fee === null) {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    fee = await getStripeFeeForCharge(chargeId);
+  }
+
+  if (fee !== null) {
+    await addTechFeeForCustomer(stripeCustomerId, fee, sourceDescription);
+    return;
+  }
+
+  // Still nothing after the retry — record it so it isn't just gone.
+  try {
+    const db = getDbHttp();
+    await db.insert(techFeeFailure).values({
+      id: createId(),
+      stripeCustomerId,
+      chargeId,
+      sourceDescription,
+      lastError: 'No balance_transaction fee available after retry',
+      updatedAt: new Date().toISOString(),
+    }).onConflictDoUpdate({
+      target: techFeeFailure.chargeId,
+      set: {
+        attempts: sql`${techFeeFailure.attempts} + 1`,
+        lastError: 'No balance_transaction fee available after retry',
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    console.error(`❌ [Tech Fees] Fee still unavailable for charge ${chargeId} after retry — queued for cron/tech-fee-retry`);
+  } catch (err: any) {
+    // Even the failure record failed to write — this is the one case that
+    // still just logs, since there's nothing left to persist it to.
+    console.error(`❌ [Tech Fees] Failed to record TechFeeFailure for charge ${chargeId}:`, err.message);
+  }
 }
 
 // Cancel a subscription

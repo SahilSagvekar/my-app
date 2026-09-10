@@ -192,8 +192,12 @@ async function runAutoInvoice(req: NextRequest, dryRun: boolean) {
           continue;
         }
 
-        // Skip clients already on a live Stripe subscription (double-bill guard)
+        // Skip clients already on a live Stripe subscription (double-bill guard).
+        // Logged explicitly (not just recorded in the response body) so a
+        // skip is visible in Cloudflare logs even if nobody's reading the
+        // cron's JSON output that day.
         if (await hasActiveSubscription(db, dbStripeCustomer.id, stripeCustomer.id)) {
+          console.warn(`⏭️ [auto-invoice] Skipped ${clientName} (${client.id}) for cycle ${billingCycle} — already has an active Stripe subscription (double-bill guard)`);
           results.push({
             clientId: client.id,
             clientName,

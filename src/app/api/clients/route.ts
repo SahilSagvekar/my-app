@@ -207,6 +207,8 @@ export async function POST(req: Request) {
       coverImageRequired,
       hasPostingServices,
       templateHashtags,
+      sendWelcomeEmail,
+      sendMagicLink,
     } = body;
 
     if (!name || !email)
@@ -321,12 +323,18 @@ export async function POST(req: Request) {
     // 🔥 Invalidate clients cache
     await redis.del("clients:all");
 
-    // 🎉 Onboarding: create Slack channel + send welcome email (non-blocking)
+    // 🎉 Onboarding: Slack channel always created; at most one of
+    // welcome-email / magic-link fires, per the two checkboxes in
+    // QuickAddClientDialog (non-blocking — client creation doesn't wait on
+    // it). Mutual-exclusivity is enforced inside onboardNewClient itself,
+    // so raw flags are passed through as-is.
     onboardNewClient({
       clientId: client.id,
       clientName: name,
       companyName: companyName || name,
       email,
+      sendWelcomeEmail: !!sendWelcomeEmail,
+      sendMagicLink: !!sendMagicLink,
     }).catch(err => console.error('[POST /clients] Onboarding error:', err));
 
     return NextResponse.json(
