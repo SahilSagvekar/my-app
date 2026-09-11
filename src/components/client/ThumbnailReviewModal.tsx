@@ -592,7 +592,7 @@ export function ThumbnailReviewModal({
 
                             {/* ── IMAGE AREA ── */}
                             <div
-                                className="flex-1 flex flex-col overflow-hidden m-4 mr-2"
+                                className="flex-1 relative flex flex-col overflow-hidden m-4 mr-2"
                                 style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-v2-gray-800)', borderRadius: 16 }}
                             >
                                 {viewMode === 'gallery' ? (

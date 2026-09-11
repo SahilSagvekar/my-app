@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
 import { sortTaskImages } from '@/lib/task-image-order';
-import { Share2, Send, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Share2, Send, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Folder, Music } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
@@ -790,17 +790,18 @@ useEffect(() => {
   const getFolderTypeInfo = (folderType?: string) => {
     switch (folderType) {
       case 'main':
-        return { label: 'Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { label: 'Main Files', icon: '📁', iconComponent: <Folder className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-blue-100 text-blue-800 border-blue-200' };
       case 'thumbnails':
-        return { label: 'Thumbnails', icon: '🖼️', color: 'bg-green-100 text-green-800 border-green-200' };
+        return { label: 'Thumbnails', icon: '🖼️', iconComponent: <ImageIcon className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-green-100 text-green-800 border-green-200' };
       case 'tiles':
-        return { label: 'Tiles (Snapchat)', icon: '🎨', color: 'bg-purple-100 text-purple-800 border-purple-200' };
+        return { label: 'Tiles (Snapchat)', icon: '🎨', iconComponent: <Palette className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-purple-100 text-purple-800 border-purple-200' };
+      case 'music':
       case 'music-license':
-        return { label: 'Music License', icon: '🎵', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+        return { label: 'Music License', icon: '🎵', iconComponent: <Music className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-orange-100 text-orange-800 border-orange-200' };
       case 'covers':
-        return { label: 'Covers', icon: '📔', color: 'bg-pink-100 text-pink-800 border-pink-200' };
+        return { label: 'Covers', icon: '📔', iconComponent: <FileText className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-pink-100 text-pink-800 border-pink-200' };
       default:
-        return { label: 'Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { label: 'Main Files', icon: '📁', iconComponent: <Folder className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-blue-100 text-blue-800 border-blue-200' };
     }
   };
 
@@ -809,7 +810,7 @@ useEffect(() => {
     const groups: Record<string, TaskFile[]> = {};
 
     files.forEach(file => {
-      const folderType = file.folderType || 'main';
+      const folderType = (file.folderType === 'music' ? 'music-license' : file.folderType) || 'main';
       if (!groups[folderType]) {
         groups[folderType] = [];
       }
@@ -1235,6 +1236,31 @@ useEffect(() => {
       toast.error("Failed to generate share link");
     } finally {
       setIsSharing(false);
+    }
+  };
+
+  const handleDownloadAllFiles = async (task: EnhancedWorkflowTask) => {
+    if (!task?.files || task.files.length === 0) {
+      toast.error('No files to download');
+      return;
+    }
+    toast.loading(`Downloading ${task.files.length} file(s)...`, { id: 'download-all-files' });
+    try {
+      for (const file of task.files) {
+        if (file.url) {
+          const a = document.createElement('a');
+          a.href = file.url;
+          a.download = file.name;
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      }
+      toast.success('Download started', { id: 'download-all-files' });
+    } catch {
+      toast.error('Failed to download files', { id: 'download-all-files' });
     }
   };
 
@@ -1791,195 +1817,186 @@ useEffect(() => {
 
         {selectedTask && (
           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-            <DialogContent className="w-[80vw] max-w-[80vw] sm:!max-w-[80vw] max-h-[85vh]">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Eye className="h-5 w-5" />
-                  Review Files by Section
+            <DialogContent className="w-[95vw] max-w-xl sm:max-w-2xl max-h-[90vh] p-6 sm:p-7 rounded-2xl bg-white shadow-2xl flex flex-col gap-4 overflow-hidden border border-zinc-200">
+              <DialogHeader className="p-0 pb-1 text-left">
+                <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-zinc-950 tracking-tight">
+                  <Eye className="h-5 w-5 text-zinc-950 stroke-[2.4]" />
+                  Review Content
                 </DialogTitle>
+                <DialogDescription className="text-zinc-500 text-sm font-normal mt-1">
+                  Review files and approve or request revisions.
+                </DialogDescription>
               </DialogHeader>
 
-              <TagPicker
-                taskId={selectedTask.id}
-                tags={selectedTaskTags}
-                onChange={setSelectedTaskTags}
-                canRemove={isAdmin}
-              />
-
-              <div className="overflow-y-auto max-h-[65vh] pr-2">
+              <div className="overflow-y-auto max-h-[62vh] pr-0.5 space-y-3.5">
                 {selectedTask.files && selectedTask.files.length > 0 ? (
-                  <div className="border rounded-lg overflow-hidden divide-y">
-                    {groupFilesByFolderType(selectedTask.files).map((group) => (
-                      <div key={group.folderType}>
-                        {/* Section Header */}
-                        <div className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{group.info.icon}</span>
-                            <h4 className="font-semibold text-sm">{group.info.label}</h4>
-                            <Badge variant="secondary" className="text-xs">
-                              {group.files.length} file{group.files.length !== 1 ? "s" : ""}
-                            </Badge>
-                          </div>
-                          {group.folderType === 'thumbnails' && group.files.length > 1 && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="bg-white/50 hover:bg-white text-xs h-8"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setComparisonFiles(group.files);
-                                setShowComparison(true);
-                              }}
-                            >
-                              <History className="h-3.5 w-3.5 mr-1.5" />
-                              Compare Versions
-                            </Button>
-                          )}
-                          {group.folderType !== 'thumbnails' && group.files.some((f) => (f.version || 1) > 1) && (
-                            <Badge variant="outline" className="text-xs">
-                              Multiple versions
-                            </Badge>
-                          )}
+                  groupFilesByFolderType(selectedTask.files).map((group) => (
+                    <div
+                      key={group.folderType}
+                      className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-2xs"
+                    >
+                      {/* Section Header */}
+                      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200/80 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          {group.info.iconComponent}
+                          <span className="font-bold text-sm text-zinc-900">{group.info.label}</span>
                         </div>
+                        <span className="rounded-full bg-zinc-200/70 text-zinc-700 text-xs font-semibold px-2.5 py-0.5">
+                          {group.files.length} file{group.files.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
 
-                        {/* Files */}
-                        <div className="divide-y">
-                          {group.files.length === 0 ? (
-                            <div className="p-6 text-center text-muted-foreground">
-                              <span className="text-2xl mb-2 block">🖼️</span>
-                              <p className="text-sm font-medium">No {group.info.label.toLowerCase()}</p>
-                              <p className="text-xs mt-1">No files uploaded for this section</p>
-                            </div>
-                          ) : (
-                            (expandedFileGroups.has(group.folderType) ? group.files : group.files.slice(0, 1)).map((file, index) => (
-                              <div
-                                key={file.id}
-                                className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false ? "opacity-60 bg-muted/20" : ""}`}
-                                onClick={() => handleFileSelect(file)}
-                              >
-                                <div className="flex items-center gap-4">
-                                  <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith("video/") ? "bg-blue-100" : file.mimeType?.startsWith("image/") ? "bg-green-100" : "bg-gray-100"}`}>
-                                    {getFileIcon(file.mimeType)}
-                                  </div>
-
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                      <p className="font-medium text-sm truncate max-w-[300px]">{file.name}</p>
-                                      <Badge variant={file.isActive !== false ? "default" : "secondary"} className="text-xs">
-                                        V{file.version || 1}
-                                      </Badge>
-                                      {file.isActive !== false && index === 0 && (
-                                        <Badge variant="outline" className="text-xs text-green-600 border-green-300">
-                                          <CheckCircle className="h-3 w-3 mr-1" />
-                                          Latest
-                                        </Badge>
-                                      )}
-                                      {file.isActive === false && (
-                                        <Badge variant="outline" className="text-xs text-muted-foreground">
-                                          Replaced
-                                        </Badge>
-                                      )}
-                                      <Badge variant="secondary" className="text-xs">
-                                        {getFileTypeLabel(file.mimeType)}
-                                      </Badge>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                                      <span>{formatFileSize(file.size)}</span>
-                                      <span>•</span>
-                                      <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
-                                      {file.revisionNote && (
-                                        <>
-                                          <span>•</span>
-                                          <span className="text-orange-600" title={file.revisionNote}>
-                                            📝 Has revision note
-                                          </span>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-2 flex-shrink-0">
-                                    {file.mimeType?.startsWith("video/") ? (
-                                      <div className="flex items-center gap-2">
-                                        {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
-                                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
-                                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                            <span>Optimizing...</span>
-                                          </div>
-                                        ) : (
-                                          <>
-                                            <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
-                                              <Play className="h-4 w-4 mr-2" />
-                                              Review
-                                            </Button>
-                                            <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download Video" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
-                                              <Download className="h-4 w-4" />
-                                            </Button>
-                                          </>
-                                        )}
-                                      </div>
-                                    ) : file.mimeType?.startsWith('image/') ? (
-                                      <div className="flex items-center gap-2">
-                                        <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
-                                          <Eye className="h-4 w-4 mr-2" />
-                                          Review
-                                        </Button>
-                                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
-                                          <Download className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center gap-2">
-                                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
-                                          <ExternalLink className="h-4 w-4 mr-2" />
-                                          View
-                                        </Button>
-                                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
-                                          <Download className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
+                      {/* Files List */}
+                      {group.files.length === 0 ? (
+                        <div className="p-5 text-center text-zinc-400 text-xs font-medium">
+                          No files uploaded for this section
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-zinc-100">
+                          {(expandedFileGroups.has(group.folderType) ? group.files : group.files.slice(0, 1)).map((file) => (
+                            <div
+                              key={file.id}
+                              className={`p-4 flex items-center justify-between gap-4 transition-colors hover:bg-zinc-50/50 ${
+                                file.isActive === false ? "opacity-60 bg-zinc-50/30" : ""
+                              }`}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <h5 className="font-bold text-sm text-zinc-900 truncate mb-1.5" title={file.name}>
+                                  {file.name}
+                                </h5>
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <span className="bg-black text-white text-[11px] font-bold px-2 py-0.5 rounded-md leading-none flex items-center justify-center">
+                                    V{file.version || 1}
+                                  </span>
+                                  <span className="bg-zinc-100 text-zinc-700 border border-zinc-200/80 text-[11px] font-semibold px-2 py-0.5 rounded-md leading-none flex items-center justify-center">
+                                    {getFileTypeLabel(file.mimeType)}
+                                  </span>
                                 </div>
+                                <p className="text-xs text-zinc-400 font-normal">
+                                  {formatFileSize(file.size)} · Uploaded {new Date(file.uploadedAt).toLocaleDateString('en-US')}
+                                </p>
                               </div>
-                            ))
-                          )}
+
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {file.mimeType?.startsWith("video/") ? (
+                                  file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
+                                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                      <span>Optimizing...</span>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleFileSelect(file);
+                                      }}
+                                      className="bg-black hover:bg-zinc-800 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
+                                    >
+                                      <Play className="h-3.5 w-3.5 fill-white" />
+                                      <span>Review</span>
+                                    </button>
+                                  )
+                                ) : file.mimeType?.startsWith("image/") ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleFileSelect(file);
+                                    }}
+                                    className="bg-black hover:bg-zinc-800 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
+                                  >
+                                    <Play className="h-3.5 w-3.5 fill-white" />
+                                    <span>Review</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleFileSelect(file);
+                                    }}
+                                    className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5 text-zinc-700" />
+                                    <span>View</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+
                           {group.files.length > 1 && (
-                            <div className="p-2.5 text-center bg-muted/20">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                            <div className="py-2 text-center border-t border-zinc-100 bg-zinc-50/50">
+                              <button
+                                type="button"
+                                className="text-xs text-zinc-500 hover:text-zinc-800 font-medium inline-flex items-center gap-1 cursor-pointer"
                                 onClick={() => toggleFileGroupExpanded(group.folderType)}
                               >
                                 {expandedFileGroups.has(group.folderType) ? (
                                   <>
-                                    <ChevronUp className="h-3.5 w-3.5 mr-1" />
+                                    <ChevronUp className="h-3.5 w-3.5" />
                                     Show less
                                   </>
                                 ) : (
                                   <>
-                                    <ChevronDown className="h-3.5 w-3.5 mr-1" />
+                                    <ChevronDown className="h-3.5 w-3.5" />
                                     Read more ({group.files.length - 1} older version{group.files.length - 1 !== 1 ? "s" : ""})
                                   </>
                                 )}
-                              </Button>
+                              </button>
                             </div>
                           )}
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      )}
+                    </div>
+                  ))
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <FileText className="h-16 w-16 mx-auto mb-4 opacity-40" />
-                    <p className="text-lg font-medium">No files found in this task</p>
-                    <p className="text-sm mt-1">Files will appear here once they are uploaded by the editor.</p>
+                  <div className="text-center py-12 text-zinc-400">
+                    <FileText className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                    <p className="text-sm font-medium">No files found in this task</p>
+                    <p className="text-xs mt-1">Files will appear here once they are uploaded by the editor.</p>
                   </div>
                 )}
               </div>
+
+              {/* Action Buttons Footer */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={(e) => handleShare(e, selectedTask)}
+                  disabled={isSharing}
+                  className="bg-[#f05a28] hover:bg-[#ea580c] active:bg-[#c94519] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-base shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4 -rotate-45 stroke-[2.4]" />
+                  <span>Share</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadAllFiles(selectedTask)}
+                  className="bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-base shadow-sm transition-all cursor-pointer"
+                >
+                  <Download className="h-4 w-4 stroke-[2.4]" />
+                  <span>Download Files</span>
+                </button>
+              </div>
             </DialogContent>
           </Dialog>
+        )}
+
+        {selectedTask && (
+          <ShareDialog
+            open={showShareDialog}
+            onOpenChange={setShowShareDialog}
+            shareLink={shareLink}
+            copied={copied}
+            onCopy={() => {
+              navigator.clipboard.writeText(shareLink);
+              setCopied(true);
+              toast.success("Copied to clipboard");
+              setTimeout(() => setCopied(false), 3000);
+            }}
+          />
         )}
 
         {selectedTask && selectedFile && selectedFile.mimeType?.startsWith("video/") && (
