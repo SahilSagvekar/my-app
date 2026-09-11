@@ -302,7 +302,9 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white truncate leading-tight">{p.asset.title}</p>
+                        <p className="text-sm font-semibold text-white truncate leading-tight">
+                            {p.asset.title.replace(/\s*-\s*[^/]+\.(mp4|mov|avi|wmv|flv|webm|m4v|mkv|jpg|jpeg|png|webp|gif)$/i, '').replace(/\.(mp4|mov|avi|wmv|flv|webm|m4v|mkv)$/i, '').trim() || p.asset.title}
+                        </p>
                         {p.currentFileSection && (
                             <p className="text-[10px] text-[var(--review-text-muted)] capitalize leading-tight">
                                 {p.currentFileSection.folderType} · v{p.currentFileSection.version}

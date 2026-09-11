@@ -924,7 +924,7 @@ export function ClientDashboard() {
 
     return {
       id: selectedTask.id,
-      title: `${selectedTask.title} - ${file.name}`,
+      title: selectedTask.title || 'Review Task',
       subtitle: `Review Request`,
       videoUrl: file.url,
       proxyUrl: file.proxyUrl || null,

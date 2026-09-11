@@ -586,7 +586,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                         <div className="flex items-baseline gap-3 min-w-0">
                             <span className="text-lg font-semibold whitespace-nowrap overflow-hidden text-ellipsis text-white" style={{ letterSpacing: '-0.01em' }}>
-                                {p.asset.title}
+                                {p.asset.title.replace(/\s*-\s*[^/]+\.(mp4|mov|avi|wmv|flv|webm|m4v|mkv|jpg|jpeg|png|webp|gif)$/i, '').replace(/\.(mp4|mov|avi|wmv|flv|webm|m4v|mkv)$/i, '').trim() || p.asset.title}
                             </span>
                             <span style={{ width: 1, height: 14, background: 'var(--review-border)', flex: 'none', alignSelf: 'center' }} />
                             <span className="text-sm font-medium whitespace-nowrap" style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--review-v2-gray-100)' }}>
@@ -1389,15 +1389,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             ? ` — your ${unresolvedCount} comment${unresolvedCount === 1 ? '' : 's'} will not be sent.`
                                             : ' and releases it for delivery.'}
                                     </p>
-                                    {p.userRole === 'qc' && !p.requiresClientReview && (
-                                        <label className="flex items-center gap-2 px-1 py-1 text-xs cursor-pointer select-none" style={{ color: 'var(--review-v2-gray-400)' }}>
-                                            <Checkbox
-                                                checked={!!p.forceClientReviewOverride}
-                                                onCheckedChange={(checked) => p.onForceClientReviewOverrideChange?.(checked === true)}
-                                            />
-                                            Send this video to client review anyway
-                                        </label>
-                                    )}
                                     <div className="flex gap-2">
                                         <button
                                             onClick={cancelApproveConfirmation}
