@@ -112,6 +112,7 @@ export const NAVIGATION_ITEMS = {
   videographer: [
     { id: 'shoots', label: 'Shooting Schedule', icon: Camera },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
+    { id: 'production-log', label: 'Production Log', icon: ListChecks },
     { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'production-tracker', label: 'Production Tracker', icon: Target },
