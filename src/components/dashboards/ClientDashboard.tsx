@@ -1214,7 +1214,7 @@ export function ClientDashboard() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
             {/* Desktop App auto-download toggle */}
             {typeof window !== 'undefined' && (window as any).e8?.isDesktopApp && (
               <div className="flex items-center gap-2 shrink-0 mr-1">
@@ -1231,7 +1231,7 @@ export function ClientDashboard() {
 
             {/* Deliverables Dropdown Filter */}
             <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-              <SelectTrigger className="h-10 min-w-[150px] px-3.5 text-xs sm:text-[13px] font-semibold bg-white border border-zinc-200/90 rounded-xl text-zinc-900 hover:border-zinc-300 shadow-xs focus:ring-0 cursor-pointer flex items-center justify-between gap-2">
+              <SelectTrigger className="h-10 w-[165px] sm:w-[175px] shrink-0 px-3.5 text-xs sm:text-[13px] font-semibold bg-white border border-zinc-200/90 rounded-xl text-zinc-900 hover:border-zinc-300 shadow-xs focus:ring-0 cursor-pointer flex items-center justify-between gap-2">
                 <SelectValue placeholder="All Deliverables" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border border-zinc-200 bg-white shadow-lg">
@@ -1245,7 +1245,7 @@ export function ClientDashboard() {
             </Select>
 
             {/* Status Filter Badges Track */}
-            <div className="flex items-center gap-0.5 sm:gap-1 p-1 sm:p-1.5 bg-[#f3f4f6] rounded-2xl border border-zinc-200/40">
+            <div className="flex items-center gap-0.5 sm:gap-1 p-1 sm:p-1.5 bg-[#f3f4f6] rounded-2xl border border-zinc-200/40 shrink-0">
               <button
                 type="button"
                 onClick={() => setCurrentFilter('pending')}
