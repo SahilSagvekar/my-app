@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/schema';
+import { shootDetail as shootDetailTable, task as taskTable, user as userTable } from '@/lib/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
@@ -10,6 +10,13 @@ import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 // GET — the logged-in client's own shoots with a script that's been made
 // visible ("sent"). Content is always current — sending doesn't snapshot
 // it, so no separate re-send is needed after an edit.
+//
+// The client-facing Scripts screen only shows two states, Pending and
+// Approved (see ClientShootScriptsPage) — there's no client-triggered
+// "changes requested" anymore, the client edits the text directly instead.
+// A script that's still sitting in 'changes_requested' from the old flow
+// (or set by staff internally) is folded into "Pending" here rather than
+// hidden, so nothing silently disappears from the client's list.
 export async function GET(req: NextRequest) {
   const db = getDbHttp();
   try {
@@ -35,9 +42,11 @@ export async function GET(req: NextRequest) {
         scriptContent: shootDetailTable.scriptContent,
         scriptStatus: shootDetailTable.scriptStatus,
         scriptSentAt: shootDetailTable.scriptSentAt,
+        scriptSentByName: userTable.name,
       })
       .from(shootDetailTable)
       .innerJoin(taskTable, eq(shootDetailTable.taskId, taskTable.id))
+      .leftJoin(userTable, eq(shootDetailTable.scriptSentBy, userTable.id))
       .where(and(eq(taskTable.clientId, clientId), eq(shootDetailTable.scriptStatus, 'sent')))
       .orderBy(desc(shootDetailTable.shootDate));
 
@@ -47,8 +56,19 @@ export async function GET(req: NextRequest) {
         ? { ...script, status: 'sent' as const }
         : script);
       return entries
-      .filter((script) => ['sent', 'approved', 'changes_requested'].includes(script.status))
-      .map((script) => ({ ...script, taskId: row.taskId, taskTitle: row.taskTitle, shootDate: row.shootDate, location: row.location, scriptSentAt: row.scriptSentAt }));
+        .filter((script) => ['sent', 'approved', 'changes_requested'].includes(script.status))
+        .map((script) => ({
+          ...script,
+          // Fold the retired changes_requested state into "sent" (Pending)
+          // for display — see comment above.
+          status: script.status === 'changes_requested' ? 'sent' as const : script.status,
+          taskId: row.taskId,
+          taskTitle: row.taskTitle,
+          shootDate: row.shootDate,
+          location: row.location,
+          scriptSentAt: row.scriptSentAt,
+          scriptSentByName: row.scriptSentByName,
+        }));
     });
     return NextResponse.json({ scripts });
   } catch (error: unknown) {
@@ -57,8 +77,11 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH — client approval is tied to one script/video, so a shoot can have
-// an approved script while another is still waiting for feedback.
+// PATCH — two client actions now: 'approve' (marks the script approved) and
+// 'update_content' (the client edits the script text directly and it saves
+// in place — no "request changes" round-trip back to staff). Approval is
+// tied to one script/video, so a shoot can have an approved script while
+// another sibling video's script is still pending.
 export async function PATCH(req: NextRequest) {
   const db = getDbHttp();
   try {
@@ -67,9 +90,12 @@ export async function PATCH(req: NextRequest) {
     if ((user.role || '').toLowerCase() !== 'client') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const clientId = await resolveClientIdForUser(user.id);
     if (!clientId) return NextResponse.json({ error: 'Client profile not found' }, { status: 404 });
-    const { taskId, scriptId, action, feedback } = await req.json();
-    if (!taskId || !scriptId || !['approve', 'request_changes'].includes(action)) {
-      return NextResponse.json({ error: 'A script and response are required' }, { status: 400 });
+    const { taskId, scriptId, action, content } = await req.json();
+    if (!taskId || !scriptId || !['approve', 'update_content'].includes(action)) {
+      return NextResponse.json({ error: 'A script and an action are required' }, { status: 400 });
+    }
+    if (action === 'update_content' && typeof content !== 'string') {
+      return NextResponse.json({ error: 'Script content is required' }, { status: 400 });
     }
     const [row] = await db.select({ scriptContent: shootDetailTable.scriptContent })
       .from(shootDetailTable)
@@ -79,18 +105,28 @@ export async function PATCH(req: NextRequest) {
     if (!row) return NextResponse.json({ error: 'Script not found' }, { status: 404 });
     const document = readShootScriptDocument(row.scriptContent);
     const script = document.scripts.find((entry) => entry.id === scriptId);
+    // Also accept the retired 'changes_requested' state here so a script
+    // left over from before this redesign can still be approved/edited.
     if (!script || !['sent', 'approved', 'changes_requested'].includes(script.status)) {
       return NextResponse.json({ error: 'Script is not available for review' }, { status: 404 });
     }
-    script.status = action === 'approve' ? 'approved' : 'changes_requested';
-    script.clientFeedback = String(feedback || '').trim();
-    script.updatedAt = new Date().toISOString();
+    const now = new Date().toISOString();
+    if (action === 'approve') {
+      script.status = 'approved';
+    } else {
+      script.content = content;
+      // Editing no longer moves an approved script back to pending — the
+      // client can keep the record current after approval too.
+      if (script.status === 'changes_requested') script.status = 'sent';
+    }
+    script.updatedAt = now;
     await db.update(shootDetailTable).set({
       scriptContent: writeShootScriptDocument(document),
-      updatedAt: new Date().toISOString(),
+      scriptLastEditedAt: now,
+      scriptLastEditedBy: user.id,
+      updatedAt: now,
     }).where(eq(shootDetailTable.taskId, taskId));
 
-    // If changes_requested (rejected), unlinks from task; if approved, maintains link
     await syncShootScriptsToTasks(taskId, db);
 
     return NextResponse.json({ script });
@@ -99,4 +135,3 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to save response' }, { status: 500 });
   }
 }
-

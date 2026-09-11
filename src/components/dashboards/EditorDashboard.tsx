@@ -111,11 +111,11 @@ function getStatusBadgeStyles(status: string) {
 function getDeliverableTypeColor(deliverableType: string): { bg: string; border: string; ring: string } {
   const type = (deliverableType || '').toLowerCase();
 
+  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form' || type.includes('beta')) {
+    return { bg: 'bg-teal-50', border: 'border-teal-200', ring: 'ring-teal-300' };
+  }
   if (type.includes('short form') || type === 'sf' || type === 'short_form') {
     return { bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-300' };
-  }
-  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form') {
-    return { bg: 'bg-teal-50', border: 'border-teal-200', ring: 'ring-teal-300' };
   }
   if (type === 'sqf' || type.includes('sqf') || type.includes('super quick') || type.includes('square form')) {
     return { bg: 'bg-cyan-50', border: 'border-cyan-200', ring: 'ring-cyan-300' };

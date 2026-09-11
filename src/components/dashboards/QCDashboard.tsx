@@ -105,20 +105,20 @@ interface EnhancedWorkflowTask {
 const getDeliverableTypeColor = (deliverableType?: string | null): { bg: string; border: string; ring: string } => {
   const type = deliverableType?.toLowerCase().trim() || '';
   
+  // Beta Short Form (teal) - must check before Short Form
+  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form' || type.includes('beta')) {
+    return { 
+      bg: 'bg-teal-50', 
+      border: 'border-teal-200', 
+      ring: 'ring-teal-300' 
+    };
+  }
   // Short Form Videos (green)
   if (type.includes('short form') || type === 'sf' || type === 'short_form') {
     return { 
       bg: 'bg-emerald-50', 
       border: 'border-emerald-200', 
       ring: 'ring-emerald-300' 
-    };
-  }
-  // Beta Short Form (teal)
-  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form' || type.includes('beta')) {
-    return { 
-      bg: 'bg-teal-50', 
-      border: 'border-teal-200', 
-      ring: 'ring-teal-300' 
     };
   }
   // SQF - Super Quick Form (cyan)
@@ -350,21 +350,29 @@ useEffect(() => {
 
   const getDeliverableBadge = (rawType?: string | null, taskTitle?: string) => {
     let lower = (rawType || "").toLowerCase().trim();
-    if (!lower && taskTitle) {
-      const t = taskTitle.toLowerCase();
-      if (/(?:^|[_\-\s])lf\d*(?:[_\-\s]|$)/i.test(t)) lower = 'lf';
-      else if (/(?:^|[_\-\s])sf\d*(?:[_\-\s]|$)/i.test(t)) lower = 'sf';
+    const t = (taskTitle || "").toLowerCase();
+
+    // Check taskTitle for deliverable codes, giving priority to BSF/SQF over generic SF
+    if (/(?:^|[_\-\s])bsf\d*(?:[_\-\s]|$)/i.test(t) || t.includes('beta short form')) {
+      lower = 'bsf';
+    } else if (/(?:^|[_\-\s])sqf\d*(?:[_\-\s]|$)/i.test(t) || t.includes('super quick')) {
+      lower = 'sqf';
+    } else if (!lower && /(?:^|[_\-\s])lf\d*(?:[_\-\s]|$)/i.test(t)) {
+      lower = 'lf';
+    } else if (!lower && /(?:^|[_\-\s])sf\d*(?:[_\-\s]|$)/i.test(t)) {
+      lower = 'sf';
     }
+
     if (!lower || lower === "other") return null;
     let label = (rawType || "").toUpperCase();
-    if (lower === 'sf' || lower === 'short form' || lower === 'short form videos' || lower.includes('short form')) {
-      label = 'SHORT FORM';
-    } else if (lower === 'lf' || lower === 'long form' || lower === 'long form videos' || lower.includes('long form')) {
-      label = 'LONG FORM';
-    } else if (lower === 'bsf' || lower.includes('beta')) {
+    if (lower === 'bsf' || lower.includes('beta')) {
       label = 'BETA SHORT FORM';
     } else if (lower === 'sqf' || lower.includes('super quick')) {
       label = 'SUPER QUICK FORM';
+    } else if (lower === 'sf' || lower === 'short form' || lower === 'short form videos' || lower.includes('short form')) {
+      label = 'SHORT FORM';
+    } else if (lower === 'lf' || lower === 'long form' || lower === 'long form videos' || lower.includes('long form')) {
+      label = 'LONG FORM';
     } else if (lower === 'hp' || lower.includes('hard post') || lower.includes('graphic image')) {
       label = 'HARD POST';
     } else if (lower.includes('text post')) {
@@ -378,7 +386,9 @@ useEffect(() => {
     }
 
     let colorClass = 'bg-[#dcfce7] text-[#15803d]';
-    if (lower.includes('long') || lower === 'lf') {
+    if (lower.includes('beta') || lower.includes('bsf')) {
+      colorClass = 'bg-[#ccfbf1] text-[#0f766e]';
+    } else if (lower.includes('long') || lower === 'lf') {
       colorClass = 'bg-[#dbeafe] text-[#1d4ed8]';
     } else if (lower.includes('snap')) {
       colorClass = 'bg-[#fef9c3] text-[#a16207]';
@@ -386,8 +396,6 @@ useEffect(() => {
       colorClass = 'bg-[#f3e8ff] text-[#7e22ce]';
     } else if (lower.includes('audio') || lower.includes('podcast')) {
       colorClass = 'bg-[#ffedd5] text-[#c2410c]';
-    } else if (lower.includes('beta') || lower.includes('bsf')) {
-      colorClass = 'bg-[#ccfbf1] text-[#0f766e]';
     } else if (lower.includes('text post')) {
       colorClass = 'bg-[#e0e7ff] text-[#4338ca]';
     }

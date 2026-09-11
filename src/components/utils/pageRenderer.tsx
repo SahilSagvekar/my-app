@@ -53,7 +53,8 @@ import { FolderRepairTool } from "../admin/Folderrepairtool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
 import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
 import { ClientHelpVideos } from "../client/ClientHelpVideos";
-import { ClientShootScriptsPage } from "../dashboards/Clientshootscriptspage";  
+import { ClientShootScriptsPage } from "../dashboards/Clientshootscriptspage";
+import { ClientProductionLogPage } from "../dashboards/ClientProductionLogPage";  
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -402,6 +403,8 @@ export function renderPage(
         return <ClientHelpVideos />;
       case "scripts":
         return <ClientShootScriptsPage />;
+      case "production-log":
+        return <ClientProductionLogPage />;
       default:
         return <ClientMonthlyOverview />;
     }

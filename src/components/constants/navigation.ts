@@ -29,6 +29,7 @@ import {
   UserPlus,
   Activity,
   FolderCheck,
+  ListChecks,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -100,6 +101,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'approvals', label: 'Content Review', icon: CheckSquare },
     { id: 'posted', label: 'Posted Content', icon: MessageSquare },
     { id: 'scripts', label: 'Scripts', icon: FileText },
+    { id: 'production-log', label: 'Production Log', icon: ListChecks },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'social', label: 'Social Media', icon: Instagram },

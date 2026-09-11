@@ -614,11 +614,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                         )}
 
                         {p.asset.versions.length > 1 ? (
-                            <div className="relative">
+                            <div className="relative flex items-center">
                                 <Select value={p.currentVersion} onValueChange={p.handleVersionChange}>
                                     <SelectTrigger
-                                        className="h-[38px] w-auto min-w-[170px] text-sm font-medium rounded-md"
-                                        style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
+                                        className="!h-[38px] h-[38px] w-auto min-w-[170px] text-sm font-medium rounded-md py-0"
+                                        style={{ height: '38px', minHeight: '38px', maxHeight: '38px', background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
                                     >
                                         <SelectValue placeholder="Version" />
                                     </SelectTrigger>
@@ -633,8 +633,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                             </div>
                         ) : (
                             <Badge
-                                className="text-xs h-[38px] w-[38px] p-0 flex items-center justify-center rounded-md"
-                                style={{ background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
+                                className="text-xs !h-[38px] h-[38px] w-[38px] p-0 flex items-center justify-center rounded-md"
+                                style={{ height: '38px', minHeight: '38px', maxHeight: '38px', background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
                             >
                                 V{p.asset.versions[0]?.number || '1'}
                             </Badge>

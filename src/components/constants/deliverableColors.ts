@@ -19,13 +19,13 @@ export interface DeliverableColors {
 export function getDeliverableTypeColor(deliverableType: string): DeliverableColors {
   const type = deliverableType?.toLowerCase() || '';
 
+  // Beta Short Form (teal) - must check before Short Form
+  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form' || type.includes('beta')) {
+    return { bg: 'bg-teal-50', border: 'border-teal-200', ring: 'ring-teal-300' };
+  }
   // Short Form Videos (green)
   if (type.includes('short form') || type === 'sf' || type === 'short_form') {
     return { bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-300' };
-  }
-  // Beta Short Form (teal)
-  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form') {
-    return { bg: 'bg-teal-50', border: 'border-teal-200', ring: 'ring-teal-300' };
   }
   // SQF - Super Quick Form (cyan)
   if (type === 'sqf' || type.includes('sqf') || type.includes('super quick')) {
