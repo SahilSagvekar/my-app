@@ -57,6 +57,7 @@ import {
   GripVertical,
   MessageSquare,
   Hash,
+  Camera,
 } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Separator } from "../ui/separator";
@@ -2570,6 +2571,56 @@ export function ClientManagement() {
                       )}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Shoot Days Setting */}
+              <Card className="bg-white border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 flex items-center gap-2">
+                    <Camera className="h-5 w-5" />
+                    Shoot Days
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Shoot days per month</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Tracking only — not enforced as a hard cap. Also drives how many
+                        shoot tasks get auto-created for the videographer on the 1st of
+                        each month.
+                      </p>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={(selectedClient as any).shootDaysPerMonth ?? 0}
+                      onChange={async (e) => {
+                        const value = Math.max(0, Math.min(99, Number(e.target.value) || 0));
+                        try {
+                          const res = await fetch(`/api/clients/${selectedClient.id}/shoot-days`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ shootDaysPerMonth: value }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Failed');
+
+                          setClients(prev => prev.map(c =>
+                            c.id === selectedClient.id ? { ...c, shootDaysPerMonth: value } as any : c
+                          ));
+                          setSelectedClient({ ...selectedClient, shootDaysPerMonth: value } as any);
+                          toast.success('Shoot days per month updated');
+                        } catch (err: any) {
+                          console.error('Update shoot days error:', err);
+                          toast.error(err.message || 'Failed to update shoot days');
+                        }
+                      }}
+                      className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm text-right"
+                    />
+                  </div>
                 </CardContent>
               </Card>
 

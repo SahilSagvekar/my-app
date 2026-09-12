@@ -100,13 +100,22 @@ export function VideographerProductionLogPage() {
   const fetchClients = useCallback(async () => {
     try {
       const res = await fetch('/api/clients');
-      if (res.ok) {
-        const data = await res.json();
-        const list = (data.clients || data || []).map((c: any) => ({ id: c.id, name: c.companyName || c.name }));
-        setClients(list);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        console.error('[Production Log] /api/clients failed:', res.status, data);
+        toast.error(`Couldn't load clients (${res.status}) — check console for details`);
+        return;
       }
+      if (!data || !Array.isArray(data.clients)) {
+        console.error('[Production Log] /api/clients returned unexpected shape:', data);
+        toast.error("Client list came back in an unexpected format — check console");
+        return;
+      }
+      const list = data.clients.map((c: any) => ({ id: c.id, name: c.companyName || c.name }));
+      setClients(list);
     } catch (err) {
       console.error('Failed to load clients:', err);
+      toast.error('Failed to load clients — check console');
     }
   }, []);
 
