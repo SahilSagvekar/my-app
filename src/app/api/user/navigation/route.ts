@@ -53,6 +53,13 @@ export async function GET(req: NextRequest) {
 
         // 🔥 Additional filtering for client role based on hasPostingServices
         let finalItems = [...allItems];
+
+        // 🔥 AI Agent navigation item is strictly restricted to sahilsagvekar230@gmail.com
+        const userEmail = (decoded.email as string || '').toLowerCase().trim();
+        if (userEmail !== 'sahilsagvekar230@gmail.com') {
+            finalItems = finalItems.filter(item => item.id !== 'ai-agent');
+        }
+
         if (role === 'client') {
             // NOTE: Prisma's `include: { client: true }` here is the reverse
             // relation of Client.userId (1:1, unique-indexed) — drizzle-kit

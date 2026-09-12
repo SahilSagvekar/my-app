@@ -101,7 +101,7 @@ function AuthenticatedAppInner() {
           onPageChange={handlePageChange}
           onLogout={logout}
         >
-          {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices, originalRole, effectiveLinkedClientId)}
+          {renderPage(displayRole, currentPage, handlePageChange, user.hasPostingServices, originalRole, effectiveLinkedClientId, user.email)}
         </LayoutShell>
       </SearchProvider>
     // </NotificationProvider>

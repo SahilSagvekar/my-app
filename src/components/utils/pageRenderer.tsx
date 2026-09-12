@@ -55,6 +55,7 @@ import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
 import { ClientHelpVideos } from "../client/ClientHelpVideos";
 import { ClientShootScriptsPage } from "../dashboards/Clientshootscriptspage";
 import { ClientProductionLogPage } from "../dashboards/ClientProductionLogPage";  
+import { AdminAIAgentPage } from "../admin/AdminAIAgentPage";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -111,9 +112,18 @@ export function renderPage(
   onPageChange?: (page: string) => void,
   hasPostingServices?: boolean,
   originalRole?: string,
-  linkedClientId?: string
+  linkedClientId?: string,
+  userEmail?: string
 ): React.ReactElement {
   console.log(`Rendering page for role: ${role}, page: ${page}, originalRole: ${originalRole}`);
+
+  // 🔥 AI Agent is strictly restricted to sahilsagvekar230@gmail.com
+  if (page === "ai-agent") {
+    if (userEmail?.trim().toLowerCase() !== "sahilsagvekar230@gmail.com") {
+      return <ComingSoonPage title="Access Restricted" />;
+    }
+    return <AdminAIAgentPage />;
+  }
 
   // 🔥 Block unauthorized access for clients without posting services
   if (role.toLowerCase() === 'client' && hasPostingServices === false) {

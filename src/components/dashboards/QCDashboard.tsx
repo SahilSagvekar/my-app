@@ -1584,7 +1584,7 @@ useEffect(() => {
                     <div
                       className={`w-full ${
                         isLongForm ? "aspect-video" : "aspect-[4/5]"
-                      } relative flex items-center justify-center bg-[#14151a] overflow-hidden select-none`}
+                      } flex-1 min-h-0 relative flex items-center justify-center bg-[#14151a] overflow-hidden select-none`}
                     >
                       {hasThumbnails && currentThumb ? (
                         <>
@@ -1739,7 +1739,7 @@ useEffect(() => {
                     </div>
 
                     {/* Card Body */}
-                    <div className="p-4 pt-3 pb-3.5 flex flex-col justify-between flex-1 gap-2 bg-[#0e0f12]">
+                    <div className="p-4 pt-3 pb-3.5 flex flex-col gap-2 bg-[#0e0f12] shrink-0 mt-auto">
                       {/* Row 1: Task Title & Guidelines Button */}
                       <div className="flex items-center justify-between gap-2">
                         <h4

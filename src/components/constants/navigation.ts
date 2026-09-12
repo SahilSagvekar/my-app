@@ -30,11 +30,13 @@ import {
   Activity,
   FolderCheck,
   ListChecks,
+  Bot,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
   admin: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'ai-agent', label: 'AI Agent', icon: Bot },
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'file-verification', label: 'File Verification', icon: FolderCheck },

@@ -7,12 +7,26 @@ import {
   executeReadTool,
   executeWriteTool,
 } from "@/lib/ai-agent/tools";
+import jwt from "jsonwebtoken";
 
-// TODO: swap for your real admin auth check
-async function requireAdmin(req: NextRequest) {
-  // e.g. const session = await getServerSession(authOptions);
-  // if (session?.role !== "ADMIN") throw new Error("Forbidden");
-  return true;
+function getTokenFromCookies(req: Request) {
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/authToken=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+async function requireAuthorizedUser(req: NextRequest) {
+  const token = getTokenFromCookies(req);
+  if (!token) {
+    throw new Error("Unauthorized");
+  }
+  const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+  const userEmail = (decoded?.email as string || '').toLowerCase().trim();
+  if (userEmail !== 'sahilsagvekar230@gmail.com') {
+    throw new Error("Forbidden: Access restricted to sahilsagvekar230@gmail.com");
+  }
+  return decoded;
 }
 
 function findFunctionCall(interaction: any) {
@@ -30,7 +44,15 @@ function findFunctionCall(interaction: any) {
  * regardless of instruction.
  */
 export async function POST(req: NextRequest) {
-  await requireAdmin(req);
+  try {
+    await requireAuthorizedUser(req);
+  } catch (authErr: any) {
+    return NextResponse.json(
+      { error: authErr.message || "Forbidden" },
+      { status: 403 }
+    );
+  }
+
   const body = await req.json();
   const client = getClient();
 

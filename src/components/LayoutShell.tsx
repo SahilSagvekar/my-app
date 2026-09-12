@@ -25,7 +25,8 @@ import {
   Settings as SettingsIcon,
   ArrowLeftRight,
   FileText,
-  PlayCircle
+  PlayCircle,
+  Bot
 } from 'lucide-react';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { ClientFeedbackWidget } from './client/ClientFeedbackWidget';
@@ -122,12 +123,17 @@ export function LayoutShell({
     const controller = new AbortController();
     const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
     const clientForbiddenIds = ['posted', 'monthly-overview', 'youtube-analytics', 'instagram-analytics', 'archive', 'feedback'];
+    const isAIAgentUser = authUser?.email?.trim().toLowerCase() === 'sahilsagvekar230@gmail.com';
 
     const applyClientFilter = (data: any[]) => {
+      let filtered = data;
       if (normalizedRole === 'client' && authUser?.hasPostingServices === false) {
-        return data.filter((item: any) => !clientForbiddenIds.includes(item.id));
+        filtered = filtered.filter((item: any) => !clientForbiddenIds.includes(item.id));
       }
-      return data;
+      if (!isAIAgentUser) {
+        filtered = filtered.filter((item: any) => item.id !== 'ai-agent');
+      }
+      return filtered;
     };
 
     const fallback = () => {
@@ -159,9 +165,10 @@ export function LayoutShell({
 
     fetchNavItems();
     return () => controller.abort();
-  }, [currentRole, authUser?.hasPostingServices, isViewingAsOther]);
+  }, [currentRole, authUser?.hasPostingServices, authUser?.email, isViewingAsOther]);
 
-  const items = permittedItems;
+  const isAIAgentUser = authUser?.email?.trim().toLowerCase() === 'sahilsagvekar230@gmail.com';
+  const items = permittedItems.filter((item) => item.id !== 'ai-agent' || isAIAgentUser);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -419,7 +426,7 @@ export function LayoutShell({
               </div>
             ) : items.map((item) => {
               const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
-              const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || FileText;
+              const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || (item.id === 'ai-agent' ? Bot : FileText);
               const isActive = currentPage === item.id;
 
               // For locked client portals, grey out everything except contracts
