@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { Button } from '../ui/button';
+import AdminAgentChat from "@/components/AdminAgentChat";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -881,5 +882,19 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
     }
   };
 
-  return renderPageContent();
+  // ============================================
+  // LAYOUT: main content + persistent AI agent side panel
+  // ============================================
+  return (
+    <div className="flex h-full items-start gap-6">
+      <div className="flex-1 min-w-0">
+        {renderPageContent()}
+      </div>
+
+      <aside className="hidden xl:flex flex-col w-[340px] shrink-0 sticky top-6 border rounded-lg bg-gray-50/60 p-4 max-h-[calc(100vh-3rem)] overflow-y-auto">
+        <h3 className="text-sm font-semibold text-gray-600 mb-3">Quick Actions Assistant</h3>
+        <AdminAgentChat />
+      </aside>
+    </div>
+  );
 }
