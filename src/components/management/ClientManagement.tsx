@@ -3336,54 +3336,155 @@ export function ClientManagement() {
 
             <Separator className="bg-gray-200" />
 
-            {/* Template Hashtags */}
+            {/* Monthly Deliverables */}
             <div className="space-y-4">
-              <div>
-                <h3 className="text-gray-900 flex items-center gap-2">
-                  <Hash className="h-5 w-5 text-blue-500" />
-                  Template Hashtags
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Default hashtags for this client — selectable in the review screen when approving posts. The client can add more from their portal.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  value={hashtagInput}
-                  onChange={(e) => setHashtagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addTemplateHashtag();
-                    }
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-gray-900 flex items-center gap-2">
+                    <Repeat className="h-5 w-5" />
+                    Monthly Deliverables
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Set up recurring deliverables that auto-generate tasks
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    // Reset the deliverable form
+                    setNewDeliverable({
+                      type: "Short Form Videos",
+                      quantity: 0,
+                      videosPerDay: 1,
+                      platforms: [],
+                      postingSchedule: "weekly",
+                      postingDays: [],
+                      postingTimes: ["10:00 AM"],
+                      description: "",
+                    });
+                    setEditingDeliverableId(null); // 🔥 Clear editing state
+                    setDeliverableDialogKey((prev) => prev + 1); // Force remount
+                    setShowAddDeliverableDialog(true);
                   }}
-                  placeholder="e.g. contentcreation"
-                  className="bg-white border-gray-200 text-gray-900"
-                />
-                <Button type="button" variant="outline" onClick={addTemplateHashtag}>
-                  Add
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Deliverable
                 </Button>
               </div>
-              {(newClient.templateHashtags || []).length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {(newClient.templateHashtags || []).map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="secondary"
-                      className="gap-1.5 pr-1.5 bg-blue-50 text-blue-700 border-blue-200"
+
+              <DragDropContext onDragEnd={handleDeliverableDragEnd}>
+                <Droppable droppableId="deliverables-list">
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className="space-y-2"
                     >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeTemplateHashtag(tag)}
-                        className="text-blue-400 hover:text-blue-700"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
+                      {(newClient.monthlyDeliverables || []).map((deliverable, index) => (
+                        <Draggable
+                          key={deliverable.id}
+                          draggableId={deliverable.id}
+                          index={index}
+                        >
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className={`p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between ${snapshot.isDragging ? "shadow-lg ring-2 ring-blue-500 bg-white" : ""
+                                }`}
+                            >
+                              {/* Drag Handle */}
+                              <div
+                                {...provided.dragHandleProps}
+                                className="flex items-center justify-center p-1 mr-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+                              >
+                                <GripVertical className="h-5 w-5" />
+                              </div>
+
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {getDeliverableTypeIcon(deliverable.type)}
+                                  <span className="text-gray-900">
+                                    {deliverable.type}
+                                  </span>
+                                  <Badge variant="outline" className="text-gray-600">
+                                    {deliverable.quantity} per month
+                                  </Badge>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-blue-600 bg-blue-50"
+                                  >
+                                    {deliverable.videosPerDay || 1} per day
+                                  </Badge>
+                                </div>
+                                <div className="text-sm text-gray-600 mb-1">
+                                  {deliverable.postingSchedule} •{" "}
+                                  {deliverable.postingDays &&
+                                    deliverable.postingDays.length > 0
+                                    ? deliverable.postingDays.join(", ")
+                                    : "Various days"}{" "}
+                                  • {formatPostingTimesDisplay(deliverable.postingTimes)}
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {deliverable.platforms.map((platform) => (
+                                    <Badge
+                                      key={platform}
+                                      variant="outline"
+                                      className={`text-xs ${getPlatformBadgeColor(
+                                        platform
+                                      )}`}
+                                    >
+                                      {platform}
+                                    </Badge>
+                                  ))}
+                                </div>
+                                <div className="description text-xs text-gray-500 mt-2">
+                                  {deliverable.description && (
+                                    <p className="text-xs text-gray-500 mt-2">
+                                      {deliverable.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Edit and Delete buttons */}
+                              <div className="flex gap-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEditDeliverable(deliverable)}
+                                  className="text-blue-600 hover:text-blue-700"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleRemoveDeliverable(deliverable.id)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+
+                      {(!newClient.monthlyDeliverables ||
+                        newClient.monthlyDeliverables.length === 0) && (
+                          <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-gray-200">
+                            No monthly deliverables added yet
+                          </div>
+                        )}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
             </div>
 
             <Separator className="bg-gray-200" />
@@ -3492,153 +3593,54 @@ export function ClientManagement() {
 
             <Separator className="bg-gray-200" />
 
-            {/* Monthly Deliverables */}
+            {/* Template Hashtags */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-gray-900 flex items-center gap-2">
-                    <Repeat className="h-5 w-5" />
-                    Monthly Deliverables
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Set up recurring deliverables that auto-generate tasks
-                  </p>
-                </div>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => {
-                    // Reset the deliverable form
-                    setNewDeliverable({
-                      type: "Short Form Videos",
-                      quantity: 0,
-                      videosPerDay: 1,
-                      platforms: [],
-                      postingSchedule: "weekly",
-                      postingDays: [],
-                      postingTimes: ["10:00 AM"],
-                      description: "",
-                    });
-                    setEditingDeliverableId(null); // 🔥 Clear editing state
-                    setDeliverableDialogKey((prev) => prev + 1); // Force remount
-                    setShowAddDeliverableDialog(true);
+              <div>
+                <h3 className="text-gray-900 flex items-center gap-2">
+                  <Hash className="h-5 w-5 text-blue-500" />
+                  Template Hashtags
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Default hashtags for this client — selectable in the review screen when approving posts. The client can add more from their portal.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={hashtagInput}
+                  onChange={(e) => setHashtagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addTemplateHashtag();
+                    }
                   }}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Deliverable
+                  placeholder="e.g. contentcreation"
+                  className="bg-white border-gray-200 text-gray-900"
+                />
+                <Button type="button" variant="outline" onClick={addTemplateHashtag}>
+                  Add
                 </Button>
               </div>
-
-              <DragDropContext onDragEnd={handleDeliverableDragEnd}>
-                <Droppable droppableId="deliverables-list">
-                  {(provided) => (
-                    <div
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      className="space-y-2"
+              {(newClient.templateHashtags || []).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {(newClient.templateHashtags || []).map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className="gap-1.5 pr-1.5 bg-blue-50 text-blue-700 border-blue-200"
                     >
-                      {(newClient.monthlyDeliverables || []).map((deliverable, index) => (
-                        <Draggable
-                          key={deliverable.id}
-                          draggableId={deliverable.id}
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              className={`p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-start justify-between ${snapshot.isDragging ? "shadow-lg ring-2 ring-blue-500 bg-white" : ""
-                                }`}
-                            >
-                              {/* Drag Handle */}
-                              <div
-                                {...provided.dragHandleProps}
-                                className="flex items-center justify-center p-1 mr-2 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
-                              >
-                                <GripVertical className="h-5 w-5" />
-                              </div>
-
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  {getDeliverableTypeIcon(deliverable.type)}
-                                  <span className="text-gray-900">
-                                    {deliverable.type}
-                                  </span>
-                                  <Badge variant="outline" className="text-gray-600">
-                                    {deliverable.quantity} per month
-                                  </Badge>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-blue-600 bg-blue-50"
-                                  >
-                                    {deliverable.videosPerDay || 1} per day
-                                  </Badge>
-                                </div>
-                                <div className="text-sm text-gray-600 mb-1">
-                                  {deliverable.postingSchedule} •{" "}
-                                  {deliverable.postingDays &&
-                                    deliverable.postingDays.length > 0
-                                    ? deliverable.postingDays.join(", ")
-                                    : "Various days"}{" "}
-                                  • {formatPostingTimesDisplay(deliverable.postingTimes)}
-                                </div>
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {deliverable.platforms.map((platform) => (
-                                    <Badge
-                                      key={platform}
-                                      variant="outline"
-                                      className={`text-xs ${getPlatformBadgeColor(
-                                        platform
-                                      )}`}
-                                    >
-                                      {platform}
-                                    </Badge>
-                                  ))}
-                                </div>
-                                {deliverable.description && (
-                                  <p className="text-xs text-gray-500 mt-2">
-                                    {deliverable.description}
-                                  </p>
-                                )}
-                              </div>
-                              {/* Edit and Delete buttons */}
-                              <div className="flex gap-1">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleEditDeliverable(deliverable)}
-                                  className="text-blue-600 hover:text-blue-700"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleRemoveDeliverable(deliverable.id)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-
-                      {(!newClient.monthlyDeliverables ||
-                        newClient.monthlyDeliverables.length === 0) && (
-                          <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-gray-200">
-                            No monthly deliverables added yet
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTemplateHashtag(tag)}
+                        className="text-blue-400 hover:text-blue-700"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
 
             <Separator className="bg-gray-200" />
