@@ -3,21 +3,11 @@
 import { useState } from "react";
 
 type Msg = { role: "user" | "assistant"; text: string };
-type Pending = {
-  toolName: string;
-  args: any;
-  description: string;
-  callId: string;
-  interactionId: string;
-} | null;
 
 export default function AdminAgentChat() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
-  const [pending, setPending] = useState<Pending>(null);
   const [loading, setLoading] = useState(false);
-  // Tracks the last interaction so the next turn continues the same
-  // server-side conversation instead of resending full history.
   const [lastInteractionId, setLastInteractionId] = useState<string | undefined>(undefined);
 
   async function send() {
@@ -38,40 +28,8 @@ export default function AdminAgentChat() {
     const data = await res.json();
     setLoading(false);
 
-    if (data.type === "text") {
-      setMessages((m) => [...m, { role: "assistant", text: data.text }]);
-      setLastInteractionId(data.interactionId);
-    } else if (data.type === "pending_confirmation") {
-      setPending({
-        toolName: data.toolName,
-        args: data.args,
-        description: data.description,
-        callId: data.callId,
-        interactionId: data.interactionId,
-      });
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", text: `Proposed action: ${data.description}` },
-      ]);
-    }
-  }
-
-  async function confirmAction() {
-    if (!pending) return;
-    setLoading(true);
-    const res = await fetch("/api/admin/agent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirm: pending }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    setPending(null);
+    setMessages((m) => [...m, { role: "assistant", text: data.text }]);
     setLastInteractionId(data.interactionId);
-    setMessages((m) => [
-      ...m,
-      { role: "assistant", text: data.text || `Done: ${pending.description}` },
-    ]);
   }
 
   return (
@@ -91,26 +49,6 @@ export default function AdminAgentChat() {
         ))}
         {loading && <div className="text-sm text-gray-400">Thinking…</div>}
       </div>
-
-      {pending && (
-        <div className="flex items-center justify-between border rounded-lg p-3 bg-yellow-50">
-          <span className="text-sm">{pending.description}</span>
-          <div className="flex gap-2">
-            <button
-              onClick={confirmAction}
-              className="px-3 py-1 bg-green-600 text-white rounded text-sm"
-            >
-              Confirm
-            </button>
-            <button
-              onClick={() => setPending(null)}
-              className="px-3 py-1 bg-gray-200 rounded text-sm"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="flex gap-2">
         <input
