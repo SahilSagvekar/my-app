@@ -145,6 +145,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       templateHashtags,
       monthlyDeliverables = [],
       oneOffDeliverables = [],
+      shootDaysPerMonth,
     } = data;
 
     if (clientReviewRequired === "yes") {
@@ -196,6 +197,9 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       ...(slackEnabled !== undefined && { slackEnabled }),
       ...(templateHashtags !== undefined && {
         templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
+      }),
+      ...(shootDaysPerMonth !== undefined && shootDaysPerMonth !== "" && {
+        shootDaysPerMonth: Math.max(0, Math.min(99, Number(shootDaysPerMonth) || 0)),
       }),
       updatedAt: new Date().toISOString(),
     }).where(eq(clientTable.id, id)).returning();

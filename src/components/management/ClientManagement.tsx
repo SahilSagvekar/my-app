@@ -355,6 +355,7 @@ export function ClientManagement() {
     coverImageRequired: "no",
     hasPostingServices: true,
     templateHashtags: [],
+    shootDaysPerMonth: 0,
     monthlyDeliverables: [],
     oneOffDeliverables: [],
     brandAssets: [],
@@ -1651,6 +1652,7 @@ export function ClientManagement() {
         videographerRequired: "no",
         coverImageRequired: "no",
         templateHashtags: [],
+        shootDaysPerMonth: 0,
         monthlyDeliverables: [],
         brandAssets: [],
         brandGuidelines: {
@@ -1698,6 +1700,7 @@ export function ClientManagement() {
       coverImageRequired: (client as any).requiresCoverImage ? "yes" : "no",
       hasPostingServices: client.hasPostingServices ?? true,
       templateHashtags: (client as any).templateHashtags ?? [],
+      shootDaysPerMonth: (client as any).shootDaysPerMonth ?? 0,
       accountManagerId: client.accountManagerId,
       startDate: client.startDate,
       renewalDate: client.renewalDate,
@@ -3323,6 +3326,33 @@ export function ClientManagement() {
                       <SelectItem value="no">No</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="shootDaysPerMonth"
+                    className="text-gray-700"
+                  >
+                    Shoot Days Per Month
+                  </Label>
+                  <Input
+                    id="shootDaysPerMonth"
+                    type="number"
+                    min={0}
+                    max={99}
+                    placeholder="0"
+                    value={(newClient as any).shootDaysPerMonth ?? ""}
+                    onChange={(e) =>
+                      setNewClient({
+                        ...newClient,
+                        shootDaysPerMonth: e.target.value === "" ? "" : Math.max(0, Math.min(99, Number(e.target.value))),
+                      } as any)
+                    }
+                  />
+                  <p className="text-xs text-gray-500">
+                    Tracking only — also drives how many shoot tasks
+                    auto-create for the videographer each month.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
