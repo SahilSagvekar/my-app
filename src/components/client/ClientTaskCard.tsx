@@ -131,7 +131,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
       <div
         className={`w-full ${
           isLongForm ? 'aspect-video' : 'aspect-[4/5]'
-        } relative flex items-center justify-center bg-zinc-900 overflow-hidden select-none`}
+        } flex-1 min-h-0 relative flex items-center justify-center bg-zinc-900 overflow-hidden select-none`}
       >
         {displayThumbnail ? (
           <>
@@ -154,7 +154,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
       </div>
 
       {/* Dark Action Bottom Bar */}
-      <div className="p-3 bg-black flex flex-col gap-2">
+      <div className="p-3 bg-black flex flex-col gap-2 mt-auto shrink-0 border-t border-zinc-900/60">
         {/* Primary Action Button: Review */}
         <Button
           type="button"
