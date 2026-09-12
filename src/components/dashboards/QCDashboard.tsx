@@ -121,8 +121,8 @@ const getDeliverableTypeColor = (deliverableType?: string | null): { bg: string;
       ring: 'ring-emerald-300' 
     };
   }
-  // SQF - Super Quick Form (cyan)
-  if (type === 'sqf' || type.includes('sqf') || type.includes('super quick')) {
+  // SQF - Square Form (cyan)
+  if (type === 'sqf' || type.includes('sqf') || type.includes('square form') || type.includes('super quick')) {
     return { 
       bg: 'bg-cyan-50', 
       border: 'border-cyan-200', 
@@ -355,7 +355,7 @@ useEffect(() => {
     // Check taskTitle for deliverable codes, giving priority to BSF/SQF over generic SF
     if (/(?:^|[_\-\s])bsf\d*(?:[_\-\s]|$)/i.test(t) || t.includes('beta short form')) {
       lower = 'bsf';
-    } else if (/(?:^|[_\-\s])sqf\d*(?:[_\-\s]|$)/i.test(t) || t.includes('super quick')) {
+    } else if (/(?:^|[_\-\s])sqf\d*(?:[_\-\s]|$)/i.test(t) || t.includes('square form') || t.includes('super quick')) {
       lower = 'sqf';
     } else if (!lower && /(?:^|[_\-\s])lf\d*(?:[_\-\s]|$)/i.test(t)) {
       lower = 'lf';
@@ -367,8 +367,8 @@ useEffect(() => {
     let label = (rawType || "").toUpperCase();
     if (lower === 'bsf' || lower.includes('beta')) {
       label = 'BETA SHORT FORM';
-    } else if (lower === 'sqf' || lower.includes('super quick')) {
-      label = 'SUPER QUICK FORM';
+    } else if (lower === 'sqf' || lower.includes('square') || lower.includes('super quick')) {
+      label = 'SQUARE FORM';
     } else if (lower === 'sf' || lower === 'short form' || lower === 'short form videos' || lower.includes('short form')) {
       label = 'SHORT FORM';
     } else if (lower === 'lf' || lower === 'long form' || lower === 'long form videos' || lower.includes('long form')) {

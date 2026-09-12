@@ -27,8 +27,8 @@ export function getDeliverableTypeColor(deliverableType: string): DeliverableCol
   if (type.includes('short form') || type === 'sf' || type === 'short_form') {
     return { bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-300' };
   }
-  // SQF - Super Quick Form (cyan)
-  if (type === 'sqf' || type.includes('sqf') || type.includes('super quick')) {
+  // SQF - Square Form (cyan)
+  if (type === 'sqf' || type.includes('sqf') || type.includes('square form') || type.includes('super quick')) {
     return { bg: 'bg-cyan-50', border: 'border-cyan-200', ring: 'ring-cyan-300' };
   }
   // Snapchat Videos (yellow)
