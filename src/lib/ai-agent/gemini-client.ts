@@ -1,18 +1,20 @@
 /**
  * Thin wrapper around the Gemini API for the admin agent.
  *
- * Uses the free tier of gemini-2.0-flash. Get a key at
- * https://aistudio.google.com/apikey and set GEMINI_API_KEY in your env.
+ * As of mid-2026, Google replaced the old generateContent/startChat flow
+ * (package `@google/generative-ai`, now legacy) with the Interactions API
+ * (package `@google/genai`). This also means model IDs changed —
+ * gemini-2.0-flash was sunset; gemini-3.6-flash is the current equivalent.
  *
- * Install: npm install @google/generative-ai
+ * Install: npm uninstall @google/generative-ai && npm install @google/genai
+ * Get a key at https://aistudio.google.com/apikey and set GEMINI_API_KEY.
  */
 
-import { GoogleGenerativeAI, FunctionCallingMode } from "@google/generative-ai";
-import { toolDeclarations } from "./tools";
+import { GoogleGenAI } from "@google/genai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+export const MODEL = "gemini-3.6-flash";
 
-const SYSTEM_INSTRUCTION = `
+export const SYSTEM_INSTRUCTION = `
 You are an internal admin assistant for a video production company's dashboard.
 You help the admin manage tasks by calling the tools available to you.
 
@@ -25,13 +27,14 @@ Rules:
 - Keep responses short and plain — the person reading this is busy and non-technical.
 `.trim();
 
-export function getModel() {
-  return genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    systemInstruction: SYSTEM_INSTRUCTION,
-    tools: [{ functionDeclarations: toolDeclarations }],
-    toolConfig: {
-      functionCallingConfig: { mode: FunctionCallingMode.AUTO },
-    },
-  });
+let _client: GoogleGenAI | null = null;
+
+export function getClient(): GoogleGenAI {
+  if (!_client) {
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is not set");
+    }
+    _client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return _client;
 }

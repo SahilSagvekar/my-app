@@ -3,13 +3,22 @@
 import { useState } from "react";
 
 type Msg = { role: "user" | "assistant"; text: string };
-type Pending = { toolName: string; args: any; description: string } | null;
+type Pending = {
+  toolName: string;
+  args: any;
+  description: string;
+  callId: string;
+  interactionId: string;
+} | null;
 
 export default function AdminAgentChat() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState<Pending>(null);
   const [loading, setLoading] = useState(false);
+  // Tracks the last interaction so the next turn continues the same
+  // server-side conversation instead of resending full history.
+  const [lastInteractionId, setLastInteractionId] = useState<string | undefined>(undefined);
 
   async function send() {
     if (!input.trim()) return;
@@ -21,15 +30,25 @@ export default function AdminAgentChat() {
     const res = await fetch("/api/admin/agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: userMsg.text }),
+      body: JSON.stringify({
+        message: userMsg.text,
+        previousInteractionId: lastInteractionId,
+      }),
     });
     const data = await res.json();
     setLoading(false);
 
     if (data.type === "text") {
       setMessages((m) => [...m, { role: "assistant", text: data.text }]);
+      setLastInteractionId(data.interactionId);
     } else if (data.type === "pending_confirmation") {
-      setPending({ toolName: data.toolName, args: data.args, description: data.description });
+      setPending({
+        toolName: data.toolName,
+        args: data.args,
+        description: data.description,
+        callId: data.callId,
+        interactionId: data.interactionId,
+      });
       setMessages((m) => [
         ...m,
         { role: "assistant", text: `Proposed action: ${data.description}` },
@@ -48,17 +67,18 @@ export default function AdminAgentChat() {
     const data = await res.json();
     setLoading(false);
     setPending(null);
-    setMessages((m) => [...m, { role: "assistant", text: `Done: ${pending.description}` }]);
+    setLastInteractionId(data.interactionId);
+    setMessages((m) => [
+      ...m,
+      { role: "assistant", text: data.text || `Done: ${pending.description}` },
+    ]);
   }
 
   return (
     <div className="flex flex-col gap-3 max-w-md">
       <div className="flex flex-col gap-2 min-h-[200px] p-3 border rounded-lg bg-white">
         {messages.map((m, i) => (
-          <div
-            key={i}
-            className={m.role === "user" ? "text-right" : "text-left"}
-          >
+          <div key={i} className={m.role === "user" ? "text-right" : "text-left"}>
             <span
               className={
                 "inline-block px-3 py-2 rounded-lg text-sm " +

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getModel } from "@/lib/ai-agent/gemini-client";
+import { getClient, MODEL, SYSTEM_INSTRUCTION } from "@/lib/ai-agent/gemini-client";
 import {
   TOOL_KINDS,
   ToolName,
+  toolDeclarations,
   executeReadTool,
   executeWriteTool,
   describeWriteAction,
@@ -15,79 +16,112 @@ async function requireAdmin(req: NextRequest) {
   return true;
 }
 
+function findFunctionCall(interaction: any) {
+  return interaction.steps?.find((s: any) => s.type === "function_call");
+}
+
 /**
  * Body shapes handled:
  *
  * 1) New message from the admin:
- *    { message: string, history?: {role, parts}[] }
+ *    { message: string, previousInteractionId?: string }
  *
  * 2) Confirming a pending write action:
- *    { confirm: { toolName: ToolName, args: any } }
+ *    { confirm: { toolName, args, callId, interactionId } }
  */
 export async function POST(req: NextRequest) {
   await requireAdmin(req);
   const body = await req.json();
+  const client = getClient();
 
   // ── Case 1: admin clicked "confirm" on a pending write ─────────────────
   if (body.confirm) {
-    const { toolName, args } = body.confirm as { toolName: ToolName; args: any };
+    const { toolName, args, callId, interactionId } = body.confirm as {
+      toolName: ToolName;
+      args: any;
+      callId: string;
+      interactionId: string;
+    };
+
     if (TOOL_KINDS[toolName] !== "write") {
       return NextResponse.json({ error: "Not a write tool" }, { status: 400 });
     }
+
     const result = await executeWriteTool(toolName, args);
+
+    // Feed the result back into the same interaction so the model can
+    // acknowledge it in its own words. `tools` must be re-specified —
+    // previous_interaction_id only carries conversation history, not config.
+    const followUp = await client.interactions.create({
+      model: MODEL,
+      system_instruction: SYSTEM_INSTRUCTION,
+      tools: toolDeclarations,
+      previous_interaction_id: interactionId,
+      input: [{ type: "function_result", call_id: callId, name: toolName, result }],
+    });
+
     return NextResponse.json({
       type: "write_executed",
       toolName,
       args,
       result,
+      text: followUp.output_text,
+      interactionId: followUp.id,
     });
   }
 
   // ── Case 2: normal message ──────────────────────────────────────────────
-  const { message, history = [] } = body as { message: string; history?: any[] };
+  const { message, previousInteractionId } = body as {
+    message: string;
+    previousInteractionId?: string;
+  };
 
-  const model = getModel();
-  const chat = model.startChat({ history });
-  const result = await chat.sendMessage(message);
-  const response = result.response;
+  const interaction = await client.interactions.create({
+    model: MODEL,
+    system_instruction: SYSTEM_INSTRUCTION,
+    tools: toolDeclarations,
+    input: message,
+    previous_interaction_id: previousInteractionId,
+  });
 
-  const calls = response.functionCalls();
+  const call = findFunctionCall(interaction);
 
-  if (!calls || calls.length === 0) {
+  if (!call) {
     // Plain text answer, no tool needed
     return NextResponse.json({
       type: "text",
-      text: response.text(),
+      text: interaction.output_text,
+      interactionId: interaction.id,
     });
   }
 
-  // Handle the first function call (extend to loop over multiple if needed)
-  const call = calls[0];
   const toolName = call.name as ToolName;
-  const args = call.args;
+  const args = call.arguments;
 
   if (TOOL_KINDS[toolName] === "read") {
-    // Execute immediately, then let the model turn the result into a reply
+    // Execute immediately, then feed the result back for a final answer
     const toolResult = await executeReadTool(toolName, args);
-    const followUp = await chat.sendMessage([
-      {
-        functionResponse: {
-          name: toolName,
-          response: { result: toolResult },
-        },
-      },
-    ]);
+    const followUp = await client.interactions.create({
+      model: MODEL,
+      system_instruction: SYSTEM_INSTRUCTION,
+      tools: toolDeclarations,
+      previous_interaction_id: interaction.id,
+      input: [{ type: "function_result", call_id: call.id, name: toolName, result: toolResult }],
+    });
     return NextResponse.json({
       type: "text",
-      text: followUp.response.text(),
+      text: followUp.output_text,
+      interactionId: followUp.id,
     });
   }
 
-  // WRITE tool: do NOT execute — return a pending confirmation instead
+  // WRITE tool: do NOT execute — hand back everything needed to confirm later
   return NextResponse.json({
     type: "pending_confirmation",
     toolName,
     args,
+    callId: call.id,
+    interactionId: interaction.id,
     description: describeWriteAction(toolName, args),
   });
 }

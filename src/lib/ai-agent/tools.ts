@@ -1,5 +1,8 @@
 /**
- * Tool definitions for the Admin AI Agent.
+ * Tool definitions for the Admin AI Agent — updated for Google's new
+ * Interactions API (the `@google/genai` SDK). This replaces the old
+ * `@google/generative-ai` FunctionDeclaration/SchemaType format, which used
+ * the now-legacy generateContent API.
  *
  * IMPORTANT: This is the safety boundary. The model can ONLY ever call one of
  * the functions defined below — there is no generic "run a query" or
@@ -9,8 +12,6 @@
  * Wire the `execute` functions below to your real Prisma calls / existing
  * API route logic (marked with TODO).
  */
-
-import { FunctionDeclaration, SchemaType } from "@google/generative-ai";
 
 // ── Tool categories ──────────────────────────────────────────────────────
 // READ tools  -> executed immediately, no confirmation needed
@@ -26,30 +27,33 @@ export const TOOL_KINDS = {
 
 export type ToolName = keyof typeof TOOL_KINDS;
 
-// ── Schemas Gemini sees (function-calling declarations) ─────────────────
+// ── Tool schemas Gemini sees ─────────────────────────────────────────────
+// The Interactions API uses a flat schema: { type: "function", name,
+// description, parameters }, NOT the old nested FunctionDeclaration shape.
 
-export const toolDeclarations: FunctionDeclaration[] = [
+export const toolDeclarations = [
   {
+    type: "function",
     name: "searchTasks",
     description:
       "Search/look up tasks by status, assignee, client, or a free-text query. Read-only.",
     parameters: {
-      type: SchemaType.OBJECT,
+      type: "object",
       properties: {
         query: {
-          type: SchemaType.STRING,
+          type: "string",
           description: "Free-text search term (task title, client name, etc.) — optional",
         },
         status: {
-          type: SchemaType.STRING,
+          type: "string",
           description: "Filter by task status (e.g. PENDING, IN_PROGRESS, QC, DONE) — optional",
         },
         assignee: {
-          type: SchemaType.STRING,
+          type: "string",
           description: "Filter by assignee name or email — optional",
         },
         limit: {
-          type: SchemaType.NUMBER,
+          type: "number",
           description: "Max number of results to return, default 10",
         },
       },
@@ -57,19 +61,20 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
   },
   {
+    type: "function",
     name: "pullReport",
     description:
       "Pull a summary report (e.g. task counts by status, workload per editor, overdue tasks). Read-only.",
     parameters: {
-      type: SchemaType.OBJECT,
+      type: "object",
       properties: {
         reportType: {
-          type: SchemaType.STRING,
+          type: "string",
           description:
             "Which report to pull: 'status_summary' | 'workload_by_assignee' | 'overdue_tasks'",
         },
         dateRange: {
-          type: SchemaType.STRING,
+          type: "string",
           description: "Optional date range, e.g. 'last_7_days', 'this_month'",
         },
       },
@@ -77,15 +82,16 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
   },
   {
+    type: "function",
     name: "updateTaskStatus",
     description:
       "Change a task's status (e.g. mark as done, move to QC). WRITE action — requires human confirmation before it takes effect.",
     parameters: {
-      type: SchemaType.OBJECT,
+      type: "object",
       properties: {
-        taskId: { type: SchemaType.STRING, description: "The ID of the task to update" },
+        taskId: { type: "string", description: "The ID of the task to update" },
         newStatus: {
-          type: SchemaType.STRING,
+          type: "string",
           description: "The new status to set, e.g. PENDING, IN_PROGRESS, QC, DONE",
         },
       },
@@ -93,22 +99,23 @@ export const toolDeclarations: FunctionDeclaration[] = [
     },
   },
   {
+    type: "function",
     name: "reassignTask",
     description:
       "Reassign a task from one person to another. WRITE action — requires human confirmation before it takes effect.",
     parameters: {
-      type: SchemaType.OBJECT,
+      type: "object",
       properties: {
-        taskId: { type: SchemaType.STRING, description: "The ID of the task to reassign" },
+        taskId: { type: "string", description: "The ID of the task to reassign" },
         newAssignee: {
-          type: SchemaType.STRING,
+          type: "string",
           description: "Name or email of the person to assign the task to",
         },
       },
       required: ["taskId", "newAssignee"],
     },
   },
-];
+] as const;
 
 // ── Execution layer ───────────────────────────────────────────────────────
 // Plug your real logic in here. Keep these functions "dumb" — they should do
