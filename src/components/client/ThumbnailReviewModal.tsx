@@ -597,7 +597,7 @@ export function ThumbnailReviewModal({
                             >
                                 {viewMode === 'gallery' ? (
                                     /* Gallery grid */
-                                    <div className="flex-1 overflow-auto p-6">
+                                    <div className="flex-1 overflow-auto p-6 pb-24">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto items-start">
                                             {orderedThumbnails.map((t, idx) => (
                                                 <div
@@ -611,9 +611,6 @@ export function ThumbnailReviewModal({
                                                 >
                                                     <div className="aspect-video relative">
                                                         <img src={t.url} alt={t.name} className="w-full h-full object-cover" />
-                                                        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10">
-                                                            <span className="text-white font-bold text-sm">#{idx + 1}</span>
-                                                        </div>
                                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                             <Button variant="secondary" size="sm" className="bg-white text-black hover:bg-zinc-200">
                                                                 Review Details
@@ -635,15 +632,15 @@ export function ThumbnailReviewModal({
                                     </div>
                                 ) : (
                                     /* Single image view */
-                                    <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden p-8">
-                                        <div className="relative group max-w-full max-h-full">
+                                    <div className="flex-1 relative bg-black flex flex-col items-center justify-between overflow-hidden p-4 sm:p-6 gap-3">
+                                        <div className="flex-1 w-full min-h-0 relative group flex items-center justify-center">
                                             <img
                                                 key={currentFile.id + (imgCrossOriginFailed ? '-nocors' : '')}
                                                 ref={imageRef}
                                                 crossOrigin={imgCrossOriginFailed ? undefined : "anonymous"}
                                                 src={currentFile.url}
                                                 alt={currentFile.name}
-                                                className="max-w-full max-h-[calc(100vh-200px)] object-contain shadow-2xl rounded-sm"
+                                                className="max-w-full max-h-full object-contain shadow-2xl rounded-sm"
                                                 onError={() => {
                                                     if (!imgCrossOriginFailed) {
                                                         console.warn(`[ThumbnailReviewModal] "${currentFile.name}" failed to load with crossOrigin="anonymous" — retrying without it. Screenshot/draw capture will be unavailable for this image until it reloads cleanly.`);
@@ -651,10 +648,7 @@ export function ThumbnailReviewModal({
                                                     }
                                                 }}
                                             />
-                                            <div className="absolute top-4 left-4 bg-purple-600 text-white px-4 py-1.5 rounded-lg font-bold text-lg shadow-xl">
-                                                #{currentNumber}
-                                            </div>
-                                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                                                 <Button
                                                     size="icon" variant="secondary"
                                                     className="bg-black/50 hover:bg-black/80 text-white border-none"
@@ -665,8 +659,8 @@ export function ThumbnailReviewModal({
                                             </div>
                                         </div>
 
-                                        {/* Floating thumbnail picker */}
-                                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[var(--review-bg-secondary)]/90 backdrop-blur-md border border-[var(--review-border)] rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl">
+                                        {/* Bottom thumbnail picker */}
+                                        <div className="shrink-0 z-20 bg-[var(--review-bg-secondary)]/90 backdrop-blur-md border border-[var(--review-border)] rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl">
                                             <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-2">
                                                 {imageLabel}
                                             </span>
@@ -674,7 +668,7 @@ export function ThumbnailReviewModal({
                                                 <button
                                                     key={t.id}
                                                     onClick={() => setCurrentFile(t)}
-                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${
                                                         currentFile.id === t.id
                                                             ? 'bg-purple-600 text-white'
                                                             : 'text-[var(--review-text-muted)] hover:bg-white/10 hover:text-white'
@@ -686,7 +680,7 @@ export function ThumbnailReviewModal({
                                             <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
                                             <button
                                                 onClick={() => setViewMode('gallery')}
-                                                className="p-1.5 rounded-lg text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 transition-all"
+                                                className="p-1.5 rounded-lg text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
                                                 title="Gallery view"
                                             >
                                                 <LayoutGrid className="h-4 w-4" />
