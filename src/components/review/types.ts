@@ -14,7 +14,7 @@ export interface ReviewComment {
     endTimestampSeconds?: number; // Optional end timestamp in seconds for ranges
     isGeneral?: boolean; // True for a comment not tied to any specific time — shown as "General", excluded from timeline markers
     content: string;
-    category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles' | 'audio' | 'composition' | 'color' | 'text' | 'branding')[];
+    category: ('design' | 'content' | 'timing' | 'technical' | 'broll' | 'subtitles' | 'audio' | 'composition' | 'color' | 'text' | 'branding' | string)[];
     thumbnailIndex?: number; // Optional 1-based index (e.g., 1, 2, 3 for #1, #2, #3) when comment is on a thumbnail variant
 
     screenshotUrl?: string; // R2 URL of captured (optionally drawn-on) video frame

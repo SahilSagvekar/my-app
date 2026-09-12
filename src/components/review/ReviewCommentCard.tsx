@@ -36,8 +36,16 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
     const [tempContent, setTempContent] = useState(comment.content);
 
     const categories = (Array.isArray(comment.category) ? comment.category : [comment.category])
-        .map((v) => COMMENT_CATEGORIES.find((c) => c.value === v) || THUMBNAIL_CATEGORIES.find((c) => c.value === v))
-        .filter((c): c is { label: string; value: string; color?: string; description?: string } => !!c);
+        .filter(Boolean)
+        .map((v) => {
+            const found = COMMENT_CATEGORIES.find((c) => c.value === v) || THUMBNAIL_CATEGORIES.find((c) => c.value === v);
+            if (found) return found;
+            return {
+                label: String(v).toUpperCase(),
+                value: String(v),
+                color: '#71717a',
+            };
+        });
 
     const handleEditSave = () => {
         if (tempContent.trim() && onEdit) {

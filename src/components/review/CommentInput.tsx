@@ -219,6 +219,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 }, ref) {
     const [content, setContent] = useState('');
     const [category, setCategory] = useState<string>(mode === 'thumbnail' ? 'composition' : 'design');
+    const [customCategory, setCustomCategory] = useState('');
     const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -228,6 +229,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
         } else {
             setCategory('design');
         }
+        setCustomCategory('');
     }, [mode]);
 
     // Snip (drag-select a partial region to screenshot)
@@ -597,6 +599,10 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 || (finalAttachments?.length ? `Attached: ${finalAttachments.map(a => a.name).join(', ')}` : '')
                 || (finalScreenshotUrl ? 'Frame annotation' : '');
 
+            const finalCategory = category === 'custom'
+                ? (customCategory.trim() || 'Custom')
+                : category;
+
             const newComment: Omit<ReviewComment, 'id' | 'createdAt'> = {
                 taskId,
                 authorId,
@@ -608,7 +614,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 endTimestampSeconds: endSeconds ?? undefined,
                 isGeneral: isGeneral || undefined,
                 content: body,
-                category: [category as any],
+                category: [finalCategory as any],
                 screenshotUrl: finalScreenshotUrl,
                 voiceUrl: finalVoiceUrl,
                 voiceDurationSec: finalVoiceUrl ? voiceDurationSec : undefined,
@@ -620,6 +626,8 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
 
             await onSubmit(newComment);
             setContent('');
+            setCustomCategory('');
+            setCategory(mode === 'thumbnail' ? 'composition' : 'design');
             setIsGeneral(false);
             setScreenshotUrl(null);
             if (audioUrl) URL.revokeObjectURL(audioUrl);
@@ -652,6 +660,8 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
     const handleCancel = () => {
         stopRecordingCleanup();
         setIsGeneral(false);
+        setCustomCategory('');
+        setCategory(mode === 'thumbnail' ? 'composition' : 'design');
         onCancel?.();
     };
 
@@ -913,6 +923,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                     return (
                         <button
                             key={cat.value}
+                            type="button"
                             onClick={() => setCategory(cat.value)}
                             className="cursor-pointer transition-all text-xs uppercase rounded-full"
                             style={{
@@ -928,7 +939,36 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                         </button>
                     );
                 })}
+                <button
+                    type="button"
+                    onClick={() => setCategory('custom')}
+                    className="cursor-pointer transition-all text-xs uppercase rounded-full"
+                    style={{
+                        letterSpacing: '.06em',
+                        padding: '8px 14px',
+                        fontWeight: category === 'custom' ? 700 : 500,
+                        background: category === 'custom' ? 'var(--review-v2-gray-50)' : 'var(--review-v2-gray-800)',
+                        border: `1px solid ${category === 'custom' ? 'var(--review-v2-gray-50)' : 'var(--review-v2-gray-700)'}`,
+                        color: category === 'custom' ? 'var(--review-v2-gray-950)' : 'var(--review-v2-gray-200)',
+                    }}
+                >
+                    Custom
+                </button>
             </div>
+
+            {/* One-time Custom Category Input — shown only when 'CUSTOM' is selected */}
+            {category === 'custom' && (
+                <div className="mb-3">
+                    <Input
+                        value={customCategory}
+                        onChange={(e) => setCustomCategory(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Add custom category name..."
+                        className="w-full bg-transparent border border-[var(--review-border)] rounded-lg text-sm text-white placeholder:text-[var(--review-text-muted)] focus-visible:ring-1 focus-visible:ring-[var(--review-v2-gray-500)] p-2.5 h-10"
+                        autoFocus
+                    />
+                </div>
+            )}
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-2 border-t border-[var(--review-border)]">
