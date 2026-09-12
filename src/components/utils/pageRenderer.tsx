@@ -55,6 +55,7 @@ import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
 import { ClientHelpVideos } from "../client/ClientHelpVideos";
 import { ClientShootScriptsPage } from "../dashboards/Clientshootscriptspage";
 import { ClientProductionLogPage } from "../dashboards/ClientProductionLogPage";  
+import { VideographerProductionLogPage } from "../dashboards/VideographerProductionLogPage";
 import { AdminAIAgentPage } from "../admin/AdminAIAgentPage";
 import dynamic from "next/dynamic";
 
@@ -434,6 +435,8 @@ export function renderPage(
         return <VideographerDashboard initialTab="jobs" />;
       case "shoots":
         return <ShootingSchedulePage />;
+      case "production-log":
+        return <VideographerProductionLogPage />;
       case "uploads":
         return <VideographerDashboard initialTab="uploads" />;
       case "equipment":

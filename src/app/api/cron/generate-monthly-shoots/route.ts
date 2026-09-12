@@ -1,0 +1,152 @@
+// src/app/api/cron/generate-monthly-shoots/route.ts
+//
+// Runs monthly (1st of the month — see worker.ts/wrangler.toml). For every
+// active client with Client.shootDaysPerMonth > 0, creates that many fresh
+// Shoot rows (Task + ShootDetail, same shape as a human creating one via
+// POST /api/shoots) for the new month.
+//
+// Idempotency: guarded by a unique (clientId, month) row in
+// MonthlyShootGeneration, inserted BEFORE the shoots are created. A
+// double-fire of this cron hits the unique constraint and skips the
+// client entirely rather than creating duplicate shoots — same class of
+// bug as the earlier tick-queues incident, so this is built in from the
+// start rather than discovered in production.
+//
+// Videographer assignment: Task.assignedTo is NOT NULL, so every
+// auto-created shoot needs a real user id even though no human is present
+// to pick one. Default: reuse whichever videographer most recently shot
+// for this client (continuity); if the client has no shoot history, fall
+// back to the first active videographer (by name) on the team. If there
+// are no videographers at all, the client is skipped and reported in the
+// response rather than the whole run failing.
+
+import { NextRequest, NextResponse } from 'next/server';
+import { and, desc, eq, gt, isNotNull } from 'drizzle-orm';
+import { getDbHttp } from '@/lib/db';
+import {
+  client as clientTable,
+  task as taskTable,
+  shootDetail as shootDetailTable,
+  monthlyShootGeneration as monthlyShootGenerationTable,
+  user as userTable,
+} from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
+import { writeShootScriptDocument } from '@/lib/shoot-scripts';
+
+function isAuthorized(req: NextRequest): boolean {
+  const cronSecret = req.headers.get('x-cron-secret');
+  if (cronSecret && process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET) {
+    return true;
+  }
+  const authHeader = req.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ') && process.env.CRON_SECRET) {
+    if (authHeader.slice(7) === process.env.CRON_SECRET) return true;
+  }
+  return false;
+}
+
+function currentMonthKey(): string {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+async function pickVideographerId(
+  db: ReturnType<typeof getDbHttp>,
+  clientId: string,
+  fallbackVideographerId: number | null,
+): Promise<number | null> {
+  const [recent] = await db
+    .select({ videographerId: shootDetailTable.videographerId })
+    .from(shootDetailTable)
+    .innerJoin(taskTable, eq(shootDetailTable.taskId, taskTable.id))
+    .where(and(eq(taskTable.clientId, clientId), isNotNull(shootDetailTable.videographerId)))
+    .orderBy(desc(shootDetailTable.shootDate))
+    .limit(1);
+  if (recent?.videographerId) return recent.videographerId;
+  return fallbackVideographerId;
+}
+
+export async function POST(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const db = getDbHttp();
+  const month = currentMonthKey();
+
+  try {
+    const [fallbackVideographer] = await db
+      .select({ id: userTable.id })
+      .from(userTable)
+      .where(eq(userTable.role, 'videographer'))
+      .orderBy(userTable.name)
+      .limit(1);
+    const fallbackVideographerId = fallbackVideographer?.id ?? null;
+
+    const clients = await db
+      .select({ id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName, shootDaysPerMonth: clientTable.shootDaysPerMonth })
+      .from(clientTable)
+      .where(and(eq(clientTable.status, 'active'), gt(clientTable.shootDaysPerMonth, 0)));
+
+    const results: Array<{ clientId: string; created: number; skipped?: string }> = [];
+
+    for (const c of clients) {
+      // Idempotency guard — insert the tracking row first. If it already
+      // exists for this (clientId, month), this throws on the unique
+      // constraint and we skip straight to the catch below for this client.
+      try {
+        await db.insert(monthlyShootGenerationTable).values({
+          id: createId(),
+          clientId: c.id,
+          month,
+          shootsCreated: c.shootDaysPerMonth,
+        });
+      } catch {
+        results.push({ clientId: c.id, created: 0, skipped: 'already generated for this month' });
+        continue;
+      }
+
+      const videographerId = await pickVideographerId(db, c.id, fallbackVideographerId);
+      if (!videographerId) {
+        results.push({ clientId: c.id, created: 0, skipped: 'no videographer available' });
+        continue;
+      }
+
+      const clientName = c.companyName || c.name;
+      const now = new Date();
+
+      for (let i = 0; i < c.shootDaysPerMonth; i++) {
+        const taskId = createId();
+        await db.insert(taskTable).values({
+          id: taskId,
+          title: `${clientName} · Shoot ${i + 1} · ${now.toLocaleString('default', { month: 'long', year: 'numeric' })}`,
+          description: 'Auto-generated by the monthly shoot-day quota — date/location/host to be filled in.',
+          assignedTo: videographerId,
+          videographer: videographerId,
+          createdBy: videographerId,
+          clientId: c.id,
+          status: 'PENDING',
+          // No dueDate yet — a real shoot date gets set when someone
+          // fills in the auto-created shoot's details. Setting it to
+          // "now" would make every one look overdue immediately.
+          updatedAt: now.toISOString(),
+        });
+
+        await db.insert(shootDetailTable).values({
+          id: createId(),
+          taskId,
+          videographerId,
+          scriptContent: writeShootScriptDocument({ version: 1, videosPlanned: 1, scripts: [] }),
+          updatedAt: now.toISOString(),
+        });
+      }
+
+      results.push({ clientId: c.id, created: c.shootDaysPerMonth });
+    }
+
+    return NextResponse.json({ month, results });
+  } catch (error: unknown) {
+    console.error('[generate-monthly-shoots] error:', error);
+    return NextResponse.json({ error: 'Failed to generate monthly shoots' }, { status: 500 });
+  }
+}

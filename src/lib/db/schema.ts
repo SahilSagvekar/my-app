@@ -24,6 +24,9 @@ export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_
 export const syncStatus = pgEnum("SyncStatus", ['PENDING', 'SYNCING', 'COMPLETED', 'FAILED'])
 export const taskStatus = pgEnum("TaskStatus", ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED', 'SCHEDULED', 'ON_HOLD', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW', 'VIDEOGRAPHER_ASSIGNED', 'POSTED', 'HIDDEN'])
 export const fileDeletionRequestStatus = pgEnum("FileDeletionRequestStatus", ['PENDING', 'APPROVED', 'REJECTED'])
+export const logEntryType = pgEnum("LogEntryType", ['CALL', 'MEETING', 'ANALYTICS_REVIEW'])
+export const logEntryStatus = pgEnum("LogEntryStatus", ['PLANNED', 'COMPLETED'])
+export const rawFootageFolderCode = pgEnum("RawFootageFolderCode", ['SF', 'LF'])
 
 
 export const verificationToken = pgTable("VerificationToken", {
@@ -2319,6 +2322,11 @@ export const client = pgTable("Client", {
 	requiresCoverImage: boolean().default(false).notNull(),
 	templateHashtags: text().array(),
 	address: text(),
+	// Scripting feature — tracking-only quota, not enforced as a hard cap.
+	// Also drives the generate-monthly-shoots cron: this many Shoot
+	// (Task+ShootDetail) rows get auto-created for the client on the 1st
+	// of every month. Changing this only affects future months' runs.
+	shootDaysPerMonth: integer().default(0).notNull(),
 }, (table) => [
 	uniqueIndex("Client_preClientId_key").using("btree", table.preClientId.asc().nullsLast().op("text_ops")),
 	index("Client_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
@@ -2794,6 +2802,123 @@ export const techFeeFailure = pgTable("TechFeeFailure", {
 // payments land (see the Stripe webhook's updateMonthlyPaymentLedger calls)
 // — not computed on demand. `month` is stored as 'YYYY-MM'. What this feeds
 // into is still open; for now it's just an accurate running record.
+// One row per client per month the generate-monthly-shoots cron has run
+// for. Existence of the row IS the idempotency guard — the cron checks
+// for it before creating any Shoot rows, so a double-fire (same class of
+// bug the tick-queues cron hit) can't create duplicate shoots. `month` is
+// 'YYYY-MM', matching MonthlyPaymentLedger's convention below.
+export const monthlyShootGeneration = pgTable("MonthlyShootGeneration", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	month: text().notNull(),
+	shootsCreated: integer().default(0).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("MonthlyShootGeneration_clientId_month_key").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.month.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "MonthlyShootGeneration_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+// Backs the Production Log's Call / Meeting / Analytics Review rows.
+// "Shoot Day" rows are NOT stored here — they're a view computed live from
+// ShootDetail/Task, since a shoot is already its own record. This table
+// only exists for the three entry types that have no other backing model.
+export const logEntry = pgTable("LogEntry", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	type: logEntryType().notNull(),
+	title: text(),
+	date: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	location: text(),
+	attendees: text().array(),
+	plannedMinutes: integer(),
+	actualMinutes: integer(),
+	status: logEntryStatus().default('PLANNED').notNull(),
+	noteLabel: text(),
+	noteBody: text(),
+	reportFileUrl: text(),
+	reportFileName: text(),
+	createdBy: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("LogEntry_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	index("LogEntry_clientId_date_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.date.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "LogEntry_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: "LogEntry_createdBy_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+// Extends the existing JSON-document script system (ShootDetail.scriptContent)
+// with real many-to-many script<->shoot linking, without touching that
+// working system. The shoot whose scriptContent document actually contains
+// the script stays the content source of truth (sourceShootTaskId); this
+// table only records the ADDITIONAL shoot(s) the same script has also been
+// attached to (targetShootTaskId). A script's full shoot list for date
+// derivation = sourceShootTaskId + every row here for that scriptId.
+export const scriptShootLink = pgTable("ScriptShootLink", {
+	id: text().primaryKey().notNull(),
+	sourceShootTaskId: text().notNull(),
+	scriptId: text().notNull(),
+	targetShootTaskId: text().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("ScriptShootLink_scriptId_target_key").using("btree", table.scriptId.asc().nullsLast().op("text_ops"), table.targetShootTaskId.asc().nullsLast().op("text_ops")),
+	index("ScriptShootLink_targetShootTaskId_idx").using("btree", table.targetShootTaskId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.sourceShootTaskId],
+			foreignColumns: [task.id],
+			name: "ScriptShootLink_sourceShootTaskId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.targetShootTaskId],
+			foreignColumns: [task.id],
+			name: "ScriptShootLink_targetShootTaskId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+// Auto-numbered raw-footage subfolders (SF1..SFn, LF1..LFn), one row per
+// client per month per numbered slot. `folderPath` is the real R2 key
+// (created via the file-server's POST /folder). `taskId` is the deliverable
+// task currently occupying this slot — assigned automatically, editable
+// manually by admin/videographer. Deliberately has NO date column: the
+// displayed shoot date is derived live via taskId -> its script -> that
+// script's linked shoot(s), per the "Shoot is the single source of truth
+// for date" rule — never snapshotted here.
+export const rawFootageFolder = pgTable("RawFootageFolder", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	monthFolder: text().notNull(),
+	code: rawFootageFolderCode().notNull(),
+	number: integer().notNull(),
+	folderPath: text().notNull(),
+	taskId: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("RawFootageFolder_client_month_code_number_key").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.monthFolder.asc().nullsLast().op("text_ops"), table.code.asc().nullsLast().op("text_ops"), table.number.asc().nullsLast().op("int4_ops")),
+	index("RawFootageFolder_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "RawFootageFolder_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.taskId],
+			foreignColumns: [task.id],
+			name: "RawFootageFolder_taskId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
 export const monthlyPaymentLedger = pgTable("MonthlyPaymentLedger", {
 	id: text().primaryKey().notNull(),
 	clientId: text().notNull(),

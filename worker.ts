@@ -60,6 +60,14 @@ export default {
         ctx.waitUntil(triggerCronRoute('/api/cron/nas-weekly-sweep', env, ctx));
         break;
 
+      // 1st of the month — auto-creates each client's monthly shoot-day
+      // quota (Client.shootDaysPerMonth) as fresh Shoot rows for the
+      // videographer. Guarded by a per-(client, month) unique row so a
+      // double-fire can't create duplicate shoots.
+      case '0 5 1 * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/generate-monthly-shoots', env, ctx));
+        break;
+
       // Nightly — Daily Team Summary report (email + ops Slack channel).
       // Original cron-master.ts schedule was '5 19 * * *' in America/New_York
       // (7:05 PM ET). Cloudflare Cron Triggers are UTC-only; we use 23:00 UTC

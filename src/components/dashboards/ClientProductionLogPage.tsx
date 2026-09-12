@@ -17,6 +17,7 @@ interface LogEntry {
   actualMinutes: number | null;
   status: 'Planned' | 'Completed';
   note: { label: string; body: string } | null;
+  reportFile?: { url: string; name: string | null } | null;
 }
 
 const TYPE_LABEL: Record<EntryType, string> = {
@@ -142,14 +143,28 @@ export function ClientProductionLogPage() {
                   {entry.status}
                 </span>
               </div>
-              {entry.note && (
-                <button
-                  onClick={() => setActiveNote(entry)}
-                  className="w-[calc(100%-40px)] mx-5 mb-4 -mt-1 flex items-start gap-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 px-3.5 py-2.5 text-left text-[13px] text-zinc-600"
-                >
-                  <span className="flex-1 min-w-0"><strong className="text-zinc-950">{entry.note.label}:</strong> {entry.note.body}</span>
-                  <span className="flex-shrink-0 text-xs font-bold text-zinc-400">View →</span>
-                </button>
+              {(entry.note || entry.reportFile) && (
+                <div className="w-[calc(100%-40px)] mx-5 mb-4 -mt-1 flex items-stretch gap-2">
+                  {entry.note && (
+                    <button
+                      onClick={() => setActiveNote(entry)}
+                      className="flex-1 min-w-0 flex items-start gap-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 px-3.5 py-2.5 text-left text-[13px] text-zinc-600"
+                    >
+                      <span className="flex-1 min-w-0"><strong className="text-zinc-950">{entry.note.label}:</strong> {entry.note.body}</span>
+                      <span className="flex-shrink-0 text-xs font-bold text-zinc-400">View →</span>
+                    </button>
+                  )}
+                  {entry.reportFile && (
+                    <a
+                      href={entry.reportFile.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-zinc-50 hover:bg-zinc-100 px-3.5 py-2.5 text-[13px] font-bold text-zinc-600"
+                    >
+                      {entry.reportFile.name || 'Report'} ↗
+                    </a>
+                  )}
+                </div>
               )}
             </div>
           ))}

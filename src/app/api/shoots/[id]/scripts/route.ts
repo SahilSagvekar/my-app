@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { eq, inArray } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getDbHttp } from '@/lib/db';
-import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/schema';
+import { shootDetail as shootDetailTable, task as taskTable, scriptShootLink as scriptShootLinkTable } from '@/lib/db/schema';
 import { readShootScriptDocument, writeShootScriptDocument, type ShootScriptDocument } from '@/lib/shoot-scripts';
 import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 
@@ -38,7 +38,30 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       return { ...script, status };
     });
   }
-  return NextResponse.json({ document });
+
+  // Scripts that natively live on THIS shoot's own document.
+  const ownScripts = document.scripts.map((s) => ({ ...s, linkedFrom: null as string | null }));
+
+  // Scripts that were originally written for a DIFFERENT shoot but have
+  // also been attached to this one (many-to-many, via ScriptShootLink).
+  // Content/versions/status still come from the originating shoot's
+  // document — this table only records the extra attachment, so we read
+  // the source document(s) to pull the actual script data.
+  const links = await db.select().from(scriptShootLinkTable).where(eq(scriptShootLinkTable.targetShootTaskId, id));
+  let linkedScripts: Array<ReturnType<typeof readShootScriptDocument>['scripts'][number] & { linkedFrom: string }> = [];
+  if (links.length) {
+    const sourceIds = [...new Set(links.map((l) => l.sourceShootTaskId))];
+    const sourceShoots = await db.select({ taskId: shootDetailTable.taskId, scriptContent: shootDetailTable.scriptContent })
+      .from(shootDetailTable).where(inArray(shootDetailTable.taskId, sourceIds));
+    const sourceDocsByTaskId = new Map(sourceShoots.map((s) => [s.taskId, readShootScriptDocument(s.scriptContent)]));
+    linkedScripts = links.flatMap((link) => {
+      const sourceDoc = sourceDocsByTaskId.get(link.sourceShootTaskId);
+      const script = sourceDoc?.scripts.find((s) => s.id === link.scriptId);
+      return script ? [{ ...script, linkedFrom: link.sourceShootTaskId }] : [];
+    });
+  }
+
+  return NextResponse.json({ document: { ...document, scripts: [...ownScripts, ...linkedScripts] } });
 }
 
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {

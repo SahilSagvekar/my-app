@@ -263,6 +263,7 @@ import { createId } from "@/lib/db/id";
 import { and, eq } from "drizzle-orm";
 import { createTaskOutputFolder, getS3, BUCKET } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { assignRawFootageFolderForTask } from "@/lib/raw-footage-folders";
 
 const s3Client = getS3();
 
@@ -507,6 +508,20 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     updatedAt: new Date().toISOString(),
   }).where(eq(taskTable.id, taskId));
 
+  // Scripting feature — auto-numbered raw-footage folder (SF1/LF1/...) for
+  // this deliverable task, using the SAME sequential `count` already used
+  // in the task title above so folder numbering and task naming never
+  // drift apart. No-op for non-SF/LF deliverable types. Never throws —
+  // a folder-creation hiccup must not break monthly task generation.
+  await assignRawFootageFolderForTask({
+    clientId,
+    companyName,
+    monthFolder,
+    deliverableSlug,
+    number: count,
+    taskId,
+  });
+
   // ─────────────────────────────────────────
   // 🔥 ENSURE RECURRING TASK TRACKER IS UPDATED
   // ─────────────────────────────────────────
@@ -553,14 +568,20 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     // Create tasks for remaining slots on this day
     while (daySlot < tasksPerDay && count < quantity) {
       count++;
-      const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${count}`;
+      const taskNumber = count; // snapshot — `count` keeps mutating through
+                                  // the loop, but the .then() below fires
+                                  // later (after Promise.all), so it must
+                                  // close over this task's own number, not
+                                  // whatever `count` ends up being by then.
+      const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${taskNumber}`;
 
       // Create folder structure for this task (grouped by month)
       const taskFolderPath = await createTaskFolderStructure(companyName, title, monthFolder);
+      const newTaskId = createId();
 
       creates.push(
         db.insert(taskTable).values({
-          id: createId(),
+          id: newTaskId,
           title,
           description: templateTask.description,
           taskType: templateTask.taskType,
@@ -581,10 +602,17 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
           deliverableType: deliverableSlug,
           requiresClientReview: client.requiresClientReview,
           updatedAt: new Date().toISOString(),
-        })
+        }).then(() => assignRawFootageFolderForTask({
+          clientId,
+          companyName,
+          monthFolder,
+          deliverableSlug,
+          number: taskNumber,
+          taskId: newTaskId,
+        }))
       );
 
-      console.log(`   📝 Queued task #${count}: ${title} (Due: ${date.toDateString()})`);
+      console.log(`   📝 Queued task #${taskNumber}: ${title} (Due: ${date.toDateString()})`);
       daySlot++;
     }
 
