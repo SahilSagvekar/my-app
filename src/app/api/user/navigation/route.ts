@@ -119,12 +119,13 @@ export async function GET(req: NextRequest) {
         // predate this item, so keep it visible without requiring a manual
         // permission migration for every client role.
         //
-        // production-log is the same situation — brand new nav id, no
-        // existing RolePermission row for 'client' has ever granted it, so
-        // without this it's invisible for every client until an admin
-        // manually re-saves permissions in PermissionsTab.
-        const requiredClientItems = new Set(['expenses', 'production-log']);
-        // Keep dynamically injected items (they were granted via allowedUserIds/allowedRoles)
+        // production-log, scripts, and portfolio are the same situation —
+        // brand new nav ids, no existing RolePermission row for 'client'
+        // has ever granted them, so without this they're invisible for
+        // every client until an admin manually re-saves permissions in
+        // PermissionsTab.
+        const requiredClientItems = new Set(['expenses', 'production-log', 'scripts', 'portfolio']);
+            // Keep dynamically injected items (they were granted via allowedUserIds/allowedRoles)
         const filteredItems = finalItems.filter(item => 
             enabledIds.includes(item.id) ||
             dynamicallyInjectedIds.has(item.id) ||

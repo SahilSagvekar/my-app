@@ -18,6 +18,12 @@ export interface ShootScript {
   clientFeedback?: string;
   reviewTaskId?: string;
   versions?: ShootScriptVersion[];
+  // Production-side "this script's shoot actually happened" marker — set
+  // by videographer/admin, independent of client review status. Once set,
+  // this script counts against the client's shared monthly script pool
+  // (see /api/clients/[id]/script-quota) and is permanently tied to
+  // whichever shoot it was completed on.
+  completedAt?: string | null;
 }
 
 export interface ShootScriptDocument {

@@ -493,7 +493,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     loadFolderStatuses();
   }, [loadFolderStatuses]);
 
-  // ─── Fetch Drive notes for the current client — admin/videographer/editor
+
   // only, matches the API's own role gate so other roles never even issue
   // the request (and never see the note icon rendered at all). ──────────
   const canSeeDriveNotes = ['admin', 'videographer', 'editor'].includes(role);
@@ -926,6 +926,48 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const depthFromRawFootage = rawFootageIndex >= 0 ? pathParts.length - rawFootageIndex - 1 : -1;
 
   const isInRawFootage = currentPath.includes('raw-footage');
+
+  // ─── Scripting feature: raw-footage folder derived shoot dates ────────────
+  // Only fetched while actually browsing inside a raw-footage/<month> folder,
+  // for the client currently in view. Keyed by folder name ("SF1", "LF2") so
+  // rendering below is a plain lookup, no per-folder network calls.
+  const [rawFootageFolders, setRawFootageFolders] = useState<Record<string, { shootDates: string[]; taskTitle: string | null }>>({});
+
+  const rawFootageMonthFolder = (() => {
+    const idx = pathParts.findIndex(p => p === 'raw-footage');
+    return idx >= 0 && pathParts.length > idx + 1 ? pathParts[idx + 1] : null;
+  })();
+
+  useEffect(() => {
+    if (!effectiveClientId || !isInRawFootage || !rawFootageMonthFolder) {
+      setRawFootageFolders({});
+      return;
+    }
+    fetch(`/api/raw-footage-folders?clientId=${effectiveClientId}&monthFolder=${encodeURIComponent(rawFootageMonthFolder)}`)
+      .then(res => res.ok ? res.json() : { folders: [] })
+      .then(data => {
+        const map: Record<string, { shootDates: string[]; taskTitle: string | null }> = {};
+        for (const f of (data.folders || [])) {
+          map[`${f.code}${f.number}`] = { shootDates: f.shootDates || [], taskTitle: f.taskTitle || null };
+        }
+        setRawFootageFolders(map);
+      })
+      .catch(() => setRawFootageFolders({}));
+  }, [effectiveClientId, isInRawFootage, rawFootageMonthFolder]);
+
+  // Formats a raw-footage folder's badge text: the shoot date if scheduled
+  // (or "N shoot dates" if the script spans more than one shoot — see the
+  // scripting feature's many-to-many script<->shoot linking), otherwise
+  // "Unscheduled". Returns null for anything not an auto-numbered SF/LF
+  // folder this feature tracks (so plain folders are left untouched).
+  const rawFootageBadge = (folderName: string): string | null => {
+    const info = rawFootageFolders[folderName];
+    if (!info) return null;
+    if (info.shootDates.length === 0) return 'Unscheduled';
+    if (info.shootDates.length === 1) return new Date(info.shootDates[0]).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return `${info.shootDates.length} shoot dates`;
+  };
+
   const isInElements = currentPath.includes('elements');
 
   const shouldShowRawFootageDialog =
@@ -3004,6 +3046,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         {item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}
                       </p>
 
+                      {item.type === "folder" && rawFootageBadge(item.name) && (
+                        <span className={cn(
+                          "mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
+                          rawFootageFolders[item.name]?.shootDates.length ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700",
+                        )}>
+                          {rawFootageBadge(item.name)}
+                        </span>
+                      )}
+
                       {item.type === "file" && (
                         <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                           {item.size && formatBytes(item.size)}
@@ -3218,6 +3269,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       <div className="flex-1 min-w-0 flex items-center gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}</p>
+                          {item.type === "folder" && rawFootageBadge(item.name) && (
+                            <span className={cn(
+                              "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
+                              rawFootageFolders[item.name]?.shootDates.length ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700",
+                            )}>
+                              {rawFootageBadge(item.name)}
+                            </span>
+                          )}
                           {/* Size shown inline on mobile since the column is hidden */}
                           {item.type === "file" && (
                             <p className="text-[11px] text-muted-foreground sm:hidden">

@@ -8,6 +8,7 @@ import { eq, isNotNull, desc } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { requireAdmin } from '@/lib/auth';
 import { getDeliverableFolderName } from '@/lib/deliverable-folder-name';
+import { getDeliverableShortCode } from '@/lib/recurring/generateMonthly';
 
 const s3 = getS3();
 
@@ -71,7 +72,7 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
     where: eq(clientTable.status, 'active'),
     columns: { id: true, name: true, companyName: true },
     with: {
-      monthlyDeliverables: { columns: { type: true } },
+      monthlyDeliverables: { columns: { type: true, quantity: true } },
     },
     orderBy: (c, { asc }) => asc(c.name),
   });
@@ -140,6 +141,29 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
           clientId: client.id,
           companyName: company,
         });
+      }
+
+      // Scripting feature — auto-numbered SF1..SFn / LF1..LFn raw-footage
+      // subfolders. These normally get created by generateMonthly.ts at
+      // task-creation time (or the one-time backfill route for months that
+      // predate that hook); this scan exists to catch any that failed or
+      // were skipped, using the client's CURRENT deliverable quantities as
+      // the expected count. Note: if quantities changed after a month's
+      // tasks were already generated, this will expect more/fewer numbered
+      // folders than that month's tasks actually created — that's a
+      // pre-existing limitation of this scan-by-current-config approach,
+      // same as how it already treats deliverableFolderNames above.
+      for (const deliverable of client.monthlyDeliverables) {
+        const shortCode = getDeliverableShortCode(deliverable.type);
+        if (shortCode !== 'SF' && shortCode !== 'LF') continue;
+        for (let n = 1; n <= (deliverable.quantity || 0); n++) {
+          expected.push({
+            key: `${company}/raw-footage/${month}/${shortCode}${n}/`,
+            label: `raw-footage/${month}/${shortCode}${n}`,
+            clientId: client.id,
+            companyName: company,
+          });
+        }
       }
     }
   }

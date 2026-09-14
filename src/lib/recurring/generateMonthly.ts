@@ -267,7 +267,7 @@ import { assignRawFootageFolderForTask } from "@/lib/raw-footage-folders";
 
 const s3Client = getS3();
 
-function getDeliverableShortCode(type: string) {
+export function getDeliverableShortCode(type: string) {
   const normalized = type.toLowerCase().trim();
 
   console.log("Normalized deliverable type:", normalized);

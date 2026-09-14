@@ -56,6 +56,7 @@ import { ClientHelpVideos } from "../client/ClientHelpVideos";
 import { ClientShootScriptsPage } from "../dashboards/Clientshootscriptspage";
 import { ClientProductionLogPage } from "../dashboards/ClientProductionLogPage";  
 import { VideographerProductionLogPage } from "../dashboards/VideographerProductionLogPage";
+import { ClientPortfolioPage } from "../dashboards/ClientPortfolioPage";
 import { AdminAIAgentPage } from "../admin/AdminAIAgentPage";
 import dynamic from "next/dynamic";
 
@@ -416,6 +417,8 @@ export function renderPage(
         return <ClientShootScriptsPage />;
       case "production-log":
         return <ClientProductionLogPage />;
+      case "portfolio":
+        return <ClientPortfolioPage />;
       default:
         return <ClientMonthlyOverview />;
     }
