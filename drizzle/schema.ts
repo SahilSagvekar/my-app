@@ -2,23 +2,27 @@ import { pgTable, uniqueIndex, text, timestamp, foreignKey, integer, boolean, se
 import { sql } from "drizzle-orm"
 
 export const bidStatus = pgEnum("BidStatus", ['PENDING', 'ACCEPTED', 'REJECTED'])
-export const contractStatus = pgEnum("ContractStatus", ['DRAFT', 'SENT', 'PARTIALLY_SIGNED', 'COMPLETED', 'CANCELLED', 'EXPIRED'])
 export const clientExpenseStatus = pgEnum("ClientExpenseStatus", ['PENDING', 'INVOICED', 'PAID'])
+export const contractStatus = pgEnum("ContractStatus", ['DRAFT', 'SENT', 'PARTIALLY_SIGNED', 'COMPLETED', 'CANCELLED', 'EXPIRED'])
 export const employeeStatus = pgEnum("EmployeeStatus", ['ACTIVE', 'INACTIVE', 'TERMINATED'])
 export const feedbackCategory = pgEnum("FeedbackCategory", ['GENERAL', 'TECHNICAL', 'WORKFLOW', 'SUGGESTION', 'BUG_REPORT'])
 export const feedbackPriority = pgEnum("FeedbackPriority", ['LOW', 'MEDIUM', 'HIGH'])
 export const feedbackStatus = pgEnum("FeedbackStatus", ['PENDING', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED'])
+export const fileDeletionRequestStatus = pgEnum("FileDeletionRequestStatus", ['PENDING', 'APPROVED', 'REJECTED'])
 export const hiringCandidateStatus = pgEnum("HiringCandidateStatus", ['NEW', 'CONTACTED', 'TEST_SENT', 'TEST_SUBMITTED', 'IN_REVIEW', 'HIRED', 'REJECTED'])
 export const hiringTestTaskStatus = pgEnum("HiringTestTaskStatus", ['PENDING', 'SENT', 'SUBMITTED', 'IN_REVIEW', 'APPROVED', 'REJECTED'])
 export const invoiceStatus = pgEnum("InvoiceStatus", ['DRAFT', 'PENDING', 'SENT', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'CANCELED', 'REFUNDED'])
 export const jobStatus = pgEnum("JobStatus", ['OPEN', 'ASSIGNED', 'COMPLETED', 'CANCELLED'])
 export const leaveStatus = pgEnum("LeaveStatus", ['PENDING', 'APPROVED', 'REJECTED'])
+export const logEntryStatus = pgEnum("LogEntryStatus", ['PLANNED', 'COMPLETED'])
+export const logEntryType = pgEnum("LogEntryType", ['CALL', 'MEETING', 'ANALYTICS_REVIEW'])
 export const paymentStatus = pgEnum("PaymentStatus", ['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'CANCELED', 'REFUNDED'])
 export const payrollStatus = pgEnum("PayrollStatus", ['PENDING', 'PAID'])
 export const periodType = pgEnum("PeriodType", ['DAILY', 'WEEKLY', 'MONTHLY'])
 export const portalAccessStatus = pgEnum("PortalAccessStatus", ['ONBOARDING', 'CONTRACT_PENDING', 'PAYMENT_PENDING', 'ACTIVE', 'LOCKED', 'ADMIN_UNLOCKED'])
 export const preClientStatus = pgEnum("PreClientStatus", ['QUALIFIED', 'QUOTED', 'QUOTE_ACCEPTED', 'PROVISIONING', 'CONVERTED'])
 export const quoteStatus = pgEnum("QuoteStatus", ['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED'])
+export const rawFootageFolderCode = pgEnum("RawFootageFolderCode", ['SF', 'LF'])
 export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager'])
 export const signerStatus = pgEnum("SignerStatus", ['PENDING', 'VIEWED', 'SIGNED', 'DECLINED'])
 export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'TRIALING', 'PAUSED'])
@@ -234,8 +238,8 @@ export const user = pgTable("User", {
 	worksOnSaturday: boolean().default(false).notNull(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-resetOtp: text("resetOTP"),	
-	resetOtpExpiry: timestamp("resetOTPExpiry", { precision: 3, mode: 'string' }),
+	resetOtp: text(),
+	resetOtpExpiry: timestamp({ precision: 3, mode: 'string' }),
 	hoursPerWeek: numeric({ precision: 5, scale:  2 }).default('0'),
 	phone: text(),
 	monthlyRate: integer(),
@@ -243,13 +247,11 @@ resetOtp: text("resetOTP"),
 	emailNotifications: boolean().default(true).notNull(),
 	slackNotifications: boolean().default(false).notNull(),
 	slackUserId: text(),
-	loginOtp: text("loginOTP"),
-	loginOtpExpiry: timestamp("loginOTPExpiry", { precision: 3, mode: 'string' }),
-	// Real DB type is Role[] (array of the "Role" enum) — drizzle-kit couldn't
-	// parse that during introspection and fell back to text[], which silently
-	// broke reads/writes on this column. Fixed to use the actual enum.
-	roles: role("roles").array(),
-}, (table): any => [
+	loginOtp: text(),
+	loginOtpExpiry: timestamp({ precision: 3, mode: 'string' }),
+	// TODO: failed to parse database type 'Role"[]'
+	roles: unknown("roles").array().default(["RAY"]),
+}, (table) => [
 	index("User_email_idx").using("btree", table.email.asc().nullsLast().op("text_ops")),
 	index("User_employeeStatus_idx").using("btree", table.employeeStatus.asc().nullsLast().op("enum_ops")),
 	index("User_linkedClientId_idx").using("btree", table.linkedClientId.asc().nullsLast().op("text_ops")),
@@ -447,7 +449,7 @@ export const qcRejectionReason = pgTable("QCRejectionReason", {
 	qcSpecialistId: integer().notNull(),
 	reason: text().notNull(),
 	caseCount: integer().default(1).notNull(),
-	taskIds: text().array(),
+	taskIds: text().array().default(["RAY"]),
 	firstOccurrence: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	lastOccurrence: timestamp({ precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
@@ -480,48 +482,6 @@ export const qcMonthlyTrend = pgTable("QCMonthlyTrend", {
 			columns: [table.qcSpecialistId],
 			foreignColumns: [user.id],
 			name: "QCMonthlyTrend_qcSpecialistId_fkey"
-		}).onUpdate("cascade").onDelete("restrict"),
-]);
-
-export const taskFeedback = pgTable("TaskFeedback", {
-	id: text().primaryKey().notNull(),
-	taskId: text().notNull(),
-	fileId: text(),
-	folderType: text().notNull(),
-	feedback: text().notNull(),
-	status: text().default('needs_revision').notNull(),
-	timestamp: text(),
-	category: text(),
-	createdBy: integer().notNull(),
-	resolvedAt: timestamp({ precision: 3, mode: 'string' }),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	acknowledgedAt: timestamp({ precision: 3, mode: 'string' }),
-	acknowledgedBy: integer(),
-	// Comment attachments — voice notes, general file/image attachments,
-	// and a drawn/annotated screenshot.
-	screenshotUrl: text(),
-	annotations: jsonb(),
-	voiceUrl: text(),
-	voiceDurationSec: integer(),
-	attachments: jsonb(),
-}, (table) => [
-	index("TaskFeedback_fileId_idx").using("btree", table.fileId.asc().nullsLast().op("text_ops")),
-	index("TaskFeedback_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
-	index("TaskFeedback_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
-	foreignKey({
-			columns: [table.taskId],
-			foreignColumns: [task.id],
-			name: "TaskFeedback_taskId_fkey"
-		}).onUpdate("cascade").onDelete("cascade"),
-	foreignKey({
-			columns: [table.fileId],
-			foreignColumns: [file.id],
-			name: "TaskFeedback_fileId_fkey"
-		}).onUpdate("cascade").onDelete("set null"),
-	foreignKey({
-			columns: [table.createdBy],
-			foreignColumns: [user.id],
-			name: "TaskFeedback_createdBy_fkey"
 		}).onUpdate("cascade").onDelete("restrict"),
 ]);
 
@@ -605,7 +565,7 @@ export const task = pgTable("Task", {
 	extraSequence: integer(),
 	isExtra: boolean().default(false).notNull(),
 	relatedTaskId: text(),
-	titleSetByQc: boolean("titleSetByQC").default(false).notNull(),
+	titleSetByQc: boolean().default(false).notNull(),
 	postingTitle: text(),
 	isSponsored: boolean().default(false).notNull(),
 	titleSetByClient: boolean().default(false).notNull(),
@@ -613,30 +573,26 @@ export const task = pgTable("Task", {
 	postingTags: jsonb(),
 	postingTitles: jsonb(),
 	textContent: text(),
-	// Client Review Status & Reminder System — set whenever status
-	// transitions into CLIENT_REVIEW (both /api/tasks/[id]/status and the
-	// admin Edit-Task route), overwritten each time the task re-enters
-	// review. Drives "days in review" and the 5-day auto-reminder rule.
 	clientReviewStartedAt: timestamp({ precision: 3, mode: 'string' }),
-	// Stamped whenever a reminder email actually sends (manual or auto) —
-	// gates the auto-rule's 3-day cooldown so it doesn't re-email daily.
 	lastReminderSentAt: timestamp({ precision: 3, mode: 'string' }),
+	linkedRawFootagePaths: text().array(),
+	shootScriptRef: text(),
 }, (table) => [
 	index("Task_assignedTo_idx").using("btree", table.assignedTo.asc().nullsLast().op("int4_ops")),
-	index("Task_assignedTo_status_idx").using("btree", table.assignedTo.asc().nullsLast().op("int4_ops"), table.status.asc().nullsLast().op("enum_ops")),
+	index("Task_assignedTo_status_idx").using("btree", table.assignedTo.asc().nullsLast().op("enum_ops"), table.status.asc().nullsLast().op("int4_ops")),
 	index("Task_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
 	index("Task_clientId_monthlyDeliverableId_monthFolder_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.monthlyDeliverableId.asc().nullsLast().op("text_ops"), table.monthFolder.asc().nullsLast().op("text_ops")),
-	index("Task_clientId_status_idx").using("btree", table.clientId.asc().nullsLast().op("enum_ops"), table.status.asc().nullsLast().op("enum_ops")),
+	index("Task_clientId_status_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.status.asc().nullsLast().op("text_ops")),
+	index("Task_clientReviewStartedAt_idx").using("btree", table.clientReviewStartedAt.asc().nullsLast().op("timestamp_ops")),
 	index("Task_clientUserId_idx").using("btree", table.clientUserId.asc().nullsLast().op("int4_ops")),
 	index("Task_createdAt_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamp_ops")),
-	index("Task_dueDate_status_idx").using("btree", table.dueDate.asc().nullsLast().op("timestamp_ops"), table.status.asc().nullsLast().op("timestamp_ops")),
+	index("Task_dueDate_status_idx").using("btree", table.dueDate.asc().nullsLast().op("enum_ops"), table.status.asc().nullsLast().op("timestamp_ops")),
 	index("Task_isExtra_idx").using("btree", table.isExtra.asc().nullsLast().op("bool_ops")),
 	index("Task_monthFolder_idx").using("btree", table.monthFolder.asc().nullsLast().op("text_ops")),
 	index("Task_qcReviewedBy_idx").using("btree", table.qcReviewedBy.asc().nullsLast().op("int4_ops")),
 	index("Task_qc_specialist_idx").using("btree", table.qcSpecialist.asc().nullsLast().op("int4_ops")),
 	index("Task_scheduler_idx").using("btree", table.scheduler.asc().nullsLast().op("int4_ops")),
 	index("Task_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
-	index("Task_clientReviewStartedAt_idx").using("btree", table.clientReviewStartedAt.asc().nullsLast().op("timestamp_ops")),
 	index("Task_videographer_idx").using("btree", table.videographer.asc().nullsLast().op("int4_ops")),
 	foreignKey({
 			columns: [table.monthlyDeliverableId],
@@ -685,7 +641,7 @@ export const userTwoFactorAuth = pgTable("UserTwoFactorAuth", {
 	userId: integer().notNull(),
 	totpSecret: text().notNull(),
 	isEnabled: boolean().default(false).notNull(),
-	backupCodes: text().array(),
+	backupCodes: text().array().default(["RAY"]),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 	lastVerifiedAt: timestamp({ precision: 3, mode: 'string' }),
@@ -733,8 +689,8 @@ export const socialLogin = pgTable("SocialLogin", {
 	backupCodesLocation: text(),
 	loginUrl: text(),
 	passwordChangedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	allowedRoles: text().array(),
-	allowedUserIds: integer().array(),
+	allowedRoles: text().array().default(["RAY"]),
+	allowedUserIds: integer().array().default([RAY]),
 	accessRole: text(),
 }, (table) => [
 	index("SocialLogin_adminOnly_idx").using("btree", table.adminOnly.asc().nullsLast().op("bool_ops")),
@@ -820,7 +776,7 @@ export const notification = pgTable("Notification", {
 	title: text().notNull(),
 	body: text(),
 	payload: jsonb(),
-	channel: text().array(),
+	channel: text().array().default(["RAY"]),
 	delivered: boolean().default(false).notNull(),
 	read: boolean().default(false).notNull(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -951,27 +907,20 @@ export const shootDetail = pgTable("ShootDetail", {
 	exclusions: text(),
 	videographerNotes: text(),
 	videographerId: integer(),
-	// Shooting Schedule fields
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 	hostName: text(),
 	equipmentIds: text().array(),
 	equipmentReturnedAt: timestamp({ precision: 3, mode: 'string' }),
 	equipmentReturnedPhotoUrl: text(),
-	// One photo per equipment item on the shoot (ShootDetail.equipmentIds) —
-	// added after equipmentReturnedPhotoUrl (single-photo) was already in
-	// use; that column is left in place, unused, rather than dropped.
-	equipmentReturnedPhotoUrls: text().array(),
 	equipmentReturnedBy: integer(),
-	// Script feature — one live document per shoot. "sent" makes it visible
-	// (and stays live/updated) in the client's portal; editing after sending
-	// does NOT require re-sending, the client always sees current content.
+	equipmentReturnedPhotoUrls: text().array(),
 	scriptContent: text(),
 	scriptStatus: text().default('draft').notNull(),
 	scriptSentAt: timestamp({ precision: 3, mode: 'string' }),
 	scriptSentBy: integer(),
 	scriptLastEditedAt: timestamp({ precision: 3, mode: 'string' }),
 	scriptLastEditedBy: integer(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
 	uniqueIndex("ShootDetail_taskId_key").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -983,25 +932,6 @@ export const shootDetail = pgTable("ShootDetail", {
 			columns: [table.videographerId],
 			foreignColumns: [user.id],
 			name: "ShootDetail_videographerId_fkey"
-		}).onUpdate("cascade").onDelete("set null"),
-]);
-
-// Equipment E8 owns — selectable on a shoot (ShootDetail.equipmentIds) and
-// managed (add/edit/delete) from the videographer portal's Equipment page.
-export const equipment = pgTable("Equipment", {
-	id: text().primaryKey().notNull(),
-	name: text().notNull(),
-	category: text(),
-	notes: text(),
-	isActive: boolean().default(true).notNull(),
-	createdById: integer(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	foreignKey({
-			columns: [table.createdById],
-			foreignColumns: [user.id],
-			name: "Equipment_createdById_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
@@ -1259,7 +1189,7 @@ export const file = pgTable("File", {
 export const trainingCourse = pgTable("TrainingCourse", {
 	id: text().primaryKey().notNull(),
 	title: text().notNull(),
-	description: text().default('').notNull(),
+	description: text().default(').notNull(),
 	role: role().notNull(),
 	order: integer().default(0).notNull(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -1272,7 +1202,7 @@ export const trainingCourse = pgTable("TrainingCourse", {
 export const trainingVideo = pgTable("TrainingVideo", {
 	id: text().primaryKey().notNull(),
 	title: text().notNull(),
-	description: text().default('').notNull(),
+	description: text().default(').notNull(),
 	videoUrl: text().notNull(),
 	role: role().notNull(),
 	order: integer().default(0).notNull(),
@@ -1343,7 +1273,7 @@ export const portfolioLead = pgTable("PortfolioLead", {
 export const portfolioVideo = pgTable("PortfolioVideo", {
 	id: text().primaryKey().notNull(),
 	title: text().notNull(),
-	description: text().default('').notNull(),
+	description: text().default(').notNull(),
 	videoUrl: text().notNull(),
 	thumbnailUrl: text(),
 	category: text().notNull(),
@@ -1357,29 +1287,6 @@ export const portfolioVideo = pgTable("PortfolioVideo", {
 	index("PortfolioVideo_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
 ]);
 
-export const portfolioImage = pgTable("PortfolioImage", {
-	id: text().primaryKey().notNull(),
-	title: text().default('').notNull(),
-	description: text().default('').notNull(),
-	imageUrl: text().notNull(),
-	thumbnailUrl: text(),
-	category: text().default('photography').notNull(),
-	order: integer().default(0).notNull(),
-	isActive: boolean().default(true).notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("PortfolioImage_category_idx").using("btree", table.category.asc().nullsLast().op("text_ops")),
-	index("PortfolioImage_category_order_idx").using("btree", table.category.asc().nullsLast().op("int4_ops"), table.order.asc().nullsLast().op("int4_ops")),
-	index("PortfolioImage_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
-]);
-
-export const portfolioUiSetting = pgTable("PortfolioUiSetting", {
-	id: text().primaryKey().notNull(),
-	howItWorksVisible: boolean().default(true).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-});
-
 export const portfolioCategory = pgTable("PortfolioCategory", {
 	id: text().primaryKey().notNull(),
 	key: text().notNull(),
@@ -1391,29 +1298,6 @@ export const portfolioCategory = pgTable("PortfolioCategory", {
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
 	uniqueIndex("PortfolioCategory_key_key").using("btree", table.key.asc().nullsLast().op("text_ops")),
-]);
-
-// "Who We Work With" channel cards on the public portfolio page
-// (client-testimonials → who-we-work-with subcategory). Replaces the old
-// src/app/config/portfolioChannels.json + fs.readFile/writeFile approach,
-// which relied on a persistent writable local filesystem — something that
-// doesn't exist on Cloudflare Workers, so every read silently caught its
-// own error and returned [], and every write would have thrown outright.
-export const portfolioChannel = pgTable("PortfolioChannel", {
-	id: text().primaryKey().notNull(),
-	name: text().notNull(),
-	channelUrl: text().notNull(),
-	avatarUrl: text(),
-	followerCount: text().default('').notNull(),
-	category: text().notNull(),
-	order: integer().default(0).notNull(),
-	isActive: boolean().default(true).notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("PortfolioChannel_category_idx").using("btree", table.category.asc().nullsLast().op("text_ops")),
-	index("PortfolioChannel_category_order_idx").using("btree", table.category.asc().nullsLast().op("text_ops"), table.order.asc().nullsLast().op("int4_ops")),
-	index("PortfolioChannel_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
 ]);
 
 export const socialPost = pgTable("SocialPost", {
@@ -1518,7 +1402,7 @@ export const affiliateCommission = pgTable("AffiliateCommission", {
 	id: text().primaryKey().notNull(),
 	salesUserId: integer().notNull(),
 	leadId: text().notNull(),
-	clientName: text().default('').notNull(),
+	clientName: text().default(').notNull(),
 	dealValue: numeric({ precision: 12, scale:  2 }).notNull(),
 	commissionRate: numeric({ precision: 5, scale:  4 }).default('0.15').notNull(),
 	commissionAmt: numeric({ precision: 12, scale:  2 }).notNull(),
@@ -1996,35 +1880,35 @@ export const nasSyncLog = pgTable("NasSyncLog", {
 export const salesLead = pgTable("SalesLead", {
 	id: text().primaryKey().notNull(),
 	userId: integer().notNull(),
-	name: text().default('').notNull(),
-	email: text().default('').notNull(),
-	socials: text().default('').notNull(),
-	snapchatShow: text().default('').notNull(),
+	name: text().default(').notNull(),
+	email: text().default(').notNull(),
+	socials: text().default(').notNull(),
+	snapchatShow: text().default(').notNull(),
 	igDm: boolean().default(false).notNull(),
 	meetingBooked: boolean().default(false).notNull(),
 	emailed: boolean().default(false).notNull(),
 	called: boolean().default(false).notNull(),
 	texted: boolean().default(false).notNull(),
-	notes: text().default('').notNull(),
-	emailTemplate: text().default('').notNull(),
+	notes: text().default(').notNull(),
+	emailTemplate: text().default(').notNull(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 	calledAt: timestamp({ precision: 3, mode: 'string' }),
 	dmAt: timestamp({ precision: 3, mode: 'string' }),
-	dmPlatform: text().default('').notNull(),
+	dmPlatform: text().default(').notNull(),
 	emailedAt: timestamp({ precision: 3, mode: 'string' }),
 	meetingAt: timestamp({ precision: 3, mode: 'string' }),
 	textedAt: timestamp({ precision: 3, mode: 'string' }),
-	company: text().default('').notNull(),
-	phone: text().default('').notNull(),
-	source: text().default('').notNull(),
+	company: text().default(').notNull(),
+	phone: text().default(').notNull(),
+	source: text().default(').notNull(),
 	status: text().default('NEW').notNull(),
 	value: doublePrecision(),
 	facebook: boolean().default(false).notNull(),
 	instagram: boolean().default(false).notNull(),
 	linkedin: boolean().default(false).notNull(),
 	metadata: jsonb().default({}).notNull(),
-	priority: text().default('').notNull(),
+	priority: text().default(').notNull(),
 	tiktok: boolean().default(false).notNull(),
 	twitter: boolean().default(false).notNull(),
 	externalId: text(),
@@ -2084,6 +1968,67 @@ export const leads = pgTable("leads", {
 	index("leads_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
 ]);
 
+export const client = pgTable("Client", {
+	id: text().primaryKey().notNull(),
+	userId: integer(),
+	name: text().notNull(),
+	email: text().notNull(),
+	companyName: text(),
+	phone: text().notNull(),
+	createdBy: text(),
+	status: text().default('active').notNull(),
+	accountManagerId: text(),
+	startDate: timestamp({ precision: 3, mode: 'string' }),
+	renewalDate: timestamp({ precision: 3, mode: 'string' }),
+	lastActivity: timestamp({ precision: 3, mode: 'string' }),
+	requiresClientReview: boolean().default(false).notNull(),
+	requiresVideographer: boolean().default(false).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	uploadedFiles: jsonb(),
+	brandGuidelines: jsonb(),
+	projectSettings: jsonb(),
+	billing: jsonb(),
+	postingSchedule: jsonb(),
+	currentProgress: jsonb(),
+	driveFolderId: text(),
+	rawFootageFolderId: text(),
+	essentialsFolderId: text(),
+	emails: text().array().default(["RAY"]),
+	phones: text().array().default(["RAY"]),
+	outputsFolderId: text(),
+	slackChannelName: text(),
+	slackEnabled: boolean().default(false).notNull(),
+	slackWebhookUrl: text(),
+	hasPostingServices: boolean().default(true).notNull(),
+	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
+	rawFootageStorageUsed: bigint({ mode: "number" }).default(0),
+	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
+	rawFootageStorageLimit: bigint({ mode: "number" }).default(sql`'3298534883328'`),
+	storageAlert90Sent: boolean().default(false),
+	storageAlert95Sent: boolean().default(false),
+	storageLastCalculated: timestamp({ mode: 'string' }),
+	isTrial: boolean().default(false).notNull(),
+	clientReviewDeliverableTypes: text().array().default(["RAY"]),
+	rawFootageLinks: jsonb().default([]).notNull(),
+	portalPasswordSet: boolean().default(false).notNull(),
+	preClientId: text(),
+	welcomeVideoWatched: boolean().default(false).notNull(),
+	requiresCoverImage: boolean().default(false).notNull(),
+	templateHashtags: text().array().default(["RAY"]),
+	address: text(),
+	shootDaysPerMonth: integer().default(0).notNull(),
+}, (table) => [
+	uniqueIndex("Client_preClientId_key").using("btree", table.preClientId.asc().nullsLast().op("text_ops")),
+	index("Client_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	uniqueIndex("Client_userId_key").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "Client_userId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
 export const contract = pgTable("Contract", {
 	id: text().primaryKey().notNull(),
 	title: text().notNull(),
@@ -2124,45 +2069,6 @@ export const contract = pgTable("Contract", {
 			foreignColumns: [contractTemplate.id],
 			name: "Contract_templateId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
-]);
-
-// A named trip keeps receipts for separate client engagements from being
-// accidentally invoiced together.
-export const expenseTrip = pgTable("ExpenseTrip", {
-	id: text().primaryKey().notNull(),
-	clientId: text().notNull(),
-	name: text().notNull(),
-	createdById: integer().notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("ExpenseTrip_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
-	foreignKey({ columns: [table.clientId], foreignColumns: [client.id], name: "ExpenseTrip_clientId_fkey" }).onUpdate("cascade").onDelete("cascade"),
-	foreignKey({ columns: [table.createdById], foreignColumns: [user.id], name: "ExpenseTrip_createdById_fkey" }).onUpdate("cascade").onDelete("restrict"),
-]);
-
-// Amounts are stored as integer cents. Receipt objects are accessed through
-// authorized, short-lived signed URLs rather than their storage URLs.
-export const clientExpense = pgTable("ClientExpense", {
-	id: text().primaryKey().notNull(),
-	tripId: text().notNull(),
-	description: text().notNull(),
-	amount: integer().notNull(),
-	expenseDate: timestamp({ precision: 3, mode: 'string' }).notNull(),
-	receiptS3Key: text().notNull(),
-	receiptUrl: text().notNull(),
-	receiptFileName: text().notNull(),
-	status: clientExpenseStatus().default('PENDING').notNull(),
-	invoiceId: text(),
-	createdById: integer().notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("ClientExpense_tripId_idx").using("btree", table.tripId.asc().nullsLast().op("text_ops")),
-	index("ClientExpense_invoiceId_idx").using("btree", table.invoiceId.asc().nullsLast().op("text_ops")),
-	foreignKey({ columns: [table.tripId], foreignColumns: [expenseTrip.id], name: "ClientExpense_tripId_fkey" }).onUpdate("cascade").onDelete("cascade"),
-	foreignKey({ columns: [table.invoiceId], foreignColumns: [invoice.id], name: "ClientExpense_invoiceId_fkey" }).onUpdate("cascade").onDelete("set null"),
-	foreignKey({ columns: [table.createdById], foreignColumns: [user.id], name: "ClientExpense_createdById_fkey" }).onUpdate("cascade").onDelete("restrict"),
 ]);
 
 export const employeeDocument = pgTable("EmployeeDocument", {
@@ -2225,7 +2131,7 @@ export const quote = pgTable("Quote", {
 export const trainingDocument = pgTable("TrainingDocument", {
 	id: text().primaryKey().notNull(),
 	title: text().notNull(),
-	description: text().default('').notNull(),
+	description: text().default(').notNull(),
 	s3Key: text().notNull(),
 	fileName: text().notNull(),
 	fileSize: integer().notNull(),
@@ -2264,66 +2170,6 @@ export const preClient = pgTable("PreClient", {
 			foreignColumns: [user.id],
 			name: "PreClient_createdById_fkey"
 		}).onUpdate("cascade").onDelete("restrict"),
-]);
-
-export const client = pgTable("Client", {
-	id: text().primaryKey().notNull(),
-	userId: integer(),
-	name: text().notNull(),
-	email: text().notNull(),
-	companyName: text(),
-	phone: text().notNull(),
-	createdBy: text(),
-	status: text().default('active').notNull(),
-	accountManagerId: text(),
-	startDate: timestamp({ precision: 3, mode: 'string' }),
-	renewalDate: timestamp({ precision: 3, mode: 'string' }),
-	lastActivity: timestamp({ precision: 3, mode: 'string' }),
-	requiresClientReview: boolean().default(false).notNull(),
-	requiresVideographer: boolean().default(false).notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-	uploadedFiles: jsonb(),
-	brandGuidelines: jsonb(),
-	projectSettings: jsonb(),
-	billing: jsonb(),
-	postingSchedule: jsonb(),
-	currentProgress: jsonb(),
-	driveFolderId: text(),
-	rawFootageFolderId: text(),
-	essentialsFolderId: text(),
-	emails: text().array(),
-	phones: text().array(),
-	outputsFolderId: text(),
-	slackChannelName: text(),
-	slackEnabled: boolean().default(false).notNull(),
-	slackWebhookUrl: text(),
-	hasPostingServices: boolean().default(true).notNull(),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	rawFootageStorageUsed: bigint({ mode: "number" }).default(0),
-	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
-	rawFootageStorageLimit: bigint({ mode: "number" }).default(sql`'3298534883328'`),
-	storageAlert90Sent: boolean().default(false),
-	storageAlert95Sent: boolean().default(false),
-	storageLastCalculated: timestamp({ mode: 'string' }),
-	isTrial: boolean().default(false).notNull(),
-	clientReviewDeliverableTypes: text().array(),
-	rawFootageLinks: jsonb().default([]).notNull(),
-	portalPasswordSet: boolean().default(false).notNull(),
-	preClientId: text(),
-	welcomeVideoWatched: boolean().default(false).notNull(),
-	requiresCoverImage: boolean().default(false).notNull(),
-	templateHashtags: text().array(),
-	address: text(),
-}, (table) => [
-	uniqueIndex("Client_preClientId_key").using("btree", table.preClientId.asc().nullsLast().op("text_ops")),
-	index("Client_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
-	uniqueIndex("Client_userId_key").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
-	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [user.id],
-			name: "Client_userId_fkey"
-		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
 export const commissionAdjustment = pgTable("CommissionAdjustment", {
@@ -2485,33 +2331,6 @@ export const tag = pgTable("Tag", {
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => [
 	uniqueIndex("Tag_name_key").using("btree", table.name.asc().nullsLast().op("text_ops")),
-]);
-
-// Notes attached to a specific file or folder in a client's Drive —
-// instructions from admin/videographer to the editor about that file/
-// folder. Deliberately restricted to just those three roles (not even
-// manager/scheduler/qc) — enforced in the API route, not here.
-export const driveNote = pgTable("DriveNote", {
-	id: text().primaryKey().notNull(),
-	clientId: text().notNull(),
-	s3Key: text().notNull(),
-	isFolder: boolean().default(false).notNull(),
-	content: text().notNull(),
-	createdById: integer().notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-}, (table) => [
-	index("DriveNote_clientId_s3Key_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.s3Key.asc().nullsLast().op("text_ops")),
-	foreignKey({
-			columns: [table.clientId],
-			foreignColumns: [client.id],
-			name: "DriveNote_clientId_fkey"
-		}).onUpdate("cascade").onDelete("cascade"),
-	foreignKey({
-			columns: [table.createdById],
-			foreignColumns: [user.id],
-			name: "DriveNote_createdById_fkey"
-		}).onUpdate("cascade").onDelete("restrict"),
 ]);
 
 export const folderStatus = pgTable("FolderStatus", {
@@ -2771,6 +2590,352 @@ export const stripeWebhookEvent = pgTable("StripeWebhookEvent", {
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 }, (table) => [
 	index("StripeWebhookEvent_createdAt_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamp_ops")),
+]);
+
+export const portfolioChannel = pgTable("PortfolioChannel", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	channelUrl: text().notNull(),
+	avatarUrl: text(),
+	followerCount: text().default(').notNull(),
+	category: text().notNull(),
+	order: integer().default(0).notNull(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("PortfolioChannel_category_idx").using("btree", table.category.asc().nullsLast().op("text_ops")),
+	index("PortfolioChannel_category_order_idx").using("btree", table.category.asc().nullsLast().op("int4_ops"), table.order.asc().nullsLast().op("int4_ops")),
+	index("PortfolioChannel_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
+]);
+
+export const portfolioImage = pgTable("PortfolioImage", {
+	id: text().primaryKey().notNull(),
+	title: text().notNull(),
+	description: text().default(').notNull(),
+	imageUrl: text().notNull(),
+	thumbnailUrl: text(),
+	category: text().default('photography').notNull(),
+	order: integer().default(0).notNull(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("PortfolioImage_category_idx").using("btree", table.category.asc().nullsLast().op("text_ops")),
+	index("PortfolioImage_category_order_idx").using("btree", table.category.asc().nullsLast().op("int4_ops"), table.order.asc().nullsLast().op("int4_ops")),
+	index("PortfolioImage_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
+]);
+
+export const portfolioUiSetting = pgTable("PortfolioUiSetting", {
+	id: text().primaryKey().notNull(),
+	howItWorksVisible: boolean().default(true).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+});
+
+export const shareRecipient = pgTable("ShareRecipient", {
+	id: text().primaryKey().notNull(),
+	shareId: text().notNull(),
+	email: text().notNull(),
+	status: text().default('invited').notNull(),
+	otpCode: text(),
+	otpExpiresAt: timestamp({ precision: 3, mode: 'string' }),
+	lastAccessedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("ShareRecipient_shareId_email_key").using("btree", table.shareId.asc().nullsLast().op("text_ops"), table.email.asc().nullsLast().op("text_ops")),
+	index("ShareRecipient_shareId_idx").using("btree", table.shareId.asc().nullsLast().op("text_ops")),
+]);
+
+export const nasBackupRecord = pgTable("NasBackupRecord", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	folderType: text().notNull(),
+	s3Key: text().notNull(),
+	fileName: text().notNull(),
+	// You can use { mode: "bigint" } if numbers are exceeding js number limitations
+	fileSize: bigint({ mode: "number" }),
+	archivedToNas: boolean().default(false).notNull(),
+	nasArchivedAt: timestamp({ precision: 3, mode: 'string' }),
+	nasPath: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	deletedFromCloud: boolean().default(false).notNull(),
+	deletedFromCloudAt: timestamp({ precision: 3, mode: 'string' }),
+}, (table) => [
+	index("NasBackupRecord_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("NasBackupRecord_s3Key_key").using("btree", table.s3Key.asc().nullsLast().op("text_ops")),
+]);
+
+export const expenseTrip = pgTable("ExpenseTrip", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	name: text().notNull(),
+	createdById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("ExpenseTrip_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "ExpenseTrip_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "ExpenseTrip_createdById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const clientExpense = pgTable("ClientExpense", {
+	id: text().primaryKey().notNull(),
+	tripId: text().notNull(),
+	description: text().notNull(),
+	amount: integer().notNull(),
+	expenseDate: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	receiptS3Key: text().notNull(),
+	receiptUrl: text().notNull(),
+	receiptFileName: text().notNull(),
+	status: clientExpenseStatus().default('PENDING').notNull(),
+	invoiceId: text(),
+	createdById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("ClientExpense_invoiceId_idx").using("btree", table.invoiceId.asc().nullsLast().op("text_ops")),
+	index("ClientExpense_tripId_idx").using("btree", table.tripId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.tripId],
+			foreignColumns: [expenseTrip.id],
+			name: "ClientExpense_tripId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.invoiceId],
+			foreignColumns: [invoice.id],
+			name: "ClientExpense_invoiceId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "ClientExpense_createdById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const taskFeedback = pgTable("TaskFeedback", {
+	id: text().primaryKey().notNull(),
+	taskId: text().notNull(),
+	fileId: text(),
+	folderType: text().notNull(),
+	feedback: text().notNull(),
+	status: text().default('needs_revision').notNull(),
+	timestamp: text(),
+	category: text(),
+	createdBy: integer().notNull(),
+	resolvedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	acknowledgedAt: timestamp({ precision: 3, mode: 'string' }),
+	acknowledgedBy: integer(),
+	screenshotUrl: text(),
+	annotations: jsonb(),
+	voiceUrl: text(),
+	voiceDurationSec: integer(),
+	attachments: jsonb(),
+}, (table) => [
+	index("TaskFeedback_fileId_idx").using("btree", table.fileId.asc().nullsLast().op("text_ops")),
+	index("TaskFeedback_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
+	index("TaskFeedback_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.taskId],
+			foreignColumns: [task.id],
+			name: "TaskFeedback_taskId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.fileId],
+			foreignColumns: [file.id],
+			name: "TaskFeedback_fileId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: "TaskFeedback_createdBy_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const equipment = pgTable("Equipment", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	category: text(),
+	notes: text(),
+	isActive: boolean().default(true).notNull(),
+	createdById: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "Equipment_createdById_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+export const driveNote = pgTable("DriveNote", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	s3Key: text().notNull(),
+	isFolder: boolean().default(false).notNull(),
+	content: text().notNull(),
+	createdById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("DriveNote_clientId_s3Key_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.s3Key.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "DriveNote_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "DriveNote_createdById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const mediaPreview = pgTable("MediaPreview", {
+	id: text().primaryKey().notNull(),
+	s3Key: text().notNull(),
+	fileId: text(),
+	taskId: text(),
+	previewS3Key: text(),
+	status: text().default('PENDING').notNull(),
+	width: integer(),
+	height: integer(),
+	durationSeconds: doublePrecision(),
+	frameTimestampSeconds: doublePrecision(),
+	sourceEtag: text(),
+	attempts: integer().default(0).notNull(),
+	errorMessage: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("MediaPreview_fileId_idx").using("btree", table.fileId.asc().nullsLast().op("text_ops")),
+	index("MediaPreview_previewS3Key_idx").using("btree", table.previewS3Key.asc().nullsLast().op("text_ops")),
+	uniqueIndex("MediaPreview_s3Key_key").using("btree", table.s3Key.asc().nullsLast().op("text_ops")),
+	index("MediaPreview_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("MediaPreview_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+]);
+
+export const fileDeletionRequest = pgTable("FileDeletionRequest", {
+	id: text().primaryKey().notNull(),
+	fileId: text().notNull(),
+	taskId: text().notNull(),
+	requestedBy: integer().notNull(),
+	reason: text(),
+	status: fileDeletionRequestStatus().default('PENDING').notNull(),
+	reviewedBy: integer(),
+	reviewedAt: timestamp({ precision: 3, mode: 'string' }),
+	batchId: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("FileDeletionRequest_batchId_idx").using("btree", table.batchId.asc().nullsLast().op("text_ops")),
+	index("FileDeletionRequest_fileId_idx").using("btree", table.fileId.asc().nullsLast().op("text_ops")),
+	index("FileDeletionRequest_requestedBy_idx").using("btree", table.requestedBy.asc().nullsLast().op("int4_ops")),
+	index("FileDeletionRequest_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
+	index("FileDeletionRequest_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+]);
+
+export const monthlyShootGeneration = pgTable("MonthlyShootGeneration", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	month: text().notNull(),
+	shootsCreated: integer().default(0).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("MonthlyShootGeneration_clientId_month_key").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.month.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "MonthlyShootGeneration_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const logEntry = pgTable("LogEntry", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	type: logEntryType().notNull(),
+	title: text(),
+	date: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	location: text(),
+	attendees: text().array(),
+	plannedMinutes: integer(),
+	actualMinutes: integer(),
+	status: logEntryStatus().default('PLANNED').notNull(),
+	noteLabel: text(),
+	noteBody: text(),
+	reportFileUrl: text(),
+	reportFileName: text(),
+	createdBy: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("LogEntry_clientId_date_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.date.asc().nullsLast().op("text_ops")),
+	index("LogEntry_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "LogEntry_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: "LogEntry_createdBy_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+export const scriptShootLink = pgTable("ScriptShootLink", {
+	id: text().primaryKey().notNull(),
+	sourceShootTaskId: text().notNull(),
+	scriptId: text().notNull(),
+	targetShootTaskId: text().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("ScriptShootLink_scriptId_target_key").using("btree", table.scriptId.asc().nullsLast().op("text_ops"), table.targetShootTaskId.asc().nullsLast().op("text_ops")),
+	index("ScriptShootLink_targetShootTaskId_idx").using("btree", table.targetShootTaskId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.sourceShootTaskId],
+			foreignColumns: [task.id],
+			name: "ScriptShootLink_sourceShootTaskId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.targetShootTaskId],
+			foreignColumns: [task.id],
+			name: "ScriptShootLink_targetShootTaskId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const rawFootageFolder = pgTable("RawFootageFolder", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	monthFolder: text().notNull(),
+	code: rawFootageFolderCode().notNull(),
+	number: integer().notNull(),
+	folderPath: text().notNull(),
+	taskId: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("RawFootageFolder_client_month_code_number_key").using("btree", table.clientId.asc().nullsLast().op("int4_ops"), table.monthFolder.asc().nullsLast().op("enum_ops"), table.code.asc().nullsLast().op("text_ops"), table.number.asc().nullsLast().op("text_ops")),
+	index("RawFootageFolder_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "RawFootageFolder_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.taskId],
+			foreignColumns: [task.id],
+			name: "RawFootageFolder_taskId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
 export const tagToTask = pgTable("_TagToTask", {
