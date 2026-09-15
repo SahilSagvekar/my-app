@@ -1399,6 +1399,7 @@ export const contractAuditLog = pgTable("ContractAuditLog", {
 		}).onUpdate("cascade").onDelete("cascade"),
 ]);
 
+
 export const affiliateCommission = pgTable("AffiliateCommission", {
 	id: text().primaryKey().notNull(),
 	salesUserId: integer().notNull(),
