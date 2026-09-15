@@ -205,6 +205,8 @@ model Task {
   templateFor           RecurringTask[]       @relation("TemplateTask")
   shootDetail           ShootDetail?
   SocialPost            SocialPost[]
+  rawFootageFolders     RawFootageFolder[]
+  deliverableScripts    DeliverableScript[]
   user                  User                  @relation("AssignedTasks", fields: [assignedTo], references: [id])
   client                Client?               @relation(fields: [clientId], references: [id])
   clientUser            User?                 @relation("ClientUserTasks", fields: [clientUserId], references: [id])
@@ -383,6 +385,8 @@ model Client {
   requiresCoverImage           Boolean                  @default(false)
   templateHashtags             String[]                 @default([])
   address                      String?
+  shootDaysPerMonth            Int                      @default(0)
+  scriptsRequired              Boolean                  @default(false)
   brandAssets                  BrandAsset[]
   user                         User?                    @relation(fields: [userId], references: [id])
   portalAccess                 ClientPortalAccess?
@@ -403,6 +407,8 @@ model Client {
   oneOffDeliverables           OneOffDeliverable[]
   postedContents               PostedContent[]
   postingTargets               PostingTarget[]
+  rawFootageFolders            RawFootageFolder[]
+  deliverableScripts           DeliverableScript[]
   recurringTasks               RecurringTask[]
   SocialAccount                SocialAccount[]
   socialLogins                 SocialLogin[]
@@ -2545,4 +2551,63 @@ enum ClientExpenseStatus {
   PENDING
   INVOICED
   PAID
+}
+
+enum RawFootageFolderCode {
+  SF
+  LF
+}
+
+model RawFootageFolder {
+  id                 String                @id @default(cuid())
+  clientId           String
+  monthFolder        String
+  code               RawFootageFolderCode
+  number             Int
+  folderPath         String
+  taskId             String?
+  createdAt          DateTime              @default(now())
+  client             Client                @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  task               Task?                 @relation(fields: [taskId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  deliverableScript  DeliverableScript?
+
+  @@unique([clientId, monthFolder, code, number])
+  @@index([taskId])
+}
+
+model DeliverableScript {
+  id                  String               @id @default(cuid())
+  clientId            String
+  monthFolder         String
+  code                RawFootageFolderCode
+  number              Int
+  rawFootageFolderId  String               @unique
+  taskId              String?
+  title               String
+  content             String               @default("")
+  template            String               @default("overall")
+  status              String               @default("draft")
+  versions            Json                 @default("[]")
+  clientFeedback      String?
+  reviewTaskId        String?
+  completedAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  client              Client               @relation(fields: [clientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  rawFootageFolder    RawFootageFolder     @relation(fields: [rawFootageFolderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  task                Task?                @relation(fields: [taskId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([clientId, monthFolder, code, number])
+  @@index([taskId])
+}
+
+model ScriptShootLink {
+  id                 String   @id @default(cuid())
+  sourceShootTaskId  String
+  scriptId           String
+  targetShootTaskId  String
+  createdAt          DateTime @default(now())
+
+  @@unique([scriptId, targetShootTaskId])
+  @@index([targetShootTaskId])
 }
