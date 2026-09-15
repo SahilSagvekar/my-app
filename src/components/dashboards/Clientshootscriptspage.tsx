@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import type { ShootScript } from '@/lib/shoot-scripts';
 import { useEffectiveClientId } from '@/lib/hooks/useEffectiveClientId';
+import { ScriptReferencesPanel } from './ScriptReferencesPanel';
 
 interface ScriptEntry extends ShootScript {
   taskId: string;
@@ -277,11 +278,22 @@ export function ClientShootScriptsPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto flex justify-center px-6 py-10">
-            <div className="w-full max-w-[760px]">
+            <div className="w-full max-w-[760px] space-y-5">
               <textarea
                 value={draftText}
                 onChange={(e) => onTextChange(e.target.value)}
                 className="w-full min-h-[560px] border border-zinc-200 rounded-xl p-8 text-[15px] leading-[1.7] font-sans text-zinc-950 resize-y focus:outline-none focus:ring-2 focus:ring-zinc-950/10"
+              />
+              <ScriptReferencesPanel
+                shootTaskId={openScript.taskId}
+                scriptId={openScript.id}
+                referenceLinks={openScript.referenceLinks || []}
+                referenceFiles={openScript.referenceFiles || []}
+                clientIdOverride={clientIdOverride}
+                onUpdate={(next) => {
+                  setOpenScript((current) => current ? { ...current, ...next } : current);
+                  setScripts((current) => current.map((item) => item.id === openScript.id && item.taskId === openScript.taskId ? { ...item, ...next } : item));
+                }}
               />
             </div>
           </div>
