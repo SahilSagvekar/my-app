@@ -1,15 +1,8 @@
 // src/app/api/shoots/[id]/scripts/link-new/route.ts
 //
 // Creates a new script AND links it to a specific deliverable task (e.g.
-// "SF3") in one atomic step — the deterministic replacement for letting
-// syncShootScriptsToTasks guess the link afterward by matching trailing
-// digits (which is blind to SF vs LF and can mis-attach when both share a
-// number). The script's title is set to the task's own title, so it's
-// unambiguous at a glance which slot it belongs to.
-//
-// syncShootScriptsToTasks still runs on every general document PATCH, but
-// since this script's link is written here BEFORE that ever fires, it
-// always finds the link already in place and leaves it alone.
+// "SF3") in one atomic step. The script's title is set to the task's own
+// title so it's unambiguous which slot it belongs to.
 
 export const dynamic = 'force-dynamic';
 

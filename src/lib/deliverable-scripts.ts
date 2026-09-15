@@ -2,12 +2,9 @@
 //
 // One script per (clientId, monthFolder, code, number) deliverable slot —
 // the auto-generated counterpart to the existing per-shoot ShootScript
-// system (src/lib/shoot-scripts.ts). Created by ensureDeliverableScript
-// alongside the raw-footage folder + editor task during monthly generation
-// (see src/lib/recurring/generateMonthly.ts), when Client.scriptsRequired
-// is true. Because all three rows share the same (clientId, monthFolder,
-// code, number) key, folder <-> task <-> script are linked by construction
-// — no trailing-digit guessing the way the older per-shoot flow needs.
+// Created by ensureDeliverableScript (src/lib/deliverable-scripts.ts) when
+// staff manually generate a script for a slot. Folder <-> task <-> script
+// links are always set by hand — never auto-guessed.
 
 import { and, eq } from 'drizzle-orm';
 import { getDbHttp } from '@/lib/db';
