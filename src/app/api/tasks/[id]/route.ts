@@ -9,8 +9,15 @@ import { addSignedUrlsToFiles, deleteFromS3 } from "@/lib/s3";
 import { getCurrentUser2 } from "@/lib/auth";
 import { createAuditLog, AuditAction } from "@/lib/audit-logger";
 
-// Only this admin email can delete tasks
+// Task deletion is permanent (hard delete + removes files from S3). Originally
+// locked to one super-admin email; widened to admin/videographer roles at
+// Sahil's request so test data (shoot placeholders, SF/LF deliverables) can be
+// cleared out during scripting-feature testing without needing the super
+// admin account. Worth revisiting before this is exposed broadly to every
+// admin/videographer in production, since it removes real client task data
+// with no scoping to test/preview clients only.
 const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL;
+const CAN_DELETE_ROLES = ['admin', 'videographer'];
 
 export async function GET(
   request: NextRequest,
@@ -107,10 +114,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Super admin check - only this specific email can delete
-    if (user.email !== SUPER_ADMIN_EMAIL) {
+    // Super admin, OR any admin/videographer (widened for test cleanup —
+    // see comment above the role list at the top of this file).
+    if (user.email !== SUPER_ADMIN_EMAIL && !CAN_DELETE_ROLES.includes((user.role || '').toLowerCase())) {
       return NextResponse.json(
-        { error: "Forbidden: Only super admin can delete tasks" },
+        { error: "Forbidden: Only admin, videographer, or super admin can delete tasks" },
         { status: 403 }
       );
     }

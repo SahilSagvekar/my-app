@@ -13,7 +13,7 @@ import {
 } from '../ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
-  Camera, Plus, Loader, CheckCircle2, PackageCheck, ChevronDown, X, FileText,
+  Camera, Plus, Loader, CheckCircle2, PackageCheck, ChevronDown, X, FileText, Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ShootScriptsDialog } from './ShootScriptsDialog';
@@ -210,6 +210,28 @@ export function ShootingSchedulePage() {
       }
     } catch {
       toast.error('Failed to update status');
+      fetchAll();
+    }
+  };
+
+  // Permanent hard delete (via the shared /api/tasks/[id] route, which also
+  // handles the same for deliverable/SF/LF tasks) — added specifically for
+  // clearing out test data while building/testing the scripting feature.
+  // No undo, no soft-delete: confirm before wiring a bulk version of this.
+  const deleteShoot = async (shootId: string, label: string) => {
+    if (!window.confirm(`Permanently delete "${label}"? This can't be undone.`)) return;
+    setShoots(prev => prev.filter(s => s.id !== shootId));
+    try {
+      const res = await fetch(`/api/tasks/${shootId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || 'Failed to delete');
+        fetchAll();
+      } else {
+        toast.success('Deleted');
+      }
+    } catch {
+      toast.error('Failed to delete');
       fetchAll();
     }
   };
@@ -434,6 +456,14 @@ export function ShootingSchedulePage() {
                         </SelectContent>
                       </Select>
                       <Button variant="outline" onClick={() => openEditForm(shoot)} className="h-10 w-[170px] rounded-lg">Edit shoot details</Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => deleteShoot(shoot.id, shoot.client?.companyName || shoot.client?.name || shoot.title || 'this shoot')}
+                        className="h-10 w-10 rounded-lg border-red-200 p-0 text-red-600 hover:bg-red-50"
+                        title="Delete shoot"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-x-6 gap-y-5 px-6 pb-5 sm:grid-cols-2 lg:grid-cols-4">
