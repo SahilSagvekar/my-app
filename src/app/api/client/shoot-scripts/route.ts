@@ -108,12 +108,15 @@ export async function PATCH(req: NextRequest) {
     if (baseRole !== 'client' && !isPreviewingClient) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     const clientId = isPreviewingClient ? clientIdFromBody : await resolveClientIdForUser(user.id);
     if (!clientId) return NextResponse.json({ error: 'Client profile not found' }, { status: 404 });
-    const { taskId, scriptId, action, content } = await req.json();
-    if (!taskId || !scriptId || !['approve', 'update_content'].includes(action)) {
+    const { taskId, scriptId, action, content, feedback } = await req.json();
+    if (!taskId || !scriptId || !['approve', 'update_content', 'reject'].includes(action)) {
       return NextResponse.json({ error: 'A script and an action are required' }, { status: 400 });
     }
     if (action === 'update_content' && typeof content !== 'string') {
       return NextResponse.json({ error: 'Script content is required' }, { status: 400 });
+    }
+    if (action === 'reject' && (typeof feedback !== 'string' || !feedback.trim())) {
+      return NextResponse.json({ error: 'A reason is required to reject a script' }, { status: 400 });
     }
     const [row] = await db.select({ scriptContent: shootDetailTable.scriptContent })
       .from(shootDetailTable)
@@ -131,6 +134,9 @@ export async function PATCH(req: NextRequest) {
     const now = new Date().toISOString();
     if (action === 'approve') {
       script.status = 'approved';
+    } else if (action === 'reject') {
+      script.status = 'changes_requested';
+      script.clientFeedback = feedback.trim();
     } else {
       script.content = content;
       // Editing no longer moves an approved script back to pending — the

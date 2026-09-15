@@ -40,6 +40,13 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     ...(body.lighting !== undefined ? { lighting: body.lighting || null } : {}),
     ...(body.exclusions !== undefined ? { exclusions: body.exclusions || null } : {}),
     ...(body.videographerId ? { videographerId: Number(body.videographerId) } : {}),
+    // Scripting feature — the Production Log's per-shoot "Notes" (both
+    // portals) reads from ShootDetail.videographerNotes, not Task.
+    // description. The "notes" field on this same edit form was already
+    // being saved to description above (kept as-is, in case anything else
+    // reads it) but was never ALSO reaching this column — so it never
+    // showed up in the Production Log no matter what was typed.
+    ...(body.notes !== undefined ? { videographerNotes: body.notes || null } : {}),
     ...(existingDocument ? { scriptContent: writeShootScriptDocument({ ...existingDocument, videosPlanned: Math.max(1, Math.min(99, Number(body.videosPlanned) || 1)) }) } : {}),
     updatedAt: now,
   }).where(eq(shootDetailTable.taskId, id));

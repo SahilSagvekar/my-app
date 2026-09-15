@@ -31,6 +31,9 @@ export function ClientShootScriptsPage() {
   const [draftText, setDraftText] = useState('');
   const [savedLabel, setSavedLabel] = useState<'Saved' | 'Saving…'>('Saved');
   const [approving, setApproving] = useState(false);
+  const [rejectingScript, setRejectingScript] = useState<ScriptEntry | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting, setRejecting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Set only when an admin/manager is previewing this client's portal
   // (ViewAsRoleContext) — a real client user gets null here and every
@@ -121,6 +124,38 @@ export function ClientShootScriptsPage() {
     setOpenScript(null);
   };
 
+  const submitReject = async () => {
+    if (!rejectingScript || !rejectReason.trim()) {
+      toast.error('Add a reason for the client to see');
+      return;
+    }
+    setRejecting(true);
+    try {
+      const res = await fetch('/api/client/shoot-scripts', {
+        method: 'PATCH',
+        headers: previewJsonHeaders,
+        body: JSON.stringify({
+          taskId: rejectingScript.taskId,
+          scriptId: rejectingScript.id,
+          action: 'reject',
+          feedback: rejectReason.trim(),
+          clientId: clientIdOverride || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not reject');
+      const { script: updated } = await res.json();
+      setScripts((current) => current.map((item) => (item.id === updated.id && item.taskId === rejectingScript.taskId ? { ...item, ...updated } : item)));
+      toast.success('Changes requested');
+      setRejectingScript(null);
+      setRejectReason('');
+      if (openScript?.id === rejectingScript.id) setOpenScript(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not reject');
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -203,14 +238,22 @@ export function ClientShootScriptsPage() {
                       <PlayCircle className="h-3.5 w-3.5" />
                       Review Script
                     </button>
-                    <Button
-                      size="sm"
-                      disabled={approving}
-                      onClick={() => approve(script)}
-                      className="h-9 px-4 rounded-lg bg-zinc-950 hover:opacity-85 text-[13px] font-bold"
-                    >
-                      Approve
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setRejectingScript(script)}
+                        className="h-9 px-4 rounded-lg border border-red-200 text-red-600 text-[13px] font-bold hover:bg-red-50"
+                      >
+                        Reject
+                      </button>
+                      <Button
+                        size="sm"
+                        disabled={approving}
+                        onClick={() => approve(script)}
+                        className="h-9 px-4 rounded-lg bg-zinc-950 hover:opacity-85 text-[13px] font-bold"
+                      >
+                        Approve
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-[13px] text-zinc-500">Approved {formatDate(script.updatedAt) || ''}</div>
@@ -247,6 +290,12 @@ export function ClientShootScriptsPage() {
             <button onClick={closeEditor} className="flex items-center gap-1.5 h-11 px-5 rounded-lg border border-zinc-200 text-sm font-bold hover:bg-zinc-50">
               Save &amp; Close
             </button>
+            <button
+              onClick={() => setRejectingScript(openScript)}
+              className="flex items-center gap-1.5 h-11 px-5 rounded-lg border border-red-200 text-red-600 text-sm font-bold hover:bg-red-50"
+            >
+              Reject
+            </button>
             <Button
               disabled={approving}
               onClick={() => approve(openScript, { closeEditor: true })}
@@ -255,6 +304,34 @@ export function ClientShootScriptsPage() {
               <Check className="h-4 w-4" />
               Approve
             </Button>
+          </div>
+        </div>
+      )}
+
+      {rejectingScript && (
+        <div onClick={() => !rejecting && setRejectingScript(null)} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
+          <div onClick={(e) => e.stopPropagation()} className="w-[440px] max-w-[92vw] bg-white rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+            <div className="text-base font-bold text-zinc-950">Request changes</div>
+            <p className="text-sm text-zinc-500">Tell the videographer what needs to change on "{rejectingScript.title || 'this script'}".</p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              autoFocus
+              placeholder="e.g. Please add a call-to-action at the end"
+              className="min-h-[100px] rounded-lg border border-zinc-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-950/10"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setRejectingScript(null); setRejectReason(''); }} className="h-10 px-4 rounded-lg border border-zinc-200 text-sm font-bold hover:bg-zinc-50">
+                Cancel
+              </button>
+              <button
+                onClick={submitReject}
+                disabled={rejecting || !rejectReason.trim()}
+                className="h-10 px-4 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50"
+              >
+                {rejecting ? 'Sending…' : 'Send'}
+              </button>
+            </div>
           </div>
         </div>
       )}

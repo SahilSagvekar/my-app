@@ -2,11 +2,11 @@
 //
 // Auto-numbered raw-footage folders (SF1..SFn, LF1..LFn) — one RawFootageFolder
 // row per client per month per numbered slot, physically backed by an R2
-// folder marker at {companyName}/raw-footage/{monthFolder}/{code}{number}/.
-// Mirrors the existing path convention already seen in nas-mirror-queue.ts
-// comments (e.g. "June-2025/SF12"), and reuses the same direct S3-SDK write
-// pattern generateMonthly.ts already uses for the outputs/ folder tree,
-// rather than introducing a second, inconsistent way of creating folders.
+// folder marker at:
+//   {companyName}/raw-footage/{monthFolder}/{deliverableFolderName}/{code}{number}/
+// e.g. "CapDental/raw-footage/September-2026/Short Form Videos/SF3/" —
+// nested inside the same type-named folder the repair tool already expects
+// (getDeliverableFolderName), not flat under the month.
 //
 // A folder's displayed shoot date is NEVER stored here — see
 // getFolderShootDates() below, which derives it live via the assigned
@@ -25,6 +25,7 @@ import { createId } from '@/lib/db/id';
 import { getS3, BUCKET } from '@/lib/s3';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { readShootScriptDocument } from '@/lib/shoot-scripts';
+import { getDeliverableFolderName } from '@/lib/deliverable-folder-name';
 
 export type FolderCode = 'SF' | 'LF';
 
@@ -39,9 +40,9 @@ export function toFolderCode(deliverableSlug: string): FolderCode | null {
   return null;
 }
 
-async function createPhysicalFolder(companyName: string, monthFolder: string, code: FolderCode, number: number): Promise<string> {
+async function createPhysicalFolder(companyName: string, monthFolder: string, deliverableFolderName: string, code: FolderCode, number: number): Promise<string> {
   const s3 = getS3();
-  const folderPath = `${companyName}/raw-footage/${monthFolder}/${code}${number}/`;
+  const folderPath = `${companyName}/raw-footage/${monthFolder}/${deliverableFolderName}/${code}${number}/`;
   await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: folderPath, ContentType: 'application/x-directory' }));
   return folderPath;
 }
@@ -63,11 +64,18 @@ export async function assignRawFootageFolderForTask(params: {
   companyName: string;
   monthFolder: string;
   deliverableSlug: string;
+  // Full deliverable type string (e.g. "Short Form Videos"), used to nest
+  // the numbered folder inside the same type-named folder the repair tool
+  // and every other part of the platform already expects. Falls back to
+  // getDeliverableFolderName's default-passthrough behavior if omitted,
+  // but callers should always pass the real type string when they have it.
+  deliverableType?: string;
   number: number;
   taskId: string;
 }): Promise<void> {
   const code = toFolderCode(params.deliverableSlug);
   if (!code) return; // not an SF/LF deliverable — nothing to do
+  const deliverableFolderName = getDeliverableFolderName(params.deliverableType || (code === 'SF' ? 'Short Form Videos' : 'Long Form Videos'));
 
   const db = getDbHttp();
   try {
@@ -83,7 +91,7 @@ export async function assignRawFootageFolderForTask(params: {
       return;
     }
 
-    const folderPath = await createPhysicalFolder(params.companyName, params.monthFolder, code, params.number);
+    const folderPath = await createPhysicalFolder(params.companyName, params.monthFolder, deliverableFolderName, code, params.number);
     await db.insert(rawFootageFolderTable).values({
       id: createId(),
       clientId: params.clientId,

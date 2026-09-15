@@ -153,18 +153,33 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
       // folders than that month's tasks actually created — that's a
       // pre-existing limitation of this scan-by-current-config approach,
       // same as how it already treats deliverableFolderNames above.
-      for (const deliverable of client.monthlyDeliverables) {
+      // for (const deliverable of client.monthlyDeliverables) {
+      //   const shortCode = getDeliverableShortCode(deliverable.type);
+      //   if (shortCode !== 'SF' && shortCode !== 'LF') continue;
+      //   for (let n = 1; n <= (deliverable.quantity || 0); n++) {
+      //     expected.push({
+      //       key: `${company}/raw-footage/${month}/${shortCode}${n}/`,
+      //       label: `raw-footage/${month}/${shortCode}${n}`,
+      //       clientId: client.id,
+      //       companyName: company,
+      //     });
+      //   }
+      // }
+
+            for (const deliverable of client.monthlyDeliverables) {
         const shortCode = getDeliverableShortCode(deliverable.type);
         if (shortCode !== 'SF' && shortCode !== 'LF') continue;
+        const deliverableFolderName = getDeliverableFolderName(deliverable.type);
         for (let n = 1; n <= (deliverable.quantity || 0); n++) {
           expected.push({
-            key: `${company}/raw-footage/${month}/${shortCode}${n}/`,
-            label: `raw-footage/${month}/${shortCode}${n}`,
+            key: `${company}/raw-footage/${month}/${deliverableFolderName}/${shortCode}${n}/`,
+            label: `raw-footage/${month}/${deliverableFolderName}/${shortCode}${n}`,
             clientId: client.id,
             companyName: company,
           });
         }
       }
+    }
     }
   }
 
