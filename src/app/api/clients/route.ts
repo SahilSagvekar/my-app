@@ -210,6 +210,7 @@ export async function POST(req: Request) {
       sendWelcomeEmail,
       sendMagicLink,
       shootDaysPerMonth,
+      scriptsRequired,
     } = body;
 
     if (!name || !email)
@@ -276,6 +277,7 @@ export async function POST(req: Request) {
         templateHashtags: (templateHashtags || []).filter((t: string) => t.trim() !== ""),
         currentProgress: { completed: 0, total: 0 },
         shootDaysPerMonth: Math.max(0, Math.min(99, Number(shootDaysPerMonth) || 0)),
+        scriptsRequired: !!scriptsRequired,
         updatedAt: new Date().toISOString(),
       }).returning();
 

@@ -50,6 +50,7 @@ import { MetaAnalyticsWrapper } from "../meta/MetaAnalyticsWrapper";
 // import { ProductionTracker } from "../dashboards/ProductionTracker";
 import { SocialAnalyticsDashboard } from "@/components/client/SocialAnalyticsDashboard";
 import { FolderRepairTool } from "../admin/Folderrepairtool";
+import { ScriptLinkingTool } from "../admin/ScriptLinkingTool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
 import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
 import { ClientHelpVideos } from "../client/ClientHelpVideos";
@@ -245,6 +246,8 @@ export function renderPage(
         );
       case "repair-folders":
         return <FolderRepairTool />;
+      case "script-links":
+        return <ScriptLinkingTool />;
       case "nas-backup":
         return (
           <div className="p-6">

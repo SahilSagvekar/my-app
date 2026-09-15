@@ -15,7 +15,17 @@ interface ScriptEntry extends ShootScript {
   location: string | null;
   scriptSentAt: string | null;
   scriptSentByName?: string | null;
+  // 'shoot' = written per physical shoot day (src/lib/shoot-scripts.ts,
+  // /api/client/shoot-scripts). 'deliverable' = auto-generated per SF/LF
+  // deliverable slot (src/lib/deliverable-scripts.ts, /api/client/deliverable-scripts).
+  // Both render in the same list here; only the PATCH target differs.
+  source: 'shoot' | 'deliverable';
 }
+
+const ENDPOINT_FOR_SOURCE: Record<ScriptEntry['source'], string> = {
+  shoot: '/api/client/shoot-scripts',
+  deliverable: '/api/client/deliverable-scripts',
+};
 
 type Tab = 'all' | 'pending' | 'approved';
 
@@ -46,12 +56,14 @@ export function ClientShootScriptsPage() {
   const fetchScripts = useCallback(async () => {
     try {
       setLoading(true);
-      const url = clientIdOverride ? `/api/client/shoot-scripts?clientId=${clientIdOverride}` : '/api/client/shoot-scripts';
-      const res = await fetch(url, { headers: previewHeaders });
-      if (res.ok) {
-        const data = await res.json();
-        setScripts(data.scripts || []);
-      }
+      const suffix = clientIdOverride ? `?clientId=${clientIdOverride}` : '';
+      const [shootRes, deliverableRes] = await Promise.all([
+        fetch(`/api/client/shoot-scripts${suffix}`, { headers: previewHeaders }),
+        fetch(`/api/client/deliverable-scripts${suffix}`, { headers: previewHeaders }),
+      ]);
+      const shootScripts = shootRes.ok ? ((await shootRes.json()).scripts || []).map((s: ScriptEntry) => ({ ...s, source: 'shoot' as const })) : [];
+      const deliverableScripts = deliverableRes.ok ? ((await deliverableRes.json()).scripts || []) : [];
+      setScripts([...shootScripts, ...deliverableScripts]);
     } catch (err) {
       console.error('Failed to load scripts:', err);
     } finally {
@@ -76,7 +88,7 @@ export function ClientShootScriptsPage() {
   const saveContent = useCallback(async (script: ScriptEntry, content: string) => {
     setSavedLabel('Saving…');
     try {
-      const res = await fetch('/api/client/shoot-scripts', {
+      const res = await fetch(ENDPOINT_FOR_SOURCE[script.source], {
         method: 'PATCH',
         headers: previewJsonHeaders,
         body: JSON.stringify({ taskId: script.taskId, scriptId: script.id, action: 'update_content', content, clientId: clientIdOverride || undefined }),
@@ -103,7 +115,7 @@ export function ClientShootScriptsPage() {
   const approve = async (script: ScriptEntry, { closeEditor }: { closeEditor?: boolean } = {}) => {
     setApproving(true);
     try {
-      const res = await fetch('/api/client/shoot-scripts', {
+      const res = await fetch(ENDPOINT_FOR_SOURCE[script.source], {
         method: 'PATCH',
         headers: previewJsonHeaders,
         body: JSON.stringify({ taskId: script.taskId, scriptId: script.id, action: 'approve', clientId: clientIdOverride || undefined }),
@@ -132,7 +144,7 @@ export function ClientShootScriptsPage() {
     }
     setRejecting(true);
     try {
-      const res = await fetch('/api/client/shoot-scripts', {
+      const res = await fetch(ENDPOINT_FOR_SOURCE[rejectingScript.source], {
         method: 'PATCH',
         headers: previewJsonHeaders,
         body: JSON.stringify({
@@ -284,17 +296,19 @@ export function ClientShootScriptsPage() {
                 onChange={(e) => onTextChange(e.target.value)}
                 className="w-full min-h-[560px] border border-zinc-200 rounded-xl p-8 text-[15px] leading-[1.7] font-sans text-zinc-950 resize-y focus:outline-none focus:ring-2 focus:ring-zinc-950/10"
               />
-              <ScriptReferencesPanel
-                shootTaskId={openScript.taskId}
-                scriptId={openScript.id}
-                referenceLinks={openScript.referenceLinks || []}
-                referenceFiles={openScript.referenceFiles || []}
-                clientIdOverride={clientIdOverride}
-                onUpdate={(next) => {
-                  setOpenScript((current) => current ? { ...current, ...next } : current);
-                  setScripts((current) => current.map((item) => item.id === openScript.id && item.taskId === openScript.taskId ? { ...item, ...next } : item));
-                }}
-              />
+              {openScript.source === 'shoot' && (
+                <ScriptReferencesPanel
+                  shootTaskId={openScript.taskId}
+                  scriptId={openScript.id}
+                  referenceLinks={openScript.referenceLinks || []}
+                  referenceFiles={openScript.referenceFiles || []}
+                  clientIdOverride={clientIdOverride}
+                  onUpdate={(next) => {
+                    setOpenScript((current) => current ? { ...current, ...next } : current);
+                    setScripts((current) => current.map((item) => item.id === openScript.id && item.taskId === openScript.taskId ? { ...item, ...next } : item));
+                  }}
+                />
+              )}
             </div>
           </div>
 

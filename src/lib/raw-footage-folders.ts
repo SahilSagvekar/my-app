@@ -72,9 +72,9 @@ export async function assignRawFootageFolderForTask(params: {
   deliverableType?: string;
   number: number;
   taskId: string;
-}): Promise<void> {
+}): Promise<{ id: string } | null> {
   const code = toFolderCode(params.deliverableSlug);
-  if (!code) return; // not an SF/LF deliverable — nothing to do
+  if (!code) return null; // not an SF/LF deliverable — nothing to do
   const deliverableFolderName = getDeliverableFolderName(params.deliverableType || (code === 'SF' ? 'Short Form Videos' : 'Long Form Videos'));
 
   const db = getDbHttp();
@@ -88,12 +88,13 @@ export async function assignRawFootageFolderForTask(params: {
 
     if (existing) {
       await db.update(rawFootageFolderTable).set({ taskId: params.taskId }).where(eq(rawFootageFolderTable.id, existing.id));
-      return;
+      return { id: existing.id };
     }
 
     const folderPath = await createPhysicalFolder(params.companyName, params.monthFolder, deliverableFolderName, code, params.number);
+    const folderId = createId();
     await db.insert(rawFootageFolderTable).values({
-      id: createId(),
+      id: folderId,
       clientId: params.clientId,
       monthFolder: params.monthFolder,
       code,
@@ -101,10 +102,12 @@ export async function assignRawFootageFolderForTask(params: {
       folderPath,
       taskId: params.taskId,
     });
+    return { id: folderId };
   } catch (error) {
     // Deliberately swallowed — a folder-creation hiccup should never break
     // the core monthly task-generation run. Logged for later investigation.
     console.error('[raw-footage-folders] assignRawFootageFolderForTask failed:', error);
+    return null;
   }
 }
 

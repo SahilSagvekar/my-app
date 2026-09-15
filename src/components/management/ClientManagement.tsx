@@ -356,6 +356,7 @@ export function ClientManagement() {
     hasPostingServices: true,
     templateHashtags: [],
     shootDaysPerMonth: 0,
+    scriptsRequired: false,
     monthlyDeliverables: [],
     oneOffDeliverables: [],
     brandAssets: [],
@@ -1653,6 +1654,7 @@ export function ClientManagement() {
         coverImageRequired: "no",
         templateHashtags: [],
         shootDaysPerMonth: 0,
+        scriptsRequired: false,
         monthlyDeliverables: [],
         brandAssets: [],
         brandGuidelines: {
@@ -2624,6 +2626,41 @@ export function ClientManagement() {
                       className="w-20 h-9 px-2 rounded-md border border-gray-300 text-sm text-right"
                     />
                   </div>
+
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Scripts required</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        When on, every SF/LF deliverable task created by the monthly
+                        generation run also gets a script (auto-linked to its raw-footage
+                        folder and editor task). When off, tasks and folders still generate
+                        as normal, just with no script attached.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={(selectedClient as any).scriptsRequired ?? false}
+                      onCheckedChange={async (checked) => {
+                        try {
+                          const res = await fetch(`/api/clients/${selectedClient.id}/scripts-required`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ scriptsRequired: checked }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Failed');
+
+                          setClients(prev => prev.map(c =>
+                            c.id === selectedClient.id ? { ...c, scriptsRequired: checked } as any : c
+                          ));
+                          setSelectedClient({ ...selectedClient, scriptsRequired: checked } as any);
+                          toast.success('Scripts required updated');
+                        } catch (err: any) {
+                          console.error('Update scripts required error:', err);
+                          toast.error(err.message || 'Failed to update scripts required');
+                        }
+                      }}
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
@@ -3352,6 +3389,32 @@ export function ClientManagement() {
                   <p className="text-xs text-gray-500">
                     Tracking only — also drives how many shoot tasks
                     auto-create for the videographer each month.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="scriptsRequired" className="text-gray-700">
+                    Scripts Required
+                  </Label>
+                  <Select
+                    value={(newClient as any).scriptsRequired ? "yes" : "no"}
+                    onValueChange={(value) =>
+                      setNewClient({
+                        ...newClient,
+                        scriptsRequired: value === "yes",
+                      } as any)
+                    }
+                  >
+                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                      <SelectValue placeholder="Select option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">
+                    Auto-generate a script for every SF/LF deliverable task each month, linked to its raw-footage folder and editor task.
                   </p>
                 </div>
 

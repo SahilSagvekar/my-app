@@ -91,6 +91,7 @@ const VideographerManagementTab = safeDynamic(() => import('../admin/Videographe
 const MonthlyDeliverablesTab = safeDynamic(() => import('../admin/MonthlyDeliverablesTab').then(mod => ({ default: mod.MonthlyDeliverablesTab })), "Monthly Deliverables");
 const BillingDashboard = safeDynamic(() => import('../billing/BillingDashboard').then(mod => ({ default: mod.BillingDashboard })), "Billing");
 const FolderRepairTool = safeDynamic(() => import('../admin/Folderrepairtool').then(mod => ({ default: mod.FolderRepairTool })), "Folder Repair");
+const ScriptLinkingTool = safeDynamic(() => import('../admin/ScriptLinkingTool').then(mod => ({ default: mod.ScriptLinkingTool })), "Script Links");
 
 // ============================================
 // LOADING FALLBACK COMPONENT WITH LOGGING
@@ -625,6 +626,14 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
           Repair R2 Folders
         </DropdownMenuItem>
 
+        <DropdownMenuItem
+          onClick={() => onPageChange?.('script-links')}
+          className="gap-2 cursor-pointer"
+        >
+          <FileText className="h-4 w-4 text-amber-500" />
+          Script Links
+        </DropdownMenuItem>
+
         {/* <DropdownMenuItem
           onClick={() => onPageChange?.('activity_logs')}
           className="gap-2 cursor-pointer"
@@ -866,6 +875,9 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
 
       case 'repair-folders':
         return <FolderRepairTool />;
+
+      case 'script-links':
+        return <ScriptLinkingTool />;
 
       default:
         console.log('📑 [ADMIN] Falling back to dashboard');

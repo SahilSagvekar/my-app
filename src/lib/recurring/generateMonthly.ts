@@ -11,6 +11,7 @@ import { and, eq } from "drizzle-orm";
 import { createTaskOutputFolder, getS3, BUCKET } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { assignRawFootageFolderForTask } from "@/lib/raw-footage-folders";
+import { ensureDeliverableScript } from "@/lib/deliverable-scripts";
 
 const s3Client = getS3();
 
@@ -40,7 +41,7 @@ export function getDeliverableShortCode(type: string) {
 //   return `${year}-${month}-${day}`;
 // }
 
-function formatDateMMDDYYYY(date: Date) {
+export function formatDateMMDDYYYY(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   const year = date.getFullYear();
@@ -260,7 +261,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
   // in the task title above so folder numbering and task naming never
   // drift apart. No-op for non-SF/LF deliverable types. Never throws —
   // a folder-creation hiccup must not break monthly task generation.
-  await assignRawFootageFolderForTask({
+  const folder1 = await assignRawFootageFolderForTask({
     clientId,
     companyName,
     monthFolder,
@@ -269,6 +270,22 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
     number: count,
     taskId,
   });
+
+  // Deliverable-scripts feature — auto-created only when the client has
+  // opted in (Client.scriptsRequired). Same (clientId, monthFolder, code,
+  // number) key as the raw-footage folder above, so folder <-> task <->
+  // script are linked by construction, no matching needed.
+  if (client.scriptsRequired && folder1) {
+    await ensureDeliverableScript({
+      clientId,
+      companyName,
+      monthFolder,
+      deliverableSlug,
+      number: count,
+      taskId,
+      rawFootageFolderId: folder1.id,
+    });
+  }
 
   // ─────────────────────────────────────────
   // 🔥 ENSURE RECURRING TASK TRACKER IS UPDATED
@@ -358,7 +375,19 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
           deliverableType: deliverable.type,
           number: taskNumber,
           taskId: newTaskId,
-        }))
+        })).then((folder) => {
+          if (client.scriptsRequired && folder) {
+            return ensureDeliverableScript({
+              clientId,
+              companyName,
+              monthFolder,
+              deliverableSlug,
+              number: taskNumber,
+              taskId: newTaskId,
+              rawFootageFolderId: folder.id,
+            });
+          }
+        })
       );
 
       console.log(`   📝 Queued task #${taskNumber}: ${title} (Due: ${date.toDateString()})`);
