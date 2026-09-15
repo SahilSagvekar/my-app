@@ -1,10 +1,10 @@
 // src/lib/deliverable-scripts.ts
 //
 // One script per (clientId, monthFolder, code, number) deliverable slot —
-// the auto-generated counterpart to the existing per-shoot ShootScript
-// Created by ensureDeliverableScript (src/lib/deliverable-scripts.ts) when
-// staff manually generate a script for a slot. Folder <-> task <-> script
-// links are always set by hand — never auto-guessed.
+// the folder-bound counterpart to the per-shoot ShootScript system.
+// Created by ensureDeliverableScript when staff manually generate a script
+// for a slot. Folder <-> task <-> script links are always set by hand —
+// never auto-guessed.
 
 import { and, eq } from 'drizzle-orm';
 import { getDbHttp } from '@/lib/db';
@@ -12,7 +12,6 @@ import { deliverableScript as deliverableScriptTable, task as taskTable } from '
 import { createId } from '@/lib/db/id';
 import { toFolderCode } from '@/lib/raw-footage-folders';
 import { SCRIPT_TEMPLATES, type ScriptStatus } from '@/lib/shoot-scripts';
-import { formatDateMMDDYYYY } from '@/lib/recurring/generateMonthly';
 
 export interface DeliverableScriptVersion {
   number: number;
@@ -21,12 +20,18 @@ export interface DeliverableScriptVersion {
   createdAt: string;
 }
 
+function formatDateMMDDYYYY(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${month}-${day}-${year}`;
+}
+
 /**
- * Idempotent — safe to call every time a monthly SF/LF task is (re)created.
- * Reuses the existing row for this slot if one exists (just re-pointing it
- * at the current folder/task, in case a manual relink moved things since),
- * otherwise creates a fresh draft. No-op for non-SF/LF deliverables, same
- * gate as assignRawFootageFolderForTask.
+ * Idempotent — safe to call for an SF/LF folder slot.
+ * Reuses the existing row for this slot if one exists (re-pointing it at
+ * the current folder/task), otherwise creates a fresh draft. No-op for
+ * non-SF/LF deliverables, same gate as assignRawFootageFolderForTask.
  */
 export async function ensureDeliverableScript(params: {
   clientId: string;
@@ -39,6 +44,13 @@ export async function ensureDeliverableScript(params: {
 }): Promise<{ id: string } | null> {
   const code = toFolderCode(params.deliverableSlug);
   if (!code) return null;
+
+  // Guard against a circular-import leaving the table export undefined
+  // (previously triggered by importing formatDateMMDDYYYY from generateMonthly).
+  if (!deliverableScriptTable?.id) {
+    console.error('[deliverable-scripts] deliverableScript table is undefined — module init failed');
+    return null;
+  }
 
   const db = getDbHttp();
   try {
@@ -60,7 +72,25 @@ export async function ensureDeliverableScript(params: {
       return { id: existing.id };
     }
 
-    const companyNameSlug = params.companyName.replace(/\s/g, '');
+    // Also reuse if this folder already has a script under a different
+    // (month/code/number) key — unique on rawFootageFolderId.
+    const [byFolder] = await db.select({ id: deliverableScriptTable.id })
+      .from(deliverableScriptTable)
+      .where(eq(deliverableScriptTable.rawFootageFolderId, params.rawFootageFolderId))
+      .limit(1);
+    if (byFolder) {
+      await db.update(deliverableScriptTable).set({
+        taskId: params.taskId,
+        clientId: params.clientId,
+        monthFolder: params.monthFolder,
+        code,
+        number: params.number,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(deliverableScriptTable.id, byFolder.id));
+      return { id: byFolder.id };
+    }
+
+    const companyNameSlug = (params.companyName || 'Client').replace(/\s/g, '');
     const createdAtStr = formatDateMMDDYYYY(new Date());
     const title = `${companyNameSlug}-${createdAtStr}-${code}-${params.number}`;
     const id = createId();
@@ -80,8 +110,8 @@ export async function ensureDeliverableScript(params: {
     });
     return { id };
   } catch (error) {
-    // Deliberately swallowed — same contract as assignRawFootageFolderForTask:
-    // a script-creation hiccup must never break monthly task generation.
+    // Deliberately swallowed for callers that must not abort — generate
+    // route still surfaces a 500 when this returns null.
     console.error('[deliverable-scripts] ensureDeliverableScript failed:', error);
     return null;
   }
