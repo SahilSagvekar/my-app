@@ -179,7 +179,7 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
           });
         }
       }
-    }
+    // }
     }
   }
 
