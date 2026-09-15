@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
     taskId: folder.taskId,
     rawFootageFolderId: folder.id,
   });
-  if (!result) return NextResponse.json({ error: 'Failed to generate script' }, { status: 500 });
+  if (!result) {
+    return NextResponse.json({
+      error: 'Failed to generate script. Confirm the DeliverableScript table exists and this slot is SF/LF.',
+    }, { status: 500 });
+  }
   return NextResponse.json({ id: result.id });
 }
