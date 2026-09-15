@@ -13,7 +13,7 @@ import { getDbHttp } from '@/lib/db';
 import { rawFootageFolder as rawFootageFolderTable, task as taskTable } from '@/lib/db/schema';
 import { getFolderShootDates } from '@/lib/raw-footage-folders';
 
-const CAN_VIEW = ['admin', 'manager', 'videographer', 'client'];
+const CAN_VIEW = ['admin', 'manager', 'videographer', 'editor', 'client'];
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser2(req);

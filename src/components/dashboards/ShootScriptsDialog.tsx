@@ -75,8 +75,7 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
   };
   const autosave = (next: ShootScriptDocument) => { setDocument(next); setSaveStatus('saving'); if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => { void persist(next, true); }, 2000); };
   // "New Script" now starts by picking a real, unlinked deliverable slot
-  // (SF3, LF1...) instead of a generic "Video N" — deterministic, no
-  // reliance on syncShootScriptsToTasks's trailing-digit guess afterward.
+  // (SF3, LF1...) instead of a generic "Video N" — linked immediately via link-new.
   const beginScript = async () => {
     if (!shoot) return;
     setLoadingTasks(true);

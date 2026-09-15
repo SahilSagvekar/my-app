@@ -1,12 +1,11 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getDbHttp } from '@/lib/db';
 import { shootDetail as shootDetailTable, task as taskTable, scriptShootLink as scriptShootLinkTable } from '@/lib/db/schema';
 import { readShootScriptDocument, writeShootScriptDocument, type ShootScriptDocument } from '@/lib/shoot-scripts';
-import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 
 const CAN_EDIT = ['admin', 'manager', 'videographer'];
 
@@ -87,9 +86,30 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   }).where(eq(shootDetailTable.taskId, id)).returning({ scriptContent: shootDetailTable.scriptContent });
   if (!updated) return NextResponse.json({ error: 'Shoot not found' }, { status: 404 });
 
-  // Attach all non-rejected scripts (including drafts / not yet sent) to tasks,
-  // and detach any rejected scripts
-  await syncShootScriptsToTasks(id);
+  // Manual linking only — never auto-attach. If a script was deleted from
+  // this shoot's document, clear any production-task refs that still point
+  // at the removed scriptId (orphaned links), but leave every other link alone.
+  const remainingIds = new Set(normalised.scripts.map((s) => s.id));
+  const db = getDbHttp();
+  const [shootTask] = await db.select({ clientId: taskTable.clientId }).from(taskTable).where(eq(taskTable.id, id)).limit(1);
+  if (shootTask?.clientId) {
+    const linkedTasks = await db
+      .select({ id: taskTable.id, shootScriptRef: taskTable.shootScriptRef })
+      .from(taskTable)
+      .where(and(eq(taskTable.clientId, shootTask.clientId), isNotNull(taskTable.shootScriptRef)));
+    const now = new Date().toISOString();
+    for (const t of linkedTasks) {
+      if (!t.shootScriptRef) continue;
+      try {
+        const ref = JSON.parse(t.shootScriptRef);
+        if (ref.shootTaskId === id && ref.scriptId && !remainingIds.has(ref.scriptId)) {
+          await db.update(taskTable).set({ shootScriptRef: null, updatedAt: now }).where(eq(taskTable.id, t.id));
+        }
+      } catch {
+        // ignore invalid refs
+      }
+    }
+  }
 
   return NextResponse.json({ document: readShootScriptDocument(updated.scriptContent) });
 }

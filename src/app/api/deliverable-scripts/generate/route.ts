@@ -1,10 +1,7 @@
 // src/app/api/deliverable-scripts/generate/route.ts
 //
 // Manual "create the missing script for this slot" — used by the Script
-// Links reconciliation screen when auto-generation was skipped (toggle was
-// off at the time, or the folder/task predates this feature). Same
-// ensureDeliverableScript call the monthly generator makes, just triggered
-// on demand for one existing folder instead of at task-creation time.
+// Linking panel. Scripts are never auto-created during monthly generation.
 
 export const dynamic = 'force-dynamic';
 

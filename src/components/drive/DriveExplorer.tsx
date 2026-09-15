@@ -113,6 +113,9 @@ interface DriveItem {
   url?: string;
   thumbnailUrl?: string | null;
   lastModified?: string;
+  /** Virtual read-only script injected when a folder has a linked script */
+  isLinkedScript?: boolean;
+  scriptContent?: string;
 }
 
 interface SearchResult {
@@ -892,6 +895,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   };
 
   const handleItemClick = (item: DriveItem) => {
+    if (item.isLinkedScript) {
+      // View surface: download the read-only script text.
+      void handleDownloadClick(item);
+      return;
+    }
     if (item.type === "folder") {
       navigateToFolder(item);
     } else {
@@ -932,6 +940,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // for the client currently in view. Keyed by folder name ("SF1", "LF2") so
   // rendering below is a plain lookup, no per-folder network calls.
   const [rawFootageFolders, setRawFootageFolders] = useState<Record<string, { shootDates: string[]; taskTitle: string | null }>>({});
+  const [linkedFolderScript, setLinkedFolderScript] = useState<DriveItem | null>(null);
 
   const rawFootageMonthFolder = (() => {
     const idx = pathParts.findIndex(p => p === 'raw-footage');
@@ -954,6 +963,42 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       })
       .catch(() => setRawFootageFolders({}));
   }, [effectiveClientId, isInRawFootage, rawFootageMonthFolder]);
+
+  // When browsing inside an SF#/LF# raw-footage folder, surface the linked
+  // script as a virtual read-only file (view + download only).
+  useEffect(() => {
+    const folderName = currentFolder?.name || '';
+    const isNumberedSlot = /^(SF|LF)\d+$/i.test(folderName);
+    if (!isInRawFootage || !isNumberedSlot || !currentFolder) {
+      setLinkedFolderScript(null);
+      return;
+    }
+
+    let cancelled = false;
+    const folderPath = (currentFolder.s3Key || getS3Key(currentFolder)).replace(/\/?$/, '/');
+    fetch(`/api/raw-footage-folders/script?folderPath=${encodeURIComponent(folderPath)}`)
+      .then((res) => (res.ok ? res.json() : { script: null }))
+      .then((data) => {
+        if (cancelled || !data.script) {
+          if (!cancelled) setLinkedFolderScript(null);
+          return;
+        }
+        const fileName = data.script.fileName || `${folderName}-script.txt`;
+        setLinkedFolderScript({
+          name: fileName,
+          type: 'file',
+          path: `${currentFolder.path}/${fileName}`,
+          s3Key: `__linked-script__/${folderPath}${fileName}`,
+          size: new Blob([data.script.content || '']).size,
+          isLinkedScript: true,
+          scriptContent: data.script.content || '',
+          lastModified: data.script.updatedAt || undefined,
+        });
+      })
+      .catch(() => { if (!cancelled) setLinkedFolderScript(null); });
+
+    return () => { cancelled = true; };
+  }, [currentFolder, isInRawFootage]);
 
   // Formats a raw-footage folder's badge text: the shoot date if scheduled
   // (or "N shoot dates" if the script spans more than one shoot — see the
@@ -1039,6 +1084,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   // Handle Delete Click
   const handleDeleteClick = (item: DriveItem) => {
+    if (item.isLinkedScript) {
+      toast.error('Linked scripts are view & download only — they can’t be deleted from Drive');
+      return;
+    }
     setItemToDelete(item);
     if (role === 'admin') {
       // Admin deletes skip the plain confirm dialog and go straight to the
@@ -1275,6 +1324,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   // Handle Rename Click
   const handleRenameClick = (item: DriveItem) => {
+    if (item.isLinkedScript) {
+      toast.error('Linked scripts are view & download only — they can’t be renamed');
+      return;
+    }
     setItemToRename(item);
     setRenameValue(item.name);
     setShowRenameDialog(true);
@@ -1386,6 +1439,21 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // Download file via presigned S3 URL
   const handleDownloadClick = async (item: DriveItem) => {
     if (item.type !== "file") return;
+
+    // Virtual linked script — download as a local .txt (read-only surface).
+    if (item.isLinkedScript && typeof item.scriptContent === 'string') {
+      const blob = new Blob([item.scriptContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.name.endsWith('.txt') ? item.name : `${item.name}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Script downloaded');
+      return;
+    }
 
     try {
       const s3Key = item.s3Key || getS3Key(item);
@@ -1932,7 +2000,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
   // ─── FEATURE 1: Filter current folder items by deliverable type ───
   const getFilteredItems = (): DriveItem[] => {
-    let items = currentFolder?.children || [];
+    let items = [...(currentFolder?.children || [])];
+
+    // Surface the linked shoot/deliverable script as a virtual read-only file
+    // at the top of SF#/LF# raw-footage folders.
+    if (linkedFolderScript && !items.some((i) => i.isLinkedScript || i.name === linkedFolderScript.name)) {
+      items = [linkedFolderScript, ...items];
+    }
 
     if (selectedDeliverableFilter !== "all") {
       const code = selectedDeliverableFilter;
@@ -3046,6 +3120,12 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         {item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}
                       </p>
 
+                      {item.isLinkedScript && (
+                        <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700">
+                          Script · download only
+                        </span>
+                      )}
+
                       {item.type === "folder" && rawFootageBadge(item.name) && (
                         <span className={cn(
                           "mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
@@ -3175,7 +3255,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           )}
                           Copy shareable link
                         </DropdownMenuItem>
-                        {role !== 'client' && (
+                        {role !== 'client' && !item.isLinkedScript && (
                           <DropdownMenuItem
                             onClick={(e) => { e.stopPropagation(); openMoveDialog([item]); }}
                           >
@@ -3183,7 +3263,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             Move to...
                           </DropdownMenuItem>
                         )}
-                        {isClientInDeliverableFolder && item.type === "folder" && (
+                        {isClientInDeliverableFolder && item.type === "folder" && !item.isLinkedScript && (
                           <DropdownMenuItem
                             onClick={() => handleRenameClick(item)}
                           >
@@ -3191,7 +3271,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             Rename
                           </DropdownMenuItem>
                         )}
-                        {clientCanModify && (
+                        {clientCanModify && !item.isLinkedScript && (
                           <DropdownMenuItem
                             onClick={() => handleDeleteClick(item)}
                             className="text-red-600 focus:text-red-600"
@@ -3404,7 +3484,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                               )}
                               Copy shareable link
                             </DropdownMenuItem>
-                            {role !== 'client' && (
+                            {role !== 'client' && !item.isLinkedScript && (
                               <DropdownMenuItem
                                 onClick={(e) => { e.stopPropagation(); openMoveDialog([item]); }}
                               >
@@ -3412,13 +3492,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                 Move to...
                               </DropdownMenuItem>
                             )}
-                            {isClientInDeliverableFolder && item.type === "folder" && (
+                            {isClientInDeliverableFolder && item.type === "folder" && !item.isLinkedScript && (
                               <DropdownMenuItem onClick={() => handleRenameClick(item)}>
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Rename
                               </DropdownMenuItem>
                             )}
-                            {clientCanModify && (
+                            {clientCanModify && !item.isLinkedScript && (
                               <DropdownMenuItem
                                 onClick={() => handleDeleteClick(item)}
                                 className="text-red-600 focus:text-red-600"
