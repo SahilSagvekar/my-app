@@ -7,6 +7,14 @@ export interface ShootScriptVersion {
   createdAt: string;
 }
 
+export interface ShootScriptReferenceFile {
+  key: string;
+  name: string;
+  size: number;
+  mimeType?: string;
+  url?: string;
+}
+
 export interface ShootScript {
   id: string;
   title: string;
@@ -18,6 +26,8 @@ export interface ShootScript {
   clientFeedback?: string;
   reviewTaskId?: string;
   versions?: ShootScriptVersion[];
+  referenceLinks?: string[];
+  referenceFiles?: ShootScriptReferenceFile[];
   // Production-side "this script's shoot actually happened" marker — set
   // by videographer/admin, independent of client review status. Once set,
   // this script counts against the client's shared monthly script pool

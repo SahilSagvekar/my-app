@@ -28,6 +28,7 @@ import { ClientDashboard } from "../dashboards/ClientDashboard";
 import { ClientMonthlyOverview } from "../dashboards/ClientMonthlyOverview";
 import { VideographerDashboard } from "../dashboards/VideographerDashboard";
 import { ShootingSchedulePage } from "../dashboards/ShootingSchedulePage";
+import { ScriptLinkingPanel } from "../dashboards/ScriptLinkingPanel";
 import { EquipmentPage } from "../dashboards/EquipmentPage";
 import { SalesDashboard } from "../dashboards/SalesDashboard";
 import { AffiliateSection } from "../dashboards/AffiliateSection";
@@ -273,6 +274,8 @@ export function renderPage(
     switch (page) {
       case "my-tasks":
         return <EditorDashboard />;
+      case "script-linking":
+        return <ScriptLinkingPanel mode="editor" />;
       case "projects":
         return <EditorProjects />;
       case "my-tracker":
@@ -441,6 +444,8 @@ export function renderPage(
         return <VideographerDashboard initialTab="jobs" />;
       case "shoots":
         return <ShootingSchedulePage />;
+      case "script-linking":
+        return <ScriptLinkingPanel mode="videographer" />;
       case "production-log":
         return <VideographerProductionLogPage />;
       case "uploads":

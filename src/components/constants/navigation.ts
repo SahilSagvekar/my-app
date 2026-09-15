@@ -31,6 +31,7 @@ import {
   FolderCheck,
   ListChecks,
   Bot,
+  Link2,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -58,6 +59,7 @@ export const NAVIGATION_ITEMS = {
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
+    { id: 'script-linking', label: 'Link Scripts', icon: Link2 },
     { id: 'my-tracker', label: 'My Tracker', icon: Target },
     { id: 'logins', label: 'Logins', icon: LogIn },
     // { id: 'resources', label: 'Resources', icon: BookOpen },
@@ -114,6 +116,7 @@ export const NAVIGATION_ITEMS = {
   ],
   videographer: [
     { id: 'shoots', label: 'Shooting Schedule', icon: Camera },
+    { id: 'script-linking', label: 'Link Scripts', icon: Link2 },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'production-log', label: 'Production Log', icon: ListChecks },
     { id: 'file-verification', label: 'File Verification', icon: FolderCheck },

@@ -7,7 +7,6 @@ import { getDbHttp } from '@/lib/db';
 import { createId } from '@/lib/db/id';
 import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/schema';
 import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
-import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 
 const CAN_SUBMIT = ['admin', 'manager', 'videographer'];
 
@@ -69,8 +68,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   script.updatedAt = now;
   await db.update(shootDetailTable).set({ scriptContent: writeShootScriptDocument(document), scriptStatus: 'sent', scriptSentAt: now, scriptSentBy: user.id, updatedAt: now }).where(eq(shootDetailTable.taskId, shootTaskId));
 
-  // ── Sync shoot scripts to production tasks ──────────────────────────────
-  await syncShootScriptsToTasks(shootTaskId, db);
+  // Script ↔ production-task links are manual (set at create via link-new).
+  // Submitting for client review must not auto-attach anything.
 
   return NextResponse.json({ taskId: reviewTaskId, script });
 }

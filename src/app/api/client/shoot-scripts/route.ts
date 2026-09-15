@@ -5,7 +5,6 @@ import { shootDetail as shootDetailTable, task as taskTable, user as userTable }
 import { and, eq, desc } from 'drizzle-orm';
 import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
-import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 
 // GET — the logged-in client's own shoots with a script that's been made
 // visible ("sent"). Content is always current — sending doesn't snapshot
@@ -151,7 +150,7 @@ export async function PATCH(req: NextRequest) {
       updatedAt: now,
     }).where(eq(shootDetailTable.taskId, taskId));
 
-    await syncShootScriptsToTasks(taskId, db);
+    // Client approve/edit/reject never auto-links production tasks.
 
     return NextResponse.json({ script });
   } catch (error: unknown) {

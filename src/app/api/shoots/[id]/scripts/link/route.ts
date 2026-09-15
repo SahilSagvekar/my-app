@@ -18,7 +18,6 @@ import { getDbHttp } from '@/lib/db';
 import { shootDetail as shootDetailTable, task as taskTable, scriptShootLink as scriptShootLinkTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { readShootScriptDocument } from '@/lib/shoot-scripts';
-import { syncShootScriptsToTasks } from '@/lib/shoot-scripts-sync';
 
 const CAN_EDIT = ['admin', 'manager', 'videographer'];
 
@@ -79,10 +78,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       targetShootTaskId,
     }).returning();
 
-    // Re-run the auto-link sync for both shoots so editor tasks pick up
-    // the newly-shared script the same way a native one would.
-    await syncShootScriptsToTasks(sourceShootTaskId);
-    await syncShootScriptsToTasks(targetShootTaskId);
+    // Shoot↔shoot attachment only — production-task links stay manual.
 
     return NextResponse.json({ link }, { status: 201 });
   } catch (error: unknown) {

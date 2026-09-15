@@ -2,10 +2,7 @@
 //
 // Lists this shoot's client's unlinked SF/LF deliverable tasks — the real
 // slots (SF3, LF1, etc.) a new script can be deliberately attached to at
-// creation time, instead of relying on syncShootScriptsToTasks's
-// trailing-digit-matching heuristic (which is blind to SF vs LF and can
-// mis-attach when both share a number). That heuristic stays in place
-// only as a fallback for scripts created before this endpoint existed.
+// creation time. Linking is always manual (via link-new).
 
 export const dynamic = 'force-dynamic';
 

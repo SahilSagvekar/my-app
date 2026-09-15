@@ -2925,15 +2925,13 @@ export const rawFootageFolder = pgTable("RawFootageFolder", {
 ]);
 
 // One script per (clientId, monthFolder, code, number) deliverable slot —
-// 1:1 with RawFootageFolder via rawFootageFolderId, same key shape, created
-// by ensureDeliverableScript (src/lib/deliverable-scripts.ts) alongside the
-// folder + editor task during monthly generation when Client.scriptsRequired
-// is true. status/versions/clientFeedback/reviewTaskId/completedAt mirror
-// the semantics of the per-shoot ShootScript type (src/lib/shoot-scripts.ts)
-// — draft -> sent -> approved/changes_requested, one linked CLIENT_REVIEW
-// task per script. taskId is denormalized from the folder's taskId at
-// creation/relink time so callers can join straight to the editor task
-// without a second lookup.
+// 1:1 with RawFootageFolder via rawFootageFolderId, same key shape. Created
+// manually via the Script Linking panel / generate endpoint (never during
+// monthly task generation). status/versions/clientFeedback/reviewTaskId/
+// completedAt mirror the semantics of the per-shoot ShootScript type
+// (src/lib/shoot-scripts.ts) — draft -> sent -> approved/changes_requested.
+// taskId is denormalized from the folder's taskId at creation/relink time
+// so callers can join straight to the editor task without a second lookup.
 export const deliverableScript = pgTable("DeliverableScript", {
 	id: text().primaryKey().notNull(),
 	clientId: text().notNull(),
