@@ -3,6 +3,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+"$(dirname "$0")/cloud-agent-start.sh"
+
 if [ ! -f .env ]; then
   cat > .env <<'EOF'
 DATABASE_URL="postgresql://e8dev:e8dev@localhost:5432/e8dev"
