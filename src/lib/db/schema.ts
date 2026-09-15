@@ -2020,6 +2020,9 @@ export const client = pgTable("Client", {
 	templateHashtags: text().array(),
 	address: text(),
 	shootDaysPerMonth: integer().default(0).notNull(),
+	// When true, staff expect scripts for this client's SF/LF slots.
+	// Scripts are still created manually via the Link Scripts panel.
+	scriptsRequired: boolean().default(false).notNull(),
 }, (table) => [
 	uniqueIndex("Client_preClientId_key").using("btree", table.preClientId.asc().nullsLast().op("text_ops")),
 	index("Client_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
@@ -2936,6 +2939,48 @@ export const rawFootageFolder = pgTable("RawFootageFolder", {
 			columns: [table.taskId],
 			foreignColumns: [task.id],
 			name: "RawFootageFolder_taskId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+// One script per (clientId, monthFolder, code, number) deliverable slot —
+// 1:1 with RawFootageFolder via rawFootageFolderId. Created manually via
+// the Script Linking panel / generate endpoint.
+export const deliverableScript = pgTable("DeliverableScript", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	monthFolder: text().notNull(),
+	code: rawFootageFolderCode().notNull(),
+	number: integer().notNull(),
+	rawFootageFolderId: text().notNull(),
+	taskId: text(),
+	title: text().notNull(),
+	content: text().default('').notNull(),
+	template: text().default('overall').notNull(),
+	status: text().default('draft').notNull(),
+	versions: jsonb().default([]).notNull(),
+	clientFeedback: text(),
+	reviewTaskId: text(),
+	completedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("DeliverableScript_client_month_code_number_key").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.monthFolder.asc().nullsLast().op("text_ops"), table.code.asc().nullsLast().op("text_ops"), table.number.asc().nullsLast().op("int4_ops")),
+	uniqueIndex("DeliverableScript_rawFootageFolderId_key").using("btree", table.rawFootageFolderId.asc().nullsLast().op("text_ops")),
+	index("DeliverableScript_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "DeliverableScript_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.rawFootageFolderId],
+			foreignColumns: [rawFootageFolder.id],
+			name: "DeliverableScript_rawFootageFolderId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.taskId],
+			foreignColumns: [task.id],
+			name: "DeliverableScript_taskId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
