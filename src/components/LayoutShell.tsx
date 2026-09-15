@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { GlobalUploadManager } from './workflow/GlobalUploadManager';
 import { ClientFeedbackWidget } from './client/ClientFeedbackWidget';
+import { ThemeToggle } from './theme/ThemeToggle';
 import { NAVIGATION_ITEMS, type NavigationRole } from './constants/navigation';
 import {
   ROLE_COLORS,
@@ -187,7 +188,7 @@ export function LayoutShell({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50">
+    <div className="min-h-screen bg-background">
       {/* Top Bar */}
       <header className="bg-background/80 backdrop-blur-md shadow-sm border-b border-border/50 fixed top-0 left-0 right-0 z-30">
         <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
@@ -236,12 +237,14 @@ export function LayoutShell({
               <Search className="h-5 w-5" />
             </Button>
 
+            <ThemeToggle />
+
             {/* 🔥 Role Switch Dropdown */}
             {canSwitchRole && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center gap-2.5 px-2 hover:bg-muted">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center bg-gray-100 text-foreground`}>
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center bg-muted text-foreground`}>
                       <ArrowLeftRight className="h-4 w-4" />
                     </div>
                     <div className="hidden sm:block text-left">
@@ -254,7 +257,7 @@ export function LayoutShell({
 
                 <DropdownMenuContent align="end" className="w-72 rounded-2xl p-0 shadow-lg overflow-hidden">
                   <div className="flex items-center gap-3 px-5 py-[18px]">
-                    <div className={`h-[38px] w-[38px] shrink-0 rounded-full flex items-center justify-center bg-gray-100 text-foreground`}>
+                    <div className={`h-[38px] w-[38px] shrink-0 rounded-full flex items-center justify-center bg-muted text-foreground`}>
                       <ArrowLeftRight className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">

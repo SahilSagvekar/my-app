@@ -31,7 +31,7 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: #030213;
@@ -42,43 +42,74 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* ================================================
+   Dark theme — "Studio" palette
+   ------------------------------------------------
+   A restrained, layered-neutral system (charcoal/graphite,
+   not the generic purple-on-black SaaS look). One accent
+   color, used sparingly (focus rings, links, small highlights)
+   — not painted across every button and active state.
+   Primary actions read as a bright, high-contrast fill
+   (near-white on charcoal) rather than a saturated brand color,
+   which is what reads as "premium/considered" rather than
+   "templated AI startup."
+   ================================================ */
 .dark {
-  --background: #0b0b0f;
-  --foreground: #f2f2f4;
-  --card: #131318;
-  --card-foreground: #f2f2f4;
-  --popover: #1a1a22;
-  --popover-foreground: #f2f2f4;
-  --primary: #8b5cf6;
-  --primary-foreground: #ffffff;
-  --secondary: #1c1c24;
+  /* Layered surfaces: background < card < popover, each one
+     step brighter so panels visibly sit "above" the page
+     without needing a border to prove it. */
+  --background: #09090b;
+  --foreground: #f1f1f3;
+  --card: #121214;
+  --card-foreground: #f1f1f3;
+  --popover: #18181b;
+  --popover-foreground: #f1f1f3;
+
+  /* Primary = confident near-white fill, not a brand hue.
+     Reserve color for status/meaning (destructive, approve),
+     not for "this is clickable." */
+  --primary: #f4f4f5;
+  --primary-foreground: #0a0a0b;
+  --secondary: #1b1b1e;
   --secondary-foreground: #e4e4e7;
-  --muted: #18181f;
-  --muted-foreground: #a1a1aa;
-  --accent: #1f1f28;
-  --accent-foreground: #f2f2f4;
+  --muted: #151517;
+  --muted-foreground: #96969e;
+  --accent: #1c1c1f;
+  --accent-foreground: #f1f1f3;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
+
+  /* Hairline borders, not visible strokes — separation comes
+     from surface-layer contrast first, borders second. */
   --border: rgba(255, 255, 255, 0.08);
-  --input: #16161c;
-  --input-background: #16161c;
-  --switch-background: #2a2a35;
-  --ring: #8b5cf6;
+  --input: #131315;
+  --input-background: #131315;
+  --switch-background: #29292d;
+
+  /* The one accent color in the whole system — a restrained,
+     slightly desaturated indigo used only for focus rings and
+     the rare intentional highlight (e.g. active tab underline). */
+  --ring: #6366f1;
+  --accent-color: #818cf8;
+
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: #8b5cf6;
-  --chart-2: #06b6d4;
-  --chart-3: #22c55e;
-  --chart-4: #f97316;
-  --chart-5: #f43f5e;
-  --sidebar: #0d0d12;
+  --chart-1: #818cf8;
+  --chart-2: #22d3ee;
+  --chart-3: #34d399;
+  --chart-4: #fb923c;
+  --chart-5: #f472b6;
+
+  /* Sidebar sits one step darker than the page so the app
+     "frame" reads as distinct from the content it holds. */
+  --sidebar: #0a0a0c;
   --sidebar-foreground: #e4e4e7;
-  --sidebar-primary: #8b5cf6;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1a1a22;
-  --sidebar-accent-foreground: #f2f2f4;
+  --sidebar-primary: #f4f4f5;
+  --sidebar-primary-foreground: #0a0a0b;
+  --sidebar-accent: #18181b;
+  --sidebar-accent-foreground: #f1f1f3;
   --sidebar-border: rgba(255, 255, 255, 0.06);
-  --sidebar-ring: #8b5cf6;
+  --sidebar-ring: #6366f1;
 }
 
 @theme inline {
@@ -124,16 +155,13 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
-@keyframes gradient-shift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
+/* Was a large animated 5-stop gradient. Replaced with a static,
+   near-imperceptible radial glow — same two call sites, restrained
+   version. Depth should come from layered surfaces, not motion. */
 .animated-dark-gradient {
-  background: linear-gradient(135deg, #09090b, #18181b, #1e1b4b, #09090b, #1a1a2e);
-  background-size: 300% 300%;
-  animation: gradient-shift 8s ease infinite;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.08), transparent),
+    #09090b;
 }
 
 @layer base {
@@ -980,4 +1008,220 @@ body:has([data-slot="dialog-content"].fullscreen-dialog) [data-feedback-widget-r
 .rdp-day_outside {
   color: hsl(var(--muted-foreground));
   opacity: 0.5;
+}
+/* ================================================
+   Dark mode compatibility layer
+   ------------------------------------------------
+   Most of the app's ~340 components were built directly
+   against raw Tailwind gray/slate/white/black utilities
+   instead of the semantic tokens above (bg-white, text-black,
+   bg-gray-50..900, etc. — a few thousand call sites total).
+   Rewriting every file isn't realistic in one pass, and isn't
+   necessary: these are a small, fixed vocabulary of classes,
+   so we remap them here, once, scoped entirely under `.dark`.
+
+   Only SOLID (non-opacity) utilities are remapped. Opacity
+   variants (bg-black/50, text-black/60, bg-white/10, etc.) are
+   left untouched on purpose — those are almost always overlay
+   treatments on video thumbnails/media, which are correct in
+   either theme and would break if remapped.
+
+   This has zero effect on light mode (every rule is scoped
+   under .dark) and zero effect on business logic — it only
+   repaints existing solid-color utility classes.
+   ================================================ */
+
+/* Backgrounds that were "light card / light page surface" in
+   light mode become the layered dark surfaces. */
+.dark .bg-white,
+.dark .bg-gray-50,
+.dark .bg-slate-50,
+.dark .bg-gray-100,
+.dark .bg-slate-100 {
+  background-color: var(--card);
+}
+
+.dark .bg-gray-200,
+.dark .bg-slate-200,
+.dark .bg-gray-300,
+.dark .bg-slate-300 {
+  background-color: var(--accent);
+}
+
+.dark .bg-gray-400,
+.dark .bg-gray-500,
+.dark .bg-slate-500 {
+  background-color: var(--secondary);
+}
+
+/* Backgrounds that were already "a dark chip/surface" in light
+   mode (gray-700/800/900) stay a distinct dark surface, one
+   step brighter than the page, rather than disappearing into it. */
+.dark .bg-gray-600,
+.dark .bg-gray-700,
+.dark .bg-gray-800,
+.dark .bg-gray-900,
+.dark .bg-gray-950,
+.dark .bg-slate-900,
+.dark .bg-slate-950 {
+  background-color: var(--popover);
+}
+
+/* Hover backgrounds — kept as a single visible highlight step. */
+.dark .hover\:bg-white:hover,
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover,
+.dark .hover\:bg-gray-200:hover,
+.dark .hover\:bg-gray-300:hover,
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-slate-200:hover {
+  background-color: var(--accent);
+}
+.dark .hover\:bg-gray-400:hover,
+.dark .hover\:bg-gray-700:hover {
+  background-color: var(--secondary);
+}
+
+/* Text — primary/heading text and "light text on a dark chip"
+   both resolve to the same bright foreground; secondary/meta
+   text resolves to the muted foreground. */
+.dark .text-black,
+.dark .text-gray-700,
+.dark .text-gray-800,
+.dark .text-gray-900,
+.dark .text-slate-700,
+.dark .text-slate-800,
+.dark .text-slate-900,
+.dark .text-slate-950,
+.dark .text-gray-100,
+.dark .text-gray-200,
+.dark .text-gray-300,
+.dark .text-slate-200,
+.dark .text-slate-300 {
+  color: var(--foreground);
+}
+
+.dark .text-gray-400,
+.dark .text-gray-500,
+.dark .text-gray-600,
+.dark .text-slate-400,
+.dark .text-slate-500,
+.dark .text-slate-600,
+.dark .hover\:text-gray-400:hover,
+.dark .hover\:text-gray-500:hover,
+.dark .hover\:text-gray-600:hover,
+.dark .hover\:text-slate-500:hover,
+.dark .placeholder\:text-gray-400::placeholder,
+.dark .placeholder\:text-gray-500::placeholder {
+  color: var(--muted-foreground);
+}
+
+.dark .hover\:text-gray-700:hover,
+.dark .hover\:text-gray-800:hover,
+.dark .hover\:text-gray-900:hover,
+.dark .hover\:text-slate-700:hover,
+.dark .hover\:text-slate-900:hover {
+  color: var(--foreground);
+}
+
+/* Borders and dividers — a single hairline value everywhere,
+   matching the --border token, so separation stays subtle. */
+.dark .border-gray-50,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark .divide-gray-100,
+.dark .divide-gray-200,
+.dark .divide-slate-100,
+.dark .divide-slate-200,
+.dark .ring-gray-200 {
+  border-color: var(--border);
+}
+
+.dark .border-gray-600,
+.dark .border-gray-700,
+.dark .border-gray-900,
+.dark .border-slate-800,
+.dark .hover\:border-gray-300:hover,
+.dark .hover\:border-gray-400:hover,
+.dark .hover\:border-slate-300:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* ================================================
+   Premium surface & interaction refinements
+   ------------------------------------------------
+   Subtle depth via layered shadow, not glassmorphism or big
+   gradients. Applied at the component-output level so every
+   <Card>, dropdown, popover and dialog gets it consistently
+   without editing each call site.
+   ================================================ */
+.dark [data-slot="card"] {
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 24px -16px rgba(0, 0, 0, 0.6);
+}
+
+.dark [data-slot="popover-content"],
+.dark [data-slot="dropdown-menu-content"],
+.dark [data-slot="select-content"],
+.dark [data-slot="dialog-content"],
+.dark [data-slot="alert-dialog-content"],
+.dark [data-slot="command"],
+.dark [data-slot="sheet-content"] {
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 16px 40px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* A restrained focus glow (uses the single accent color) instead
+   of the default hard ring — visible, not neon. */
+.dark button:focus-visible,
+.dark a:focus-visible,
+.dark input:focus-visible,
+.dark select:focus-visible,
+.dark textarea:focus-visible,
+.dark [role="button"]:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 35%, transparent);
+}
+
+/* Smooth, consistent hover/focus transitions on interactive
+   elements only (not a blanket `*` transition, which is a
+   common source of jank on large pages). */
+button,
+a,
+[role="button"],
+input,
+select,
+textarea,
+[data-slot="card"] {
+  transition: background-color 150ms ease, border-color 150ms ease,
+    color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+
+/* Slim, low-contrast scrollbars in dark mode (WebKit + Firefox)
+   instead of the default light OS scrollbar bar sitting on a
+   dark page. */
+.dark ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.dark ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+.dark * {
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
