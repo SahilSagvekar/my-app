@@ -5,6 +5,7 @@ import { Check, FileText, MapPin, ChevronLeft, PlayCircle, Loader } from 'lucide
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import type { ShootScript } from '@/lib/shoot-scripts';
+import { useEffectiveClientId } from '@/lib/hooks/useEffectiveClientId';
 
 interface ScriptEntry extends ShootScript {
   taskId: string;
@@ -31,11 +32,18 @@ export function ClientShootScriptsPage() {
   const [savedLabel, setSavedLabel] = useState<'Saved' | 'Saving…'>('Saved');
   const [approving, setApproving] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set only when an admin/manager is previewing this client's portal
+  // (ViewAsRoleContext) — a real client user gets null here and every
+  // call below falls back to the backend resolving their own session.
+  const clientIdOverride = useEffectiveClientId();
+  const previewHeaders: HeadersInit | undefined = clientIdOverride ? { 'x-viewing-as': 'client' } : undefined;
+  const previewJsonHeaders: HeadersInit = { 'Content-Type': 'application/json', ...(previewHeaders || {}) };
 
   const fetchScripts = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/client/shoot-scripts');
+      const url = clientIdOverride ? `/api/client/shoot-scripts?clientId=${clientIdOverride}` : '/api/client/shoot-scripts';
+      const res = await fetch(url, { headers: previewHeaders });
       if (res.ok) {
         const data = await res.json();
         setScripts(data.scripts || []);
@@ -45,7 +53,7 @@ export function ClientShootScriptsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clientIdOverride]);
 
   useEffect(() => { fetchScripts(); }, [fetchScripts]);
 
@@ -66,8 +74,8 @@ export function ClientShootScriptsPage() {
     try {
       const res = await fetch('/api/client/shoot-scripts', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId: script.taskId, scriptId: script.id, action: 'update_content', content }),
+        headers: previewJsonHeaders,
+        body: JSON.stringify({ taskId: script.taskId, scriptId: script.id, action: 'update_content', content, clientId: clientIdOverride || undefined }),
       });
       if (!res.ok) throw new Error();
       const { script: updated } = await res.json();
@@ -77,7 +85,7 @@ export function ClientShootScriptsPage() {
       toast.error('Could not save your changes');
       setSavedLabel('Saved');
     }
-  }, []);
+  }, [clientIdOverride]);
 
   const onTextChange = (value: string) => {
     setDraftText(value);
@@ -93,8 +101,8 @@ export function ClientShootScriptsPage() {
     try {
       const res = await fetch('/api/client/shoot-scripts', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId: script.taskId, scriptId: script.id, action: 'approve' }),
+        headers: previewJsonHeaders,
+        body: JSON.stringify({ taskId: script.taskId, scriptId: script.id, action: 'approve', clientId: clientIdOverride || undefined }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not approve');
       const { script: updated } = await res.json();

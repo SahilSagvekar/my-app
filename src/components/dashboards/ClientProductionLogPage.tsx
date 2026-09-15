@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Loader, ListChecks, X } from 'lucide-react';
+import { useEffectiveClientId } from '@/lib/hooks/useEffectiveClientId';
 
 type EntryType = 'shoot' | 'call' | 'meeting' | 'analytics';
 type Filter = 'all' | EntryType;
@@ -53,11 +54,13 @@ export function ClientProductionLogPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
   const [activeNote, setActiveNote] = useState<LogEntry | null>(null);
+  const clientIdOverride = useEffectiveClientId();
 
   const fetchLog = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/client/production-log');
+      const url = clientIdOverride ? `/api/client/production-log?clientId=${clientIdOverride}` : '/api/client/production-log';
+      const res = await fetch(url, { headers: clientIdOverride ? { 'x-viewing-as': 'client' } : undefined });
       if (res.ok) {
         const data = await res.json();
         setEntries(data.entries || []);
@@ -68,7 +71,7 @@ export function ClientProductionLogPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [clientIdOverride]);
 
   useEffect(() => { fetchLog(); }, [fetchLog]);
 

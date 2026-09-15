@@ -24,11 +24,21 @@ export async function GET(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if ((user.role || '').toLowerCase() !== 'client') {
+    // Admin/manager previewing a client's portal (ViewAsRoleContext) sends
+    // x-viewing-as: client + ?clientId= together — same convention
+    // /api/tasks already uses. A real client user sends neither and falls
+    // through to resolveClientIdForUser below as before.
+    const { searchParams } = new URL(req.url);
+    const clientIdOverride = searchParams.get('clientId');
+    const viewingAs = req.headers.get('x-viewing-as')?.toLowerCase();
+    const baseRole = (user.role || '').toLowerCase();
+    const isPreviewingClient = viewingAs === 'client' && !!clientIdOverride && (baseRole === 'admin' || baseRole === 'manager');
+
+    if (baseRole !== 'client' && !isPreviewingClient) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const clientId = await resolveClientIdForUser(user.id);
+    const clientId = isPreviewingClient ? clientIdOverride : await resolveClientIdForUser(user.id);
     if (!clientId) {
       return NextResponse.json({ scripts: [] });
     }
@@ -87,8 +97,16 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if ((user.role || '').toLowerCase() !== 'client') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    const clientId = await resolveClientIdForUser(user.id);
+    const bodyForAuth = req.clone();
+    const viewingAs = req.headers.get('x-viewing-as')?.toLowerCase();
+    const baseRole = (user.role || '').toLowerCase();
+    // PATCH takes clientId from the JSON body (not a query param) since
+    // there's no query string on a POST/PATCH-style call here — the
+    // preview override still needs the same x-viewing-as + clientId pair.
+    const { clientId: clientIdFromBody } = await bodyForAuth.json().catch(() => ({ clientId: null }));
+    const isPreviewingClient = viewingAs === 'client' && !!clientIdFromBody && (baseRole === 'admin' || baseRole === 'manager');
+    if (baseRole !== 'client' && !isPreviewingClient) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const clientId = isPreviewingClient ? clientIdFromBody : await resolveClientIdForUser(user.id);
     if (!clientId) return NextResponse.json({ error: 'Client profile not found' }, { status: 404 });
     const { taskId, scriptId, action, content } = await req.json();
     if (!taskId || !scriptId || !['approve', 'update_content'].includes(action)) {

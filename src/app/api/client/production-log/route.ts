@@ -16,11 +16,19 @@ export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser2(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if ((user.role || '').toLowerCase() !== 'client') {
+    // Same admin/manager-previewing-as-client convention used by /api/tasks
+    // and /api/client/shoot-scripts — x-viewing-as: client + ?clientId=
+    // together are trusted in place of a real 'client' role.
+    const { searchParams } = new URL(req.url);
+    const clientIdOverride = searchParams.get('clientId');
+    const viewingAs = req.headers.get('x-viewing-as')?.toLowerCase();
+    const baseRole = (user.role || '').toLowerCase();
+    const isPreviewingClient = viewingAs === 'client' && !!clientIdOverride && (baseRole === 'admin' || baseRole === 'manager');
+    if (baseRole !== 'client' && !isPreviewingClient) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const clientId = await resolveClientIdForUser(user.id);
+    const clientId = isPreviewingClient ? clientIdOverride : await resolveClientIdForUser(user.id);
     if (!clientId) return NextResponse.json({ entries: [] });
 
     const shootRows = await db
