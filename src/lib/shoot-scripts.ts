@@ -8,6 +8,7 @@ export interface ShootScriptVersion {
 }
 
 export interface ShootScriptReferenceFile {
+  id?: string;
   key: string;
   name: string;
   size: number;
