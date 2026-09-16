@@ -3,14 +3,11 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import useSWR from 'swr';
-import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
-import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
-import { Plus } from 'lucide-react';
 import { DateRangePicker } from '../ui/date-range-picker';
 import { LinkLfTask } from '../tasks/LinkLfTask';
 import {
@@ -19,7 +16,6 @@ import {
   Calendar, User, Users, Pencil, Trash2, Edit, CloudUpload, Youtube,
   ExternalLink, FileText, Video, Image as ImageIcon, Music, Archive,
 } from 'lucide-react';
-import { EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '../auth/AuthContext';
 import {
@@ -88,28 +84,25 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   REJECTED: { label: 'Rejected', variant: 'destructive', icon: <XCircle className="h-3.5 w-3.5" />, tone: 'text-red-600' },
   CLIENT_REVIEW: { label: 'Client Review', variant: 'outline', icon: <User className="h-3.5 w-3.5" />, tone: 'text-amber-600' },
   VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', variant: 'outline', icon: <Users className="h-3.5 w-3.5" />, tone: 'text-blue-600' },
-  HIDDEN: { label: 'Hidden', variant: 'secondary', icon: <EyeOff className="h-3 w-3" />, tone: 'text-slate-500' },
+  HIDDEN: { label: 'Hidden', variant: 'secondary', icon: null, tone: 'text-slate-500' },
 };
-
-// "Hidden" is a manual admin override rather than a pipeline stage, so it
-// keeps the pill/badge treatment to stand out from the normal workflow
-// statuses below, which render as plain icon + label (no pill).
-const PILL_STATUSES = new Set(['HIDDEN']);
 
 function StatusBadge({ status }: { status: string }) {
   const config = statusConfig[status] || { label: status, variant: 'secondary' as const, icon: null, tone: 'text-slate-600' };
-  if (PILL_STATUSES.has(status)) {
-    return (
-      <Badge variant="outline" className="flex w-fit items-center gap-1 rounded-full border-slate-300 bg-white px-2.5 py-1 text-slate-700">
-        {config.icon}{config.label}
-      </Badge>
-    );
-  }
   return (
-    <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${config.tone}`}>
-      {config.icon}{config.label}
+    <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+      {config.label}
     </span>
   );
+}
+
+function formatMonthFolder(value: string | null | undefined) {
+  if (!value) return null;
+  const match = value.match(/^([A-Za-z]+)-(\d{4})$/);
+  if (!match) return value;
+  const date = new Date(`${match[1]} 1, ${match[2]}`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
 function formatFileSize(bytes?: number | null) {
@@ -159,11 +152,11 @@ function getFileIcon(mimeType?: string | null, name?: string) {
 
 function SkeletonRow() {
   return (
-    <tr className="border-b">
-      <td className="py-3 px-4"><div className="h-4 w-4 rounded bg-muted animate-pulse" /></td>
-      {[200, 80, 100, 80, 60, 80, 90, 70, 70, 40].map((w, i) => (
-        <td key={i} className="py-3 px-4">
-          <div className={`h-4 rounded bg-muted animate-pulse`} style={{ width: w }} />
+    <tr className="border-b border-slate-100">
+      <td className="px-4 py-3.5"><div className="h-4 w-4 rounded bg-slate-100 animate-pulse" /></td>
+      {[200, 80, 100, 80, 60, 80, 90, 70, 40].map((w, i) => (
+        <td key={i} className="px-4 py-3.5">
+          <div className="h-4 rounded bg-slate-100 animate-pulse" style={{ width: w }} />
         </td>
       ))}
     </tr>
@@ -599,300 +592,501 @@ export function TaskManagementTab() {
   // ─────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
-      {/* Stats */}
+    <div className="space-y-5">
+      {/* Stats — pastel summary cards */}
       {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
           {[
-            { label: 'Total Tasks', value: stats.total, from: 'from-blue-50', to: 'to-blue-100', text: 'text-blue-700', sub: 'text-blue-600' },
-            { label: 'Pending', value: stats.byStatus?.PENDING || 0, from: 'from-yellow-50', to: 'to-yellow-100', text: 'text-yellow-700', sub: 'text-yellow-600' },
-            { label: 'In Progress', value: stats.byStatus?.IN_PROGRESS || 0, from: 'from-purple-50', to: 'to-purple-100', text: 'text-purple-700', sub: 'text-purple-600' },
-            { label: 'Ready for QC', value: stats.byStatus?.READY_FOR_QC || 0, from: 'from-orange-50', to: 'to-orange-100', text: 'text-orange-700', sub: 'text-orange-600' },
-            { label: 'Completed', value: stats.byStatus?.COMPLETED || 0, from: 'from-green-50', to: 'to-green-100', text: 'text-green-700', sub: 'text-green-600' },
-            { label: 'Overdue', value: stats.overdue, from: 'from-red-50', to: 'to-red-100', text: 'text-red-700', sub: 'text-red-600' },
-          ].map(s => (
-            <div key={s.label} className={`rounded-lg border p-4 bg-gradient-to-br ${s.from} ${s.to} flex flex-col items-center text-center`}>
-              <div className={`text-sm ${s.sub}`}>{s.label}</div>
-              <div className={`text-2xl font-bold ${s.text}`}>{s.value}</div>
+            { label: 'Total Tasks', value: stats.total, bg: 'bg-sky-50', text: 'text-sky-700' },
+            { label: 'Pending', value: stats.byStatus?.PENDING || 0, bg: 'bg-amber-50', text: 'text-amber-700' },
+            { label: 'In Progress', value: stats.byStatus?.IN_PROGRESS || 0, bg: 'bg-violet-50', text: 'text-violet-700' },
+            { label: 'Ready for QC', value: stats.byStatus?.READY_FOR_QC || 0, bg: 'bg-orange-50', text: 'text-orange-700' },
+            { label: 'Completed', value: stats.byStatus?.COMPLETED || 0, bg: 'bg-emerald-50', text: 'text-emerald-700' },
+            { label: 'Overdue', value: stats.overdue, bg: 'bg-rose-50', text: 'text-rose-700' },
+          ].map((s) => (
+            <div key={s.label} className={`rounded-xl ${s.bg} px-4 py-5 text-center`}>
+              <div className={`text-sm font-medium ${s.text}`}>{s.label}</div>
+              <div className={`mt-1 text-3xl font-bold tracking-tight ${s.text}`}>
+                {Number(s.value).toLocaleString()}
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex items-center justify-between mb-4">
-            {/* <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
-                <Filter className="h-4 w-4 mr-2" />{showFilters ? 'Hide Filters' : 'Show Filters'}
-                {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
+      {/* Filters + table in one bordered panel */}
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 border-slate-200 bg-white font-medium text-slate-800"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+              {activeFilterCount > 0 && (
+                <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>
+              )}
+            </Button>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" size="sm" className="h-9" onClick={clearFilters}>
+                Clear
               </Button>
-              {activeFilterCount > 0 && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
-            </div> */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
-                <Filter className="h-4 w-4 mr-2" />{showFilters ? 'Hide Filters' : 'Show Filters'}
-                {activeFilterCount > 0 && <Badge variant="secondary" className="ml-2">{activeFilterCount}</Badge>}
-              </Button>
-              {activeFilterCount > 0 && <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>}
-              {/* Search — always visible */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10 h-9 w-48" />
-              </div>
-              {/* Due Date Range — always visible */}
-              <DateRangePicker
-                date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
-                setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              {selectedTasks.size > 0 && (
-                <>
-                  <Button variant="default" size="sm" onClick={() => { setBulkEditForm({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' }); setShowBulkEdit(true); }}>
-                    <Pencil className="h-4 w-4 mr-2" />Edit {selectedTasks.size}
+            )}
+            <DateRangePicker
+              date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
+              setDate={(range) => {
+                setFilters((f) => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to }));
+                setPage(1);
+              }}
+              className="h-9 w-auto min-w-[140px] border-slate-200 bg-white font-medium text-slate-800"
+            />
+          </div>
+
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search tasks..."
+              value={filters.search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="h-9 border-transparent bg-slate-100 pl-10 text-sm shadow-none placeholder:text-slate-400 focus-visible:border-slate-200 focus-visible:bg-white focus-visible:ring-0"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {selectedTasks.size > 0 && (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => {
+                    setBulkEditForm({
+                      status: 'no_change',
+                      assignedTo: 'no_change',
+                      qc_specialist: 'no_change',
+                      scheduler: 'no_change',
+                      videographer: 'no_change',
+                      priority: 'no_change',
+                      dueDate: 'no_change',
+                    });
+                    setShowBulkEdit(true);
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit {selectedTasks.size}
+                </Button>
+                {canDeleteTasks && (
+                  <Button variant="destructive" size="sm" className="h-9" onClick={() => setShowBulkDelete(true)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete {selectedTasks.size}
                   </Button>
-                  {canDeleteTasks && (
-                    <Button variant="destructive" size="sm" onClick={() => setShowBulkDelete(true)}>
-                      <Trash2 className="h-4 w-4 mr-2" />Delete {selectedTasks.size}
-                    </Button>
-                  )}
-                </>
-              )}
-              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isValidating}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${isValidating ? 'animate-spin' : ''}`} />Refresh
-              </Button>
-              {user?.role?.toLowerCase() !== 'qc' && (
-                <CreateTaskDialog
-                  onTaskCreated={() => { toast({ title: 'Success', description: 'Task created. Refreshing...' }); setTimeout(() => mutateTasks(), 800); }}
-                  trigger={<Button><Plus className="h-4 w-4 mr-2" />Create Task</Button>}
-                />
-              )}
-            </div>
+                )}
+              </>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 border-slate-200 bg-white font-medium text-slate-800"
+              onClick={handleRefresh}
+              disabled={isValidating}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isValidating ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
+        </div>
 
-          {showFilters && (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-3">
-                {[
-                  { label: 'Editor', key: 'editor', items: editors },
-                  { label: 'QC Specialist', key: 'qc', items: qcMembers },
-                  { label: 'Scheduler', key: 'scheduler', items: schedulers },
-                  { label: 'Videographer', key: 'videographer', items: videographers },
-                ].map(({ label, key, items }) => (
-                  <div key={key} className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{label}</label>
-                    <Select value={(filters as any)[key]} onValueChange={v => { setFilters(f => ({ ...f, [key]: v })); setPage(1); }}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder={`All ${label}s`} /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All {label}s</SelectItem>
-                        {items.map(m => <SelectItem key={m.id} value={m.id.toString()}>{m.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
-
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Client</label>
-                  <Select value={filters.client} onValueChange={v => { setFilters(f => ({ ...f, client: v })); setPage(1); }}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="All Clients" /></SelectTrigger>
+        {showFilters && (
+          <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-8">
+              {[
+                { label: 'Editor', key: 'editor', items: editors },
+                { label: 'QC Specialist', key: 'qc', items: qcMembers },
+                { label: 'Scheduler', key: 'scheduler', items: schedulers },
+                { label: 'Videographer', key: 'videographer', items: videographers },
+              ].map(({ label, key, items }) => (
+                <div key={key} className="space-y-1">
+                  <label className="text-xs text-slate-500">{label}</label>
+                  <Select
+                    value={(filters as any)[key]}
+                    onValueChange={(v) => {
+                      setFilters((f) => ({ ...f, [key]: v }));
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 bg-white">
+                      <SelectValue placeholder={`All ${label}s`} />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Clients</SelectItem>
-                      {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>)}
+                      <SelectItem value="all">All {label}s</SelectItem>
+                      {items.map((m) => (
+                        <SelectItem key={m.id} value={m.id.toString()}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+              ))}
 
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Status</label>
-                  <Select value={filters.status} onValueChange={v => { setFilters(f => ({ ...f, status: v })); setPage(1); }}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Statuses</SelectItem>
-                      {Object.entries(statusConfig).map(([k, c]) => <SelectItem key={k} value={k}>{c.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Type</label>
-                  <Select value={filters.deliverableType} onValueChange={v => { setFilters(f => ({ ...f, deliverableType: v })); setPage(1); }}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="All Types" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      {availableDeliverableTypes.map(t => <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Month</label>
-                  <Select value={filters.month} onValueChange={v => { setFilters(f => ({ ...f, month: v })); setPage(1); }}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="All Months" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Months</SelectItem>
-                      {availableMonths.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Tag</label>
-                  <Select value={filters.tag} onValueChange={v => { setFilters(f => ({ ...f, tag: v })); setPage(1); }}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="All Tags" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Tags</SelectItem>
-                      {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500">Client</label>
+                <Select
+                  value={filters.client}
+                  onValueChange={(v) => {
+                    setFilters((f) => ({ ...f, client: v }));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-9 bg-white">
+                    <SelectValue placeholder="All Clients" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.companyName || c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* <div className="flex items-end gap-4">
-                <div className="relative flex-1 max-w-xs">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search tasks..." value={filters.search} onChange={e => handleSearchChange(e.target.value)} className="pl-10" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Due Date Range</label>
-                  <DateRangePicker
-                    date={{ from: filters.dueDateFrom, to: filters.dueDateTo }}
-                    setDate={range => { setFilters(f => ({ ...f, dueDateFrom: range?.from, dueDateTo: range?.to })); setPage(1); }}
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500">Status</label>
+                <Select
+                  value={filters.status}
+                  onValueChange={(v) => {
+                    setFilters((f) => ({ ...f, status: v }));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-9 bg-white">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    {Object.entries(statusConfig).map(([k, c]) => (
+                      <SelectItem key={k} value={k}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500">Type</label>
+                <Select
+                  value={filters.deliverableType}
+                  onValueChange={(v) => {
+                    setFilters((f) => ({ ...f, deliverableType: v }));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-9 bg-white">
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {availableDeliverableTypes.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t.replace(/_/g, ' ')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500">Month</label>
+                <Select
+                  value={filters.month}
+                  onValueChange={(v) => {
+                    setFilters((f) => ({ ...f, month: v }));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-9 bg-white">
+                    <SelectValue placeholder="All Months" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Months</SelectItem>
+                    {availableMonths.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500">Tag</label>
+                <Select
+                  value={filters.tag}
+                  onValueChange={(v) => {
+                    setFilters((f) => ({ ...f, tag: v }));
+                    setPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-9 bg-white">
+                    <SelectValue placeholder="All Tags" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Tags</SelectItem>
+                    {allTags.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/80">
+                <th className="w-12 px-4 py-3">
+                  <Checkbox
+                    checked={allSelected}
+                    ref={(el) => {
+                      if (el) (el as any).indeterminate = someSelected;
+                    }}
+                    onCheckedChange={handleSelectAll}
+                    aria-label="Select all"
                   />
-                </div>
-              </div> */}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Tasks Table */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="py-3 px-4 w-12">
-                    <Checkbox checked={allSelected} ref={el => { if (el) (el as any).indeterminate = someSelected; }} onCheckedChange={handleSelectAll} aria-label="Select all" />
-                  </th>
-                  <th className="text-left py-3 px-4 font-medium">Task</th>
-                  <th className="text-left py-3 px-4 font-medium">Type</th>
-                  <th className="text-left py-3 px-4 font-medium">Client</th>
-                  <th className="text-left py-3 px-4 font-medium">Editor</th>
-                  <th className="text-left py-3 px-4 font-medium">QC</th>
-                  <th className="text-left py-3 px-4 font-medium">Scheduler</th>
-                  <th className="text-left py-3 px-4 font-medium">Status</th>
-                  <th className="text-left py-3 px-4 font-medium">Month</th>
-                  <th className="text-left py-3 px-4 font-medium">Due Date</th>
-                  <th className="text-left py-3 px-4 font-medium">Actions</th>
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Task Name
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Type
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Client
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Editor
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  QC
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Scheduler
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Month
+                </th>
+                <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasksLoading && tasks.length === 0 ? (
+                Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
+              ) : tasks.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="py-12 text-center text-sm text-slate-500">
+                    No tasks found matching your filters
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {tasksLoading && tasks.length === 0
-                  ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
-                  : tasks.length === 0
-                    ? <tr><td colSpan={11} className="text-center py-12 text-muted-foreground">No tasks found matching your filters</td></tr>
-                    : tasks.map(task => {
-                        const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !['COMPLETED', 'SCHEDULED'].includes(task.status);
-                        const isSelected = selectedTasks.has(task.id);
-                        return (
-                          <tr key={task.id} className={`border-b hover:bg-muted/50 ${isSelected ? 'bg-primary/5' : ''} ${tasksLoading ? 'opacity-60' : ''}`}>
-                            <td className="py-3 px-4"><Checkbox checked={isSelected} onCheckedChange={c => handleSelectTask(task.id, !!c)} /></td>
-                            <td className="py-3 px-4"><div className="max-w-xs font-medium truncate">{task.title || task.description?.slice(0, 50) || 'Untitled Task'}</div></td>
-                            <td className="py-3 px-4">
-                              <div className="text-sm flex flex-col gap-1">
-                                <span>{task.monthlyDeliverable?.type?.replace(/_/g, ' ') || task.oneOffDeliverable?.type?.replace(/_/g, ' ') || '-'}</span>
-                                {task.oneOffDeliverable && <Badge variant="outline" className="w-fit text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">One-Off</Badge>}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4"><div className="text-sm">{task.client?.companyName || task.client?.name || '-'}</div></td>
-                            <td className="py-3 px-4"><div className="text-sm">{task.editor?.name || '-'}</div></td>
-                            <td className="py-3 px-4"><div className="text-sm">{task.qcSpecialist?.name || '-'}</div></td>
-                            <td className="py-3 px-4"><div className="text-sm">{task.schedulerUser?.name || '-'}</div></td>
-                            <td className="py-3 px-4"><StatusBadge status={task.status} /></td>
-                            <td className="py-3 px-4">
-                              {task.monthFolder
-                                ? <Badge variant="outline" className="text-xs whitespace-nowrap bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300">{task.monthFolder}</Badge>
-                                : <span className="text-muted-foreground text-xs">-</span>}
-                            </td>
-                            <td className="py-3 px-4">
-                              {task.dueDate
-                                ? <div className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : ''}`}>{new Date(task.dueDate).toLocaleDateString()}{isOverdue && <div className="text-xs text-red-500">Overdue</div>}</div>
-                                : <span className="text-muted-foreground">-</span>}
-                            </td>
-                            <td className="py-3 px-4">
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      <DropdownMenuItem onClick={() => openEditDialog(task)}><Edit className="h-4 w-4 mr-2" />Edit Task</DropdownMenuItem>
-      <DropdownMenuSeparator />
-      {canManageVideos && (
-        <DropdownMenuItem onClick={() => openManageVideos(task)}>
-          <Trash2 className="h-4 w-4 mr-2" />Manage Files
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem
-        onClick={() => handleDriveMirror(task.id)}
-        disabled={mirroringTaskId === task.id}
-        className="text-blue-600 focus:text-blue-600"
-      >
-        <CloudUpload className="h-4 w-4 mr-2" />
-        {mirroringTaskId === task.id ? 'Mirroring...' : 'Trigger Drive Mirror'}
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        onClick={() => handleYoutubeMirror(task.id)}
-        disabled={youtubeMirroringTaskId === task.id}
-        className="text-red-600 focus:text-red-600"
-      >
-        <Youtube className="h-4 w-4 mr-2" />
-        {youtubeMirroringTaskId === task.id ? 'Uploading...' : 'Trigger YouTube Upload'}
-      </DropdownMenuItem>
-      {(() => {
-        const dtype = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || '';
-        const isLF = dtype.toLowerCase().includes('long') || dtype.toUpperCase().includes('LF');
-        if (!isLF) return null;
-        return (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => openEditDialog(task)}>
-              <span className="mr-2 text-sm">🔗</span>Link SF Tasks
-            </DropdownMenuItem>
-          </>
-        );
-      })()}
-      {canDeleteTasks && (
-        <>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleteConfirmTask(task)}>
-            <Trash2 className="h-4 w-4 mr-2" />Delete Task
-          </DropdownMenuItem>
-        </>
-      )}
-    </DropdownMenuContent>
-  </DropdownMenu>
-</td>
-                          </tr>
-                        );
-                      })}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center justify-between px-4 py-3 border-t">
-            <div className="text-sm text-muted-foreground">
-              {selectedTasks.size > 0 && <span className="font-medium">{selectedTasks.size} selected · </span>}
-              Showing {Math.min((page - 1) * limit + 1, total)}–{Math.min(page * limit, total)} of {total} tasks
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page <= 1}><ChevronLeft className="h-4 w-4" />Previous</Button>
-              <span className="text-sm px-2">Page {page} of {totalPages}</span>
-              <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages}>Next<ChevronRight className="h-4 w-4" /></Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              ) : (
+                tasks.map((task, index) => {
+                  const isSelected = selectedTasks.has(task.id);
+                  return (
+                    <tr
+                      key={task.id}
+                      className={`border-b border-slate-100 transition-colors hover:bg-slate-50/80 ${
+                        isSelected ? 'bg-sky-50/60' : index % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'
+                      } ${tasksLoading ? 'opacity-60' : ''}`}
+                    >
+                      <td className="px-4 py-3.5">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(c) => handleSelectTask(task.id, !!c)}
+                        />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="max-w-xs truncate text-sm font-semibold text-slate-900">
+                          {task.title || task.description?.slice(0, 50) || 'Untitled Task'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-col gap-1 text-sm text-slate-700">
+                          <span>
+                            {task.monthlyDeliverable?.type?.replace(/_/g, ' ') ||
+                              task.oneOffDeliverable?.type?.replace(/_/g, ' ') ||
+                              '-'}
+                          </span>
+                          {task.oneOffDeliverable && (
+                            <Badge
+                              variant="outline"
+                              className="h-4 w-fit border-yellow-200 bg-yellow-50 px-1 text-[10px] text-yellow-700"
+                            >
+                              One-Off
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-sm text-slate-700">
+                        {task.client?.companyName || task.client?.name || '-'}
+                      </td>
+                      <td className="px-4 py-3.5 text-sm text-slate-700">{task.editor?.name || '-'}</td>
+                      <td className="px-4 py-3.5 text-sm text-slate-700">
+                        {task.qcSpecialist?.name || '-'}
+                      </td>
+                      <td className="px-4 py-3.5 text-sm text-slate-700">
+                        <div className="flex flex-col gap-0.5 leading-snug">
+                          {task.schedulerUser?.name ? (
+                            <span>{task.schedulerUser.name}</span>
+                          ) : (
+                            <span>-</span>
+                          )}
+                          {task.videographerUser?.name && (
+                            <span className="text-slate-500">{task.videographerUser.name}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <StatusBadge status={task.status} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {task.monthFolder ? (
+                          <span className="inline-flex whitespace-nowrap rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                            {formatMonthFolder(task.monthFolder)}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-full border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(task)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Task
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {canManageVideos && (
+                              <DropdownMenuItem onClick={() => openManageVideos(task)}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Manage Files
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() => handleDriveMirror(task.id)}
+                              disabled={mirroringTaskId === task.id}
+                              className="text-blue-600 focus:text-blue-600"
+                            >
+                              <CloudUpload className="mr-2 h-4 w-4" />
+                              {mirroringTaskId === task.id ? 'Mirroring...' : 'Trigger Drive Mirror'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleYoutubeMirror(task.id)}
+                              disabled={youtubeMirroringTaskId === task.id}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Youtube className="mr-2 h-4 w-4" />
+                              {youtubeMirroringTaskId === task.id
+                                ? 'Uploading...'
+                                : 'Trigger YouTube Upload'}
+                            </DropdownMenuItem>
+                            {(() => {
+                              const dtype =
+                                task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || '';
+                              const isLF =
+                                dtype.toLowerCase().includes('long') ||
+                                dtype.toUpperCase().includes('LF');
+                              if (!isLF) return null;
+                              return (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => openEditDialog(task)}>
+                                    <span className="mr-2 text-sm">🔗</span>
+                                    Link SF Tasks
+                                  </DropdownMenuItem>
+                                </>
+                              );
+                            })()}
+                            {canDeleteTasks && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() => setDeleteConfirmTask(task)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete Task
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
+        <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-slate-500">
+            {selectedTasks.size > 0 && (
+              <span className="font-medium text-slate-700">{selectedTasks.size} selected · </span>
+            )}
+            Showing {Math.min((page - 1) * limit + 1, total)}–{Math.min(page * limit, total)} of{' '}
+            {total.toLocaleString()} tasks
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 border-slate-200"
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <span className="px-2 text-sm text-slate-600">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 border-slate-200"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
       {/* Single Edit Dialog */}
       <Dialog open={!!editingTask} onOpenChange={o => !o && setEditingTask(null)}>
         <DialogContent className="max-w-xl">

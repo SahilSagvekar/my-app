@@ -206,8 +206,8 @@ export function DateRangePicker({ date, setDate, className }: CustomDateRangePic
         <Button
           variant="outline"
           className={cn(
-            'w-[300px] justify-start text-left font-normal',
-            !date.from && 'text-muted-foreground',
+            'h-9 w-[260px] justify-start text-left font-medium',
+            !date.from && 'text-slate-600',
             className
           )}
         >
@@ -221,7 +221,7 @@ export function DateRangePicker({ date, setDate, className }: CustomDateRangePic
               formatDate(date.from)
             )
           ) : (
-            <span>Pick a date range</span>
+            <span>Date Range</span>
           )}
         </Button>
       </PopoverTrigger>
