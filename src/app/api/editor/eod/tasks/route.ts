@@ -4,13 +4,14 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getDbHttp } from "@/lib/db";
 import { task, editorEodReport } from "@/lib/db/schema";
-import { and, eq, inArray, desc } from "drizzle-orm";
+import { and, eq, inArray, desc, gte } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import {
   getTodayReportDate,
   extractTaskProofLinks,
   validateEodTaskEligibility,
 } from "@/lib/editor-eod";
+import { getESTDate } from "@/lib/est-date";
 
 export async function GET(req: NextRequest) {
   const db = getDbHttp();
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
     }
 
     const todayDate = getTodayReportDate();
+    const { start: dayStart } = getESTDate(); // coarse: start of EST calendar day
 
     // Get already submitted task IDs for today
     const existingReportRaw = await db.query.editorEodReport.findFirst({
@@ -36,10 +38,11 @@ export async function GET(req: NextRequest) {
       : null;
 
     const alreadySubmittedIds = new Set(
-      existingReport?.items.map((item) => item.taskId) || []
+      existingReport?.items.map((item) => item.taskId) || [],
     );
 
-    // Fetch tasks assigned to this editor that are in workable statuses
+    // Coarse DB filter: touched on/after start of today ET.
+    // Fine 9am–7pm ET window is applied in validateEodTaskEligibility.
     const tasks = await db.query.task.findMany({
       where: and(
         eq(task.assignedTo, user.id),
@@ -50,8 +53,10 @@ export async function GET(req: NextRequest) {
           "COMPLETED",
           "SCHEDULED",
           "POSTED",
-          "REJECTED_BY_QC", "REJECTED_BY_CLIENT",
+          "REJECTED_BY_QC",
+          "REJECTED_BY_CLIENT",
         ] as any),
+        gte(task.updatedAt, dayStart.toISOString()),
       ),
       with: {
         client: {
@@ -67,51 +72,61 @@ export async function GET(req: NextRequest) {
             s3Key: true,
             folderType: true,
             isActive: true,
+            uploadedAt: true,
           },
         },
       },
       orderBy: desc(task.updatedAt),
-      limit: 100,
+      limit: 200,
     });
 
-    const payload = tasks.map((task) => {
+    const payload = tasks.map((row) => {
       const proofLinks = extractTaskProofLinks({
-        files: task.files,
-        driveLinks: task.driveLinks,
+        files: row.files,
+        driveLinks: row.driveLinks,
       });
 
       const eligibility = validateEodTaskEligibility(
         {
-          id: task.id,
-          assignedTo: task.assignedTo,
-          files: task.files,
-          driveLinks: task.driveLinks,
+          id: row.id,
+          assignedTo: row.assignedTo,
+          updatedAt: row.updatedAt,
+          files: row.files,
+          driveLinks: row.driveLinks,
         },
         user.id,
-        alreadySubmittedIds
+        alreadySubmittedIds,
+        todayDate,
       );
 
       return {
-        id: task.id,
-        title: task.title || "Untitled Task",
-        clientName: task.client?.companyName || task.client?.name || null,
-        status: task.status,
+        id: row.id,
+        title: row.title || "Untitled Task",
+        clientName: row.client?.companyName || row.client?.name || null,
+        status: row.status,
         proofLinks,
         eligible: eligibility.eligible,
         disabledReason: eligibility.disabledReason || null,
       };
     });
 
+    // Only return tasks that are eligible (or already submitted today for context).
+    // Hide unrelated backlog so editors can't select-all old work.
+    const visible = payload.filter(
+      (t) => t.eligible || t.disabledReason === "Already submitted today",
+    );
+
     return NextResponse.json({
-      tasks: payload,
+      tasks: visible,
       reportDate: todayDate,
+      workWindow: "9:00 AM–7:00 PM ET",
       alreadySent: existingReport?.status === "SENT",
     });
   } catch (err: any) {
     console.error("[EOD Tasks] Error:", err);
     return NextResponse.json(
       { error: "Server error", details: err.message },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
