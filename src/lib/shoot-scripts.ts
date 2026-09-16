@@ -45,7 +45,7 @@ export interface ShootScriptDocument {
 export const SCRIPT_TEMPLATES = {
   overall: {
     label: 'Overall brief',
-    content: 'Objective:\n\nKey message:\n\nTone and style:\n\nMust-have shots:\n\nCall to action:\n',
+    content: 'Objective:\n\nKey message:\n\nMust-have shots:\n\nCall to action:\n',
   },
   detailed: {
     label: 'Detailed script',
