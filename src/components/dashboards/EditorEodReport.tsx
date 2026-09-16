@@ -234,6 +234,9 @@ export function EditorEodReport() {
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               {reportDate && formatPreviewDate(reportDate)}
+              {" · "}
+              Only tasks you worked on today between{" "}
+              <span className="font-medium text-slate-600">9:00 AM–7:00 PM ET</span>
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -263,7 +266,10 @@ export function EditorEodReport() {
         {tasks.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No eligible tasks found for today.</p>
+            <p className="text-sm">No tasks worked on today between 9:00 AM–7:00 PM ET.</p>
+            <p className="mt-1 text-xs opacity-70">
+              Start or upload to a task during that window to include it here.
+            </p>
           </div>
         ) : (
           <>

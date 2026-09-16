@@ -11,6 +11,7 @@ import {
   getTodayReportDate,
   extractTaskProofLinks,
   formatEditorEodSlackMessage,
+  validateEodTaskEligibility,
 } from "@/lib/editor-eod";
 
 export async function POST(req: NextRequest) {
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
             s3Key: true,
             folderType: true,
             isActive: true,
+            uploadedAt: true,
           },
         },
       },
@@ -83,29 +85,30 @@ export async function POST(req: NextRequest) {
     const errors: string[] = [];
 
     for (const taskId of uniqueTaskIds) {
-      const task = tasks.find((t) => t.id === taskId);
+      const row = tasks.find((t) => t.id === taskId);
 
-      if (!task) {
+      if (!row) {
         errors.push(`Task ${taskId} not found`);
         continue;
       }
 
-      if (task.assignedTo !== user.id) {
-        errors.push(`Task "${task.title}" not assigned to you`);
-        continue;
-      }
+      const eligibility = validateEodTaskEligibility(
+        {
+          id: row.id,
+          assignedTo: row.assignedTo,
+          updatedAt: row.updatedAt,
+          files: row.files,
+          driveLinks: row.driveLinks,
+        },
+        user.id,
+        alreadySubmittedIds,
+        todayDate,
+      );
 
-      if (alreadySubmittedIds.has(taskId)) {
-        errors.push(`Task "${task.title}" already submitted today`);
-        continue;
-      }
-
-      const hasFiles = task.files.some((f) => f.s3Key || f.url);
-      const hasDriveLinks = task.driveLinks?.some((l) => l && l.trim());
-
-      if (!hasFiles && !hasDriveLinks) {
-        errors.push(`Task "${task.title}" has no output link`);
-        continue;
+      if (!eligibility.eligible) {
+        errors.push(
+          `Task "${row.title || taskId}": ${eligibility.disabledReason || "not eligible"}`,
+        );
       }
     }
 

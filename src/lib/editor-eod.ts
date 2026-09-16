@@ -2,19 +2,17 @@
 // Helper functions for Editor EOD Report feature
 
 import { getFileUrl } from "@/lib/s3";
+import { EST_TIMEZONE, estWallClockToUTC } from "@/lib/timezone";
+import { getESTDateString } from "@/lib/est-date";
+
+/** EOD work window in US Eastern: 9:00 AM – 7:00 PM inclusive. */
+export const EOD_WORK_WINDOW = { startHour: 9, endHour: 19 } as const;
 
 // ---------------------------------------------------------------------------
-// Date helper — returns "YYYY-MM-DD" in Asia/Kolkata timezone
+// Date helper — returns "YYYY-MM-DD" in America/New_York (EST/EDT)
 // ---------------------------------------------------------------------------
 export function getTodayReportDate(): string {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return formatter.format(now); // "YYYY-MM-DD"
+  return getESTDateString();
 }
 
 export function formatReportDate(dateStr: string): string {
@@ -24,7 +22,52 @@ export function formatReportDate(dateStr: string): string {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: EST_TIMEZONE,
   });
+}
+
+/** UTC bounds for today's EOD work window (9am–7pm ET on reportDate). */
+export function getEstWorkWindowBounds(reportDate: string): { start: Date; end: Date } {
+  return {
+    start: new Date(
+      estWallClockToUTC(
+        `${reportDate}T${String(EOD_WORK_WINDOW.startHour).padStart(2, "0")}:00:00`,
+      ),
+    ),
+    end: new Date(
+      estWallClockToUTC(
+        `${reportDate}T${String(EOD_WORK_WINDOW.endHour).padStart(2, "0")}:00:00`,
+      ),
+    ),
+  };
+}
+
+export function isTimestampInEstWorkWindow(
+  value: string | Date | null | undefined,
+  reportDate: string,
+): boolean {
+  if (!value) return false;
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return false;
+  const { start, end } = getEstWorkWindowBounds(reportDate);
+  return t >= start.getTime() && t <= end.getTime();
+}
+
+/**
+ * True if the editor had work activity on this task during today's
+ * 9am–7pm ET window — either a file upload or a task update in that range.
+ */
+export function taskWorkedInEstWindow(
+  task: {
+    updatedAt?: string | Date | null;
+    files?: Array<{ uploadedAt?: string | Date | null; isActive?: boolean | null }>;
+  },
+  reportDate: string,
+): boolean {
+  if (isTimestampInEstWorkWindow(task.updatedAt, reportDate)) return true;
+  return (task.files || []).some(
+    (f) => f.isActive !== false && isTimestampInEstWorkWindow(f.uploadedAt, reportDate),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +90,7 @@ export function extractTaskProofLinks(
       isActive?: boolean;
     }>;
     driveLinks?: string[];
-  }
+  },
 ): ProofLink[] {
   const links: ProofLink[] = [];
 
@@ -99,11 +142,18 @@ export function validateEodTaskEligibility(
   task: {
     id: string;
     assignedTo: number;
-    files?: Array<{ s3Key?: string | null; url?: string; isActive?: boolean }>;
+    updatedAt?: string | Date | null;
+    files?: Array<{
+      s3Key?: string | null;
+      url?: string;
+      isActive?: boolean;
+      uploadedAt?: string | Date | null;
+    }>;
     driveLinks?: string[];
   },
   currentUserId: number,
-  alreadySubmittedTaskIds: Set<string>
+  alreadySubmittedTaskIds: Set<string>,
+  reportDate: string,
 ): EodTaskEligibility {
   // Check assignment
   if (task.assignedTo !== currentUserId) {
@@ -115,9 +165,17 @@ export function validateEodTaskEligibility(
     return { eligible: false, disabledReason: "Already submitted today" };
   }
 
+  // Only tasks worked on today during 9am–7pm ET
+  if (!taskWorkedInEstWindow(task, reportDate)) {
+    return {
+      eligible: false,
+      disabledReason: "Not worked on today (9:00 AM–7:00 PM ET)",
+    };
+  }
+
   // Check proof links
   const hasFiles = task.files?.some(
-    (f) => f.isActive !== false && (f.s3Key || f.url)
+    (f) => f.isActive !== false && (f.s3Key || f.url),
   );
   const hasDriveLinks = task.driveLinks?.some((l) => l && l.trim());
 
