@@ -4,15 +4,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getDbHttp } from '@/lib/db';
-import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/schema';
+import { shootDetail as shootDetailTable, task as taskTable, monthlyDeliverable as monthlyDeliverableTable, oneOffDeliverable as oneOffDeliverableTable } from '@/lib/db/schema';
 import { readShootScriptDocument } from '@/lib/shoot-scripts';
 
 // Roles that can view a script linked to their task
-const CAN_VIEW = ['admin', 'manager', 'editor', 'videographer', 'qc'];
+const CAN_VIEW = ['admin', 'manager', 'editor', 'videographer', 'qc', 'scheduler'];
+
+function isSfLf(type?: string | null): boolean {
+  if (!type) return false;
+  const t = type.toUpperCase().replace(/[\s_-]+/g, '');
+  if (t === 'SF' || t === 'LF') return true;
+  if (t.startsWith('SF') || t.startsWith('LF')) return true;
+  return t.includes('SHORTFORM') || t.includes('LONGFORM') || t.includes('SHORT') || t.includes('LONG');
+}
 
 // GET /api/tasks/[id]/script
 // Returns the script linked to this production task via shootScriptRef.
-// Editors use this to read the approved script while editing their video.
+// Editors use this while editing; schedulers may view only.
 export async function GET(
   req: NextRequest,
   props: { params: Promise<{ id: string }> }
@@ -25,10 +33,15 @@ export async function GET(
 
   const { id: taskId } = await props.params;
   const db = getDbHttp();
+  const role = (user.role || '').toLowerCase();
 
   // Fetch the task to get its shootScriptRef
   const [row] = await db
-    .select({ shootScriptRef: taskTable.shootScriptRef, clientId: taskTable.clientId, assignedTo: taskTable.assignedTo })
+    .select({
+      shootScriptRef: taskTable.shootScriptRef,
+      clientId: taskTable.clientId,
+      assignedTo: taskTable.assignedTo,
+    })
     .from(taskTable)
     .where(eq(taskTable.id, taskId))
     .limit(1);
@@ -36,9 +49,9 @@ export async function GET(
   if (!row) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
   if (!row.shootScriptRef) return NextResponse.json({ script: null });
 
-  // Editors can only see scripts for tasks assigned to them (unless admin/manager)
-  const isRestricted = ['editor', 'videographer', 'qc'].includes((user.role || '').toLowerCase());
-  if (isRestricted && row.assignedTo !== user.id) {
+  // Editors / videographers / QC: own assigned tasks only.
+  // Schedulers may view scripts on queue tasks (queue is not per-scheduler scoped).
+  if (['editor', 'videographer', 'qc'].includes(role) && row.assignedTo !== user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -103,14 +116,27 @@ export async function PATCH(
   const db = getDbHttp();
 
   const [task] = await db
-    .select({ id: taskTable.id, clientId: taskTable.clientId, assignedTo: taskTable.assignedTo, shootScriptRef: taskTable.shootScriptRef })
+    .select({
+      id: taskTable.id,
+      clientId: taskTable.clientId,
+      assignedTo: taskTable.assignedTo,
+      shootScriptRef: taskTable.shootScriptRef,
+      deliverableType: taskTable.deliverableType,
+      monthlyType: monthlyDeliverableTable.type,
+      oneOffType: oneOffDeliverableTable.type,
+    })
     .from(taskTable)
+    .leftJoin(monthlyDeliverableTable, eq(taskTable.monthlyDeliverableId, monthlyDeliverableTable.id))
+    .leftJoin(oneOffDeliverableTable, eq(taskTable.oneOffDeliverableId, oneOffDeliverableTable.id))
     .where(eq(taskTable.id, taskId))
     .limit(1);
   if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 });
 
   if (role === 'editor' && task.assignedTo !== user.id) {
     return NextResponse.json({ error: 'You can only link scripts to your own tasks' }, { status: 403 });
+  }
+  if (![task.deliverableType, task.monthlyType, task.oneOffType].some(isSfLf)) {
+    return NextResponse.json({ error: 'Scripts can only be attached to SF/LF tasks' }, { status: 400 });
   }
 
   const now = new Date().toISOString();

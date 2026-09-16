@@ -32,6 +32,9 @@ import {
   Info,
   Play,
   ScrollText,
+  Link2,
+  Unlink,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -87,6 +90,24 @@ function mapTaskTypeToWorkflow(type: string) {
   if (["review", "audit"].includes(type)) return "qc_review";
   if (["schedule"].includes(type)) return "scheduling";
   return "edit";
+}
+
+function isSfLfDeliverable(type?: string | null): boolean {
+  if (!type) return false;
+  const t = type.toUpperCase().replace(/[\s_-]+/g, "");
+  if (t === "SF" || t === "LF") return true;
+  if (t.startsWith("SF") || t.startsWith("LF")) return true;
+  return t.includes("SHORTFORM") || t.includes("LONGFORM") || t.includes("SHORT") || t.includes("LONG");
+}
+
+function scriptRefTitle(ref?: string | null): string | null {
+  if (!ref) return null;
+  try {
+    const parsed = JSON.parse(ref) as { scriptTitle?: string };
+    return parsed.scriptTitle?.trim() || "Linked script";
+  } catch {
+    return "Linked script";
+  }
 }
 
 function getStatusBadgeStyles(status: string) {
@@ -528,6 +549,7 @@ function TaskCard({
   onToggleSponsored,
   onAcknowledgeFeedback,
   currentUserId,
+  onShootScriptChange,
 }: {
   task: WorkflowTask;
   onUploadComplete: (taskId: string, files: any[]) => void;
@@ -540,6 +562,7 @@ function TaskCard({
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
   currentUserId?: number;
+  onShootScriptChange?: (taskId: string, shootScriptRef: string | null) => void;
 }) {
   // const [showFiles, setShowFiles] = useState(false);
   // const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
@@ -559,13 +582,24 @@ const [showGuidelines, setShowGuidelines] = useState(false);
   const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | null>(null);
   const activeVersion = feedbackVersionFilter ?? currentVersion;
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
-  // Script viewer state
+  // Script viewer + attach state
   const [scriptOpen, setScriptOpen] = useState(false);
   const [scriptLoading, setScriptLoading] = useState(false);
   const [scriptData, setScriptData] = useState<{ title: string; content: string; status: string; clientFeedback?: string; template: string } | null>(null);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attachLoading, setAttachLoading] = useState(false);
+  const [attachBusy, setAttachBusy] = useState(false);
+  const [availableScripts, setAvailableScripts] = useState<Array<{
+    id: string;
+    title: string;
+    status: string;
+    shootTaskId: string;
+    shootDate: string | null;
+  }>>([]);
+  const canAttachScript = isSfLfDeliverable(task.deliverableType);
+  const linkedScriptTitle = scriptRefTitle(task.shootScriptRef);
 
   const loadScript = async () => {
-    if (scriptData) { setScriptOpen(true); return; }
     setScriptLoading(true);
     try {
       const res = await fetch(`/api/tasks/${task.id}/script`);
@@ -577,6 +611,66 @@ const [showGuidelines, setShowGuidelines] = useState(false);
       toast.error('Could not load script');
     } finally {
       setScriptLoading(false);
+    }
+  };
+
+  const loadAvailableScripts = async () => {
+    setAttachLoading(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/available-scripts`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not load scripts');
+      setAvailableScripts(data.scripts || []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not load scripts');
+      setAvailableScripts([]);
+    } finally {
+      setAttachLoading(false);
+    }
+  };
+
+  const linkScript = async (shootTaskId: string, scriptId: string, scriptTitle: string) => {
+    setAttachBusy(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/script`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shootTaskId, scriptId, scriptTitle }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not attach script');
+      const nextRef = data.shootScriptRef
+        ? (typeof data.shootScriptRef === 'string' ? data.shootScriptRef : JSON.stringify(data.shootScriptRef))
+        : null;
+      onShootScriptChange?.(task.id, nextRef);
+      setScriptData(null);
+      setAttachOpen(false);
+      toast.success('Script attached');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not attach script');
+    } finally {
+      setAttachBusy(false);
+    }
+  };
+
+  const unlinkScript = async () => {
+    setAttachBusy(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/script`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clear: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not unlink script');
+      onShootScriptChange?.(task.id, null);
+      setScriptData(null);
+      setAttachOpen(false);
+      toast.success('Script unlinked');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not unlink script');
+    } finally {
+      setAttachBusy(false);
     }
   };
 
@@ -720,23 +814,109 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                 </Tooltip>
               )}
 
-              {/* 📄 Script button — shows when a shoot script is linked */}
-              {task.shootScriptRef && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+              {/* Script attach / view — SF/LF tasks only */}
+              {canAttachScript && (
+                <Popover
+                  open={attachOpen}
+                  onOpenChange={(open) => {
+                    setAttachOpen(open);
+                    if (open) void loadAvailableScripts();
+                  }}
+                >
+                  <PopoverTrigger asChild>
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); loadScript(); }}
-                      disabled={scriptLoading}
-                      className="h-5 w-5 rounded-full border border-dashed border-violet-400 text-[9px] font-semibold flex items-center justify-center text-violet-500 hover:bg-violet-50 disabled:opacity-50"
+                      onClick={(e) => e.stopPropagation()}
+                      className={`inline-flex h-5 max-w-[140px] items-center gap-1 rounded-full border border-dashed px-1.5 text-[9px] font-semibold ${
+                        task.shootScriptRef
+                          ? 'border-violet-400 text-violet-600 hover:bg-violet-50'
+                          : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+                      }`}
                     >
-                      {scriptLoading ? <RefreshCw className="h-2.5 w-2.5 animate-spin" /> : <ScrollText className="h-2.5 w-2.5" />}
+                      {task.shootScriptRef ? (
+                        <>
+                          <ScrollText className="h-2.5 w-2.5 shrink-0" />
+                          <span className="truncate">{linkedScriptTitle}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="h-2.5 w-2.5 shrink-0" />
+                          <span>Attach script</span>
+                        </>
+                      )}
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" sideOffset={6}>
-                    Shoot script – click to view
-                  </TooltipContent>
-                </Tooltip>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="end"
+                    className="w-72 p-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {task.shootScriptRef && (
+                      <div className="mb-2 space-y-1.5 border-b border-slate-100 pb-2">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {linkedScriptTitle}
+                        </p>
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 flex-1 text-xs"
+                            disabled={scriptLoading}
+                            onClick={() => void loadScript()}
+                          >
+                            {scriptLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScrollText className="h-3 w-3" />}
+                            <span className="ml-1">View</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                            disabled={attachBusy}
+                            onClick={() => void unlinkScript()}
+                          >
+                            <Unlink className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Pick another below to swap.</p>
+                      </div>
+                    )}
+                    {attachLoading ? (
+                      <p className="flex items-center gap-2 py-4 text-xs text-slate-500">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading scripts…
+                      </p>
+                    ) : availableScripts.length === 0 ? (
+                      <p className="py-3 text-xs text-slate-500">
+                        {task.shootScriptRef
+                          ? 'No other unlinked scripts available.'
+                          : 'No unlinked scripts available for this client.'}
+                      </p>
+                    ) : (
+                      <div className="max-h-56 space-y-1 overflow-y-auto">
+                        {availableScripts.map((s) => (
+                          <button
+                            key={`${s.shootTaskId}::${s.id}`}
+                            type="button"
+                            disabled={attachBusy}
+                            onClick={() => void linkScript(s.shootTaskId, s.id, s.title)}
+                            className="w-full rounded-md border border-slate-200 px-2.5 py-2 text-left hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            <p className="truncate text-sm font-medium text-slate-900">{s.title || 'Untitled script'}</p>
+                            <p className="mt-0.5 text-[11px] text-slate-500">
+                              {s.shootDate
+                                ? new Date(s.shootDate).toLocaleDateString(undefined, {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })
+                                : 'Unscheduled'}{' '}
+                              — {s.status}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
               )}
 
               {/* 🔥 Info icon — shows video description popup */}
@@ -1283,6 +1463,7 @@ interface ColumnProps {
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
   currentUserId?: number;
+  onShootScriptChange?: (taskId: string, shootScriptRef: string | null) => void;
 }
 
 function DroppableColumn({
@@ -1306,6 +1487,7 @@ function DroppableColumn({
   onToggleSponsored,
   onAcknowledgeFeedback,
   currentUserId,
+  onShootScriptChange,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -1353,6 +1535,7 @@ function DroppableColumn({
             onToggleSponsored={onToggleSponsored}
             onAcknowledgeFeedback={onAcknowledgeFeedback}
             currentUserId={currentUserId}
+            onShootScriptChange={onShootScriptChange}
           />
         ))}
 
@@ -1529,7 +1712,7 @@ export function EditorDashboard() {
             workflowStep: "editing",
             clientId: t.clientId,
             projectId: t.clientId,
-            deliverableType: t.monthlyDeliverable?.type || t.oneOffDeliverable?.type,
+            deliverableType: t.deliverableType || t.monthlyDeliverable?.type || t.oneOffDeliverable?.type,
             taskNumber: extractTaskNumber(t.title),
             isOneOff: !!t.oneOffDeliverable,
             isSponsored: t.isSponsored || false,
@@ -1542,6 +1725,7 @@ export function EditorDashboard() {
             qcNotes: t.qcNotes || null,
             rejectionReason: t.rejectionReason || null,
             feedback: t.feedback || null,
+            shootScriptRef: t.shootScriptRef || null,
             // 🔥 Map taskFeedback with file version info from nested file data
             taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
               id: fb.id,
@@ -2048,6 +2232,12 @@ export function EditorDashboard() {
     }));
   }, []);
 
+  const handleShootScriptChange = useCallback((taskId: string, shootScriptRef: string | null) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, shootScriptRef } : t)),
+    );
+  }, []);
+
   const handleUploadComplete = useCallback(async (taskId: string, files: any[]) => {
     const res = await fetch("/api/tasks");
     const data = await res.json();
@@ -2271,6 +2461,7 @@ export function EditorDashboard() {
             onToggleSponsored={handleToggleSponsored}
             onAcknowledgeFeedback={handleAcknowledgeFeedback}
             currentUserId={Number(currentUser.id) || undefined}
+            onShootScriptChange={handleShootScriptChange}
           />
         ))}
       </div>
