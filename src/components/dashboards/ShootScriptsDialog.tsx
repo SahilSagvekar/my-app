@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, ChevronLeft, Eye, FilePlus2, Send, Trash2 } from 'lucide-react';
+import { AlertCircle, Check, ChevronLeft, Eye, FilePlus2, Send, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -131,6 +131,25 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
     }
   };
   const update = (patch: Partial<ShootScript>) => selected && autosave({ ...document, scripts: document.scripts.map(s => s.id === selected.id ? { ...s, ...patch, updatedAt: new Date().toISOString() } : s) });
+  // Upload a plain-text script file and drop its contents straight into the
+  // script textbox, replacing whatever's there. Only .txt/.md are read
+  // client-side without a library; Word/PDF would need a server-side
+  // parser (mammoth/pdf-parse), which isn't installed in this app yet.
+  const onUploadScriptFile = (file: File) => {
+    const isPlainText = /\.(txt|md)$/i.test(file.name) || file.type.startsWith('text/');
+    if (!isPlainText) {
+      toast.error('Only .txt files can be read directly — copy/paste .docx or .pdf content instead');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      update({ content: text });
+      toast.success('Script text loaded from file');
+    };
+    reader.onerror = () => toast.error('Could not read that file');
+    reader.readAsText(file);
+  };
   // For the references panel only — it already persists itself via its own
   // dedicated endpoint, so this just syncs local state without triggering
   // another (redundant, and possibly stale-overwriting) save through the
@@ -158,207 +177,53 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
   };
   const remove = async () => { if (!deleteId) return; const next = { ...document, scripts: document.scripts.filter(s => s.id !== deleteId) }; setDeleteId(null); setSelectedId(null); setView('list'); await persist(next); };
 
-  return <><Dialog open={open} onOpenChange={onOpenChange}><DialogContent className={view === 'editor' ? '!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !w-screen !h-screen !max-w-none !max-h-none !rounded-none !border-0 p-0 gap-0 flex flex-col overflow-hidden bg-white shadow-none sm:!max-w-none' : 'flex h-[92vh] max-h-[92vh] w-full sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl flex-col overflow-hidden rounded-2xl p-0 gap-0'}>
-    <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-6 sm:px-8 text-sm text-slate-600 bg-white">
-      <div className="flex items-center">
-        <button type="button" onClick={() => (view === 'editor' ? setView('list') : onOpenChange(false))} className="flex items-center gap-1 hover:text-slate-950 font-medium text-slate-500">
-          <ChevronLeft className="h-4 w-4" /> Shooting Schedule
-        </button>
-        <span className="mx-2 text-slate-300">/</span>
-        <span className="font-medium text-slate-950">{shootName} — Scripts</span>
+  return <><Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="flex h-[92vh] max-h-[92vh] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl p-0 gap-0">
+    <div className="flex h-16 shrink-0 items-center border-b px-6 text-sm text-slate-600"><button type="button" onClick={() => onOpenChange(false)} className="flex items-center gap-1 hover:text-slate-950"><ChevronLeft className="h-4 w-4" /> Shooting Schedule</button><span className="mx-2 text-slate-300">/</span><span className="font-medium text-slate-950">{shootName} — Scripts</span></div>
+    <div className="flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-[900px] p-6 sm:p-8">
+      {view === 'list' && <section className="space-y-6"><header className="flex flex-wrap items-start justify-between gap-4"><div><h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">Scripts</h1><p className="mt-2 text-sm text-slate-600">Shoot: {shootName} {shoot?.shootDate ? `| ${new Date(shoot.shootDate).toLocaleDateString()}` : ''} {quota ? `| ${quota.remaining} of ${quota.totalPlanned} left this month across all shoots` : `| ${document.videosPlanned} videos planned`}</p></div><Button onClick={() => beginScript()} disabled={pending === 0} className="h-10 gap-2 rounded-lg bg-slate-950 px-4 hover:opacity-85"><FilePlus2 className="h-4 w-4" /> New Script</Button></header>
+        <div className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-baseline justify-between gap-2"><span className="text-sm font-semibold text-slate-950">{quota ? `${quota.completed} of ${quota.totalPlanned} scripts completed this month` : `${document.scripts.length} of ${document.videosPlanned} scripts written`}</span><span className="text-xs text-slate-600">{awaiting} awaiting client approval</span></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-slate-950" style={{ width: `${quota ? Math.min(100, (quota.completed / Math.max(1, quota.totalPlanned)) * 100) : Math.min(100, (document.scripts.length / document.videosPlanned) * 100)}%` }} /></div><p className="mt-3 text-xs text-slate-600">{pending ? `${pending} still needed this month — doesn't have to be on this shoot` : 'This client\'s monthly script pool is used up.'}</p></div>
+        <div className="space-y-3">{document.scripts.map((script, index) => <article key={script.id} className="rounded-xl border border-slate-200 p-4 transition-colors hover:bg-slate-50"><button type="button" onClick={() => { setSelectedId(script.id); setView('editor'); }} className="flex w-full items-start justify-between gap-4 text-left"><div><h2 className="text-base font-semibold text-slate-950">{script.title || `Video ${index + 1}`}</h2><p className="mt-1 text-xs text-slate-600">{SCRIPT_TEMPLATES[script.template].label} | {script.content.trim().split(/\s+/).filter(Boolean).length} words | {new Date(script.updatedAt).toLocaleDateString()}</p></div><span className="flex items-center gap-1 rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700"><StatusMark status={script.status} />{labelForStatus(script.status)}</span></button>{script.clientFeedback && <div className="mt-4 border-t pt-3"><p className="text-xs font-semibold text-slate-950">Client feedback</p><p className="mt-1 text-sm text-slate-700">{script.clientFeedback}</p></div>}<div className="mt-4 flex items-center gap-2"><Button variant="outline" size="sm" className="h-9" onClick={() => { setSelectedId(script.id); setView('editor'); }}><Eye className="mr-1.5 h-3.5 w-3.5" /> View</Button><Button variant="outline" size="sm" className="h-9" onClick={() => { setSelectedId(script.id); setView('editor'); }}>Edit</Button><Button variant="outline" size="sm" className="h-9" onClick={() => setDeleteId(script.id)}>Delete</Button><Button variant={script.completedAt ? 'default' : 'outline'} size="sm" className={script.completedAt ? 'h-9 ml-auto gap-1.5 bg-emerald-600 hover:bg-emerald-700' : 'h-9 ml-auto gap-1.5'} onClick={() => toggleCompleted(script)}><Check className="h-3.5 w-3.5" /> {script.completedAt ? 'Shot — Completed' : 'Mark Shot Completed'}</Button></div></article>)}
+          {Array.from({ length: Math.min(6, pending) }).map((_, i) => <div key={i} className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 px-5 py-3"><span className="text-sm text-slate-600">Next up — no script yet</span><Button variant="outline" size="sm" className="h-9" onClick={() => beginScript()}>Write script</Button></div>)}</div>
+      </section>}
+      {view === 'editor' && selected && <section className="space-y-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <Input value={selected.title} onChange={e => update({ title: e.target.value })} className="h-auto border-transparent px-0 py-0 text-[28px] font-bold leading-tight text-slate-950 shadow-none hover:border-slate-200 focus-visible:border-slate-800" placeholder="Script title" />
+            <p className="mt-1 text-sm text-slate-500">{SCRIPT_TEMPLATES[selected.template].label}</p>
+          </div>
+          <span className="shrink-0 pt-2 text-sm text-slate-500">{saveStatus === 'saving' ? 'Saving...' : 'Saved'}</span>
+        </div>
+        <Tabs defaultValue="script">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <TabsList className="h-auto w-fit gap-1 rounded-full border border-slate-200 bg-white p-1">
+              <TabsTrigger value="script" className="rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none">Script</TabsTrigger>
+              <TabsTrigger value="preview" className="rounded-full px-4 py-1.5 text-sm font-medium data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none">Preview</TabsTrigger>
+            </TabsList>
+            <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <Upload className="h-3.5 w-3.5" /> Upload script
+              <input
+                type="file"
+                className="hidden"
+                accept=".txt,.md,text/plain"
+                onChange={(e) => { const file = e.target.files?.[0]; if (file) onUploadScriptFile(file); e.target.value = ''; }}
+              />
+            </label>
+          </div>
+          <TabsContent value="script" className="pt-3"><Textarea value={selected.content} onChange={e => update({ content: e.target.value })} rows={20} placeholder="Paste your script here or start typing..." className="min-h-[440px] rounded-xl border-slate-200 p-5 text-sm leading-7" /></TabsContent>
+          <TabsContent value="preview" className="pt-3"><article className="min-h-[440px] space-y-1 rounded-xl border border-slate-200 bg-white p-6"><ScriptPreview content={selected.content} /></article></TabsContent>
+        </Tabs>
+        <ScriptReferencesPanel shootTaskId={shoot!.id} scriptId={selected.id} referenceLinks={selected.referenceLinks || []} referenceFiles={selected.referenceFiles || []} onUpdate={(next) => applyLocalOnly(next)} />
+      </section>}
       </div>
     </div>
-    <div className={`flex-1 overflow-y-auto ${view === 'editor' ? 'bg-slate-50/50' : 'bg-white'}`}>
-      {view === 'list' && (
-        <div className="mx-auto w-full max-w-5xl xl:max-w-6xl p-6 sm:p-8">
-          <section className="space-y-6">
-            <header className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">Scripts</h1>
-                <p className="mt-2 text-sm text-slate-600">
-                  Shoot: {shootName} {shoot?.shootDate ? `| ${new Date(shoot.shootDate).toLocaleDateString()}` : ''} {quota ? `| ${quota.remaining} of ${quota.totalPlanned} left this month across all shoots` : `| ${document.videosPlanned} videos planned`}
-                </p>
-              </div>
-              <Button onClick={() => beginScript()} disabled={pending === 0} className="h-10 gap-2 rounded-lg bg-slate-950 px-4 hover:opacity-85">
-                <FilePlus2 className="h-4 w-4" /> New Script
-              </Button>
-            </header>
-            <div className="rounded-xl border border-slate-200 p-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-sm font-semibold text-slate-950">
-                  {quota ? `${quota.completed} of ${quota.totalPlanned} scripts completed this month` : `${document.scripts.length} of ${document.videosPlanned} scripts written`}
-                </span>
-                <span className="text-xs text-slate-600">{awaiting} awaiting client approval</span>
-              </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-slate-950" style={{ width: `${quota ? Math.min(100, (quota.completed / Math.max(1, quota.totalPlanned)) * 100) : Math.min(100, (document.scripts.length / document.videosPlanned) * 100)}%` }} />
-              </div>
-              <p className="mt-3 text-xs text-slate-600">
-                {pending ? `${pending} still needed this month — doesn't have to be on this shoot` : "This client's monthly script pool is used up."}
-              </p>
-            </div>
-            <div className="space-y-3">
-              {document.scripts.map((script, index) => (
-                <article key={script.id} className="rounded-xl border border-slate-200 p-4 transition-colors hover:bg-slate-50">
-                  <button type="button" onClick={() => { setSelectedId(script.id); setView('editor'); }} className="flex w-full items-start justify-between gap-4 text-left">
-                    <div>
-                      <h2 className="text-base font-semibold text-slate-950">{script.title || `Video ${index + 1}`}</h2>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {SCRIPT_TEMPLATES[script.template].label} | {script.content.trim().split(/\s+/).filter(Boolean).length} words | {new Date(script.updatedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <span className="flex items-center gap-1 rounded-full border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700">
-                      <StatusMark status={script.status} />{labelForStatus(script.status)}
-                    </span>
-                  </button>
-                  {script.clientFeedback && (
-                    <div className="mt-4 border-t pt-3">
-                      <p className="text-xs font-semibold text-slate-950">Client feedback</p>
-                      <p className="mt-1 text-sm text-slate-700">{script.clientFeedback}</p>
-                    </div>
-                  )}
-                  <div className="mt-4 flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="h-9" onClick={() => { setSelectedId(script.id); setView('editor'); }}>
-                      <Eye className="mr-1.5 h-3.5 w-3.5" /> View
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-9" onClick={() => { setSelectedId(script.id); setView('editor'); }}>
-                      Edit
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-9" onClick={() => setDeleteId(script.id)}>
-                      Delete
-                    </Button>
-                    <Button
-                      variant={script.completedAt ? 'default' : 'outline'}
-                      size="sm"
-                      className={script.completedAt ? 'h-9 ml-auto gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white' : 'h-9 ml-auto gap-1.5'}
-                      onClick={() => toggleCompleted(script)}
-                    >
-                      <Check className="h-3.5 w-3.5" /> {script.completedAt ? 'Shot — Completed' : 'Mark Shot Completed'}
-                    </Button>
-                  </div>
-                </article>
-              ))}
-              {Array.from({ length: Math.min(6, pending) }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 px-5 py-3">
-                  <span className="text-sm text-slate-600">Next up — no script yet</span>
-                  <Button variant="outline" size="sm" className="h-9" onClick={() => beginScript()}>Write script</Button>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {view === 'editor' && selected && (
-        <div className="mx-auto w-full max-w-4xl px-6 py-8 space-y-6">
-          <section className="space-y-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <Input
-                  value={selected.title}
-                  onChange={e => update({ title: e.target.value })}
-                  className="h-auto border-transparent px-0 py-0 text-3xl font-bold leading-tight text-slate-950 shadow-none hover:border-slate-200 focus-visible:border-slate-800 bg-transparent"
-                  placeholder="Script title"
-                />
-                <p className="mt-1 text-sm text-slate-500 font-normal">
-                  {SCRIPT_TEMPLATES[selected.template].label}
-                </p>
-              </div>
-              <span className="shrink-0 pt-2 text-sm font-medium text-slate-500">
-                {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
-              </span>
-            </div>
-
-            <Tabs defaultValue="script" className="space-y-4">
-              <TabsList className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white p-1 gap-1">
-                <TabsTrigger
-                  value="script"
-                  className="rounded-md px-4 py-1.5 text-sm font-medium transition-colors data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none text-slate-700 hover:text-slate-950"
-                >
-                  Script
-                </TabsTrigger>
-                <TabsTrigger
-                  value="preview"
-                  className="rounded-md px-4 py-1.5 text-sm font-medium transition-colors data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none text-slate-700 hover:text-slate-950"
-                >
-                  Preview
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="script" className="mt-0">
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs min-h-[440px]">
-                  <Textarea
-                    value={selected.content}
-                    onChange={e => update({ content: e.target.value })}
-                    rows={16}
-                    placeholder="Paste your script here or start typing..."
-                    className="w-full min-h-[380px] border-0 p-0 text-base leading-relaxed focus-visible:ring-0 focus:outline-none resize-none font-normal text-slate-800 placeholder:text-slate-400 bg-transparent shadow-none"
-                  />
-                </div>
-              </TabsContent>
-              <TabsContent value="preview" className="mt-0">
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs min-h-[440px]">
-                  <article className="space-y-4 text-base leading-relaxed text-slate-800">
-                    <ScriptPreview content={selected.content} />
-                  </article>
-                </div>
-              </TabsContent>
-            </Tabs>
-
-            <ScriptReferencesPanel
-              shootTaskId={shoot!.id}
-              scriptId={selected.id}
-              referenceLinks={selected.referenceLinks || []}
-              referenceFiles={selected.referenceFiles || []}
-              onUpdate={(next) => applyLocalOnly(next)}
-            />
-          </section>
-        </div>
-      )}
-    </div>
-
-    {view === 'editor' && selected && (
-      <div className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-6 sm:px-8 py-4">
-        <Button
-          variant="outline"
-          className="h-10 px-4 rounded-lg gap-1.5 border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
-          onClick={() => setView('list')}
-        >
-          <ChevronLeft className="h-4 w-4" /> Back
-        </Button>
-
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            className="h-10 px-5 rounded-lg border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
-            onClick={() => void persist(document)}
-          >
-            Save Draft
-          </Button>
-          <Button
-            variant={selected.completedAt ? 'default' : 'outline'}
-            className={selected.completedAt ? 'h-10 px-4 rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium' : 'h-10 px-4 rounded-lg gap-1.5 border-slate-200 text-slate-700 font-medium'}
-            onClick={() => toggleCompleted(selected)}
-          >
-            <Check className="h-4 w-4" /> {selected.completedAt ? 'Shot — Completed' : 'Mark Shot Completed'}
-          </Button>
-          <Button
-            onClick={submit}
-            disabled={!selected.content.trim()}
-            className="h-10 px-5 rounded-lg gap-2 bg-slate-950 hover:bg-slate-800 text-white font-semibold disabled:opacity-50"
-          >
-            Submit to Client <Send className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <Button
-          variant="outline"
-          onClick={() => setDeleteId(selected.id)}
-          className="h-10 px-4 rounded-lg gap-1.5 border-slate-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 font-medium"
-        >
-          <Trash2 className="h-4 w-4" /> Delete
-        </Button>
-      </div>
-    )}
+    {view === 'editor' && selected && <div className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-white px-6 py-4">
+      <Button variant="outline" onClick={() => setView('list')}><ChevronLeft className="mr-1 h-4 w-4" /> Back</Button>
+      <Button variant="outline" onClick={() => void persist(document)}>Save Draft</Button>
+      <Button variant={selected.completedAt ? 'default' : 'outline'} className={selected.completedAt ? 'gap-1.5 bg-emerald-600 hover:bg-emerald-700' : 'gap-1.5'} onClick={() => toggleCompleted(selected)}><Check className="h-4 w-4" /> {selected.completedAt ? 'Shot — Completed' : 'Mark Shot Completed'}</Button>
+      <Button onClick={submit} disabled={!selected.content.trim()} className="gap-1.5 bg-slate-950 hover:opacity-85">Submit to Client <Send className="h-4 w-4" /></Button>
+      <Button variant="ghost" onClick={() => setDeleteId(selected.id)} className="ml-auto gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-4 w-4" /> Delete</Button>
+    </div>}
     <Dialog open={taskPickerOpen} onOpenChange={setTaskPickerOpen}><DialogContent className="max-w-[420px] rounded-2xl"><DialogHeader><DialogTitle>Which deliverable is this for?</DialogTitle><DialogDescription>Pick the exact slot — the script will be named to match and linked immediately, no guessing later.</DialogDescription></DialogHeader>
       {loadingTasks ? <p className="py-6 text-center text-sm text-slate-500">Loading...</p> : availableTasks.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">No unlinked SF/LF deliverables left for this client this month.</p> : (
         <div className="grid grid-cols-3 gap-2 max-h-[320px] overflow-y-auto">
