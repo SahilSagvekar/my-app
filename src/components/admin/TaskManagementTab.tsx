@@ -77,26 +77,38 @@ interface Client { id: string; name: string; companyName: string | null; }
 // Status Badge
 // ─────────────────────────────────────────
 
-const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ReactNode }> = {
-  PENDING: { label: 'Pending', variant: 'secondary', icon: <Clock className="h-3 w-3" /> },
-  IN_PROGRESS: { label: 'In Progress', variant: 'default', icon: <RefreshCw className="h-3 w-3" /> },
-  READY_FOR_QC: { label: 'Ready for QC', variant: 'outline', icon: <Eye className="h-3 w-3" /> },
-  QC_IN_PROGRESS: { label: 'QC In Progress', variant: 'default', icon: <RefreshCw className="h-3 w-3" /> },
-  COMPLETED: { label: 'Completed', variant: 'default', icon: <CheckCircle2 className="h-3 w-3" /> },
-  SCHEDULED: { label: 'Scheduled', variant: 'default', icon: <Calendar className="h-3 w-3" /> },
-  ON_HOLD: { label: 'On Hold', variant: 'secondary', icon: <AlertCircle className="h-3 w-3" /> },
-  REJECTED: { label: 'Rejected', variant: 'destructive', icon: <XCircle className="h-3 w-3" /> },
-  CLIENT_REVIEW: { label: 'Client Review', variant: 'outline', icon: <User className="h-3 w-3" /> },
-  VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', variant: 'outline', icon: <Users className="h-3 w-3" /> },
-  HIDDEN: { label: 'Hidden', variant: 'secondary', icon: <EyeOff className="h-3 w-3" /> },
+const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ReactNode; tone: string }> = {
+  PENDING: { label: 'Pending', variant: 'secondary', icon: <Clock className="h-3.5 w-3.5" />, tone: 'text-yellow-600' },
+  IN_PROGRESS: { label: 'In Progress', variant: 'default', icon: <RefreshCw className="h-3.5 w-3.5" />, tone: 'text-purple-600' },
+  READY_FOR_QC: { label: 'Ready for QC', variant: 'outline', icon: <Eye className="h-3.5 w-3.5" />, tone: 'text-orange-600' },
+  QC_IN_PROGRESS: { label: 'QC In Progress', variant: 'default', icon: <RefreshCw className="h-3.5 w-3.5" />, tone: 'text-purple-600' },
+  COMPLETED: { label: 'Completed', variant: 'default', icon: <CheckCircle2 className="h-3.5 w-3.5" />, tone: 'text-green-600' },
+  SCHEDULED: { label: 'Scheduled', variant: 'default', icon: <Calendar className="h-3.5 w-3.5" />, tone: 'text-blue-600' },
+  ON_HOLD: { label: 'On Hold', variant: 'secondary', icon: <AlertCircle className="h-3.5 w-3.5" />, tone: 'text-slate-500' },
+  REJECTED: { label: 'Rejected', variant: 'destructive', icon: <XCircle className="h-3.5 w-3.5" />, tone: 'text-red-600' },
+  CLIENT_REVIEW: { label: 'Client Review', variant: 'outline', icon: <User className="h-3.5 w-3.5" />, tone: 'text-amber-600' },
+  VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', variant: 'outline', icon: <Users className="h-3.5 w-3.5" />, tone: 'text-blue-600' },
+  HIDDEN: { label: 'Hidden', variant: 'secondary', icon: <EyeOff className="h-3 w-3" />, tone: 'text-slate-500' },
 };
 
+// "Hidden" is a manual admin override rather than a pipeline stage, so it
+// keeps the pill/badge treatment to stand out from the normal workflow
+// statuses below, which render as plain icon + label (no pill).
+const PILL_STATUSES = new Set(['HIDDEN']);
+
 function StatusBadge({ status }: { status: string }) {
-  const config = statusConfig[status] || { label: status, variant: 'secondary' as const, icon: null };
+  const config = statusConfig[status] || { label: status, variant: 'secondary' as const, icon: null, tone: 'text-slate-600' };
+  if (PILL_STATUSES.has(status)) {
+    return (
+      <Badge variant="outline" className="flex w-fit items-center gap-1 rounded-full border-slate-300 bg-white px-2.5 py-1 text-slate-700">
+        {config.icon}{config.label}
+      </Badge>
+    );
+  }
   return (
-    <Badge variant={config.variant} className="flex items-center gap-1">
+    <span className={`inline-flex items-center gap-1.5 text-sm font-medium ${config.tone}`}>
       {config.icon}{config.label}
-    </Badge>
+    </span>
   );
 }
 
