@@ -130,6 +130,12 @@ export function LayoutShell({
       if (normalizedRole === 'client' && authUser?.hasPostingServices === false) {
         filtered = filtered.filter((item: any) => !clientForbiddenIds.includes(item.id));
       }
+      // Scripts is opt-in per client (Client.scriptsRequired) — hide the nav
+      // item entirely for clients who don't need it, rather than showing an
+      // always-empty page.
+      if (normalizedRole === 'client' && authUser?.scriptsRequired === false) {
+        filtered = filtered.filter((item: any) => item.id !== 'scripts');
+      }
       if (!isAIAgentUser) {
         filtered = filtered.filter((item: any) => item.id !== 'ai-agent');
       }
@@ -165,7 +171,7 @@ export function LayoutShell({
 
     fetchNavItems();
     return () => controller.abort();
-  }, [currentRole, authUser?.hasPostingServices, authUser?.email, isViewingAsOther]);
+  }, [currentRole, authUser?.hasPostingServices, authUser?.scriptsRequired, authUser?.email, isViewingAsOther]);
 
   const isAIAgentUser = authUser?.email?.trim().toLowerCase() === 'sahilsagvekar230@gmail.com';
   const items = permittedItems.filter((item) => item.id !== 'ai-agent' || isAIAgentUser);

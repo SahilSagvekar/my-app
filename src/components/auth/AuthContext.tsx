@@ -14,6 +14,7 @@ interface User {
   roles?: string[];
   linkedClientId?: string; // Client ID for users with client role
   hasPostingServices?: boolean;
+  scriptsRequired?: boolean;
   // "Google" | "Slack" | "email" — which auth method created/last verified
   // this session. Used by the pending-role screen's "created via {provider}"
   // copy; not otherwise relied on for auth decisions.

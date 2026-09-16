@@ -26,6 +26,7 @@ type AuthMeUser = {
   client: {
     id: string;
     hasPostingServices: boolean;
+    scriptsRequired: boolean;
   } | null;
 };
 
@@ -35,6 +36,7 @@ async function getClientLink(user: AuthMeUser) {
     return {
       linkedClientId: user.linkedClientId || user.client?.id || null,
       hasPostingServices: user.client?.hasPostingServices ?? true,
+      scriptsRequired: user.client?.scriptsRequired ?? false,
     };
   }
 
@@ -42,10 +44,11 @@ async function getClientLink(user: AuthMeUser) {
     return {
       linkedClientId: user.linkedClientId || user.client?.id,
       hasPostingServices: user.client?.hasPostingServices ?? true,
+      scriptsRequired: user.client?.scriptsRequired ?? false,
     };
   }
 
-  const [client] = await db.select({ id: clientTable.id, hasPostingServices: clientTable.hasPostingServices })
+  const [client] = await db.select({ id: clientTable.id, hasPostingServices: clientTable.hasPostingServices, scriptsRequired: clientTable.scriptsRequired })
     .from(clientTable)
     .where(or(eq(clientTable.email, user.email), arrayContains(clientTable.emails, [user.email])))
     .limit(1);
@@ -53,6 +56,7 @@ async function getClientLink(user: AuthMeUser) {
   return {
     linkedClientId: client?.id || null,
     hasPostingServices: client?.hasPostingServices ?? true,
+    scriptsRequired: client?.scriptsRequired ?? false,
   };
 }
 
@@ -128,7 +132,7 @@ export async function GET(req: Request) {
           },
           with: {
             client: {
-              columns: { id: true, hasPostingServices: true }
+              columns: { id: true, hasPostingServices: true, scriptsRequired: true }
             }
           },
         });
@@ -145,6 +149,7 @@ export async function GET(req: Request) {
             employeeStatus: user.employeeStatus,
             linkedClientId: clientLink.linkedClientId,
             hasPostingServices: clientLink.hasPostingServices,
+            scriptsRequired: clientLink.scriptsRequired,
             // Custom JWT (authToken cookie) is only ever issued for
             // credentials (email/password) sign-in — OAuth users go
             // through the NextAuth session branch below instead.
@@ -175,7 +180,7 @@ export async function GET(req: Request) {
         },
         with: {
           client: {
-            columns: { id: true, hasPostingServices: true }
+            columns: { id: true, hasPostingServices: true, scriptsRequired: true }
           }
         },
       });
@@ -193,6 +198,7 @@ export async function GET(req: Request) {
           employeeStatus: user.employeeStatus,
           linkedClientId: clientLink.linkedClientId,
           hasPostingServices: clientLink.hasPostingServices,
+          scriptsRequired: clientLink.scriptsRequired,
           provider: sessionProvider === 'google' ? 'Google'
             : sessionProvider === 'slack' ? 'Slack'
             : 'email',

@@ -173,6 +173,28 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
     return true;
   });
 
+  // The dropdown should default to showing whatever script is already
+  // attached to this slot (previously it always opened blank, hiding the
+  // current attachment) — fall back to including it as an option even if
+  // it's not in the general "available" list (e.g. already fully in use).
+  const currentScriptKey = selected?.shootScript ? `${selected.shootScript.shootTaskId}::${selected.shootScript.id}` : '';
+  const scriptPickerOptions = useMemo(() => {
+    if (!selected?.shootScript || scriptsForPicker.some((s) => s.id === selected.shootScript!.id && s.shootTaskId === selected.shootScript!.shootTaskId)) {
+      return scriptsForPicker;
+    }
+    return [
+      {
+        id: selected.shootScript.id,
+        shootTaskId: selected.shootScript.shootTaskId,
+        title: selected.shootScript.title,
+        status: selected.shootScript.status,
+        shootDate: selected.shootScript.shootDate,
+        shootTitle: null,
+      },
+      ...scriptsForPicker,
+    ];
+  }, [scriptsForPicker, selected]);
+
   const isSlotLinked = (slot: Slot) => slot.hasScript && !!slot.folder.taskId;
   const visibleSlots = useMemo(
     () => slots.filter((slot) => (linkFilter === 'all' ? true : linkFilter === 'linked' ? isSlotLinked(slot) : !isSlotLinked(slot))),
@@ -244,7 +266,7 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
             No {linkFilter} slots for this client and month.
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
             {visibleSlots.map((slot) => {
               const active = slot.key === selectedKey;
               return (
@@ -253,8 +275,8 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                   type="button"
                   onClick={() => setSelectedKey(slot.key)}
                   className={cn(
-                    'flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
-                    active ? 'border-slate-900 bg-slate-950 text-white' : 'border-slate-200 bg-white hover:bg-slate-50',
+                    'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors',
+                    active ? 'bg-slate-950 text-white' : 'bg-white hover:bg-slate-50',
                   )}
                 >
                   <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold', active ? 'bg-white/15' : 'bg-slate-100 text-slate-900')}>
@@ -333,16 +355,19 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                 <>
                   <select
                     className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
-                    value={scriptPick}
+                    value={scriptPick || currentScriptKey}
                     onChange={(e) => setScriptPick(e.target.value)}
                   >
                     <option value="">Choose an existing shoot script…</option>
-                    {scriptsForPicker.map((s) => (
+                    {scriptPickerOptions.map((s) => (
                       <option key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`}>
                         {s.title} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
                       </option>
                     ))}
                   </select>
+                  {selected.shootScript && !scriptPick && (
+                    <p className="text-xs text-slate-500">Currently attached — pick a different one above to swap it, or unlink below.</p>
+                  )}
                   <div className="flex gap-2">
                     <Button
                       className="h-9 flex-1 gap-1.5 bg-slate-950 hover:opacity-90"

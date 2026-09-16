@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Check, FileText, MapPin, ChevronLeft, PlayCircle, Loader } from 'lucide-react';
+import { Check, FileText, MapPin, ChevronLeft, PlayCircle, Loader, Plus, Trash2, Upload } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import type { ShootScript } from '@/lib/shoot-scripts';
@@ -45,6 +45,12 @@ export function ClientShootScriptsPage() {
   const [rejectingScript, setRejectingScript] = useState<ScriptEntry | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
+  const [shootPickerOpen, setShootPickerOpen] = useState(false);
+  const [clientShoots, setClientShoots] = useState<Array<{ taskId: string; taskTitle: string | null; shootDate: string | null }>>([]);
+  const [loadingShoots, setLoadingShoots] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [deletingScript, setDeletingScript] = useState<ScriptEntry | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Set only when an admin/manager is previewing this client's portal
   // (ViewAsRoleContext) — a real client user gets null here and every
@@ -137,6 +143,98 @@ export function ClientShootScriptsPage() {
     setOpenScript(null);
   };
 
+  const openShootPicker = async () => {
+    setShootPickerOpen(true);
+    setLoadingShoots(true);
+    try {
+      const suffix = clientIdOverride ? `&clientId=${clientIdOverride}` : '';
+      const res = await fetch(`/api/client/shoot-scripts?shootsList=1${suffix}`, { headers: previewHeaders });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setClientShoots(data.shoots || []);
+    } catch {
+      toast.error('Could not load your shoots');
+      setClientShoots([]);
+    } finally {
+      setLoadingShoots(false);
+    }
+  };
+
+  const createScript = async (taskId: string) => {
+    setCreating(true);
+    try {
+      const res = await fetch('/api/client/shoot-scripts', {
+        method: 'PATCH',
+        headers: previewJsonHeaders,
+        body: JSON.stringify({ taskId, action: 'create', clientId: clientIdOverride || undefined }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not create script');
+      const { script } = await res.json();
+      const shoot = clientShoots.find((s) => s.taskId === taskId);
+      const created: ScriptEntry = {
+        ...script,
+        taskId,
+        taskTitle: shoot?.taskTitle || null,
+        shootDate: shoot?.shootDate || null,
+        location: null,
+        scriptSentAt: new Date().toISOString(),
+        scriptSentByName: null,
+        source: 'shoot',
+      };
+      setScripts((current) => [created, ...current]);
+      setShootPickerOpen(false);
+      setOpenScript(created);
+      setDraftText(created.content);
+      setSavedLabel('Saved');
+      toast.success('Script created');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not create script');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const deleteScript = async () => {
+    if (!deletingScript) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(ENDPOINT_FOR_SOURCE[deletingScript.source], {
+        method: 'PATCH',
+        headers: previewJsonHeaders,
+        body: JSON.stringify({ taskId: deletingScript.taskId, scriptId: deletingScript.id, action: 'delete', clientId: clientIdOverride || undefined }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Could not delete script');
+      setScripts((current) => current.filter((item) => !(item.id === deletingScript.id && item.taskId === deletingScript.taskId)));
+      if (openScript?.id === deletingScript.id) setOpenScript(null);
+      toast.success('Script deleted');
+      setDeletingScript(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete script');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Upload a plain-text script file and drop its contents straight into the
+  // editor textbox. Only .txt/.md are read client-side without a library;
+  // Word/PDF uploads would need a server-side parser (mammoth/pdf-parse),
+  // which isn't installed in this app yet.
+  const onUploadScriptFile = (file: File) => {
+    const isPlainText = /\.(txt|md)$/i.test(file.name) || file.type.startsWith('text/');
+    if (!isPlainText) {
+      toast.error('Only .txt files can be read directly — copy/paste .docx or .pdf content instead');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      onTextChange(text);
+      toast.success('Script text loaded from file');
+    };
+    reader.onerror = () => toast.error('Could not read that file');
+    reader.readAsText(file);
+  };
+
   const submitReject = async () => {
     if (!rejectingScript || !rejectReason.trim()) {
       toast.error('Add a reason for the client to see');
@@ -200,10 +298,15 @@ export function ClientShootScriptsPage() {
           <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-zinc-950">Scripts</h1>
           <p className="text-zinc-500 text-sm mt-1.5">Review scripts before production and keep a record of what's been made</p>
         </div>
-        <div className="flex items-center gap-1 flex-wrap bg-zinc-100 rounded-xl p-1">
-          {pill('all', 'All', counts.all, 'bg-zinc-200 text-zinc-900')}
-          {pill('pending', 'Pending', counts.pending, 'bg-amber-100 text-amber-800')}
-          {pill('approved', 'Approved', counts.approved, 'bg-green-100 text-green-800')}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1 flex-wrap bg-zinc-100 rounded-xl p-1">
+            {pill('all', 'All', counts.all, 'bg-zinc-200 text-zinc-900')}
+            {pill('pending', 'Pending', counts.pending, 'bg-amber-100 text-amber-800')}
+            {pill('approved', 'Approved', counts.approved, 'bg-green-100 text-green-800')}
+          </div>
+          <Button onClick={openShootPicker} className="h-9 gap-1.5 rounded-lg bg-zinc-950 px-4 text-[13px] font-bold hover:opacity-85">
+            <Plus className="h-4 w-4" /> New Script
+          </Button>
         </div>
       </div>
 
@@ -244,13 +347,20 @@ export function ClientShootScriptsPage() {
 
                 {pending ? (
                   <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <button
-                      onClick={() => { setOpenScript(script); setDraftText(script.content); setSavedLabel('Saved'); }}
-                      className="flex items-center gap-1.5 h-9 px-4 rounded-lg border border-zinc-200 text-[13px] font-bold hover:bg-zinc-50"
-                    >
-                      <PlayCircle className="h-3.5 w-3.5" />
-                      Review Script
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setOpenScript(script); setDraftText(script.content); setSavedLabel('Saved'); }}
+                        className="flex items-center gap-1.5 h-9 px-4 rounded-lg border border-zinc-200 text-[13px] font-bold hover:bg-zinc-50"
+                      >
+                        <PlayCircle className="h-3.5 w-3.5" />
+                        Review Script
+                      </button>
+                      {script.source === 'shoot' && (
+                        <button onClick={() => setDeletingScript(script)} className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-red-600 text-[12px] font-bold hover:bg-red-50">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setRejectingScript(script)}
@@ -269,7 +379,14 @@ export function ClientShootScriptsPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-[13px] text-zinc-500">Approved {formatDate(script.updatedAt) || ''}</div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="text-[13px] text-zinc-500">Approved {formatDate(script.updatedAt) || ''}</div>
+                    {script.source === 'shoot' && (
+                      <button onClick={() => setDeletingScript(script)} className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-red-600 text-[12px] font-bold hover:bg-red-50">
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -286,7 +403,16 @@ export function ClientShootScriptsPage() {
             </button>
             <div className="w-px h-5.5 bg-zinc-200" />
             <div className="text-[15px] font-bold text-zinc-950">{openScript.title || openScript.taskTitle || 'Video script'}</div>
-            <div className="ml-auto text-[13px] text-zinc-400">{savedLabel}</div>
+            <label className="ml-auto flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-zinc-200 text-[13px] font-bold hover:bg-zinc-50 cursor-pointer">
+              <Upload className="h-3.5 w-3.5" /> Upload script
+              <input
+                type="file"
+                className="hidden"
+                accept=".txt,.md,text/plain"
+                onChange={(e) => { const file = e.target.files?.[0]; if (file) onUploadScriptFile(file); e.target.value = ''; }}
+              />
+            </label>
+            <div className="text-[13px] text-zinc-400">{savedLabel}</div>
           </div>
 
           <div className="flex-1 overflow-y-auto flex justify-center px-6 py-10">
@@ -356,6 +482,57 @@ export function ClientShootScriptsPage() {
                 className="h-10 px-4 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50"
               >
                 {rejecting ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shootPickerOpen && (
+        <div onClick={() => setShootPickerOpen(false)} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
+          <div onClick={(e) => e.stopPropagation()} className="w-[440px] max-w-[92vw] max-h-[80vh] bg-white rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+            <div className="text-base font-bold text-zinc-950">Which shoot is this script for?</div>
+            <div className="flex-1 overflow-y-auto -mx-1 px-1 space-y-2">
+              {loadingShoots ? (
+                <div className="py-8 text-center text-sm text-zinc-500">Loading your shoots…</div>
+              ) : clientShoots.length === 0 ? (
+                <div className="py-8 text-center text-sm text-zinc-500">No shoots on file yet.</div>
+              ) : (
+                clientShoots.map((s) => (
+                  <button
+                    key={s.taskId}
+                    disabled={creating}
+                    onClick={() => createScript(s.taskId)}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg border border-zinc-200 p-3 text-left hover:bg-zinc-50 disabled:opacity-50"
+                  >
+                    <span className="text-sm font-semibold text-zinc-950">{s.taskTitle || 'Shoot'}</span>
+                    <span className="text-xs text-zinc-500">{formatDate(s.shootDate) || 'Unscheduled'}</span>
+                  </button>
+                ))
+              )}
+            </div>
+            <button onClick={() => setShootPickerOpen(false)} className="h-10 px-4 rounded-lg border border-zinc-200 text-sm font-bold hover:bg-zinc-50 self-end">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {deletingScript && (
+        <div onClick={() => !deleting && setDeletingScript(null)} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
+          <div onClick={(e) => e.stopPropagation()} className="w-[400px] max-w-[92vw] bg-white rounded-2xl p-6 shadow-xl flex flex-col gap-4">
+            <div className="text-base font-bold text-zinc-950">Delete this script?</div>
+            <p className="text-sm text-zinc-500">"{deletingScript.title || 'This script'}" will be permanently removed.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeletingScript(null)} className="h-10 px-4 rounded-lg border border-zinc-200 text-sm font-bold hover:bg-zinc-50">
+                Cancel
+              </button>
+              <button
+                onClick={deleteScript}
+                disabled={deleting}
+                className="h-10 px-4 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
