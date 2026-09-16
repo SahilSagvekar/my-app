@@ -81,11 +81,18 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   COMPLETED: { label: 'Completed', variant: 'default', icon: <CheckCircle2 className="h-3.5 w-3.5" />, tone: 'text-green-600' },
   SCHEDULED: { label: 'Scheduled', variant: 'default', icon: <Calendar className="h-3.5 w-3.5" />, tone: 'text-blue-600' },
   ON_HOLD: { label: 'On Hold', variant: 'secondary', icon: <AlertCircle className="h-3.5 w-3.5" />, tone: 'text-slate-500' },
-  REJECTED: { label: 'Rejected', variant: 'destructive', icon: <XCircle className="h-3.5 w-3.5" />, tone: 'text-red-600' },
+  REJECTED_BY_QC: { label: 'Rejected by QC', variant: 'destructive', icon: <XCircle className="h-3.5 w-3.5" />, tone: 'text-red-600' },
+  REJECTED_BY_CLIENT: { label: 'Rejected by Client', variant: 'destructive', icon: <XCircle className="h-3.5 w-3.5" />, tone: 'text-rose-600' },
+  // Legacy value — kept so any unmigrated rows still render a readable pill
+  REJECTED: { label: 'Rejected by QC', variant: 'destructive', icon: <XCircle className="h-3.5 w-3.5" />, tone: 'text-red-600' },
   CLIENT_REVIEW: { label: 'Client Review', variant: 'outline', icon: <User className="h-3.5 w-3.5" />, tone: 'text-amber-600' },
   VIDEOGRAPHER_ASSIGNED: { label: 'Videographer', variant: 'outline', icon: <Users className="h-3.5 w-3.5" />, tone: 'text-blue-600' },
+  POSTED: { label: 'Posted', variant: 'default', icon: <CheckCircle2 className="h-3.5 w-3.5" />, tone: 'text-emerald-600' },
   HIDDEN: { label: 'Hidden', variant: 'secondary', icon: null, tone: 'text-slate-500' },
 };
+
+/** Selectable statuses for filters / edit — exclude legacy REJECTED write value. */
+const STATUS_OPTIONS = Object.entries(statusConfig).filter(([key]) => key !== 'REJECTED');
 
 function StatusBadge({ status }: { status: string }) {
   const config = statusConfig[status] || { label: status, variant: 'secondary' as const, icon: null, tone: 'text-slate-600' };
@@ -769,7 +776,7 @@ export function TaskManagementTab() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    {Object.entries(statusConfig).map(([k, c]) => (
+                    {STATUS_OPTIONS.map(([k, c]) => (
                       <SelectItem key={k} value={k}>
                         {c.label}
                       </SelectItem>
