@@ -701,7 +701,7 @@ export function TaskManagementTab() {
 
         {showFilters && (
           <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-8">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
               {[
                 { label: 'Editor', key: 'editor', items: editors },
                 { label: 'QC Specialist', key: 'qc', items: qcMembers },
