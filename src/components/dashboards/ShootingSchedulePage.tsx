@@ -3,14 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
+
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem,
-} from '../ui/dropdown-menu';
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   Camera, Plus, Loader, PackageCheck, ChevronDown, X, FileText, ExternalLink,
@@ -60,6 +58,10 @@ interface Shoot {
   scriptSentAt: string | null;
   videosPlanned: number;
   scriptsCount: number;
+  startTime?: string | null;
+  endTime?: string | null;
+  stops?: string[];
+  expenses?: { description?: string; amount?: number; receiptUrl?: string }[];
 }
 
 const SHOOT_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const;
@@ -87,6 +89,12 @@ const EMPTY_FORM = {
   notes: '',
   videosPlanned: '1',
   status: 'PENDING' as ShootStatus,
+  startTime: '',
+  endTime: '',
+  odometerBefore: '',
+  odometerAfter: '',
+  stops: [] as string[],
+  expenses: [] as { description: string; amount: string; file: File | null }[],
 };
 
 function toDatetimeLocal(iso: string | null): string {
@@ -117,6 +125,13 @@ export function ShootingSchedulePage() {
   // Inline warning shown under the Status field when trying to cycle into
   // COMPLETED while equipment on this shoot hasn't been confirmed back yet.
   const [statusBlockedMessage, setStatusBlockedMessage] = useState<string | null>(null);
+
+  // Mileage photo files (before/after — tracked as component state, not in form)
+  const [mileagePhotosBefore, setMileagePhotosBefore] = useState<File | null>(null);
+  const [mileagePhotosAfter, setMileagePhotosAfter] = useState<File | null>(null);
+
+  // Controls whether the equipment checklist panel is expanded
+  const [equipOpen, setEquipOpen] = useState(false);
 
   const [scriptDialogShoot, setScriptDialogShoot] = useState<Shoot | null>(null);
 
@@ -223,6 +238,9 @@ export function ShootingSchedulePage() {
     setForm({ ...EMPTY_FORM });
     setStatusBlockedMessage(null);
     setReturnPhotoFiles({});
+    setMileagePhotosBefore(null);
+    setMileagePhotosAfter(null);
+    setEquipOpen(false);
     setIsFormOpen(true);
   };
 
@@ -271,7 +289,20 @@ export function ShootingSchedulePage() {
       notes: shoot.videographerNotes || '',
       videosPlanned: String(shoot.videosPlanned || 1),
       status: (SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? shoot.status : 'PENDING') as ShootStatus,
+      startTime: toDatetimeLocal(shoot.startTime || null),
+      endTime: toDatetimeLocal(shoot.endTime || null),
+      odometerBefore: '',
+      odometerAfter: '',
+      stops: shoot.stops || [],
+      expenses: (shoot.expenses || []).map(exp => ({
+        description: exp.description || '',
+        amount: exp.amount !== undefined ? String(exp.amount) : '',
+        file: null,
+      })),
     });
+    setMileagePhotosBefore(null);
+    setMileagePhotosAfter(null);
+    setEquipOpen(false);
     setIsFormOpen(true);
   };
 
@@ -282,6 +313,34 @@ export function ShootingSchedulePage() {
         ? prev.equipmentIds.filter(e => e !== id)
         : [...prev.equipmentIds, id],
     }));
+  };
+
+  const addStop = () => {
+    setForm(f => ({ ...f, stops: [...f.stops, ''] }));
+  };
+  const updateStop = (index: number, val: string) => {
+    setForm(f => {
+      const stops = [...f.stops];
+      stops[index] = val;
+      return { ...f, stops };
+    });
+  };
+  const removeStop = (index: number) => {
+    setForm(f => ({ ...f, stops: f.stops.filter((_, i) => i !== index) }));
+  };
+
+  const addExpense = () => {
+    setForm(f => ({ ...f, expenses: [...f.expenses, { description: '', amount: '', file: null }] }));
+  };
+  const updateExpense = (index: number, field: string, val: any) => {
+    setForm(f => {
+      const expenses = [...f.expenses];
+      expenses[index] = { ...expenses[index], [field]: val };
+      return { ...f, expenses };
+    });
+  };
+  const removeExpense = (index: number) => {
+    setForm(f => ({ ...f, expenses: f.expenses.filter((_, i) => i !== index) }));
   };
 
   const handleSubmit = async () => {
@@ -338,6 +397,15 @@ export function ShootingSchedulePage() {
           notes: form.notes,
           videosPlanned: form.videosPlanned,
           status: form.status,
+          startTime: form.startTime || undefined,
+          endTime: form.endTime || undefined,
+          odometerBefore: form.odometerBefore || undefined,
+          odometerAfter: form.odometerAfter || undefined,
+          stops: form.stops,
+          expenses: form.expenses.map(e => ({
+            description: e.description,
+            amount: e.amount ? parseFloat(e.amount) : 0,
+          })),
         }),
       });
       if (res.ok) {
@@ -524,18 +592,26 @@ export function ShootingSchedulePage() {
 
       {/* Create / Edit Shoot Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingShootId ? 'Edit Shoot Day' : 'New Shoot Day'}</DialogTitle>
-            <DialogDescription>Everything needed for this shoot, in one place.</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+          {/* Header */}
+          <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-gray-900">
+                {editingShootId ? 'Edit Shoot Day' : 'New Shoot Day'}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-gray-500 mt-0.5">
+                Everything needed for this shoot, in one place.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="px-6 py-5 space-y-5">
+            {/* 3-col header */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Client</Label>
                 <Select value={form.clientId} onValueChange={(v) => { setForm(f => ({ ...f, clientId: v })); setAutoFilledVideos(null); fetchClientVideosPlanned(v); }}>
-                  <SelectTrigger><SelectValue placeholder="Select client (optional)" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
                   <SelectContent>
                     {clients.map(c => (
                       <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
@@ -546,7 +622,7 @@ export function ShootingSchedulePage() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Videographer</Label>
                 <Select value={form.videographerId} onValueChange={(v) => setForm(f => ({ ...f, videographerId: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Who's shooting" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select videographer" /></SelectTrigger>
                   <SelectContent>
                     {videographers.map(v => (
                       <SelectItem key={v.id} value={String(v.id)}>{v.name || v.email}</SelectItem>
@@ -554,46 +630,68 @@ export function ShootingSchedulePage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Videos Planned</Label>
+                <Input
+                  type="number" min="1" max="99"
+                  value={form.videosPlanned}
+                  onChange={(e) => { setForm(f => ({ ...f, videosPlanned: e.target.value })); setAutoFilledVideos(null); }}
+                />
+                {autoFilledVideos !== null && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Auto-filled from client's monthly deliverables ({autoFilledVideos}).
+                  </p>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Status</Label>
-              <button
-                type="button"
-                onClick={cycleStatus}
-                className={`flex h-10 w-full items-center justify-between rounded-md border px-3 text-sm font-medium ${STATUS_META[form.status].className}`}
-              >
-                {STATUS_META[form.status].label}
-                <span className="text-[11px] font-normal opacity-70">Click to change</span>
-              </button>
-              {statusBlockedMessage && (
-                <p className="text-xs font-medium text-amber-700">{statusBlockedMessage}</p>
-              )}
+            {/* Status + Date row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Status</Label>
+                <button
+                  type="button"
+                  onClick={cycleStatus}
+                  className={`flex h-10 w-full items-center justify-between rounded-md border px-3 text-sm font-medium ${STATUS_META[form.status].className}`}
+                >
+                  {STATUS_META[form.status].label}
+                  <span className="text-[11px] font-normal opacity-70">Click to change</span>
+                </button>
+                {statusBlockedMessage && (
+                  <p className="text-xs font-medium text-amber-700">{statusBlockedMessage}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Date & Time</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.shootDate}
+                  onChange={(e) => setForm(f => ({ ...f, shootDate: e.target.value }))}
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Date & Time</Label>
-              <Input
-                type="datetime-local"
-                value={form.shootDate}
-                onChange={(e) => setForm(f => ({ ...f, shootDate: e.target.value }))}
-              />
+            {/* Shoot Started + Ended row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Shoot Started</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.startTime}
+                  onChange={(e) => setForm(f => ({ ...f, startTime: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Shoot Ended</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.endTime}
+                  onChange={(e) => setForm(f => ({ ...f, endTime: e.target.value }))}
+                />
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Videos planned</Label>
-              <Input
-                type="number" min="1" max="99"
-                value={form.videosPlanned}
-                onChange={(e) => { setForm(f => ({ ...f, videosPlanned: e.target.value })); setAutoFilledVideos(null); }}
-              />
-              {autoFilledVideos !== null && (
-                <p className="text-[11px] text-muted-foreground">
-                  Auto-filled from client's monthly deliverables ({autoFilledVideos}). Adjust if needed.
-                </p>
-              )}
-            </div>
-
+            {/* Location + Host row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Location / Address</Label>
@@ -613,97 +711,152 @@ export function ShootingSchedulePage() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">Equipment Needed</Label>
-              {equipment.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No equipment logged yet — add some from the Equipment page first.
-                </p>
-              ) : (
-                <>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between font-normal">
-                        {form.equipmentIds.length > 0
-                          ? `${form.equipmentIds.length} item${form.equipmentIds.length > 1 ? 's' : ''} selected`
-                          : 'Select equipment...'}
-                        <ChevronDown className="h-4 w-4 opacity-50" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] max-h-60 overflow-y-auto">
-                      {equipment.map(item => (
-                        <DropdownMenuCheckboxItem
-                          key={item.id}
-                          checked={form.equipmentIds.includes(item.id)}
-                          onSelect={(e) => e.preventDefault()}
-                          onCheckedChange={() => toggleEquipment(item.id)}
-                        >
-                          {item.name}
-                        </DropdownMenuCheckboxItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  {form.equipmentIds.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {form.equipmentIds.map(id => (
-                        <Badge key={id} variant="secondary" className="gap-1 pr-1">
-                          {equipmentName(id)}
-                          <button
-                            type="button"
-                            onClick={() => toggleEquipment(id)}
-                            className="hover:bg-slate-300 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {form.equipmentIds.length > 0 && (() => {
+            {/* Equipment */}
+            {(() => {
               const editingShoot = shoots.find(s => s.id === editingShootId);
               const alreadyReturned = editingShoot ? !!editingShoot.equipmentReturnedAt : false;
+
+              // Sort: selected items first, then unselected
+              const sortedEquipment = [...equipment].sort((a, b) => {
+                const aSelected = form.equipmentIds.includes(a.id);
+                const bSelected = form.equipmentIds.includes(b.id);
+                if (aSelected && !bSelected) return -1;
+                if (!aSelected && bSelected) return 1;
+                return 0;
+              });
+
               return (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Confirm Equipment Back</Label>
-                  {alreadyReturned ? (
-                    <p className="flex items-center gap-1.5 text-xs text-green-700">
-                      <PackageCheck className="h-3.5 w-3.5" /> All equipment already confirmed back for this shoot.
-                    </p>
-                  ) : (
-                    <div className="space-y-2 rounded-lg border p-3">
-                      {form.equipmentIds.map(id => {
-                        const verified = !!returnPhotoFiles[id];
-                        return (
-                          <div key={id} className="flex items-center justify-between gap-3 text-sm">
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">{equipmentName(id)}</p>
-                              <p className={`text-[11px] ${verified ? 'text-green-700' : 'text-slate-400'}`}>
-                                {verified ? 'Verified back' : 'Not yet confirmed'}
-                              </p>
-                            </div>
-                            <label className="shrink-0">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                className="hidden"
-                                onChange={(e) => {
-                                  setReturnPhotoFiles(prev => ({ ...prev, [id]: e.target.files?.[0] || null }));
-                                  setStatusBlockedMessage(null);
-                                }}
-                              />
-                              <span className="inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-xs font-medium hover:bg-slate-50">
-                                {verified ? 'Replace photo' : 'Add photo'}
-                              </span>
-                            </label>
+                <div className="space-y-3">
+                  {/* Equipment Needed */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold text-gray-900">Equipment Needed</Label>
+                    {equipment.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No equipment logged yet — add some from the Equipment page first.
+                      </p>
+                    ) : (
+                      <>
+                        {/* Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => setEquipOpen(o => !o)}
+                          className="w-full flex items-center justify-between h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <span className={form.equipmentIds.length === 0 ? 'text-gray-400' : 'text-gray-800'}>
+                            {form.equipmentIds.length > 0
+                              ? `${form.equipmentIds.length} item${form.equipmentIds.length > 1 ? 's' : ''} selected`
+                              : 'Select equipment...'}
+                          </span>
+                          <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-150 ${equipOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Inline checklist */}
+                        {equipOpen && (
+                          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                            {sortedEquipment.map((item, idx) => {
+                              const checked = form.equipmentIds.includes(item.id);
+                              return (
+                                <label
+                                  key={item.id}
+                                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${idx !== 0 ? 'border-t border-gray-100' : ''}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleEquipment(item.id)}
+                                    className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-pointer"
+                                  />
+                                  <span className={`text-sm select-none ${checked ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                                    {item.name}
+                                  </span>
+                                </label>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
+                        )}
+
+                        {/* Selected tags */}
+                        {form.equipmentIds.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
+                            {form.equipmentIds.map(id => (
+                              <span
+                                key={id}
+                                className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 rounded-md bg-gray-100 text-gray-700 text-xs font-medium border border-gray-200"
+                              >
+                                {equipmentName(id)}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleEquipment(id)}
+                                  className="ml-0.5 hover:text-gray-900 text-gray-400 transition-colors"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Confirm Equipment Back */}
+                  {form.equipmentIds.length > 0 && (
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">Confirm Equipment Back</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Check off each piece once it&apos;s verified back in place. Status can&apos;t be set to Completed until all equipment is confirmed.
+                        </p>
+                      </div>
+
+                      {alreadyReturned ? (
+                        <p className="flex items-center gap-1.5 text-xs text-green-700">
+                          <PackageCheck className="h-3.5 w-3.5" /> All equipment already confirmed back for this shoot.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {form.equipmentIds.map(id => {
+                            const verified = !!returnPhotoFiles[id];
+                            return (
+                              <div
+                                key={id}
+                                className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={verified}
+                                    readOnly
+                                    className="h-4 w-4 rounded border-gray-300 accent-gray-900 cursor-default shrink-0"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-bold text-gray-900 truncate">{equipmentName(id)}</p>
+                                    <p className={`text-xs ${verified ? 'text-green-600' : 'text-gray-400'}`}>
+                                      {verified ? 'Verified back' : 'Not yet confirmed'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <label className="shrink-0 cursor-pointer">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      setReturnPhotoFiles(prev => ({ ...prev, [id]: e.target.files?.[0] || null }));
+                                      setStatusBlockedMessage(null);
+                                    }}
+                                  />
+                                  <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer">
+                                    <Camera className="h-3.5 w-3.5" />
+                                    {verified ? 'Replace photo' : 'Add photo'}
+                                  </span>
+                                </label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -717,9 +870,189 @@ export function ShootingSchedulePage() {
               <Input placeholder="Lighting" value={form.lighting} onChange={(e) => setForm(f => ({ ...f, lighting: e.target.value }))} />
             </div>
 
+            {/* Mileage & Vehicle Verification */}
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Mileage &amp; Vehicle Verification</p>
+                <p className="text-xs text-gray-500 mt-0.5">Log odometer readings and photo proof before and after the shoot.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Before card */}
+                <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+                  <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Before Shoot at Office</p>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-800">Odometer (miles)</Label>
+                    <Input
+                      className="h-10 bg-gray-50 border-gray-200"
+                      placeholder="e.g. 45,210"
+                      value={form.odometerBefore}
+                      onChange={(e) => setForm(f => ({ ...f, odometerBefore: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-800">Photo verification</Label>
+                    <label className="flex flex-col items-center justify-center gap-2 h-24 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => setMileagePhotosBefore(e.target.files?.[0] || null)}
+                      />
+                      {mileagePhotosBefore ? (
+                        <span className="text-xs text-green-700 font-medium px-2 text-center truncate max-w-full">{mileagePhotosBefore.name}</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                          <Camera className="h-4 w-4" />
+                          Upload before photo
+                        </span>
+                      )}
+                    </label>
+                  </div>
+                </div>
+
+                {/* After card */}
+                <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+                  <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">After Shoot at Office</p>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-800">Odometer (miles)</Label>
+                    <Input
+                      className="h-10 bg-gray-50 border-gray-200"
+                      placeholder="e.g. 45,268"
+                      value={form.odometerAfter}
+                      onChange={(e) => setForm(f => ({ ...f, odometerAfter: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-gray-800">Photo verification</Label>
+                    <label className="flex flex-col items-center justify-center gap-2 h-24 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => setMileagePhotosAfter(e.target.files?.[0] || null)}
+                      />
+                      {mileagePhotosAfter ? (
+                        <span className="text-xs text-green-700 font-medium px-2 text-center truncate max-w-full">{mileagePhotosAfter.name}</span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                          <Camera className="h-4 w-4" />
+                          Upload after photo
+                        </span>
+                      )}
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total miles */}
+              <p className="text-sm text-gray-600">
+                Total miles driven:{' '}
+                <span className="font-medium text-gray-900">
+                  {(() => {
+                    const b = parseFloat(form.odometerBefore);
+                    const a = parseFloat(form.odometerAfter);
+                    return (!isNaN(b) && !isNaN(a) && a > b) ? `${(a - b).toFixed(1)} mi` : '—';
+                  })()}
+                </span>
+              </p>
+            </div>
+
+            {/* Stops along the way */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-gray-900">Stops along the way</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addStop}
+                  className="h-8 gap-1 text-xs border-gray-300"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add stop
+                </Button>
+              </div>
+              {form.stops.length > 0 && (
+                <div className="space-y-2">
+                  {form.stops.map((stop, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        className="h-9 bg-gray-50 border-gray-200 text-sm"
+                        placeholder={`Stop ${idx + 1} location`}
+                        value={stop}
+                        onChange={(e) => updateStop(idx, e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeStop(idx)}
+                        className="h-9 w-9 flex items-center justify-center rounded-md border border-gray-200 hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Receipts & Expense Reimbursement */}
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Receipts &amp; Expense Reimbursement</p>
+                <p className="text-xs text-gray-500 mt-0.5">Attach receipts for anything spent on this shoot (gas, parking, supplies) to submit for reimbursement.</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={addExpense}
+                className="w-full flex items-center justify-center gap-1.5 h-10 rounded-lg border border-gray-200 bg-white text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Add receipt
+              </button>
+
+              {form.expenses.length > 0 && (
+                <div className="space-y-2">
+                  {form.expenses.map((exp, idx) => (
+                    <div key={idx} className="grid grid-cols-[1fr_100px_auto] gap-2 items-center">
+                      <Input
+                        className="h-9 bg-gray-50 border-gray-200 text-sm"
+                        placeholder="Description (gas, parking…)"
+                        value={exp.description}
+                        onChange={(e) => updateExpense(idx, 'description', e.target.value)}
+                      />
+                      <Input
+                        className="h-9 bg-gray-50 border-gray-200 text-sm"
+                        placeholder="$0.00"
+                        value={exp.amount}
+                        onChange={(e) => updateExpense(idx, 'amount', e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeExpense(idx)}
+                        className="h-9 w-9 flex items-center justify-center rounded-md border border-gray-200 hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600">
+                Total submitted for reimbursement:{' '}
+                <span className="font-medium text-gray-900">
+                  ${form.expenses.reduce((acc, r) => acc + (parseFloat(r.amount) || 0), 0).toFixed(2)}
+                </span>
+              </p>
+            </div>
+
+            {/* Notes */}
             <div className="space-y-1.5">
-              <Label className="text-xs">Notes</Label>
+              <Label className="text-xs font-semibold text-gray-800">Notes</Label>
               <Textarea
+                className="bg-gray-50 border-gray-200 resize-none min-h-[80px]"
                 value={form.notes}
                 onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Anything else the crew should know..."
@@ -728,9 +1061,16 @@ export function ShootingSchedulePage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setIsFormOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={saving}>
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white sticky bottom-0">
+            <Button variant="outline" className="h-10 px-5 border-gray-300 text-gray-700" onClick={() => setIsFormOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="h-10 px-5 bg-gray-900 hover:bg-gray-800 text-white font-semibold"
+              onClick={handleSubmit}
+              disabled={saving}
+            >
               {saving ? 'Saving...' : editingShootId ? 'Save Changes' : 'Create Shoot'}
             </Button>
           </div>
