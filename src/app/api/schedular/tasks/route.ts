@@ -281,6 +281,7 @@ export async function GET(req: Request) {
           })(),
           isSponsored: sponsoredMap.get(t.id) ?? false,
           deliverableType: t.deliverableType ?? null,
+          shootScriptRef: (t as any).shootScriptRef ?? null,
           tags: (t as any).tags || [],
           priority: t.priority,
           client: t.client,

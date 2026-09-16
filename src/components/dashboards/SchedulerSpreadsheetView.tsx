@@ -20,7 +20,7 @@ import {
     ChevronUp, ExternalLink, Sparkles, FileText, Video, Image as ImageIcon,
     Copy, RefreshCw, Filter, ArrowUpDown, Instagram, Youtube, Facebook,
     Linkedin, Twitter, Music, Clock, Pencil, Trash2, Package, Calendar,
-    Loader2, Users, ArrowLeft, AlertTriangle,
+    Loader2, Users, ArrowLeft, AlertTriangle, ScrollText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -105,6 +105,7 @@ interface SchedulerTask {
     titlingStatus?: string;
     isSponsored?: boolean;
     deliverableType?: string | null;
+    shootScriptRef?: string | null;
     tags?: { id: string; name: string }[];
 }
 
@@ -189,6 +190,38 @@ export function SchedulerSpreadsheetView() {
     const [sendBackTaskTitle, setSendBackTaskTitle] = useState('');
     const [sendBackFeedback, setSendBackFeedback] = useState('');
     const [isSendingBack, setIsSendingBack] = useState(false);
+    const [scriptDialog, setScriptDialog] = useState<{
+        open: boolean;
+        title: string;
+        content: string;
+        status: string;
+        clientFeedback?: string;
+    } | null>(null);
+    const [scriptLoadingId, setScriptLoadingId] = useState<string | null>(null);
+
+    const openTaskScript = async (taskId: string) => {
+        setScriptLoadingId(taskId);
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/script`);
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Could not load script');
+            if (!data.script) {
+                toast.error('No script linked to this task');
+                return;
+            }
+            setScriptDialog({
+                open: true,
+                title: data.script.title || 'Shoot Script',
+                content: data.script.content || '',
+                status: data.script.status || 'draft',
+                clientFeedback: data.script.clientFeedback,
+            });
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Could not load script');
+        } finally {
+            setScriptLoadingId(null);
+        }
+    };
 
     useEffect(() => { fetchMetadata(); }, []);
     useEffect(() => {
@@ -263,6 +296,7 @@ export function SchedulerSpreadsheetView() {
                     titlingStatus: t.titlingStatus || 'NONE',
                     isSponsored: t.isSponsored || false,
                     deliverableType: t.deliverableType ?? null,
+                    shootScriptRef: t.shootScriptRef ?? null,
                     tags: t.tags || [],
                     editor: t.editor,
                 };
@@ -787,6 +821,11 @@ export function SchedulerSpreadsheetView() {
                                                   ✓
                                                 </span>
                                               )}
+                                              {task.shootScriptRef && (
+                                                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-violet-50 text-violet-700 border-violet-200" title="Shoot script linked">
+                                                  Script
+                                                </span>
+                                              )}
                                               {task.isSponsored && (
                                                 <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded">
                                                   ★ Sponsored
@@ -1117,6 +1156,44 @@ export function SchedulerSpreadsheetView() {
                                                   )}
                                                 </div>
 
+                                                {/* ── Shoot script (view-only) ── */}
+                                                {task.shootScriptRef && (
+                                                  <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                      <div className="min-w-0">
+                                                        <h4 className="font-semibold flex items-center gap-2 text-sm text-violet-900">
+                                                          <ScrollText className="h-4 w-4 text-violet-500" />
+                                                          Shoot script
+                                                        </h4>
+                                                        <p className="mt-0.5 truncate text-xs text-violet-700">
+                                                          {(() => {
+                                                            try {
+                                                              const ref = JSON.parse(task.shootScriptRef);
+                                                              return ref.scriptTitle || 'Linked script';
+                                                            } catch {
+                                                              return 'Linked script';
+                                                            }
+                                                          })()}
+                                                        </p>
+                                                      </div>
+                                                      <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 shrink-0 border-violet-200 bg-white text-violet-700 hover:bg-violet-50"
+                                                        disabled={scriptLoadingId === task.id}
+                                                        onClick={() => void openTaskScript(task.id)}
+                                                      >
+                                                        {scriptLoadingId === task.id ? (
+                                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                        ) : (
+                                                          <Eye className="h-3.5 w-3.5" />
+                                                        )}
+                                                        <span className="ml-1.5">View</span>
+                                                      </Button>
+                                                    </div>
+                                                  </div>
+                                                )}
+
                                                 {/* ── Posting Content: Titles, Descriptions, Tags ── */}
                                                 <div className="space-y-4">
                                                   {/* Titles */}
@@ -1354,6 +1431,40 @@ export function SchedulerSpreadsheetView() {
                     )}
                 </div>
             </div>
+
+            {/* Shoot script viewer (schedulers: view-only) */}
+            <Dialog open={!!scriptDialog?.open} onOpenChange={(open) => { if (!open) setScriptDialog(null); }}>
+                <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+                    <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
+                        <DialogTitle className="flex items-center gap-2 text-base">
+                            <ScrollText className="h-4 w-4 text-violet-500" />
+                            {scriptDialog?.title || 'Shoot Script'}
+                            {scriptDialog?.status && (
+                                <span className={`ml-auto text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                                    scriptDialog.status === 'approved' ? 'bg-green-50 text-green-700 border-green-200' :
+                                    scriptDialog.status === 'changes_requested' ? 'bg-red-50 text-red-700 border-red-200' :
+                                    scriptDialog.status === 'sent' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                    'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}>
+                                    {scriptDialog.status}
+                                </span>
+                            )}
+                        </DialogTitle>
+                        <DialogDescription>View only — scripts are attached by editors on My Tasks.</DialogDescription>
+                    </DialogHeader>
+                    <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+                        {scriptDialog?.clientFeedback && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                <p className="text-[11px] font-semibold text-amber-800 mb-1">Client Feedback</p>
+                                <p className="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed">{scriptDialog.clientFeedback}</p>
+                            </div>
+                        )}
+                        <article className="whitespace-pre-wrap font-mono text-sm leading-7 text-slate-800 bg-slate-50 rounded-xl border p-5 min-h-[200px]">
+                            {scriptDialog?.content || 'No content yet.'}
+                        </article>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Add/Edit Link Dialog */}
             <Dialog open={linkDialog?.open || false} onOpenChange={(open) => { if (!open) { setLinkDialog(null); setLinkUrl(""); setLinkPostedAt(""); } }}>

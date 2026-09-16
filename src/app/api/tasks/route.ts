@@ -361,6 +361,7 @@ const effectiveRole =
           qcReviewedBy: true,
           qcReviewedAt: true,
           qcResult: true,
+          shootScriptRef: true,
         },
         with: {
           files: {
