@@ -13,7 +13,7 @@ import {
 } from '../ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
-  Camera, Plus, Loader, CheckCircle2, PackageCheck, ChevronDown, X, FileText, Trash2,
+  Camera, Plus, Loader, PackageCheck, ChevronDown, X, FileText, ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ShootScriptsDialog } from './ShootScriptsDialog';
@@ -110,9 +110,13 @@ export function ShootingSchedulePage() {
   // Auto-fill tracking: null means user hasn't auto-filled, number = the auto-filled count
   const [autoFilledVideos, setAutoFilledVideos] = useState<number | null>(null);
 
-  const [returnDialogShoot, setReturnDialogShoot] = useState<Shoot | null>(null);
+  // Return photos are now collected inline in the edit modal's "Confirm
+  // Equipment Back" section (see cycleStatus/handleSubmit) rather than a
+  // separate popup — kept keyed by equipment id, same shape as before.
   const [returnPhotoFiles, setReturnPhotoFiles] = useState<Record<string, File | null>>({});
-  const [confirmingReturn, setConfirmingReturn] = useState(false);
+  // Inline warning shown under the Status field when trying to cycle into
+  // COMPLETED while equipment on this shoot hasn't been confirmed back yet.
+  const [statusBlockedMessage, setStatusBlockedMessage] = useState<string | null>(null);
 
   const [scriptDialogShoot, setScriptDialogShoot] = useState<Shoot | null>(null);
 
@@ -214,36 +218,43 @@ export function ShootingSchedulePage() {
     }
   };
 
-  // Permanent hard delete (via the shared /api/tasks/[id] route, which also
-  // handles the same for deliverable/SF/LF tasks) — added specifically for
-  // clearing out test data while building/testing the scripting feature.
-  // No undo, no soft-delete: confirm before wiring a bulk version of this.
-  const deleteShoot = async (shootId: string, label: string) => {
-    if (!window.confirm(`Permanently delete "${label}"? This can't be undone.`)) return;
-    setShoots(prev => prev.filter(s => s.id !== shootId));
-    try {
-      const res = await fetch(`/api/tasks/${shootId}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || 'Failed to delete');
-        fetchAll();
-      } else {
-        toast.success('Deleted');
-      }
-    } catch {
-      toast.error('Failed to delete');
-      fetchAll();
-    }
-  };
-
   const openCreateForm = () => {
     setEditingShootId(null);
     setForm({ ...EMPTY_FORM });
+    setStatusBlockedMessage(null);
+    setReturnPhotoFiles({});
     setIsFormOpen(true);
+  };
+
+  const returnedCount = (shoot: Pick<Shoot, 'equipmentIds' | 'equipmentReturnedAt'>) =>
+    shoot.equipmentReturnedAt ? shoot.equipmentIds.length : 0;
+
+  // Pending → In Progress → Completed, looping. Reaching Completed with
+  // unreturned equipment snaps back to In Progress with an inline warning —
+  // mirrors the same rule the backend should enforce on PATCH.
+  const cycleStatus = () => {
+    setForm(prev => {
+      const order: ShootStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED'];
+      const next = order[(order.indexOf(prev.status) + 1) % order.length];
+      if (next === 'COMPLETED' && prev.equipmentIds.length > 0) {
+        const editingShoot = shoots.find(s => s.id === editingShootId);
+        const alreadyReturned = editingShoot ? !!editingShoot.equipmentReturnedAt : false;
+        const confirmedNow = prev.equipmentIds.every(id => !!returnPhotoFiles[id]);
+        if (!alreadyReturned && !confirmedNow) {
+          const confirmedCount = prev.equipmentIds.filter(id => !!returnPhotoFiles[id]).length;
+          setStatusBlockedMessage(`${confirmedCount} of ${prev.equipmentIds.length} equipment items confirmed back — can't mark Completed yet.`);
+          return { ...prev, status: 'IN_PROGRESS' };
+        }
+      }
+      setStatusBlockedMessage(null);
+      return { ...prev, status: next };
+    });
   };
 
   const openEditForm = (shoot: Shoot) => {
     setEditingShootId(shoot.id);
+    setStatusBlockedMessage(null);
+    setReturnPhotoFiles({});
     setForm({
       title: shoot.title || '',
       clientId: shoot.client?.id || '',
@@ -280,6 +291,32 @@ export function ShootingSchedulePage() {
     }
     setSaving(true);
     try {
+      // If every equipment item now has a return photo attached (collected
+      // via the Confirm Equipment Back section below) and this shoot hasn't
+      // already had its return confirmed, submit those photos first — same
+      // endpoint/contract the old standalone dialog used.
+      if (
+        editingShootId &&
+        form.equipmentIds.length > 0 &&
+        form.equipmentIds.every(id => !!returnPhotoFiles[id])
+      ) {
+        const editingShoot = shoots.find(s => s.id === editingShootId);
+        if (editingShoot && !editingShoot.equipmentReturnedAt) {
+          const formData = new FormData();
+          for (const id of form.equipmentIds) formData.append('photos', returnPhotoFiles[id]!);
+          const returnRes = await fetch(`/api/shoots/${editingShootId}/equipment-return`, {
+            method: 'POST',
+            body: formData,
+          });
+          if (!returnRes.ok) {
+            const err = await returnRes.json().catch(() => ({}));
+            toast.error(err.error || 'Failed to confirm equipment return');
+            setSaving(false);
+            return;
+          }
+        }
+      }
+
       const url = editingShootId ? `/api/shoots/${editingShootId}` : '/api/shoots';
       const method = editingShootId ? 'PATCH' : 'POST';
       const res = await fetch(url, {
@@ -306,6 +343,7 @@ export function ShootingSchedulePage() {
       if (res.ok) {
         toast.success(editingShootId ? 'Shoot updated' : 'Shoot day created');
         setIsFormOpen(false);
+        setReturnPhotoFiles({});
         fetchAll();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -315,38 +353,6 @@ export function ShootingSchedulePage() {
       toast.error('Something went wrong');
     } finally {
       setSaving(false);
-    }
-  };
-
-  const submitEquipmentReturn = async () => {
-    if (!returnDialogShoot) return;
-    const allFilled = returnDialogShoot.equipmentIds.every(id => !!returnPhotoFiles[id]);
-    if (!allFilled) return;
-    setConfirmingReturn(true);
-    try {
-      const formData = new FormData();
-      // Order matches equipmentIds — the backend expects exactly one photo
-      // per equipment item, count-checked against the shoot's equipmentIds.
-      for (const id of returnDialogShoot.equipmentIds) {
-        formData.append('photos', returnPhotoFiles[id]!);
-      }
-      const res = await fetch(`/api/shoots/${returnDialogShoot.id}/equipment-return`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (res.ok) {
-        toast.success('Equipment return confirmed');
-        setReturnDialogShoot(null);
-        setReturnPhotoFiles({});
-        fetchAll();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || 'Failed to confirm return');
-      }
-    } catch {
-      toast.error('Something went wrong');
-    } finally {
-      setConfirmingReturn(false);
     }
   };
 
@@ -421,9 +427,9 @@ export function ShootingSchedulePage() {
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filteredShoots.length === 0 ? (
-          <div className="text-center py-16 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+          <div className="lg:col-span-2 text-center py-16 bg-slate-50 rounded-xl border border-dashed border-slate-200">
             <Camera className="h-10 w-10 text-slate-300 mx-auto mb-3" />
             <p className="text-slate-500 font-medium">
               {shoots.length === 0 ? 'No shoot days scheduled yet' : 'No shoots match these filters'}
@@ -434,45 +440,81 @@ export function ShootingSchedulePage() {
           </div>
         ) : (
           filteredShoots.map((shoot) => {
-            const equipmentReturned = !!shoot.equipmentReturnedAt;
+            const statusMeta = STATUS_META[SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? (shoot.status as ShootStatus) : 'PENDING'];
+            const scriptSent = shoot.scriptStatus === 'sent';
+            const mapsHref = shoot.location
+              ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shoot.location)}`
+              : null;
             return (
-              <Card key={shoot.id} className="overflow-hidden rounded-xl border-slate-200 shadow-none">
-                <CardContent className="p-0">
-                  <div className="flex flex-col gap-5 p-5 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-xl font-bold text-slate-950">{shoot.client?.companyName || shoot.client?.name || shoot.title || 'Shoot'}</h3>
-                      <div className="mt-2 flex flex-wrap gap-2"><Badge variant="outline" className="rounded-full border-slate-300 bg-white text-[10px] font-medium uppercase tracking-wide text-slate-700">Videographer assigned</Badge>{equipmentReturned && <Badge variant="outline" className="gap-1 rounded-full border-slate-300 bg-white text-[10px] font-medium text-slate-700"><PackageCheck className="h-3 w-3" /> Equipment returned</Badge>}{shoot.equipmentIds.map(id => <span key={id} className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600">{equipmentName(id)}</span>)}</div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 shrink-0">
-                      <Select
-                        value={SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? shoot.status : 'PENDING'}
-                        onValueChange={(v) => updateStatus(shoot.id, v as ShootStatus)}
-                      >
-                        <SelectTrigger className="h-10 w-[170px] text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {SHOOT_STATUSES.map(s => (
-                            <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button variant="outline" onClick={() => openEditForm(shoot)} className="h-10 w-[170px] rounded-lg">Edit shoot details</Button>
+              <Card key={shoot.id} className="flex h-full flex-col overflow-hidden rounded-xl border-0 bg-slate-950 text-white shadow-none">
+                <CardContent className="flex h-full flex-col p-0">
+                  <div className="flex items-center justify-between gap-3 p-5 pb-4">
+                    <h3 className="truncate text-lg font-extrabold">{shoot.client?.companyName || shoot.client?.name || shoot.title || 'Shoot'}</h3>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge className={`rounded-full border-0 text-[11px] font-semibold ${statusMeta.className}`}>{statusMeta.label}</Badge>
                       <Button
                         variant="outline"
-                        onClick={() => deleteShoot(shoot.id, shoot.client?.companyName || shoot.client?.name || shoot.title || 'this shoot')}
-                        className="h-10 w-10 rounded-lg border-red-200 p-0 text-red-600 hover:bg-red-50"
-                        title="Delete shoot"
+                        size="sm"
+                        onClick={() => openEditForm(shoot)}
+                        className="h-8 border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        Edit Shoot Details
                       </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-x-6 gap-y-5 px-6 pb-5 sm:grid-cols-2 lg:grid-cols-4">
-                    <div><p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Shoot day</p><p className="mt-1 text-sm text-slate-950">{shoot.shootDate ? new Date(shoot.shootDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'}</p></div>
-                    <div><p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Location</p><p className="mt-1 truncate text-sm text-slate-950">{shoot.location || 'Not set'}</p></div>
-                    <div><p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Host</p><p className="mt-1 text-sm text-slate-950">{shoot.hostName || 'Not set'}</p></div>
-                    <div><p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Videographer</p><p className="mt-1 text-sm text-slate-950">{shoot.videographer?.name || shoot.videographer?.email || 'Unassigned'}</p></div>
+
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-5 pb-4">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-white/50">Shoot day</p>
+                      <p className="mt-1 truncate text-sm font-semibold" title={shoot.shootDate || undefined}>
+                        {shoot.shootDate ? new Date(shoot.shootDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not set'}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-white/50">Host</p>
+                      <p className="mt-1 truncate text-sm font-semibold" title={shoot.hostName || undefined}>{shoot.hostName || 'Not set'}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-white/50">Location</p>
+                      {mapsHref ? (
+                        <a
+                          href={mapsHref}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={shoot.location || undefined}
+                          className="mt-1 flex items-center gap-1 truncate text-sm font-semibold text-white underline-offset-2 hover:underline"
+                        >
+                          <span className="truncate">{shoot.location}</span>
+                          <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-sm font-semibold">Not set</p>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-white/50">Videographer</p>
+                      <p className="mt-1 truncate text-sm font-semibold" title={shoot.videographer?.name || shoot.videographer?.email || undefined}>
+                        {shoot.videographer?.name || shoot.videographer?.email || 'Unassigned'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-slate-50 px-6 py-3.5"><p className="text-xs text-slate-600">{shoot.scriptsCount} of {shoot.videosPlanned} scripts written · {shoot.scriptStatus === 'sent' ? 'scripts sent to client' : 'none sent to client'}</p><div className="flex gap-2">{!equipmentReturned && shoot.equipmentIds.length > 0 && <Button variant="outline" size="sm" className="h-9" onClick={() => { setReturnDialogShoot(shoot); setReturnPhotoFiles({}); }}>Confirm Equipment Back</Button>}<Button size="sm" className="h-9 gap-1.5 rounded-lg bg-slate-950 hover:opacity-85" onClick={() => openScriptDialog(shoot)}><FileText className="h-3.5 w-3.5" /> Script{shoot.scriptsCount ? ' — Draft' : ''}</Button></div></div>
+
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">{shoot.scriptsCount} of {shoot.videosPlanned} Scripts Written</span>
+                      <Badge variant="outline" className={`rounded-full border-0 text-[10px] font-semibold uppercase ${scriptSent ? 'bg-blue-100 text-blue-800' : 'bg-white/10 text-white/70'}`}>
+                        {scriptSent ? 'Sent to Client' : 'Not Sent'}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                      onClick={() => openScriptDialog(shoot)}
+                    >
+                      Scripts
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -482,7 +524,7 @@ export function ShootingSchedulePage() {
 
       {/* Create / Edit Shoot Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingShootId ? 'Edit Shoot Day' : 'New Shoot Day'}</DialogTitle>
             <DialogDescription>Everything needed for this shoot, in one place.</DialogDescription>
@@ -516,14 +558,17 @@ export function ShootingSchedulePage() {
 
             <div className="space-y-1.5">
               <Label className="text-xs">Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm(f => ({ ...f, status: v as ShootStatus }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {SHOOT_STATUSES.map(s => (
-                    <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <button
+                type="button"
+                onClick={cycleStatus}
+                className={`flex h-10 w-full items-center justify-between rounded-md border px-3 text-sm font-medium ${STATUS_META[form.status].className}`}
+              >
+                {STATUS_META[form.status].label}
+                <span className="text-[11px] font-normal opacity-70">Click to change</span>
+              </button>
+              {statusBlockedMessage && (
+                <p className="text-xs font-medium text-amber-700">{statusBlockedMessage}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -619,6 +664,52 @@ export function ShootingSchedulePage() {
               )}
             </div>
 
+            {form.equipmentIds.length > 0 && (() => {
+              const editingShoot = shoots.find(s => s.id === editingShootId);
+              const alreadyReturned = editingShoot ? !!editingShoot.equipmentReturnedAt : false;
+              return (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Confirm Equipment Back</Label>
+                  {alreadyReturned ? (
+                    <p className="flex items-center gap-1.5 text-xs text-green-700">
+                      <PackageCheck className="h-3.5 w-3.5" /> All equipment already confirmed back for this shoot.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 rounded-lg border p-3">
+                      {form.equipmentIds.map(id => {
+                        const verified = !!returnPhotoFiles[id];
+                        return (
+                          <div key={id} className="flex items-center justify-between gap-3 text-sm">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">{equipmentName(id)}</p>
+                              <p className={`text-[11px] ${verified ? 'text-green-700' : 'text-slate-400'}`}>
+                                {verified ? 'Verified back' : 'Not yet confirmed'}
+                              </p>
+                            </div>
+                            <label className="shrink-0">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                className="hidden"
+                                onChange={(e) => {
+                                  setReturnPhotoFiles(prev => ({ ...prev, [id]: e.target.files?.[0] || null }));
+                                  setStatusBlockedMessage(null);
+                                }}
+                              />
+                              <span className="inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-xs font-medium hover:bg-slate-50">
+                                {verified ? 'Replace photo' : 'Add photo'}
+                              </span>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <Input placeholder="Camera" value={form.camera} onChange={(e) => setForm(f => ({ ...f, camera: e.target.value }))} />
               <Input placeholder="Quality" value={form.quality} onChange={(e) => setForm(f => ({ ...f, quality: e.target.value }))} />
@@ -641,49 +732,6 @@ export function ShootingSchedulePage() {
             <Button variant="outline" onClick={() => setIsFormOpen(false)}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={saving}>
               {saving ? 'Saving...' : editingShootId ? 'Save Changes' : 'Create Shoot'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Equipment Return Photo Dialog — one photo required per equipment item */}
-      <Dialog open={!!returnDialogShoot} onOpenChange={(open) => { if (!open) { setReturnDialogShoot(null); setReturnPhotoFiles({}); } }}>
-        <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Confirm Equipment Returned</DialogTitle>
-            <DialogDescription>
-              A photo is required for each piece of equipment on this shoot
-              {returnDialogShoot ? ` (${Object.values(returnPhotoFiles).filter(Boolean).length}/${returnDialogShoot.equipmentIds.length})` : ''}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {returnDialogShoot?.equipmentIds.map(id => (
-              <div key={id} className="space-y-1.5">
-                <Label className="text-xs">{equipmentName(id)}</Label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => setReturnPhotoFiles(prev => ({ ...prev, [id]: e.target.files?.[0] || null }))}
-                />
-                {returnPhotoFiles[id] && (
-                  <img
-                    src={URL.createObjectURL(returnPhotoFiles[id]!)}
-                    alt={`${equipmentName(id)} returned`}
-                    className="w-full h-32 object-cover rounded-lg border"
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setReturnDialogShoot(null); setReturnPhotoFiles({}); }}>Cancel</Button>
-            <Button
-              onClick={submitEquipmentReturn}
-              disabled={!returnDialogShoot || !returnDialogShoot.equipmentIds.every(id => !!returnPhotoFiles[id]) || confirmingReturn}
-              className="gap-1.5"
-            >
-              {confirmingReturn ? 'Uploading...' : (<><CheckCircle2 className="h-4 w-4" /> Confirm</>)}
             </Button>
           </div>
         </DialogContent>
