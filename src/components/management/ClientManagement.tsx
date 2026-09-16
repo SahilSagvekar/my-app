@@ -3167,6 +3167,9 @@ export function ClientManagement() {
                       Add Email
                     </Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Each address gets its own invoice email when an invoice is sent (in addition to the primary email via Stripe).
+                  </p>
                   {(newClient.emails || []).map((email, index) => (
                     <div key={index} className="flex gap-2">
                       <Input
