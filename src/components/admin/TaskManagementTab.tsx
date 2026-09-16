@@ -1103,7 +1103,7 @@ export function TaskManagementTab() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             {[
-              { label: 'Status', key: 'status', items: Object.entries(statusConfig).map(([k, c]) => ({ id: k, name: c.label })), hasNone: false },
+              { label: 'Status', key: 'status', items: STATUS_OPTIONS.map(([k, c]) => ({ id: k, name: c.label })), hasNone: false },
               { label: 'Editor', key: 'assignedTo', items: editors.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: false },
               { label: 'QC Specialist', key: 'qc_specialist', items: qcMembers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Scheduler', key: 'scheduler', items: schedulers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
@@ -1148,7 +1148,7 @@ export function TaskManagementTab() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             {[
-              { label: 'Status', key: 'status', items: Object.entries(statusConfig).map(([k, c]) => ({ id: k, name: c.label })) },
+              { label: 'Status', key: 'status', items: STATUS_OPTIONS.map(([k, c]) => ({ id: k, name: c.label })) },
               { label: 'Editor', key: 'assignedTo', items: editors.map(m => ({ id: m.id.toString(), name: m.name })) },
               { label: 'QC Specialist', key: 'qc_specialist', items: [{ id: 'none', name: 'Remove QC' }, ...qcMembers.map(m => ({ id: m.id.toString(), name: m.name }))] },
               { label: 'Scheduler', key: 'scheduler', items: [{ id: 'none', name: 'Remove Scheduler' }, ...schedulers.map(m => ({ id: m.id.toString(), name: m.name }))] },
