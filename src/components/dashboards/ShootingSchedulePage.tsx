@@ -10,8 +10,9 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Badge } from '../ui/badge';
 import {
-  Camera, Plus, Loader, PackageCheck, ChevronDown, X, FileText, ExternalLink,
+  Camera, Plus, Loader, PackageCheck, ChevronDown, X, ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ShootScriptsDialog } from './ShootScriptsDialog';
@@ -332,7 +333,7 @@ export function ShootingSchedulePage() {
   const addExpense = () => {
     setForm(f => ({ ...f, expenses: [...f.expenses, { description: '', amount: '', file: null }] }));
   };
-  const updateExpense = (index: number, field: string, val: any) => {
+  const updateExpense = (index: number, field: string, val: string | File | null) => {
     setForm(f => {
       const expenses = [...f.expenses];
       expenses[index] = { ...expenses[index], [field]: val };
@@ -639,7 +640,7 @@ export function ShootingSchedulePage() {
                 />
                 {autoFilledVideos !== null && (
                   <p className="text-[11px] text-muted-foreground">
-                    Auto-filled from client's monthly deliverables ({autoFilledVideos}).
+                    Auto-filled from client&apos;s monthly deliverables ({autoFilledVideos}).
                   </p>
                 )}
               </div>
