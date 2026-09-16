@@ -236,57 +236,61 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
   );
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      {/* Main list */}
-      <div className="min-w-0 flex-1 space-y-4">
-        <header className="space-y-1">
-          <h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">
-            {isStaff ? 'Link Scripts & Raw Footage' : 'Link Scripts to My Tasks'}
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            {isStaff
-              ? 'Connect a script to a raw-footage folder and an editor task. Folders show shoot dates once a script is linked.'
-              : 'Attach an existing script or raw-footage folder to one of your assigned tasks.'}
-          </p>
-        </header>
+    <div className="space-y-4">
+      <header className="space-y-1">
+        <h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">
+          {isStaff ? 'Link Scripts & Raw Footage' : 'Link Scripts to My Tasks'}
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
+          {isStaff
+            ? 'Connect a script to a raw-footage folder and an editor task. Folders show shoot dates once a script is linked.'
+            : 'Attach an existing script or raw-footage folder to one of your assigned tasks.'}
+        </p>
+      </header>
 
-        <div className="grid grid-cols-1 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1 min-w-[160px]">
-            <Label className="text-[11px] uppercase tracking-wide text-slate-400">Client</Label>
-            <Select value={clientId} onValueChange={(v) => { setClientId(v); setSelectedKey(null); }}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1 min-w-[160px]">
-            <Label className="text-[11px] uppercase tracking-wide text-slate-400">Month folder</Label>
-            <Input value={monthFolder} onChange={(e) => setMonthFolder(e.target.value)} className="h-9" placeholder="September-2026" />
-          </div>
-
-          <div className="space-y-1 min-w-[140px]">
-            <Label className="text-[11px] uppercase tracking-wide text-slate-400">Link status</Label>
-            <Select value={linkFilter} onValueChange={(v) => setLinkFilter(v as LinkFilter)}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All slots</SelectItem>
-                <SelectItem value="linked">Linked</SelectItem>
-                <SelectItem value="unlinked">Unlinked</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-end">
-            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => load()} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-            </Button>
-          </div>
+      <div className="grid grid-cols-1 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-1 min-w-[160px]">
+          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Client</Label>
+          <Select value={clientId} onValueChange={(v) => { setClientId(v); setSelectedKey(null); }}>
+            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {clients.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
+        <div className="space-y-1 min-w-[160px]">
+          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Month folder</Label>
+          <Input value={monthFolder} onChange={(e) => setMonthFolder(e.target.value)} className="h-9" placeholder="September-2026" />
+        </div>
+
+        <div className="space-y-1 min-w-[140px]">
+          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Link status</Label>
+          <Select value={linkFilter} onValueChange={(v) => setLinkFilter(v as LinkFilter)}>
+            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All slots</SelectItem>
+              <SelectItem value="linked">Linked</SelectItem>
+              <SelectItem value="unlinked">Unlinked</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-end">
+          <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => load()} disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+          </Button>
+        </div>
+      </div>
+
+      {/* List + side panel — a plain flex row now that the header/filters
+          above are outside it, so the aside's top lines up with the first
+          slot row (SF1) instead of with the page title. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      {/* Main list */}
+      <div className="min-w-0 flex-1 space-y-4">
         {loading ? (
           <div className="flex h-48 items-center justify-center text-slate-500">
             <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading slots…
@@ -555,6 +559,7 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
           </div>
         )}
       </aside>
+      </div>
     </div>
   );
 }
