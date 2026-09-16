@@ -73,15 +73,10 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// Shows the script's full written content in the picker (not just the
-// title) so two scripts with generic titles like "Video 1" are still
-// distinguishable — and shows all of it, not a clipped preview, since a
-// truncated snippet isn't enough to tell scripts apart or confirm the
-// right one is attached. Falls back to the title only if there's no
-// content yet (a fresh, empty draft).
-function scriptLabel(content: string | undefined, title: string) {
-  const flat = (content || '').replace(/\s+/g, ' ').trim();
-  return flat || title;
+// Picker rows show the script name only — never the full body text.
+function scriptDisplayName(title: string | undefined | null) {
+  const name = (title || '').trim();
+  return name || 'Untitled script';
 }
 
 export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }) {
@@ -180,35 +175,32 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
     return !linkedElsewhere;
   });
 
-  const scriptsForPicker = availableShootScripts.filter((s) => {
-    // Prefer scripts not already on another slot's task, but always allow re-pick
-    return true;
-  });
-
-  // The dropdown should default to showing whatever script is already
-  // attached to a slot (previously it always opened blank, hiding the
-  // current attachment) — fall back to including it as an option even if
-  // it's not in the general "available" list (e.g. already fully in use).
-  const scriptKeyFor = (slot: Slot | null) => (slot?.shootScript ? `${slot.shootScript.shootTaskId}::${slot.shootScript.id}` : '');
-  const scriptOptionsFor = (slot: Slot | null) => {
-    if (!slot?.shootScript || scriptsForPicker.some((s) => s.id === slot.shootScript!.id && s.shootTaskId === slot.shootScript!.shootTaskId)) {
-      return scriptsForPicker;
+  // Scripts already attached to any editor task must leave the picker.
+  const linkedScriptKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const slot of slots) {
+      if (slot.shootScript) {
+        keys.add(`${slot.shootScript.shootTaskId}::${slot.shootScript.id}`);
+      }
     }
-    return [
-      {
-        id: slot.shootScript.id,
-        shootTaskId: slot.shootScript.shootTaskId,
-        title: slot.shootScript.title,
-        content: slot.shootScript.content,
-        status: slot.shootScript.status,
-        shootDate: slot.shootScript.shootDate,
-        shootTitle: null,
-      },
-      ...scriptsForPicker,
-    ];
-  };
-  const currentScriptKey = scriptKeyFor(selected);
-  const scriptPickerOptions = useMemo(() => scriptOptionsFor(selected), [scriptsForPicker, selected]);
+    for (const task of tasks) {
+      if (!task.shootScriptRef) continue;
+      try {
+        const ref = JSON.parse(task.shootScriptRef) as { shootTaskId?: string; scriptId?: string };
+        if (ref.shootTaskId && ref.scriptId) keys.add(`${ref.shootTaskId}::${ref.scriptId}`);
+      } catch {
+        /* ignore malformed refs */
+      }
+    }
+    return keys;
+  }, [slots, tasks]);
+
+  // Only unlinked scripts — names only in the UI. Currently attached scripts
+  // are shown in slot metadata / the attached banner, not in this list.
+  const scriptsForPicker = useMemo(
+    () => availableShootScripts.filter((s) => !linkedScriptKeys.has(`${s.shootTaskId}::${s.id}`)),
+    [availableShootScripts, linkedScriptKeys],
+  );
 
   // Inline row dropdown — clicking a slot row's chevron opens a small
   // script picker right on that row (no need to select the slot and go
@@ -356,28 +348,50 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                       ) : (
                         <>
                           <div className="space-y-1.5">
-                            {scriptOptionsFor(slot).map((s) => {
-                              const key = `${s.shootTaskId}::${s.id}`;
-                              const isCurrent = key === scriptKeyFor(slot);
-                              const isPicked = rowScriptPick ? rowScriptPick === key : isCurrent;
-                              return (
-                                <button
-                                  key={key}
-                                  type="button"
-                                  onClick={() => setRowScriptPick(key)}
-                                  className={cn(
-                                    'w-full rounded-lg border px-3 py-2 text-left transition-colors',
-                                    isPicked ? 'border-slate-900 bg-white' : 'border-slate-200 bg-white hover:bg-slate-50',
-                                  )}
-                                >
-                                  <p className="whitespace-normal break-words text-sm text-slate-900">{scriptLabel(s.content, s.title)}</p>
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    {s.shootDate ? formatDate(s.shootDate) : 'Unscheduled'} — {s.status}
-                                    {isCurrent && ' · currently attached'}
-                                  </p>
-                                </button>
-                              );
-                            })}
+                            {slot.shootScript && (
+                              <div className={cn('rounded-lg border px-3 py-2', active ? 'border-white/20 bg-white/10' : 'border-emerald-200 bg-emerald-50')}>
+                                <p className={cn('text-sm font-medium', active ? 'text-white' : 'text-slate-900')}>
+                                  {scriptDisplayName(slot.shootScript.title)}
+                                </p>
+                                <p className={cn('mt-0.5 text-xs', active ? 'text-white/70' : 'text-emerald-700')}>
+                                  Currently attached
+                                </p>
+                              </div>
+                            )}
+                            {scriptsForPicker.length === 0 ? (
+                              <p className={cn('text-xs', active ? 'text-white/70' : 'text-slate-500')}>
+                                {slot.shootScript
+                                  ? 'No other unlinked scripts available to swap in.'
+                                  : 'No unlinked scripts available for this client.'}
+                              </p>
+                            ) : (
+                              scriptsForPicker.map((s) => {
+                                const key = `${s.shootTaskId}::${s.id}`;
+                                const isPicked = rowScriptPick === key;
+                                return (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => setRowScriptPick(key)}
+                                    className={cn(
+                                      'w-full rounded-lg border px-3 py-2 text-left transition-colors',
+                                      isPicked
+                                        ? active
+                                          ? 'border-white bg-white text-slate-900'
+                                          : 'border-slate-900 bg-white'
+                                        : active
+                                          ? 'border-white/20 bg-white/5 text-white hover:bg-white/10'
+                                          : 'border-slate-200 bg-white hover:bg-slate-50',
+                                    )}
+                                  >
+                                    <p className="truncate text-sm font-medium">{scriptDisplayName(s.title)}</p>
+                                    <p className={cn('mt-1 text-xs', active && !isPicked ? 'text-white/60' : 'text-slate-500')}>
+                                      {s.shootDate ? formatDate(s.shootDate) : 'Unscheduled'} — {s.status}
+                                    </p>
+                                  </button>
+                                );
+                              })
+                            )}
                           </div>
                           <div className="flex gap-2">
                             <Button
@@ -458,33 +472,42 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
               <h3 className="text-sm font-semibold text-slate-900">1. Attach a script</h3>
               {selected.folder.taskId ? (
                 <>
-                  <div className="max-h-[320px] space-y-1.5 overflow-y-auto">
-                    {scriptPickerOptions.map((s) => {
-                      const key = `${s.shootTaskId}::${s.id}`;
-                      const isCurrent = key === currentScriptKey;
-                      const isPicked = scriptPick ? scriptPick === key : isCurrent;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setScriptPick(key)}
-                          className={cn(
-                            'w-full rounded-lg border px-3 py-2 text-left transition-colors',
-                            isPicked ? 'border-slate-900 bg-white' : 'border-slate-200 bg-white hover:bg-slate-50',
-                          )}
-                        >
-                          <p className="whitespace-normal break-words text-sm text-slate-900">{scriptLabel(s.content, s.title)}</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {s.shootDate ? formatDate(s.shootDate) : 'Unscheduled'} — {s.status}
-                            {isCurrent && ' · currently attached'}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {selected.shootScript && !scriptPick && (
-                    <p className="text-xs text-slate-500">Currently attached — pick a different one above to swap it, or unlink below.</p>
+                  {selected.shootScript && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                      <p className="text-sm font-medium text-slate-900">{scriptDisplayName(selected.shootScript.title)}</p>
+                      <p className="mt-0.5 text-xs text-emerald-700">Currently attached — pick another below to swap, or unlink.</p>
+                    </div>
                   )}
+                  <div className="max-h-[320px] space-y-1.5 overflow-y-auto">
+                    {scriptsForPicker.length === 0 ? (
+                      <p className="text-xs text-slate-500 px-1 py-2">
+                        {selected.shootScript
+                          ? 'No other unlinked scripts available to swap in.'
+                          : 'No unlinked scripts available for this client.'}
+                      </p>
+                    ) : (
+                      scriptsForPicker.map((s) => {
+                        const key = `${s.shootTaskId}::${s.id}`;
+                        const isPicked = scriptPick === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setScriptPick(key)}
+                            className={cn(
+                              'w-full rounded-lg border px-3 py-2 text-left transition-colors',
+                              isPicked ? 'border-slate-900 bg-white' : 'border-slate-200 bg-white hover:bg-slate-50',
+                            )}
+                          >
+                            <p className="truncate text-sm font-medium text-slate-900">{scriptDisplayName(s.title)}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {s.shootDate ? formatDate(s.shootDate) : 'Unscheduled'} — {s.status}
+                            </p>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       className="h-9 flex-1 gap-1.5 bg-slate-950 hover:opacity-90"
