@@ -109,14 +109,6 @@ export async function POST(req: NextRequest) {
         errors.push(
           `Task "${row.title || taskId}": ${eligibility.disabledReason || "not eligible"}`,
         );
-        continue;
-      }
-
-      // Extra guard — same window check (validate already covers this)
-      if (!taskWorkedInEstWindow(row, todayDate)) {
-        errors.push(
-          `Task "${row.title}" was not worked on today between 9:00 AM–7:00 PM ET`,
-        );
       }
     }
 
