@@ -73,14 +73,15 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// Shows the script's actual written content in the picker (e.g. "Objective:
-// why we're filming this...") instead of just repeating its title, so two
-// scripts with generic titles like "Video 1" are still distinguishable.
-// Falls back to the title if there's no content yet (a fresh, empty draft).
-function previewContent(content: string | undefined, title: string, max = 70) {
+// Shows the script's full written content in the picker (not just the
+// title) so two scripts with generic titles like "Video 1" are still
+// distinguishable — and shows all of it, not a clipped preview, since a
+// truncated snippet isn't enough to tell scripts apart or confirm the
+// right one is attached. Falls back to the title only if there's no
+// content yet (a fresh, empty draft).
+function scriptLabel(content: string | undefined, title: string) {
   const flat = (content || '').replace(/\s+/g, ' ').trim();
-  if (!flat) return title;
-  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+  return flat || title;
 }
 
 export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }) {
@@ -354,18 +355,20 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                         </p>
                       ) : (
                         <>
-                          <select
-                            className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                            value={rowScriptPick || scriptKeyFor(slot)}
-                            onChange={(e) => setRowScriptPick(e.target.value)}
-                          >
-                            <option value="">Choose an existing shoot script…</option>
-                            {scriptOptionsFor(slot).map((s) => (
-                              <option key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`}>
-                                {previewContent(s.content, s.title)} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
-                              </option>
-                            ))}
-                          </select>
+                          <Select value={rowScriptPick || scriptKeyFor(slot)} onValueChange={(v) => setRowScriptPick(v)}>
+                            <SelectTrigger className="h-auto min-h-9 w-full whitespace-normal py-2 text-left text-sm text-slate-900 *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:whitespace-normal *:data-[slot=select-value]:text-left">
+                              <SelectValue placeholder="Choose an existing shoot script…" />
+                            </SelectTrigger>
+                            <SelectContent className="max-w-[520px]">
+                              {scriptOptionsFor(slot).map((s) => (
+                                <SelectItem key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`} className="whitespace-normal py-2 [&>span]:whitespace-normal">
+                                  <span className="block whitespace-normal break-words">
+                                    {scriptLabel(s.content, s.title)} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -445,18 +448,20 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
               <h3 className="text-sm font-semibold text-slate-900">1. Attach a script</h3>
               {selected.folder.taskId ? (
                 <>
-                  <select
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
-                    value={scriptPick || currentScriptKey}
-                    onChange={(e) => setScriptPick(e.target.value)}
-                  >
-                    <option value="">Choose an existing shoot script…</option>
-                    {scriptPickerOptions.map((s) => (
-                      <option key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`}>
-                        {previewContent(s.content, s.title)} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={scriptPick || currentScriptKey} onValueChange={(v) => setScriptPick(v)}>
+                    <SelectTrigger className="h-auto min-h-10 w-full whitespace-normal py-2 text-left text-sm *:data-[slot=select-value]:line-clamp-none *:data-[slot=select-value]:whitespace-normal *:data-[slot=select-value]:text-left">
+                      <SelectValue placeholder="Choose an existing shoot script…" />
+                    </SelectTrigger>
+                    <SelectContent className="max-w-[500px]">
+                      {scriptPickerOptions.map((s) => (
+                        <SelectItem key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`} className="whitespace-normal py-2 [&>span]:whitespace-normal">
+                          <span className="block whitespace-normal break-words">
+                            {scriptLabel(s.content, s.title)} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   {selected.shootScript && !scriptPick && (
                     <p className="text-xs text-slate-500">Currently attached — pick a different one above to swap it, or unlink below.</p>
                   )}
