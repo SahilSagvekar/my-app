@@ -178,10 +178,6 @@ export function EditorEodReport() {
         label: "Posted",
         className: "bg-teal-100 text-teal-700 border-teal-200",
       },
-      REJECTED: {
-        label: "Rejected by QC",
-        className: "bg-red-100 text-red-700 border-red-200",
-      },
       REJECTED_BY_QC: {
         label: "Rejected by QC",
         className: "bg-red-100 text-red-700 border-red-200",
@@ -189,6 +185,11 @@ export function EditorEodReport() {
       REJECTED_BY_CLIENT: {
         label: "Rejected by Client",
         className: "bg-rose-100 text-rose-700 border-rose-200",
+      },
+      // Legacy value — kept so any unmigrated rows still render a readable pill
+      REJECTED: {
+        label: "Rejected by QC",
+        className: "bg-red-100 text-red-700 border-red-200",
       },
     };
     const info = map[status] || {
