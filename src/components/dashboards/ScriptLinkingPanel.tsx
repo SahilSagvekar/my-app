@@ -174,26 +174,48 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
   });
 
   // The dropdown should default to showing whatever script is already
-  // attached to this slot (previously it always opened blank, hiding the
+  // attached to a slot (previously it always opened blank, hiding the
   // current attachment) — fall back to including it as an option even if
   // it's not in the general "available" list (e.g. already fully in use).
-  const currentScriptKey = selected?.shootScript ? `${selected.shootScript.shootTaskId}::${selected.shootScript.id}` : '';
-  const scriptPickerOptions = useMemo(() => {
-    if (!selected?.shootScript || scriptsForPicker.some((s) => s.id === selected.shootScript!.id && s.shootTaskId === selected.shootScript!.shootTaskId)) {
+  const scriptKeyFor = (slot: Slot | null) => (slot?.shootScript ? `${slot.shootScript.shootTaskId}::${slot.shootScript.id}` : '');
+  const scriptOptionsFor = (slot: Slot | null) => {
+    if (!slot?.shootScript || scriptsForPicker.some((s) => s.id === slot.shootScript!.id && s.shootTaskId === slot.shootScript!.shootTaskId)) {
       return scriptsForPicker;
     }
     return [
       {
-        id: selected.shootScript.id,
-        shootTaskId: selected.shootScript.shootTaskId,
-        title: selected.shootScript.title,
-        status: selected.shootScript.status,
-        shootDate: selected.shootScript.shootDate,
+        id: slot.shootScript.id,
+        shootTaskId: slot.shootScript.shootTaskId,
+        title: slot.shootScript.title,
+        status: slot.shootScript.status,
+        shootDate: slot.shootScript.shootDate,
         shootTitle: null,
       },
       ...scriptsForPicker,
     ];
-  }, [scriptsForPicker, selected]);
+  };
+  const currentScriptKey = scriptKeyFor(selected);
+  const scriptPickerOptions = useMemo(() => scriptOptionsFor(selected), [scriptsForPicker, selected]);
+
+  // Inline row dropdown — clicking a slot row's chevron opens a small
+  // script picker right on that row (no need to select the slot and go
+  // find the side panel's "Attach a script" section first).
+  const [rowDropdownKey, setRowDropdownKey] = useState<string | null>(null);
+  const [rowScriptPick, setRowScriptPick] = useState('');
+  const toggleRowDropdown = (key: string) => {
+    setRowDropdownKey((current) => (current === key ? null : key));
+    setRowScriptPick('');
+  };
+  const linkScriptToSlot = async (slot: Slot) => {
+    if (!rowScriptPick || !slot.folder.taskId) return;
+    const [shootTaskId, scriptId] = rowScriptPick.split('::');
+    await runAction('link-script-to-task', { taskId: slot.folder.taskId, shootTaskId, scriptId }, 'Script linked to this slot’s task');
+    setRowDropdownKey(null);
+    setRowScriptPick('');
+  };
+  const unlinkScriptFromSlot = async (slot: Slot) => {
+    await runAction('unlink-script-from-task', { taskId: slot.folder.taskId }, 'Script unlinked');
+  };
 
   const isSlotLinked = (slot: Slot) => slot.hasScript && !!slot.folder.taskId;
   const visibleSlots = useMemo(
@@ -269,37 +291,91 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
           <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
             {visibleSlots.map((slot) => {
               const active = slot.key === selectedKey;
+              const dropdownOpen = rowDropdownKey === slot.key;
               return (
-                <button
-                  key={slot.key}
-                  type="button"
-                  onClick={() => setSelectedKey(slot.key)}
-                  className={cn(
-                    'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors',
-                    active ? 'bg-slate-950 text-white' : 'bg-white hover:bg-slate-50',
-                  )}
-                >
-                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold', active ? 'bg-white/15' : 'bg-slate-100 text-slate-900')}>
-                    {slot.key}
+                <div key={slot.key} className={cn('transition-colors', active ? 'bg-slate-950 text-white' : 'bg-white hover:bg-slate-50')}>
+                  <div className="flex w-full items-center gap-3 px-4 py-3 text-left">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedKey(slot.key)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold', active ? 'bg-white/15' : 'bg-slate-100 text-slate-900')}>
+                        {slot.key}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold">{slot.folder.taskTitle || 'No editor task'}</span>
+                          {slot.hasScript ? (
+                            <Badge variant="secondary" className={cn('text-[10px]', active && 'bg-white/20 text-white')}>Script linked</Badge>
+                          ) : (
+                            <Badge variant="outline" className={cn('text-[10px]', active && 'border-white/30 text-white/80')}>No script</Badge>
+                          )}
+                        </div>
+                        <p className={cn('mt-0.5 truncate text-xs', active ? 'text-white/70' : 'text-slate-500')}>
+                          {slot.shootDates.length
+                            ? `Shoot ${slot.shootDates.map(formatDate).join(', ')}`
+                            : 'Unscheduled'}
+                          {slot.shootScript ? ` · ${slot.shootScript.title}` : slot.deliverableScript ? ` · ${slot.deliverableScript.title}` : ''}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleRowDropdown(slot.key)}
+                      aria-label={dropdownOpen ? 'Close script picker' : 'Open script picker'}
+                      className={cn('shrink-0 rounded-md p-1.5 transition-colors', active ? 'hover:bg-white/10' : 'hover:bg-slate-200/70')}
+                    >
+                      <ChevronRight className={cn('h-4 w-4 shrink-0 transition-transform', dropdownOpen && 'rotate-90', active ? 'text-white/70' : 'text-slate-400')} />
+                    </button>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{slot.folder.taskTitle || 'No editor task'}</span>
-                      {slot.hasScript ? (
-                        <Badge variant="secondary" className={cn('text-[10px]', active && 'bg-white/20 text-white')}>Script linked</Badge>
+
+                  {dropdownOpen && (
+                    <div className={cn('space-y-2 border-t px-4 py-3', active ? 'border-white/10' : 'border-slate-100 bg-slate-50')}>
+                      {!slot.folder.taskId ? (
+                        <p className={cn('text-xs', active ? 'text-white/70' : 'text-amber-700')}>
+                          Link an editor task to this slot first — scripts attach to the task that owns the folder.
+                        </p>
                       ) : (
-                        <Badge variant="outline" className={cn('text-[10px]', active && 'border-white/30 text-white/80')}>No script</Badge>
+                        <>
+                          <select
+                            className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900"
+                            value={rowScriptPick || scriptKeyFor(slot)}
+                            onChange={(e) => setRowScriptPick(e.target.value)}
+                          >
+                            <option value="">Choose an existing shoot script…</option>
+                            {scriptOptionsFor(slot).map((s) => (
+                              <option key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`}>
+                                {s.title} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              className="h-8 flex-1 gap-1.5 bg-slate-950 text-xs hover:opacity-90"
+                              disabled={busy || !rowScriptPick}
+                              onClick={() => void linkScriptToSlot(slot)}
+                            >
+                              <Link2 className="h-3.5 w-3.5" /> Link script
+                            </Button>
+                            {slot.shootScript && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1.5 text-xs"
+                                disabled={busy}
+                                onClick={() => void unlinkScriptFromSlot(slot)}
+                              >
+                                <Unlink className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
-                    <p className={cn('mt-0.5 truncate text-xs', active ? 'text-white/70' : 'text-slate-500')}>
-                      {slot.shootDates.length
-                        ? `Shoot ${slot.shootDates.map(formatDate).join(', ')}`
-                        : 'Unscheduled'}
-                      {slot.shootScript ? ` · ${slot.shootScript.title}` : slot.deliverableScript ? ` · ${slot.deliverableScript.title}` : ''}
-                    </p>
-                  </div>
-                  <ChevronRight className={cn('h-4 w-4 shrink-0', active ? 'text-white/70' : 'text-slate-400')} />
-                </button>
+                  )}
+                </div>
               );
             })}
           </div>
