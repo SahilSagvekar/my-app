@@ -502,7 +502,7 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
   const ManagementDropdown = () => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="h-10 gap-2 rounded-lg border-slate-200 bg-white font-medium text-slate-800">
           Manage <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -671,22 +671,22 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
 
   // Helper for consistent page headers
   const AdminPageHeader = ({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) => (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+    <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">{title}</h1>
-        <p className="text-muted-foreground mt-1 text-lg">
+        <h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">{title}</h1>
+        <p className="mt-1 text-sm text-slate-500">
           {description}
         </p>
       </div>
-      <div className="flex items-center w-full md:w-auto gap-3">
+      <div className="flex w-full items-center gap-3 md:w-auto">
         {children}
-        <div className="flex items-center gap-3 ml-auto md:ml-0">
+        <div className="ml-auto flex items-center gap-3 md:ml-0">
           <ManagementDropdown />
           <CreateTaskDialog
             onTaskCreated={handleTaskCreated}
             trigger={
-              <Button className="shadow-sm">
-                <Plus className="h-4 w-4 mr-2" />
+              <Button className="h-10 rounded-lg bg-slate-950 px-4 font-medium text-white shadow-none hover:bg-slate-800">
+                <Plus className="mr-2 h-4 w-4" />
                 Create Task
               </Button>
             }
