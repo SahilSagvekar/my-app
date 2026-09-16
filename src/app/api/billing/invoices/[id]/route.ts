@@ -12,6 +12,7 @@ import {
   createInvoiceCheckoutSession,
   formatAmount
 } from '@/lib/stripe';
+import { sendInvoiceCopiesToAdditionalEmails } from '@/lib/email';
 
 // GET - Get single invoice
 export async function GET(
@@ -137,8 +138,21 @@ export async function PATCH(
         with: { stripeCustomer: { with: { client: true } } },
       });
 
-      // TODO: Send email notification to client
-      // await sendInvoiceEmail(updatedInvoice);
+      // Stripe emails the primary Client.email; fan out individual copies
+      // to Client.emails (additional addresses) with the hosted invoice link.
+      const clientIdForCopies = updatedInvoice?.stripeCustomer?.client?.id;
+      if (clientIdForCopies && stripeHostedInvoiceUrl) {
+        await sendInvoiceCopiesToAdditionalEmails({
+          clientId: clientIdForCopies,
+          invoiceNumber: invoice.invoiceNumber,
+          amountCents: invoice.amount,
+          currency: invoice.currency || 'usd',
+          description: invoice.description,
+          dueDate: invoice.dueDate,
+          invoiceUrl: stripeHostedInvoiceUrl,
+          pdfUrl: stripePdfUrl,
+        });
+      }
 
       return NextResponse.json({ ok: true, invoice: updatedInvoice });
     }

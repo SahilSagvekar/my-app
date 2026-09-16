@@ -15,6 +15,7 @@ import {
   toCents,
   stripe,
 } from '@/lib/stripe';
+import { sendInvoiceCopiesToAdditionalEmails } from '@/lib/email';
 
 // GET - List invoices (with filters)
 export async function GET(req: NextRequest) {
@@ -250,6 +251,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create invoice in our database
+    const dueDateIso = (dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).toISOString();
     const [createdInvoiceRow] = await db.insert(invoice).values({
       id: createId(),
       stripeCustomerId: dbStripeCustomer.id,
@@ -258,7 +260,7 @@ export async function POST(req: NextRequest) {
       status: sendImmediately ? 'SENT' : 'DRAFT',
       amount: finalTotalAmount,
       currency: 'usd',
-      dueDate: (dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).toISOString(),
+      dueDate: dueDateIso,
       description,
       lineItems: finalLineItems,
       notes,
@@ -269,6 +271,19 @@ export async function POST(req: NextRequest) {
       metadata: invoiceType === 'ONE_OFF' ? { invoiceType: 'ONE_OFF', taskIds } : undefined,
       updatedAt: new Date().toISOString(),
     }).returning();
+
+    if (sendImmediately && stripeHostedInvoiceUrl) {
+      await sendInvoiceCopiesToAdditionalEmails({
+        clientId,
+        invoiceNumber,
+        amountCents: finalTotalAmount,
+        currency: 'usd',
+        description,
+        dueDate: dueDateIso,
+        invoiceUrl: stripeHostedInvoiceUrl,
+        pdfUrl: stripePdfUrl,
+      });
+    }
 
     const createdInvoice = await db.query.invoice.findFirst({
       where: eq(invoice.id, createdInvoiceRow.id),

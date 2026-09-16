@@ -25,6 +25,7 @@ import {
   stripe,
 } from '@/lib/stripe';
 import { advanceOneCalendarMonth } from '@/lib/auto-invoice';
+import { sendInvoiceCopiesToAdditionalEmails } from '@/lib/email';
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = req.headers.get('x-cron-secret');
@@ -322,6 +323,17 @@ async function runAutoInvoice(req: NextRequest, dryRun: boolean) {
           sentAt: now.toISOString(),
           metadata: { invoiceType: 'RECURRING', billingCycle },
           updatedAt: new Date().toISOString(),
+        });
+
+        await sendInvoiceCopiesToAdditionalEmails({
+          clientId: client.id,
+          invoiceNumber,
+          amountCents: finalTotalAmount,
+          currency: 'usd',
+          description: lineItemDescription,
+          dueDate: dueDate.toISOString(),
+          invoiceUrl: sentInvoice.hosted_invoice_url,
+          pdfUrl: sentInvoice.invoice_pdf,
         });
 
         const nextBilling = advanceOneCalendarMonth(portalAccess.nextBillingDate!);

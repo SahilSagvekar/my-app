@@ -1546,6 +1546,149 @@ export async function sendContractReminderEmail(data: {
 }
 
 // ==========================================
+// CLIENT INVOICE COPY EMAILS (additional recipients)
+// ==========================================
+//
+// Stripe's sendInvoice emails only the Stripe Customer's single email
+// (our Client.email / primary). Clients can also store Additional Emails
+// (Client.emails). After Stripe sends to the primary, we fan out a
+// separate copy of the invoice email to each additional address — one
+// message per recipient, not CC.
+
+export interface InvoiceCopyEmailData {
+  clientId: string;
+  invoiceNumber: string;
+  /** Amount in cents (Stripe / local invoice amount). */
+  amountCents: number;
+  currency?: string;
+  description?: string | null;
+  dueDate?: string | Date | null;
+  invoiceUrl?: string | null;
+  pdfUrl?: string | null;
+}
+
+/**
+ * Send an individual invoice email to each Client.emails address.
+ * Skips the primary Client.email (Stripe already emailed them).
+ * Failures are logged and do not throw — invoice send must not roll back.
+ */
+export async function sendInvoiceCopiesToAdditionalEmails(
+  data: InvoiceCopyEmailData
+): Promise<{ sent: string[] }> {
+  const sent: string[] = [];
+
+  try {
+    const { getDbHttp } = await import('@/lib/db');
+    const { client: clientTable } = await import('@/lib/db/schema');
+    const { eq } = await import('drizzle-orm');
+    const db = getDbHttp();
+
+    const [client] = await db
+      .select({
+        name: clientTable.name,
+        companyName: clientTable.companyName,
+        email: clientTable.email,
+        emails: clientTable.emails,
+      })
+      .from(clientTable)
+      .where(eq(clientTable.id, data.clientId))
+      .limit(1);
+
+    if (!client) {
+      console.warn(`[InvoiceCopy] Client ${data.clientId} not found — skipping additional emails`);
+      return { sent };
+    }
+
+    const primary = (client.email || '').trim().toLowerCase();
+    const additional = Array.from(
+      new Set(
+        (client.emails || [])
+          .map((e) => (e || '').trim())
+          .filter((e) => e && e.toLowerCase() !== primary)
+      )
+    );
+
+    if (additional.length === 0) {
+      console.log(`[InvoiceCopy] No additional emails for client ${data.clientId}`);
+      return { sent };
+    }
+
+    const clientName = client.companyName || client.name || 'there';
+    const currency = (data.currency || 'usd').toUpperCase();
+    const amountLabel = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+    }).format((data.amountCents || 0) / 100);
+
+    let dueLabel = '';
+    if (data.dueDate) {
+      const due = data.dueDate instanceof Date ? data.dueDate : new Date(data.dueDate);
+      if (!isNaN(due.getTime())) {
+        dueLabel = due.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+      }
+    }
+
+    const description = (data.description || '').trim();
+    const invoiceUrl = data.invoiceUrl || '';
+    const pdfUrl = data.pdfUrl || '';
+
+    const contentHtml = `
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">New invoice</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${clientName},</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">An invoice is ready for you.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:28px;font-weight:bold;color:#0a0a0b;">${amountLabel}</td></tr>
+      <tr><td class="px" style="padding:4px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Invoice ${data.invoiceNumber}${dueLabel ? ' · Due ' + dueLabel : ''}</td></tr>
+      ${description ? `<tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#222225;">${description}</td></tr>` : ''}
+      <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+          ${invoiceUrl ? `<td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b"><a href="${invoiceUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">View &amp; Pay Invoice</a></td>` : ''}
+          ${invoiceUrl && pdfUrl ? `<td style="width:10px;">&nbsp;</td>` : ''}
+          ${pdfUrl ? `<td style="background-color:#ffffff;border:1px solid #d3d3d6;text-align:center;border-radius:8px;"><a href="${pdfUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#0a0a0b;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Download PDF</a></td>` : ''}
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">If you have questions, reply to this email or contact <a href="mailto:payments@e8productions.com" style="color:#0a0a0b;">payments@e8productions.com</a>.</td></tr>`;
+
+    const html = renderEmailShell({
+      previewText: `Invoice ${data.invoiceNumber} is ready for your account.`,
+      contentHtml,
+    });
+
+    const transporter = createTransporter();
+    if (!transporter) {
+      console.log(
+        `📧 [DEV] Invoice ${data.invoiceNumber} copy would be sent individually to:`,
+        additional
+      );
+      return { sent: additional };
+    }
+
+    for (const to of additional) {
+      try {
+        const mailOptions = {
+          from: `"E8 Productions Billing" <${process.env.SMTP_USER}>`,
+          to,
+          subject: `Invoice ${data.invoiceNumber} from E8 Productions — ${amountLabel}`,
+          html,
+        };
+        await transporter.sendMail(addGlobalBcc(mailOptions));
+        sent.push(to);
+        console.log(`✅ Invoice copy sent to additional email: ${to}`);
+      } catch (err) {
+        console.error(`❌ Failed to send invoice copy to ${to}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error('[InvoiceCopy] Unexpected error fan-out:', err);
+  }
+
+  return { sent };
+}
+
+// ==========================================
 // PAYMENT NOTIFICATION EMAILS
 // ==========================================
 

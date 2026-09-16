@@ -21,6 +21,7 @@ import { createId } from '@/lib/db/id';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import { getOrCreateStripeCustomer, createStripeInvoice, sendStripeInvoice, generateInvoiceNumber } from '@/lib/stripe';
+import { sendInvoiceCopiesToAdditionalEmails } from '@/lib/email';
 
 const DAYS_UNTIL_DUE = 15; // formal due date shown on the invoice — note the
 // portal-lock cron ignores this and locks 1 day after sending regardless.
@@ -97,6 +98,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const dueDate = new Date(now);
     dueDate.setDate(dueDate.getDate() + DAYS_UNTIL_DUE);
     const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const invoiceNumber = generateInvoiceNumber();
+    const description = `Expense reimbursement — ${trip.name}`;
 
     let newInvoiceId: string;
     await db.transaction(async (tx) => {
@@ -104,12 +107,12 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         id: createId(),
         stripeCustomerId: localStripeCustomer.id,
         stripeInvoiceId: sentInvoice.id,
-        invoiceNumber: generateInvoiceNumber(),
+        invoiceNumber,
         status: 'SENT',
         amount: totalAmount,
         currency: 'usd',
         dueDate: dueDate.toISOString(),
-        description: `Expense reimbursement — ${trip.name}`,
+        description,
         lineItems,
         isRecurring: false,
         stripeHostedInvoiceUrl: sentInvoice.hosted_invoice_url,
@@ -125,6 +128,17 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         invoiceId: newInvoice.id,
         updatedAt: now.toISOString(),
       }).where(inArray(clientExpense.id, expenseIds));
+    });
+
+    await sendInvoiceCopiesToAdditionalEmails({
+      clientId,
+      invoiceNumber,
+      amountCents: totalAmount,
+      currency: 'usd',
+      description,
+      dueDate: dueDate.toISOString(),
+      invoiceUrl: sentInvoice.hosted_invoice_url,
+      pdfUrl: sentInvoice.invoice_pdf,
     });
 
     return NextResponse.json({ success: true, invoiceId: newInvoiceId!, stripeHostedInvoiceUrl: sentInvoice.hosted_invoice_url });
