@@ -79,6 +79,47 @@ function scriptDisplayName(title: string | undefined | null) {
   return name || 'Untitled script';
 }
 
+function AttachedScriptCard({
+  title,
+  content,
+  active = false,
+  hint = 'Currently attached',
+}: {
+  title: string;
+  content: string;
+  active?: boolean;
+  hint?: string;
+}) {
+  const body = (content || '').trim();
+  return (
+    <div
+      className={cn(
+        'rounded-lg border px-3 py-2.5',
+        active ? 'border-white/20 bg-white/10' : 'border-emerald-200 bg-emerald-50',
+      )}
+    >
+      <p className={cn('text-sm font-semibold', active ? 'text-white' : 'text-slate-900')}>
+        {scriptDisplayName(title)}
+      </p>
+      {body ? (
+        <p
+          className={cn(
+            'mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-relaxed',
+            active ? 'text-white/90' : 'text-slate-800',
+          )}
+        >
+          {body}
+        </p>
+      ) : (
+        <p className={cn('mt-2 text-sm italic', active ? 'text-white/60' : 'text-slate-500')}>
+          No script content yet.
+        </p>
+      )}
+      <p className={cn('mt-2 text-xs', active ? 'text-white/70' : 'text-emerald-700')}>{hint}</p>
+    </div>
+  );
+}
+
 export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }) {
   const isStaff = mode === 'videographer';
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -349,14 +390,11 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                         <>
                           <div className="space-y-1.5">
                             {slot.shootScript && (
-                              <div className={cn('rounded-lg border px-3 py-2', active ? 'border-white/20 bg-white/10' : 'border-emerald-200 bg-emerald-50')}>
-                                <p className={cn('text-sm font-medium', active ? 'text-white' : 'text-slate-900')}>
-                                  {scriptDisplayName(slot.shootScript.title)}
-                                </p>
-                                <p className={cn('mt-0.5 text-xs', active ? 'text-white/70' : 'text-emerald-700')}>
-                                  Currently attached
-                                </p>
-                              </div>
+                              <AttachedScriptCard
+                                title={slot.shootScript.title}
+                                content={slot.shootScript.content}
+                                active={active}
+                              />
                             )}
                             {scriptsForPicker.length === 0 ? (
                               <p className={cn('text-xs', active ? 'text-white/70' : 'text-slate-500')}>
@@ -473,10 +511,11 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
               {selected.folder.taskId ? (
                 <>
                   {selected.shootScript && (
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
-                      <p className="text-sm font-medium text-slate-900">{scriptDisplayName(selected.shootScript.title)}</p>
-                      <p className="mt-0.5 text-xs text-emerald-700">Currently attached — pick another below to swap, or unlink.</p>
-                    </div>
+                    <AttachedScriptCard
+                      title={selected.shootScript.title}
+                      content={selected.shootScript.content}
+                      hint="Currently attached — pick another below to swap, or unlink."
+                    />
                   )}
                   <div className="max-h-[320px] space-y-1.5 overflow-y-auto">
                     {scriptsForPicker.length === 0 ? (
