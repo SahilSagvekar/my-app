@@ -593,9 +593,9 @@ export function ShootingSchedulePage() {
 
       {/* Create / Edit Shoot Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+        <DialogContent className="w-full sm:max-w-4xl lg:max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0">
           {/* Header */}
-          <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+          <div className="px-6 sm:px-8 pt-6 pb-4 border-b border-gray-100">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold text-gray-900">
                 {editingShootId ? 'Edit Shoot Day' : 'New Shoot Day'}
@@ -606,9 +606,9 @@ export function ShootingSchedulePage() {
             </DialogHeader>
           </div>
 
-          <div className="px-6 py-5 space-y-5">
+          <div className="px-6 sm:px-8 py-6 space-y-6">
             {/* 3-col header */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-[1.5fr_1.5fr_140px] gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs">Client</Label>
                 <Select value={form.clientId} onValueChange={(v) => { setForm(f => ({ ...f, clientId: v })); setAutoFilledVideos(null); fetchClientVideosPlanned(v); }}>
@@ -1063,7 +1063,7 @@ export function ShootingSchedulePage() {
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white sticky bottom-0">
+          <div className="px-6 sm:px-8 py-4 border-t border-gray-100 flex justify-end gap-3 bg-white sticky bottom-0">
             <Button variant="outline" className="h-10 px-5 border-gray-300 text-gray-700" onClick={() => setIsFormOpen(false)}>
               Cancel
             </Button>
