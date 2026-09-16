@@ -73,14 +73,15 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// Shows the script's actual written content in the picker (e.g. "Objective:
-// why we're filming this...") instead of just repeating its title, so two
-// scripts with generic titles like "Video 1" are still distinguishable.
-// Falls back to the title if there's no content yet (a fresh, empty draft).
-function previewContent(content: string | undefined, title: string, max = 70) {
+// Shows the script's full written content in the picker (not just the
+// title) so two scripts with generic titles like "Video 1" are still
+// distinguishable — and shows all of it, not a clipped preview, since a
+// truncated snippet isn't enough to tell scripts apart or confirm the
+// right one is attached. Falls back to the title only if there's no
+// content yet (a fresh, empty draft).
+function scriptLabel(content: string | undefined, title: string) {
   const flat = (content || '').replace(/\s+/g, ' ').trim();
-  if (!flat) return title;
-  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
+  return flat || title;
 }
 
 export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }) {
@@ -316,9 +317,9 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                       onClick={() => setSelectedKey(slot.key)}
                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
                     >
-                      {/* <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold', active ? 'bg-white/15' : 'bg-slate-100 text-slate-900')}>
+                      <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold', active ? 'bg-white/15' : 'bg-slate-100 text-slate-900')}>
                         {slot.key}
-                      </div> */}
+                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-semibold">{slot.folder.taskTitle || 'No editor task'}</span>
@@ -354,18 +355,30 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                         </p>
                       ) : (
                         <>
-                          <select
-                            className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900"
-                            value={rowScriptPick || scriptKeyFor(slot)}
-                            onChange={(e) => setRowScriptPick(e.target.value)}
-                          >
-                            <option value="">Choose an existing shoot script…</option>
-                            {scriptOptionsFor(slot).map((s) => (
-                              <option key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`}>
-                                {previewContent(s.content, s.title)} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="space-y-1.5">
+                            {scriptOptionsFor(slot).map((s) => {
+                              const key = `${s.shootTaskId}::${s.id}`;
+                              const isCurrent = key === scriptKeyFor(slot);
+                              const isPicked = rowScriptPick ? rowScriptPick === key : isCurrent;
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => setRowScriptPick(key)}
+                                  className={cn(
+                                    'w-full rounded-lg border px-3 py-2 text-left transition-colors',
+                                    isPicked ? 'border-slate-900 bg-white' : 'border-slate-200 bg-white hover:bg-slate-50',
+                                  )}
+                                >
+                                  <p className="whitespace-normal break-words text-sm text-slate-900">{scriptLabel(s.content, s.title)}</p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {s.shootDate ? formatDate(s.shootDate) : 'Unscheduled'} — {s.status}
+                                    {isCurrent && ' · currently attached'}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -445,18 +458,30 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
               <h3 className="text-sm font-semibold text-slate-900">1. Attach a script</h3>
               {selected.folder.taskId ? (
                 <>
-                  <select
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm"
-                    value={scriptPick || currentScriptKey}
-                    onChange={(e) => setScriptPick(e.target.value)}
-                  >
-                    <option value="">Choose an existing shoot script…</option>
-                    {scriptPickerOptions.map((s) => (
-                      <option key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`}>
-                        {previewContent(s.content, s.title)} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="max-h-[320px] space-y-1.5 overflow-y-auto">
+                    {scriptPickerOptions.map((s) => {
+                      const key = `${s.shootTaskId}::${s.id}`;
+                      const isCurrent = key === currentScriptKey;
+                      const isPicked = scriptPick ? scriptPick === key : isCurrent;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setScriptPick(key)}
+                          className={cn(
+                            'w-full rounded-lg border px-3 py-2 text-left transition-colors',
+                            isPicked ? 'border-slate-900 bg-white' : 'border-slate-200 bg-white hover:bg-slate-50',
+                          )}
+                        >
+                          <p className="whitespace-normal break-words text-sm text-slate-900">{scriptLabel(s.content, s.title)}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {s.shootDate ? formatDate(s.shootDate) : 'Unscheduled'} — {s.status}
+                            {isCurrent && ' · currently attached'}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
                   {selected.shootScript && !scriptPick && (
                     <p className="text-xs text-slate-500">Currently attached — pick a different one above to swap it, or unlink below.</p>
                   )}
