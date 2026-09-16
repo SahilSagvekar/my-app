@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
       return doc.scripts.map((script) => ({
         id: script.id,
         title: script.title,
+        content: script.content,
         status: script.status,
         shootTaskId: shoot.taskId,
         shootTitle: shoot.title,
@@ -120,6 +121,7 @@ export async function GET(req: NextRequest) {
       let linkedShootScript: {
         id: string;
         title: string;
+        content: string;
         status: string;
         shootTaskId: string;
         shootDate: string | null;
@@ -133,6 +135,7 @@ export async function GET(req: NextRequest) {
             linkedShootScript = {
               id: match.id,
               title: match.title,
+              content: match.content,
               status: match.status,
               shootTaskId: match.shootTaskId,
               shootDate: match.shootDate,
@@ -141,6 +144,7 @@ export async function GET(req: NextRequest) {
             linkedShootScript = {
               id: ref.scriptId,
               title: ref.scriptTitle || 'Linked script',
+              content: '',
               status: 'unknown',
               shootTaskId: ref.shootTaskId,
               shootDate: null,

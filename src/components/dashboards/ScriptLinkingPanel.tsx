@@ -40,7 +40,7 @@ interface Slot {
     taskTitle: string | null;
   };
   deliverableScript: { id: string; title: string; status: string; taskId: string | null } | null;
-  shootScript: { id: string; title: string; status: string; shootTaskId: string; shootDate: string | null } | null;
+  shootScript: { id: string; title: string; content: string; status: string; shootTaskId: string; shootDate: string | null } | null;
   shootDates: string[];
   hasScript: boolean;
 }
@@ -48,6 +48,7 @@ interface Slot {
 interface ShootScriptOption {
   id: string;
   title: string;
+  content: string;
   status: string;
   shootTaskId: string;
   shootTitle: string | null;
@@ -70,6 +71,16 @@ function currentMonthFolder(): string {
 function formatDate(value: string | null | undefined) {
   if (!value) return null;
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Shows the script's actual written content in the picker (e.g. "Objective:
+// why we're filming this...") instead of just repeating its title, so two
+// scripts with generic titles like "Video 1" are still distinguishable.
+// Falls back to the title if there's no content yet (a fresh, empty draft).
+function previewContent(content: string | undefined, title: string, max = 70) {
+  const flat = (content || '').replace(/\s+/g, ' ').trim();
+  if (!flat) return title;
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 }
 
 export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }) {
@@ -187,6 +198,7 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
         id: slot.shootScript.id,
         shootTaskId: slot.shootScript.shootTaskId,
         title: slot.shootScript.title,
+        content: slot.shootScript.content,
         status: slot.shootScript.status,
         shootDate: slot.shootScript.shootDate,
         shootTitle: null,
@@ -346,7 +358,7 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                             <option value="">Choose an existing shoot script…</option>
                             {scriptOptionsFor(slot).map((s) => (
                               <option key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`}>
-                                {s.title} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
+                                {previewContent(s.content, s.title)} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
                               </option>
                             ))}
                           </select>
@@ -437,7 +449,7 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
                     <option value="">Choose an existing shoot script…</option>
                     {scriptPickerOptions.map((s) => (
                       <option key={`${s.shootTaskId}:${s.id}`} value={`${s.shootTaskId}::${s.id}`}>
-                        {s.title} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
+                        {previewContent(s.content, s.title)} {s.shootDate ? `(${formatDate(s.shootDate)})` : ''} — {s.status}
                       </option>
                     ))}
                   </select>
