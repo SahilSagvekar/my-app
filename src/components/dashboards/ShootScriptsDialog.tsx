@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, Check, ChevronLeft, Eye, FilePlus2, Send, Trash2 } from 'lucide-react';
+import { AlertCircle, Check, ChevronLeft, Eye, FilePlus2, Send, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -11,6 +11,38 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { readShootScriptDocument, SCRIPT_TEMPLATES, type ShootScript, type ShootScriptDocument } from '@/lib/shoot-scripts';
 import { ScriptReferencesPanel } from './ScriptReferencesPanel';
+
+/** Pull plain text from an uploaded script file (.txt/.md/.csv/.rtf or .docx). */
+async function extractScriptText(file: File): Promise<string> {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.pdf')) {
+    throw new Error('PDF uploads are not supported — use .txt, .md, or .docx');
+  }
+  if (name.endsWith('.docx')) {
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const xml = await zip.file('word/document.xml')?.async('string');
+    if (!xml) throw new Error('Could not read Word document');
+    return xml
+      .replace(/<w:p[\s>]/g, '\n')
+      .replace(/<w:tab\/>/g, '\t')
+      .replace(/<w:br\s*\/>/g, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+  const text = await file.text();
+  // Reject obvious binary payloads (e.g. .doc legacy / images renamed as .txt)
+  if (/[\x00-\x08\x0E-\x1F]/.test(text.slice(0, 2000))) {
+    throw new Error('Could not read that file as text — try .txt, .md, or .docx');
+  }
+  return text.replace(/^\uFEFF/, '').trimEnd();
+}
 
 interface ShootForScripts { id: string; title: string | null; client: { id?: string | null; name?: string | null; companyName?: string | null } | null; scriptContent: string | null; shootDate?: string | null; }
 
@@ -45,7 +77,9 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [quota, setQuota] = useState<ScriptQuota | null>(null);
+  const [uploadingScript, setUploadingScript] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const fetchQuota = () => {
     if (!shoot?.client?.id) { setQuota(null); return; }
@@ -136,6 +170,24 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
   // another (redundant, and possibly stale-overwriting) save through the
   // main document PATCH the way update() above does.
   const applyLocalOnly = (patch: Partial<ShootScript>) => selected && setDocument(current => ({ ...current, scripts: current.scripts.map(s => s.id === selected.id ? { ...s, ...patch } : s) }));
+  const handleScriptFileUpload = async (file: File | undefined) => {
+    if (!file || !selected) return;
+    setUploadingScript(true);
+    try {
+      const text = await extractScriptText(file);
+      if (!text.trim()) {
+        toast.error('That file is empty — nothing to paste into the script');
+        return;
+      }
+      update({ content: text });
+      toast.success(`Loaded script from ${file.name}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not read script file');
+    } finally {
+      setUploadingScript(false);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
+    }
+  };
   // Marks this script's shoot as actually having happened — permanently
   // ties it to THIS shoot and counts it against the shared monthly pool.
   // Toggleable in case of a mis-click; unmarking frees the slot back up.
@@ -270,27 +322,48 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
             </div>
 
             <Tabs defaultValue="script" className="space-y-4">
-              <TabsList className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white p-1 gap-1">
-                <TabsTrigger
-                  value="script"
-                  className="rounded-md px-4 py-1.5 text-sm font-medium transition-colors data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none text-slate-700 hover:text-slate-950"
-                >
-                  Script
-                </TabsTrigger>
-                <TabsTrigger
-                  value="preview"
-                  className="rounded-md px-4 py-1.5 text-sm font-medium transition-colors data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none text-slate-700 hover:text-slate-950"
-                >
-                  Preview
-                </TabsTrigger>
-              </TabsList>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <TabsList className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white p-1 gap-1">
+                  <TabsTrigger
+                    value="script"
+                    className="rounded-md px-4 py-1.5 text-sm font-medium transition-colors data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none text-slate-700 hover:text-slate-950"
+                  >
+                    Script
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="preview"
+                    className="rounded-md px-4 py-1.5 text-sm font-medium transition-colors data-[state=active]:bg-slate-950 data-[state=active]:text-white data-[state=active]:shadow-none text-slate-700 hover:text-slate-950"
+                  >
+                    Preview
+                  </TabsTrigger>
+                </TabsList>
+                <div>
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept=".txt,.md,.markdown,.text,.csv,.rtf,.docx,text/plain,text/markdown,text/csv"
+                    className="hidden"
+                    onChange={(e) => { void handleScriptFileUpload(e.target.files?.[0]); }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={uploadingScript}
+                    className="h-10 gap-2 rounded-lg border-slate-200 px-4 text-slate-700 hover:bg-slate-50 font-medium"
+                    onClick={() => uploadInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4" />
+                    {uploadingScript ? 'Uploading…' : 'Upload Script'}
+                  </Button>
+                </div>
+              </div>
               <TabsContent value="script" className="mt-0">
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs min-h-[440px]">
                   <Textarea
                     value={selected.content}
                     onChange={e => update({ content: e.target.value })}
                     rows={16}
-                    placeholder="Paste your script here or start typing..."
+                    placeholder="Paste your script here, start typing, or use Upload Script…"
                     className="w-full min-h-[380px] border-0 p-0 text-base leading-relaxed focus-visible:ring-0 focus:outline-none resize-none font-normal text-slate-800 placeholder:text-slate-400 bg-transparent shadow-none"
                   />
                 </div>
