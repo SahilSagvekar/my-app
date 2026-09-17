@@ -44,6 +44,11 @@ interface Props {
   sfTaskId: string;
   clientId?: string | null;
   canEdit?: boolean;
+  // Optional — lets a consolidated actions menu keep its own local task
+  // state (e.g. for an "N actions" count) in sync without a full reload.
+  // Called with the linked task's id after a successful link, or null
+  // after a successful unlink.
+  onLinkedChange?: (relatedTaskId: string | null) => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -78,7 +83,7 @@ function StatusBadge({ status }: { status: string | null }) {
   );
 }
 
-export function LinkLfTask({ sfTaskId, clientId, canEdit = true }: Props) {
+export function LinkLfTask({ sfTaskId, clientId, canEdit = true, onLinkedChange }: Props) {
   const [linked, setLinked] = useState<LinkedLfTask | null>(null);
   const [loadingLinked, setLoadingLinked] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
@@ -138,6 +143,7 @@ export function LinkLfTask({ sfTaskId, clientId, canEdit = true }: Props) {
       setSearchQuery('');
       setSearchResults([]);
       await loadLinked();
+      onLinkedChange?.(lfTaskId);
     } catch (err: any) {
       toast.error(err.message || 'Failed to link');
     } finally {
@@ -152,6 +158,7 @@ export function LinkLfTask({ sfTaskId, clientId, canEdit = true }: Props) {
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
       toast.success('LF task unlinked');
       await loadLinked();
+      onLinkedChange?.(null);
     } catch (err: any) {
       toast.error(err.message || 'Failed to unlink');
     } finally {

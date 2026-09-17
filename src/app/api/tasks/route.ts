@@ -362,6 +362,15 @@ const effectiveRole =
           qcReviewedAt: true,
           qcResult: true,
           shootScriptRef: true,
+          // 🔥 Task Actions feature — these were missing from this allow-list
+          // entirely, so isSponsored/linkedRawFootagePaths/relatedTaskId only
+          // ever appeared correct via optimistic client state and silently
+          // reverted to blank on every real reload. Needed now for the
+          // Task Actions count to be accurate on load, not just post-toggle.
+          isSponsored: true,
+          linkedRawFootagePaths: true,
+          relatedTaskId: true,
+          noActionRequired: true,
         },
         with: {
           files: {

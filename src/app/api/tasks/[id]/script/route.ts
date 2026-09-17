@@ -192,6 +192,8 @@ export async function PATCH(
     scriptId,
     scriptTitle: scriptTitle || script.title || '',
   });
-  await db.update(taskTable).set({ shootScriptRef, updatedAt: now }).where(eq(taskTable.id, taskId));
+  // Attaching a script is a real Task Action — clears "No Action Required"
+  // if it was set.
+  await db.update(taskTable).set({ shootScriptRef, noActionRequired: false, updatedAt: now }).where(eq(taskTable.id, taskId));
   return NextResponse.json({ shootScriptRef: JSON.parse(shootScriptRef) });
 }

@@ -38,8 +38,11 @@ export async function PATCH(
 
     const [updatedTask] = await db.update(task).set({
       isSponsored,
+      // Marking sponsored is a real Task Action — clears "No Action
+      // Required" if it was set. Unmarking doesn't restore it.
+      ...(isSponsored ? { noActionRequired: false } : {}),
       updatedAt: new Date().toISOString(),
-    }).where(eq(task.id, id)).returning({ id: task.id, isSponsored: task.isSponsored });
+    }).where(eq(task.id, id)).returning({ id: task.id, isSponsored: task.isSponsored, noActionRequired: task.noActionRequired });
 
     return NextResponse.json(updatedTask);
   } catch (err: any) {

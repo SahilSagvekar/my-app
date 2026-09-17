@@ -6,7 +6,6 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Alert, AlertDescription } from "../ui/alert";
-import { LinkLfTask } from "../tasks/LinkLfTask";
 import {
   Select,
   SelectContent,
@@ -15,6 +14,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { TaskUploadSections } from "../workflow/TaskUploadSections";
+import { TaskActionsMenu, computeTaskActionCount } from "../workflow/TaskActionsMenu";
 import {
   Calendar,
   FileText,
@@ -32,7 +32,6 @@ import {
   Info,
   Play,
   ScrollText,
-  Link2,
   Unlink,
   Loader2,
 } from "lucide-react";
@@ -366,6 +365,11 @@ interface WorkflowTask {
   tags?: { id: string; name: string }[];
   // Linked shoot script reference — JSON string { shootTaskId, scriptId, scriptTitle }
   shootScriptRef?: string | null;
+  // 🔥 Task Actions feature — see /api/tasks columns fix; these were
+  // previously missing from the GET response entirely.
+  linkedRawFootagePaths?: string[] | null;
+  relatedTaskId?: string | null;
+  noActionRequired?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -554,6 +558,7 @@ function TaskCard({
   onAcknowledgeFeedback,
   currentUserId,
   onShootScriptChange,
+  onTaskFieldsChange,
 }: {
   task: WorkflowTask;
   onUploadComplete: (taskId: string, files: any[]) => void;
@@ -567,6 +572,7 @@ function TaskCard({
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
   currentUserId?: number;
   onShootScriptChange?: (taskId: string, shootScriptRef: string | null) => void;
+  onTaskFieldsChange?: (taskId: string, patch: Record<string, any>) => void;
 }) {
   // const [showFiles, setShowFiles] = useState(false);
   // const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
@@ -841,111 +847,6 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                 </Tooltip>
               )}
 
-              {/* Script attach / view — SF/LF tasks only */}
-              {canAttachScript && (
-                <Popover
-                  open={attachOpen}
-                  onOpenChange={(open) => {
-                    setAttachOpen(open);
-                    if (open) void loadAvailableScripts();
-                  }}
-                >
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={(e) => e.stopPropagation()}
-                      className={`inline-flex h-5 max-w-[140px] items-center gap-1 rounded-full border border-dashed px-1.5 text-[9px] font-semibold ${
-                        task.shootScriptRef
-                          ? 'border-violet-400 text-violet-600 hover:bg-violet-50'
-                          : 'border-slate-300 text-slate-500 hover:bg-slate-50'
-                      }`}
-                    >
-                      {task.shootScriptRef ? (
-                        <>
-                          <ScrollText className="h-2.5 w-2.5 shrink-0" />
-                          <span className="truncate">{linkedScriptTitle}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Link2 className="h-2.5 w-2.5 shrink-0" />
-                          <span>Attach script</span>
-                        </>
-                      )}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="end"
-                    className="w-72 p-3"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {task.shootScriptRef && (
-                      <div className="mb-2 space-y-1.5 border-b border-slate-100 pb-2">
-                        <p className="truncate text-sm font-semibold text-slate-900">
-                          {linkedScriptTitle}
-                        </p>
-                        <div className="flex gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 flex-1 text-xs"
-                            disabled={scriptLoading}
-                            onClick={() => void loadScript()}
-                          >
-                            {scriptLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScrollText className="h-3 w-3" />}
-                            <span className="ml-1">View</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
-                            disabled={attachBusy}
-                            onClick={() => void unlinkScript()}
-                          >
-                            <Unlink className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <p className="text-[11px] text-slate-500">Pick another below to swap.</p>
-                      </div>
-                    )}
-                    {attachLoading ? (
-                      <p className="flex items-center gap-2 py-4 text-xs text-slate-500">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading scripts…
-                      </p>
-                    ) : availableScripts.length === 0 ? (
-                      <p className="py-3 text-xs text-slate-500">
-                        {task.shootScriptRef
-                          ? 'No other unlinked scripts available.'
-                          : 'No unlinked scripts available for this client.'}
-                      </p>
-                    ) : (
-                      <div className="max-h-56 space-y-1 overflow-y-auto">
-                        {availableScripts.map((s) => (
-                          <button
-                            key={`${s.shootTaskId}::${s.id}`}
-                            type="button"
-                            disabled={attachBusy}
-                            onClick={() => void linkScript(s.shootTaskId, s.id, s.title)}
-                            className="w-full rounded-md border border-slate-200 px-2.5 py-2 text-left hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            <p className="truncate text-sm font-medium text-slate-900">{s.title || 'Untitled script'}</p>
-                            <p className="mt-0.5 text-[11px] text-slate-500">
-                              {s.shootDate
-                                ? new Date(s.shootDate).toLocaleDateString(undefined, {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                  })
-                                : 'Unscheduled'}{' '}
-                              — {s.status}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </PopoverContent>
-                </Popover>
-              )}
-
               {/* 🔥 Info icon — shows video description popup */}
 
               {task.description && (
@@ -983,7 +884,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             </div>
           </div>
 
-          {/* Badges row — deliverable type, one-off, quota, sponsor (far right) */}
+          {/* Badges row — deliverable type, one-off, quota (far right) */}
           <div className="flex items-center gap-1 mb-2 flex-wrap">
             {task.deliverableType && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
@@ -1000,24 +901,119 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                 ✓ Quota complete
               </Badge>
             )}
-            {/* 🔥 Sponsor tag pushed to the far right */}
-            <div className="ml-auto">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleSponsored(task.id, !task.isSponsored);
-                }}
-                className={`text-[10px] h-4 px-1.5 rounded border font-medium transition-colors ${
-                  task.isSponsored
-                    ? "bg-amber-100 text-amber-700 border-amber-400 hover:bg-amber-200"
-                    : "bg-transparent text-muted-foreground border-dashed border-yellow-400 hover:border-yellow-500 hover:text-amber-600"
-                }`}
-                title={task.isSponsored ? "Sponsored — click to unmark" : "Mark as sponsored"}
-              >
-                {task.isSponsored ? "★ Sponsored" : "Sponsored?"}
-              </button>
-            </div>
+          </div>
+
+          {/* 🔥 TASK ACTIONS — consolidated tag/script/raw-footage/long-form/
+              sponsor/no-action-required menu, replacing what used to be
+              scattered across the card header and a standalone LinkLfTask
+              panel below. See TaskActionsMenu.tsx. */}
+          <div className="mb-2">
+            <TaskActionsMenu
+              task={task}
+              onToggleSponsored={onToggleSponsored}
+              onTaskFieldsChange={(taskId, patch) => onTaskFieldsChange?.(taskId, patch)}
+              showLinkLongForm={!!(
+                task.deliverableType && (
+                  task.deliverableType.toLowerCase().includes('short') ||
+                  task.deliverableType.toUpperCase().includes('SF')
+                )
+              )}
+              scriptAction={
+                canAttachScript ? (
+                  <Popover
+                    open={attachOpen}
+                    onOpenChange={(open) => {
+                      setAttachOpen(open);
+                      if (open) void loadAvailableScripts();
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 text-left text-sm font-medium rounded hover:bg-muted transition-colors"
+                      >
+                        <ScrollText className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                        <span className="flex-1 truncate">Link Script</span>
+                        {task.shootScriptRef && (
+                          <span className="text-xs opacity-70 truncate max-w-[110px]">{linkedScriptTitle}</span>
+                        )}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      className="w-72 p-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {task.shootScriptRef && (
+                        <div className="mb-2 space-y-1.5 border-b border-slate-100 pb-2">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {linkedScriptTitle}
+                          </p>
+                          <div className="flex gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 flex-1 text-xs"
+                              disabled={scriptLoading}
+                              onClick={() => void loadScript()}
+                            >
+                              {scriptLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScrollText className="h-3 w-3" />}
+                              <span className="ml-1">View</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                              disabled={attachBusy}
+                              onClick={() => void unlinkScript()}
+                            >
+                              <Unlink className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <p className="text-[11px] text-slate-500">Pick another below to swap.</p>
+                        </div>
+                      )}
+                      {attachLoading ? (
+                        <p className="flex items-center gap-2 py-4 text-xs text-slate-500">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading scripts…
+                        </p>
+                      ) : availableScripts.length === 0 ? (
+                        <p className="py-3 text-xs text-slate-500">
+                          {task.shootScriptRef
+                            ? 'No other unlinked scripts available.'
+                            : 'No unlinked scripts available for this client.'}
+                        </p>
+                      ) : (
+                        <div className="max-h-56 space-y-1 overflow-y-auto">
+                          {availableScripts.map((s) => (
+                            <button
+                              key={`${s.shootTaskId}::${s.id}`}
+                              type="button"
+                              disabled={attachBusy}
+                              onClick={() => void linkScript(s.shootTaskId, s.id, s.title)}
+                              className="w-full rounded-md border border-slate-200 px-2.5 py-2 text-left hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              <p className="truncate text-sm font-medium text-slate-900">{s.title || 'Untitled script'}</p>
+                              <p className="mt-0.5 text-[11px] text-slate-500">
+                                {s.shootDate
+                                  ? new Date(s.shootDate).toLocaleDateString(undefined, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    })
+                                  : 'Unscheduled'}{' '}
+                                — {s.status}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                ) : undefined
+              }
+            />
           </div>
 
           {/* 🔥 THUMBNAIL COVER — was missing entirely on the editor card;
@@ -1276,23 +1272,9 @@ const [showGuidelines, setShowGuidelines] = useState(false);
               </div>
             )}
 
-            {/* 🔗 Linked LF Task — editors link from the SF ticket to its LF */}
-          {task.deliverableType && (
-            task.deliverableType.toLowerCase().includes('short') ||
-            task.deliverableType.toUpperCase().includes('SF')
-          ) && (
-            <div className="mb-2 border rounded-lg p-2.5 bg-muted/20">
-              <LinkLfTask
-                sfTaskId={task.id}
-                clientId={task.clientId}
-                canEdit={true}
-              />
-            </div>
-          )}
-
-          {/* 🔥 Upload Section */}
-          {(task.status === "pending" || task.status === "rejected") && (
-            <Button
+            {/* 🔥 Upload Section */}
+            {(task.status === "pending" || task.status === "rejected") && (
+              <Button
               size="sm"
               className={`w-full ${
                 task.status === "rejected" 
@@ -1311,6 +1293,13 @@ const [showGuidelines, setShowGuidelines] = useState(false);
               task={task}
               onUploadComplete={(files) => onUploadComplete(task.id, files)}
               onBeforeSubmitToQC={() => {
+                // 🔥 Task Actions gate — mirrors the server-side check in
+                // /api/tasks/[id]/status so the editor gets instant feedback
+                // instead of waiting on the 400.
+                if (computeTaskActionCount(task) === 0) {
+                  toast.error('Set at least one Task Action, or mark "No Action Required", before submitting to QC');
+                  return false;
+                }
                 if (!task.taskFeedback || task.taskFeedback.length === 0) return true;
                 const allVersions = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
                 const latestVersion = Math.max(...(allVersions as number[]));
@@ -1535,6 +1524,7 @@ interface ColumnProps {
   onAcknowledgeFeedback?: (taskId: string, feedbackId: string) => void;
   currentUserId?: number;
   onShootScriptChange?: (taskId: string, shootScriptRef: string | null) => void;
+  onTaskFieldsChange?: (taskId: string, patch: Record<string, any>) => void;
 }
 
 function DroppableColumn({
@@ -1559,6 +1549,7 @@ function DroppableColumn({
   onAcknowledgeFeedback,
   currentUserId,
   onShootScriptChange,
+  onTaskFieldsChange,
 }: ColumnProps) {
   // Determine column styling based on drag state
   const getDropZoneStyles = () => {
@@ -1607,6 +1598,7 @@ function DroppableColumn({
             onAcknowledgeFeedback={onAcknowledgeFeedback}
             currentUserId={currentUserId}
             onShootScriptChange={onShootScriptChange}
+            onTaskFieldsChange={onTaskFieldsChange}
           />
         ))}
 
@@ -1797,6 +1789,9 @@ export function EditorDashboard() {
             rejectionReason: t.rejectionReason || null,
             feedback: t.feedback || null,
             shootScriptRef: t.shootScriptRef || null,
+            linkedRawFootagePaths: t.linkedRawFootagePaths || null,
+            relatedTaskId: t.relatedTaskId || null,
+            noActionRequired: t.noActionRequired || false,
             // 🔥 Map taskFeedback with file version info from nested file data
             taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
               id: fb.id,
@@ -2250,6 +2245,19 @@ export function EditorDashboard() {
     }
   }, []);
 
+  // 🔥 Task Actions — generic local-state sync for the consolidated actions
+  // menu (tags, No Action Required, raw-footage links, long-form link).
+  // Each of those already persists via its own API call inside
+  // TaskActionsMenu; this just keeps the parent's `tasks` array (and thus
+  // every other reader of `task.*`, e.g. the Submit-to-QC gate) in sync
+  // without a full reload — same idea as handleToggleSponsored above, just
+  // generalized to any field instead of one more bespoke handler per field.
+  const handleTaskFieldsChange = useCallback((taskId: string, patch: Record<string, any>) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t))
+    );
+  }, []);
+
   /* ----------------------------- UPDATE STATUS ----------------------------- */
 
   const startTask = useCallback(async (taskId: string) => {
@@ -2533,6 +2541,7 @@ export function EditorDashboard() {
             onAcknowledgeFeedback={handleAcknowledgeFeedback}
             currentUserId={Number(currentUser.id) || undefined}
             onShootScriptChange={handleShootScriptChange}
+            onTaskFieldsChange={handleTaskFieldsChange}
           />
         ))}
       </div>

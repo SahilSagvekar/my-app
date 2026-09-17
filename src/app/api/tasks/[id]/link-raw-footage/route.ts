@@ -43,9 +43,14 @@ export async function PATCH(
       : current.filter((p) => p !== path);
 
     const [updated] = await db.update(taskTable)
-      .set({ linkedRawFootagePaths: next.length > 0 ? next : null })
+      .set({
+        linkedRawFootagePaths: next.length > 0 ? next : null,
+        // Linking a folder is a real Task Action — clears "No Action
+        // Required" if it was set. Removing the last link doesn't restore it.
+        ...(action === 'add' ? { noActionRequired: false } : {}),
+      })
       .where(eq(taskTable.id, id))
-      .returning({ id: taskTable.id, linkedRawFootagePaths: taskTable.linkedRawFootagePaths });
+      .returning({ id: taskTable.id, linkedRawFootagePaths: taskTable.linkedRawFootagePaths, noActionRequired: taskTable.noActionRequired });
 
     return NextResponse.json({ ok: true, task: updated });
   } catch (err: any) {

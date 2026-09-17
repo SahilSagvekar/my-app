@@ -177,6 +177,8 @@ export async function PATCH(
           },
           monthlyDeliverable: { columns: { type: true } },
           oneOffDeliverable: { columns: { type: true } },
+          // Needed for the Task Actions Submit-to-QC gate below.
+          tagToTasks: { columns: {}, with: { tag: { columns: { id: true } } } },
         },
       });
     } catch (readErr: any) {
@@ -262,6 +264,28 @@ export async function PATCH(
         finalStatus = REJECTED_BY_CLIENT;
       } else if (status === "POSTED") {
         finalStatus = "POSTED";
+      }
+    }
+
+    // 🔥 Task Actions gate — an editor can't submit to QC until they've
+    // either taken a real action (tag/script/raw-footage/long-form/sponsor)
+    // or explicitly clicked "No Action Required". Categories, not raw item
+    // counts — one point per action type used, matching the card's
+    // "(N actions)" display. Admin/manager overrides aren't gated here.
+    if (role === "editor" && finalStatus === "READY_FOR_QC") {
+      const actionCount =
+        ((task.tagToTasks?.length ?? 0) > 0 ? 1 : 0) +
+        (task.shootScriptRef ? 1 : 0) +
+        ((task.linkedRawFootagePaths?.length ?? 0) > 0 ? 1 : 0) +
+        (task.relatedTaskId ? 1 : 0) +
+        (task.isSponsored ? 1 : 0) +
+        (task.noActionRequired ? 1 : 0);
+
+      if (actionCount === 0) {
+        return NextResponse.json(
+          { message: "Set at least one Task Action, or mark \"No Action Required\", before submitting to QC." },
+          { status: 400 }
+        );
       }
     }
 

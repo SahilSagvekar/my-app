@@ -78,6 +78,12 @@ export async function PATCH(
             }
         });
 
+        // Adding at least one tag is a real Task Action — clears "No Action
+        // Required" if it was set. Clearing all tags doesn't restore it.
+        if (tags.length > 0) {
+            await db.update(task).set({ noActionRequired: false }).where(eq(task.id, id));
+        }
+
         return NextResponse.json({ success: true, tags });
     } catch (err: any) {
         console.error("Task tags update error:", err);

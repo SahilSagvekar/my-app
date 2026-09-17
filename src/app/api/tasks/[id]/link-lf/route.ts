@@ -80,7 +80,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     const [lfTask] = await db.select({ id: task.id }).from(task).where(eq(task.id, lfTaskId)).limit(1);
     if (!lfTask) return NextResponse.json({ error: 'LF task not found' }, { status: 404 });
 
-    await db.update(task).set({ relatedTaskId: lfTaskId, updatedAt: new Date().toISOString() }).where(eq(task.id, sfTaskId));
+    // Linking an LF task is a real Task Action — clears "No Action Required"
+    // if it was set.
+    await db.update(task).set({ relatedTaskId: lfTaskId, noActionRequired: false, updatedAt: new Date().toISOString() }).where(eq(task.id, sfTaskId));
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

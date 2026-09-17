@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Badge } from '../ui/badge';
@@ -28,11 +28,16 @@ export function LinkRawFootageButton({
   linkedPaths,
   onLinked,
   compact = false,
+  renderTrigger,
 }: {
   taskId: string;
   linkedPaths: string[] | null | undefined;
   onLinked?: (paths: string[]) => void;
   compact?: boolean;
+  // Optional custom trigger — e.g. a full-width menu row inside a
+  // consolidated actions dropdown — instead of the built-in badge/button.
+  // Receives the current linked count so the caller can label itself.
+  renderTrigger?: (linkedCount: number) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [subpath, setSubpath] = useState<string[]>([]);
@@ -93,7 +98,9 @@ export function LinkRawFootageButton({
   const driveUrlFor = (path: string) =>
     `/dashboard?page=drive&drivePath=${encodeURIComponent(`raw-footage/${path}`)}`;
 
-  const trigger = compact ? (
+  const trigger = renderTrigger ? (
+    <span onClick={(e) => e.stopPropagation()}>{renderTrigger(linked.length)}</span>
+  ) : compact ? (
     <button
       type="button"
       onClick={(e) => e.stopPropagation()}

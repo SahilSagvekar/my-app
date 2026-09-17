@@ -6,7 +6,6 @@ import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-import { TagPicker } from "./TagPicker";
 import { FileUploadDialog } from "./FileUploadDialog-Resumable";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { toast } from "sonner";
@@ -88,7 +87,6 @@ export function TaskUploadSections({
   const [showFeedback, setShowFeedback] = useState<Record<string, boolean>>({});
   const [textContent, setTextContent] = useState(task.textContent || "");
   const [savingText, setSavingText] = useState(false);
-  const [taskTags, setTaskTags] = useState<string[]>((task.tags || []).map((t: any) => t.name));
 
   // 🗑️ Request deletion — editors can't delete files directly, they ask
   // admin/videographer (see POST /api/tasks/[id]/files/deletion-requests).
@@ -403,10 +401,6 @@ export function TaskUploadSections({
 
   return (
     <div className="space-y-1.5">
-
-      <div className="p-2">
-        <TagPicker taskId={task.id} tags={taskTags} onChange={setTaskTags} />
-      </div>
 
       {isTextPostDeliverable(task.deliverableType) && (
         <Card className={textContent.trim() ? "border-green-500 bg-green-50/30" : "border-amber-200"}>
