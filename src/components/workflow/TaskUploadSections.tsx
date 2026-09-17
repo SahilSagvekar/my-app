@@ -21,6 +21,11 @@ import {
   RefreshCw,
   MessageSquare,
   Clock,
+  Video,
+  Music,
+  Image as ImageIcon,
+  LayoutGrid,
+  BookOpen,
 } from "lucide-react";
 
 interface UploadSection {
@@ -110,44 +115,89 @@ export function TaskUploadSections({
     return () => { cancelled = true; };
   }, [task.id]);
 
+  const classifyDeliverable = (deliverableType?: string | null, title?: string | null) => {
+    const dt = (deliverableType || '').trim().toLowerCase();
+    const t = (title || '').trim().toLowerCase();
+
+    if (dt) {
+      if (dt === 'bsf' || dt.includes('beta')) return 'BETA_SHORT_FORM';
+      if (dt === 'sf' || dt.includes('short form') || dt.includes('short-form') || dt.includes('short_form') || dt === 'short') return 'SHORT_FORM';
+      if (dt === 'lf' || dt.includes('long form') || dt.includes('long-form') || dt.includes('long_form') || dt === 'long') return 'LONG_FORM';
+      if (dt === 'sqf' || dt.includes('square form') || dt.includes('square-form') || dt.includes('square_form') || dt === 'square') return 'SQUARE_FORM';
+      if (dt === 'sep' || dt.includes('snapchat')) return 'SNAPCHAT';
+      if (dt === 'st' || dt.includes('story') || dt.includes('stories')) return 'STORIES';
+      if (dt === 'hp' || dt.includes('hard post') || dt.includes('graphic image')) return 'HARD_POST';
+      if (dt === 'tp' || dt.includes('text post')) return 'TEXT_POST';
+    }
+
+    if (t) {
+      if (t.includes('_bsf') || t.includes('-bsf') || t.includes('betashortform')) return 'BETA_SHORT_FORM';
+      if (t.includes('_sf') || t.includes('-sf') || t.includes('shortform') || t.includes('_short')) return 'SHORT_FORM';
+      if (t.includes('_lf') || t.includes('-lf') || t.includes('longform') || t.includes('_long')) return 'LONG_FORM';
+      if (t.includes('_sqf') || t.includes('-sqf') || t.includes('squareform')) return 'SQUARE_FORM';
+      if (t.includes('_sep') || t.includes('-sep') || t.includes('snapchat')) return 'SNAPCHAT';
+      if (t.includes('_st') || t.includes('-st') || t.includes('story') || t.includes('stories')) return 'STORIES';
+      if (t.includes('_hp') || t.includes('-hp') || t.includes('hardpost')) return 'HARD_POST';
+      if (t.includes('_tp') || t.includes('-tp') || t.includes('textpost')) return 'TEXT_POST';
+    }
+
+    return 'OTHER_VIDEO';
+  };
+
   const isHardPostDeliverable = (deliverableType: string) => {
-    const t = (deliverableType || '').toLowerCase();
-    return t.includes('hard post') || t.includes('graphic image');
+    return classifyDeliverable(deliverableType, task.title) === 'HARD_POST';
   };
 
   const isStoryDeliverable = (deliverableType: string) => {
-    const t = (deliverableType || '').toLowerCase();
-    return t.includes('stories') || t.includes('story');
+    return classifyDeliverable(deliverableType, task.title) === 'STORIES';
   };
 
   const isTextPostDeliverable = (deliverableType: string) => {
-    return (deliverableType || '').toLowerCase().includes('text post');
+    return classifyDeliverable(deliverableType, task.title) === 'TEXT_POST';
   };
 
   const getUploadSections = (deliverableType: string): UploadSection[] => {
-    if (isTextPostDeliverable(deliverableType)) return [];
+    const category = classifyDeliverable(deliverableType, task.title);
+    if (category === 'TEXT_POST') return [];
 
     const mainSection: UploadSection = {
       folderType: "main",
-      label: isHardPostDeliverable(deliverableType)
+      label: category === 'HARD_POST'
         ? "Images (PNG / JPG)"
-        : isStoryDeliverable(deliverableType)
+        : category === 'STORIES'
         ? "Main Task File (Video or Image)"
         : "Main Task File",
       required: true,
-      icon: isHardPostDeliverable(deliverableType) ? "🖼️" : "img:/icons/main-task-file.svg",
+      icon: category === 'HARD_POST' ? "🖼️" : "img:/icons/main-task-file.svg",
       uploaded: false,
     };
 
-    if (isHardPostDeliverable(deliverableType)) return [mainSection];
-    const additionalSections = getAdditionalSections(deliverableType);
+    if (category === 'HARD_POST') return [mainSection];
+    const additionalSections = getAdditionalSections(category);
+
+    // Auto-discover any folders present in task.files (e.g. if editor already uploaded music-license or thumbnails)
+    const existingFolderTypes = new Set(['main', ...additionalSections.map(s => s.folderType)]);
+    (task.files || []).forEach((f: any) => {
+      const ft = f.folderType || f.subfolder;
+      if (ft && !existingFolderTypes.has(ft)) {
+        existingFolderTypes.add(ft);
+        additionalSections.push({
+          folderType: ft,
+          label: ft === 'music-license' ? 'Music Licenses' : ft === 'thumbnails' ? 'Thumbnails' : ft === 'tiles' ? 'Tiles' : ft,
+          required: false,
+          icon: ft === 'music-license' ? '🎵' : '📁',
+          uploaded: true,
+        });
+      }
+    });
+
     return [mainSection, ...additionalSections];
   };
 
-  const getAdditionalSections = (deliverableType: string): UploadSection[] => {
-    switch (deliverableType) {
-      case "Short Form Videos":
-      case "Beta Short Form":
+  const getAdditionalSections = (category: string): UploadSection[] => {
+    switch (category) {
+      case 'SHORT_FORM':
+      case 'BETA_SHORT_FORM':
         return [
           {
             folderType: "music-license",
@@ -163,9 +213,6 @@ export function TaskUploadSections({
             icon: "img:/icons/thumbnails.svg",
             uploaded: false,
           },
-          // 🔥 Cover Images — optional 4th upload slot, only shown for
-          // clients with "Requires Cover Image" enabled by admin
-          // (Client Management → Cover Image Settings).
           ...(task.client?.requiresCoverImage
             ? [
                 {
@@ -179,7 +226,7 @@ export function TaskUploadSections({
             : []),
         ];
 
-      case "Stories":
+      case 'STORIES':
         return [
           {
             folderType: "music-license",
@@ -197,8 +244,8 @@ export function TaskUploadSections({
           },
         ];
 
-      case "Long Form Videos":
-      case "Square Form Videos":
+      case 'LONG_FORM':
+      case 'SQUARE_FORM':
         return [
           {
             folderType: "thumbnails",
@@ -214,9 +261,20 @@ export function TaskUploadSections({
             icon: "img:/icons/music-license.svg",
             uploaded: false,
           },
+          ...(task.client?.requiresCoverImage
+            ? [
+                {
+                  folderType: "covers",
+                  label: "Cover Images",
+                  required: false,
+                  icon: "📔",
+                  uploaded: false,
+                } as UploadSection,
+              ]
+            : []),
         ];
 
-      case "Snapchat Episodes":
+      case 'SNAPCHAT':
         return [
           {
             folderType: "tiles",
@@ -232,10 +290,34 @@ export function TaskUploadSections({
             icon: "img:/icons/music-license.svg",
             uploaded: false,
           },
+          {
+            folderType: "thumbnails",
+            label: "Thumbnails",
+            required: false,
+            icon: "img:/icons/thumbnails.svg",
+            uploaded: false,
+          },
         ];
 
+      case 'OTHER_VIDEO':
       default:
-        return [];
+        // Default video deliverables provide both Music Licenses and Thumbnails upload slots!
+        return [
+          {
+            folderType: "music-license",
+            label: "Music Licenses",
+            required: false,
+            icon: "img:/icons/music-license.svg",
+            uploaded: false,
+          },
+          {
+            folderType: "thumbnails",
+            label: "Thumbnails",
+            required: false,
+            icon: "img:/icons/thumbnails.svg",
+            uploaded: false,
+          },
+        ];
     }
   };
 
@@ -263,7 +345,7 @@ export function TaskUploadSections({
     setSections(updatedSections);
     setUploadedFiles(filesByFolder);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task.deliverableType, task.files]);
+  }, [task.deliverableType, task.files, task.title]);
 
   const handleFileUploaded = (folderType: string, files: any[]) => {
     setSections((prev) =>
@@ -429,48 +511,39 @@ export function TaskUploadSections({
         const sectionFiles = uploadedFiles[section.folderType] || [];
 
         return (
-          <Card
+          <div
             key={section.folderType}
-            className={`transition-all ${section.uploaded
-              ? "border-green-500 bg-green-50/30"
-              : section.required
-                ? "border-amber-200"
-                : "border-gray-200"
-              }`}
+            className="rounded-xl border border-gray-300 bg-white overflow-hidden shadow-2xs transition-all mb-2"
           >
-            <CardContent className="p-2 !pb-2">
-              {/* Enhanced Header with Summary Info */}
-              <div 
-                className="relative flex items-center w-full min-h-[40px] cursor-pointer"
+            <div className="p-0">
+              {/* Header formatted like Task Files* in mockup */}
+              <button 
+                type="button"
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 hover:bg-gray-50/80 transition-colors"
                 onClick={() => toggleSection(section.folderType)}
               >
-                {/* Center Content */}
-                <div className="absolute inset-0 flex items-center justify-center gap-2 pointer-events-none">
-                  <div className="p-1 rounded shrink-0 bg-white flex items-center justify-center">
-                    {renderIcon(section.icon, "w-6 h-6")}
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-sm font-medium">
-                      {section.label}
-                      {section.required && (
-                        <span className="text-red-500 ml-0.5">*</span>
-                      )}
-                    </h3>
-                    {fileCount > 0 && (
-                      <span className="text-xs text-gray-500">
-                        ({fileCount} file{fileCount !== 1 ? "s" : ""})
-                      </span>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Right Chevron */}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                  <ChevronDown
-                    className={`h-4 w-4 text-gray-500 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`}
-                  />
-                </div>
-              </div>
+                {section.folderType === "music-license" ? (
+                  <Music className="h-3.5 w-3.5 text-orange-600 shrink-0 mr-0.5" />
+                ) : section.folderType === "thumbnails" ? (
+                  <ImageIcon className="h-3.5 w-3.5 text-purple-600 shrink-0 mr-0.5" />
+                ) : section.folderType === "tiles" ? (
+                  <LayoutGrid className="h-3.5 w-3.5 text-blue-600 shrink-0 mr-0.5" />
+                ) : section.folderType === "covers" ? (
+                  <BookOpen className="h-3.5 w-3.5 text-emerald-600 shrink-0 mr-0.5" />
+                ) : (
+                  <Video className="h-3.5 w-3.5 text-gray-700 shrink-0 mr-0.5" />
+                )}
+                <span>
+                  {section.folderType === "main" ? "Task Files" : section.label}
+                  {section.required && <span className="text-red-500">*</span>}
+                </span>
+                <span className="text-gray-500 font-normal text-xs">
+                  ({fileCount} file{fileCount !== 1 ? "s" : ""})
+                </span>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 text-gray-400 transition-transform ml-0.5 ${isOpen ? "rotate-180" : ""}`}
+                />
+              </button>
 
               {/* Expanded Content */}
               {isOpen && (
@@ -594,16 +667,16 @@ export function TaskUploadSections({
                   />
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         );
       })}
 
-      {/* Compact Submit to QC Button */}
+      {/* Mockup-styled Submit to QC Button */}
       <Button
         onClick={handleSubmitToQC}
         disabled={!canSubmitToQC() || submitting}
-        className="w-full"
+        className="w-full h-10 rounded-xl bg-black text-white hover:bg-neutral-800 font-semibold text-sm shadow-xs transition-colors"
         size="sm"
       >
         {submitting ? (
@@ -613,7 +686,7 @@ export function TaskUploadSections({
           </>
         ) : (
           <>
-            <Send className="h-3.5 w-3.5 mr-1.5" />
+            <Send className="h-3.5 w-3.5 mr-2" />
             Submit to QC
           </>
         )}

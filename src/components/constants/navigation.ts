@@ -29,9 +29,13 @@ import {
   UserPlus,
   Activity,
   FolderCheck,
-  ListChecks,
   Bot,
   Link2,
+  Code,
+  LayoutGrid,
+  Folder,
+  BarChart3,
+  ListChecks,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -59,15 +63,15 @@ export const NAVIGATION_ITEMS = {
   ],
   editor: [
     { id: 'my-tasks', label: 'My Tasks', icon: CheckSquare },
-    { id: 'script-linking', label: 'Link Scripts', icon: Link2 },
+    { id: 'link-scripts', label: 'Link Scripts', icon: Link2 },
     { id: 'my-tracker', label: 'My Tracker', icon: Target },
-    { id: 'logins', label: 'Logins', icon: LogIn },
+    { id: 'logins', label: 'Logins', icon: Code },
     // { id: 'resources', label: 'Resources', icon: BookOpen },
     { id: 'guidelines', label: 'Guidelines', icon: FileText },
-    { id: 'training', label: 'Training', icon: Layout },
+    { id: 'training', label: 'Training', icon: LayoutGrid },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
-    { id: 'drive', label: 'Files & Drive', icon: HardDrive },
-    { id: 'upload-history', label: 'Upload History', icon: History },
+    { id: 'drive', label: 'Files & Drive', icon: Folder },
+    { id: 'upload-history', label: 'Upload History', icon: BarChart3 },
   ],
   qc: [
     { id: 'review-queue', label: 'Review Queue', icon: CheckSquare },

@@ -220,10 +220,10 @@ export function ClientFeedbackWidget() {
           data-feedback-widget-ignore
           onClick={handleOpen}
           aria-label="Report a problem"
-          className="fixed bottom-5 right-5 z-[60] flex items-center gap-2 rounded-full bg-[#0073EA] px-4 py-3 text-white shadow-lg hover:bg-[#0060C0] active:scale-95 transition-all"
+          className="fixed bottom-6 right-6 z-[60] flex items-center gap-2 rounded-full bg-black px-4 py-2.5 text-white shadow-xl hover:bg-neutral-800 active:scale-95 transition-all text-xs font-semibold"
         >
-          <Camera className="h-5 w-5 shrink-0" />
-          <span className="hidden sm:inline text-sm font-semibold whitespace-nowrap">
+          <Camera className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline whitespace-nowrap">
             Report Problem
           </span>
         </button>

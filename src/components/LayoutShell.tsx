@@ -38,7 +38,6 @@ import {
   type UserRole,
 } from './constants/roles';
 import Image from 'next/image';
-import logo from "../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
 import { useAuth } from './auth/AuthContext';
 import { useViewAsRole } from './auth/ViewAsRoleContext';
 
@@ -218,7 +217,7 @@ export function LayoutShell({
                 <MenuToggleIcon className="h-5 w-5" isCollapsed={isSidebarCollapsed} />
               </Button>
               <Image
-                src={logo}
+                src="/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png"
                 alt="E8 Logo"
                 width={32}
                 height={32}
@@ -246,14 +245,10 @@ export function LayoutShell({
             {canSwitchRole && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2.5 px-2 hover:bg-muted">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center bg-gray-100 text-foreground`}>
-                      <ArrowLeftRight className="h-4 w-4" />
-                    </div>
-                    <div className="hidden sm:block text-left">
-                      <div className="text-[15px] font-semibold">
-                        {isViewingAsOther ? `Viewing: ${roleDisplay}` : 'Switch Role'}
-                      </div>
+                  <Button variant="ghost" className="flex items-center gap-2 px-3 py-1.5 h-9 rounded-full border border-gray-200 hover:bg-gray-50 text-gray-800">
+                    <ArrowLeftRight className="h-3.5 w-3.5 text-gray-500" />
+                    <div className="text-[13px] font-medium">
+                      {isViewingAsOther ? `Viewing: ${roleDisplay}` : `Viewing: ${roleDisplay}`}
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
@@ -278,10 +273,6 @@ export function LayoutShell({
                   <div className="px-3 py-2.5 flex flex-col gap-0.5">
                     {switchableRoles.map((role) => {
                       const isCurrent = currentRole?.toLowerCase() === role.toLowerCase();
-                      // "sales_manager" -> "Sales Manager", "qc" -> "Quality
-                      // Control", "client" -> the specific client's name
-                      // when this account previews a named client portal
-                      // (e.g. eric -> "The Drew Meyers"), otherwise "Client".
                       const roleLabel =
                         role.toLowerCase() === 'qc'
                           ? 'Quality Control'
@@ -342,25 +333,21 @@ export function LayoutShell({
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-muted">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={authUser?.image}
-                      alt={authUser?.name || ''}
-                      onError={(e) => {
-                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(authUser?.name || getUserDisplayName(currentRole as UserRole))}&background=random`;
-                      }}
-                    />
-                    <AvatarFallback className="text-xs">
-                      {getUserAvatar(currentRole as UserRole)}
-                    </AvatarFallback>
-                  </Avatar>
+                <button className="flex items-center gap-2 px-1.5 py-1 rounded-full hover:bg-muted/50 transition-colors">
+                  <div className="h-8 w-8 rounded-full bg-[#EA580C] text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                    {(authUser?.name || 'Eric Davis')
+                      .split(' ')
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()}
+                  </div>
                   <div className="hidden sm:block text-left">
-                    <div className="text-sm font-medium">
-                      {authUser?.name || getUserDisplayName(currentRole as UserRole)}
+                    <div className="text-[14px] font-semibold text-gray-900 leading-tight">
+                      {authUser?.name || 'Eric Davis'}
                     </div>
                   </div>
-                </Button>
+                </button>
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end" className="w-56">
@@ -450,17 +437,17 @@ export function LayoutShell({
                   }}
                   disabled={isDisabled}
                   className={`
-                    w-full flex items-center gap-3 px-3 py-3 sm:py-2 text-sm rounded-lg transition-colors
+                    w-full flex items-center gap-3 px-3.5 py-2.5 text-[14px] rounded-xl font-medium transition-all
                     ${isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      ? 'bg-black text-white shadow-sm'
                       : isDisabled
-                      ? 'text-muted-foreground/50 cursor-not-allowed'
-                      : 'text-foreground/80 hover:bg-muted'
+                      ? 'text-muted-foreground/40 cursor-not-allowed'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'
                     }
                   `}
                 >
-                  <Icon className={`h-5 w-5 ${isDisabled ? 'opacity-30' : ''}`} />
-                  <span className={isDisabled ? 'opacity-40' : ''}>{item.label}</span>
+                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-500'} ${isDisabled ? 'opacity-30' : ''}`} />
+                  <span className={`truncate text-left ${isDisabled ? 'opacity-40' : ''}`}>{item.label}</span>
                   {isDisabled && (
                     <svg className="h-3 w-3 ml-auto opacity-30 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

@@ -5,6 +5,7 @@ import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import {
   FileText,
   Video,
@@ -36,7 +37,13 @@ interface EodTask {
   disabledReason: string | null;
 }
 
-export function EditorEodReport() {
+interface EditorEodReportProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  isDialog?: boolean;
+}
+
+export function EditorEodReport({ open, onOpenChange, isDialog }: EditorEodReportProps = {}) {
   const [tasks, setTasks] = useState<EodTask[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
@@ -222,11 +229,10 @@ export function EditorEodReport() {
     );
   }
 
-  return (
-    <Card className="border-2 border-indigo-100">
-      <CardContent className="p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+  const content = (
+    <div className={isDialog ? "p-4 sm:p-6" : ""}>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold flex items-center gap-2">
               <Send className="h-5 w-5 text-indigo-500" />
@@ -463,6 +469,26 @@ export function EditorEodReport() {
             </div>
           </>
         )}
+    </div>
+  );
+
+  if (isDialog) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Send EOD Report</DialogTitle>
+          </DialogHeader>
+          {content}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Card className="border-2 border-indigo-100">
+      <CardContent className="p-6">
+        {content}
       </CardContent>
     </Card>
   );

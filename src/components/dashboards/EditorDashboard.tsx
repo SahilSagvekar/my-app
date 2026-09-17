@@ -34,6 +34,8 @@ import {
   ScrollText,
   Unlink,
   Loader2,
+  ChevronDown,
+  Send,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -116,18 +118,18 @@ function scriptRefTitle(ref?: string | null): string | null {
 function getStatusBadgeStyles(status: string) {
   switch (status) {
     case "pending":
-      return "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-50";
+      return "bg-[#E5E7EB] text-[#374151] border-transparent font-semibold";
     case "in_progress":
-      return "bg-yellow-50 text-yellow-700 border-yellow-100 hover:bg-yellow-50";
+      return "bg-[#DBEAFE] text-[#2563EB] border-transparent font-semibold";
     case "ready_for_qc":
-      return "bg-green-50 text-green-700 border-green-100 hover:bg-green-50";
+      return "bg-[#DCFCE7] text-[#16A34A] border-transparent font-semibold";
     case "rejected":
-      return "bg-red-50 text-red-700 border-red-100 hover:bg-red-50";
+      return "bg-[#FEE2E2] text-[#EF4444] border-transparent font-semibold";
     case "completed":
     case "approved":
-      return "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50";
+      return "bg-[#DCFCE7] text-[#16A34A] border-transparent font-semibold";
     default:
-      return "bg-gray-50 text-gray-700 border-gray-100 hover:bg-gray-50";
+      return "bg-gray-100 text-gray-700 border-transparent font-semibold";
   }
 }
 
@@ -178,31 +180,55 @@ interface RequiredSection {
   label: string;
 }
 
-function getRequiredSections(deliverableType: string): RequiredSection[] {
-  // Main task file is always required
+function getRequiredSections(deliverableType: string, taskTitle?: string): RequiredSection[] {
+  const dt = (deliverableType || '').trim().toLowerCase();
+  const title = (taskTitle || '').trim().toLowerCase();
+
+  let category = 'OTHER_VIDEO';
+  if (dt) {
+    if (dt === 'bsf' || dt.includes('beta')) category = 'BETA_SHORT_FORM';
+    else if (dt === 'sf' || dt.includes('short form') || dt.includes('short-form') || dt.includes('short_form') || dt === 'short') category = 'SHORT_FORM';
+    else if (dt === 'lf' || dt.includes('long form') || dt.includes('long-form') || dt.includes('long_form') || dt === 'long') category = 'LONG_FORM';
+    else if (dt === 'sqf' || dt.includes('square form') || dt.includes('square-form') || dt.includes('square_form') || dt === 'square') category = 'SQUARE_FORM';
+    else if (dt === 'sep' || dt.includes('snapchat')) category = 'SNAPCHAT';
+    else if (dt === 'st' || dt.includes('story') || dt.includes('stories')) category = 'STORIES';
+    else if (dt === 'hp' || dt.includes('hard post') || dt.includes('graphic image')) category = 'HARD_POST';
+    else if (dt === 'tp' || dt.includes('text post')) category = 'TEXT_POST';
+  } else if (title) {
+    if (title.includes('_bsf') || title.includes('-bsf') || title.includes('betashortform')) category = 'BETA_SHORT_FORM';
+    else if (title.includes('_sf') || title.includes('-sf') || title.includes('shortform') || title.includes('_short')) category = 'SHORT_FORM';
+    else if (title.includes('_lf') || title.includes('-lf') || title.includes('longform') || title.includes('_long')) category = 'LONG_FORM';
+    else if (title.includes('_sqf') || title.includes('-sqf') || title.includes('squareform')) category = 'SQUARE_FORM';
+    else if (title.includes('_sep') || title.includes('-sep') || title.includes('snapchat')) category = 'SNAPCHAT';
+    else if (title.includes('_st') || title.includes('-st') || title.includes('story') || title.includes('stories')) category = 'STORIES';
+    else if (title.includes('_hp') || title.includes('-hp') || title.includes('hardpost')) category = 'HARD_POST';
+    else if (title.includes('_tp') || title.includes('-tp') || title.includes('textpost')) category = 'TEXT_POST';
+  }
+
+  // Main task file is always required (except text posts)
   const mainSection: RequiredSection = {
     folderType: "main",
     label: "Main Task File",
   };
 
-  switch (deliverableType) {
-    case "Short Form Videos":
-    case "Beta Short Form":
+  switch (category) {
+    case "SHORT_FORM":
+    case "BETA_SHORT_FORM":
+    case "STORIES":
       return [
         mainSection,
         { folderType: "music-license", label: "Music Licenses" },
-        // thumbnails is optional for these types
       ];
 
-    case "Long Form Videos":
-    case "Square Form Videos":
+    case "LONG_FORM":
+    case "SQUARE_FORM":
       return [
         mainSection,
         { folderType: "thumbnails", label: "Thumbnails" },
         { folderType: "music-license", label: "Music Licenses" },
       ];
 
-    case "Snapchat Episodes":
+    case "SNAPCHAT":
       return [
         mainSection,
         { folderType: "tiles", label: "Tiles" },
@@ -210,7 +236,6 @@ function getRequiredSections(deliverableType: string): RequiredSection[] {
       ];
 
     default:
-      // For unknown types, only main file is required
       return [mainSection];
   }
 }
@@ -226,7 +251,7 @@ interface UploadValidation {
 }
 
 function validateRequiredUploads(task: WorkflowTask): UploadValidation {
-  const requiredSections = getRequiredSections(task.deliverableType || "");
+  const requiredSections = getRequiredSections(task.deliverableType || "", task.title);
   const files = task.files || [];
 
   // Get unique folder types from uploaded files
@@ -506,8 +531,20 @@ function FileViewerDialog({
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate" title={file.name}>{file.name}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-medium text-sm truncate" title={file.name}>{file.name}</p>
+                      {file.folderType && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 capitalize">
+                          {file.folderType === "main" ? "📁 Main" :
+                            file.folderType === "music-license" ? "🎵 Music License" :
+                            file.folderType === "thumbnails" ? "🖼️ Thumbnail" :
+                            file.folderType === "tiles" ? "🎨 Tiles" :
+                            file.folderType === "covers" ? "📔 Cover" :
+                            file.folderType}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                       <span>{formatFileSize(file.size)}</span>
                       <span>•</span>
                       <span>
@@ -809,23 +846,21 @@ const [showGuidelines, setShowGuidelines] = useState(false);
 
   return (
     <>
-      <Card
+      <div
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
-        className={`transition-all ${deliverableColors.bg} ${deliverableColors.border} border ${isDraggable
-          ? "cursor-grab active:cursor-grabbing hover:shadow-md"
-          : "cursor-not-allowed opacity-75"
-          } ${isDragging ? "opacity-50 scale-95 ring-2 ring-primary" : ""}`}
+        className={`bg-white rounded-2xl border border-gray-200 shadow-2xs p-3.5 transition-all ${
+          isDraggable ? "cursor-grab active:cursor-grabbing hover:shadow-sm" : "cursor-not-allowed opacity-75"
+        } ${isDragging ? "opacity-50 scale-95 ring-2 ring-black" : ""} ${
+          task.status === "rejected" ? "ring-1 ring-red-200" : ""
+        }`}
       >
-        <CardContent className="p-3">
-          {/* Drag Handle + Title + actions */}
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
-              <GripVertical className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <h4 className="font-semibold text-[13px] whitespace-normal break-words">
-                {task.title || task.clientName || task.deliverableType}
-              </h4>
-            </div>
+        <div>
+          {/* Title + Guidelines G Badge */}
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <h4 className="font-bold text-[13.5px] text-gray-900 leading-snug break-words flex-1">
+              {task.title || task.clientName || task.deliverableType}
+            </h4>
             <div className="flex items-center gap-1.5 shrink-0">
               {task.clientId && (
                 <Tooltip>
@@ -836,12 +871,12 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                         e.stopPropagation();
                         loadGuidelines();
                       }}
-                      className="h-5 w-5 rounded-full border border-dashed border-orange-400 text-[9px] font-semibold flex items-center justify-center text-orange-500 hover:bg-orange-50"
+                      className="h-5 w-5 rounded-full bg-[#EA580C] text-white text-[10px] font-bold flex items-center justify-center shadow-xs hover:bg-[#C2410C] transition-colors"
                     >
                       G
                     </button>
                   </TooltipTrigger>
-                 <TooltipContent side="bottom" sideOffset={6}>
+                  <TooltipContent side="bottom" sideOffset={6}>
                     Guidelines – click to view
                   </TooltipContent>
                 </Tooltip>
@@ -903,10 +938,31 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             )}
           </div>
 
+          {/* 🔥 TASK FILES BUTTON (mockup style) — shown on pending and rejected cards */}
+          {task.status !== "in_progress" && (
+            <div className="mb-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowFiles(true);
+                }}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
+              >
+                <Video className="h-3.5 w-3.5 text-gray-700 shrink-0 mr-0.5" />
+                <span>
+                  Task Files<span className="text-red-500">*</span>
+                </span>
+                <span className="text-gray-500 font-normal text-xs">
+                  ({task.files?.length || 0} file{(task.files?.length || 0) !== 1 ? "s" : ""})
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-gray-400 transition-transform ml-0.5" />
+              </button>
+            </div>
+          )}
+
           {/* 🔥 TASK ACTIONS — consolidated tag/script/raw-footage/long-form/
-              sponsor/no-action-required menu, replacing what used to be
-              scattered across the card header and a standalone LinkLfTask
-              panel below. See TaskActionsMenu.tsx. */}
+              sponsor/no-action-required menu. See TaskActionsMenu.tsx. */}
           <div className="mb-2">
             <TaskActionsMenu
               task={task}
@@ -1016,30 +1072,7 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             />
           </div>
 
-          {/* 🔥 THUMBNAIL COVER — was missing entirely on the editor card;
-              QC/Client cards already show this via task-thumbnail.ts. Shown
-              regardless of task.status so it doesn't get hidden while a task
-              is in_progress. */}
-          <div className="mb-2 rounded-lg overflow-hidden border border-zinc-800/60 bg-muted/30 aspect-video relative flex items-center justify-center">
-            {thumbnailUrl ? (
-              <img
-                src={thumbnailUrl}
-                alt={task.title}
-                className="absolute inset-0 w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.opacity = "0";
-                }}
-              />
-            ) : (
-              <span className="text-[10px] text-muted-foreground">
-                {thumbnailFallbackLabel}
-              </span>
-            )}
-          </div>
-
-          {/* 🔥 MUSIC LICENSES — separate multi-asset uploads that were being
-              lumped into the generic file list (and hidden entirely while
-              task.status === "in_progress"). Shown unconditionally here. */}
+          {/* Music licenses if present */}
           {musicLicenseFiles.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1">
               {musicLicenseFiles.map((file) => (
@@ -1060,41 +1093,25 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             </div>
           )}
 
-          {/* 🔥 VERSION-TAGGED FEEDBACK — popup button instead of inline list */}
+          {/* 🔥 VERSION-TAGGED FEEDBACK — styled like mockup below Start Revision */}
           {task.taskFeedback && task.taskFeedback.length > 0 && (() => {
             const visibleFeedback = task.taskFeedback!.filter(fb => (fb.fileVersion || 1) === activeVersion && fb.status !== 'resolved');
             const unresolvedCount = visibleFeedback.length;
             const acknowledgedCount = visibleFeedback.filter(fb => fb.status === 'acknowledged' || !!fb.acknowledgedAt).length;
             return (
-              <div className="mb-2">
-                {/* Trigger button */}
+              <div className="mt-2 mb-1">
+                {/* Trigger line matching mockup: ⏱ Revision Feedback  1/1 fixed */}
                 <button
                   type="button"
                   onClick={e => { e.stopPropagation(); setFeedbackDialogOpen(true); }}
-                  className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded border text-[10px] font-medium transition-colors ${
-                    acknowledgedCount === unresolvedCount
-                      ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-950/20 dark:text-green-400'
-                      : 'border-destructive/40 bg-destructive/5 text-destructive hover:bg-destructive/10'
-                  }`}
+                  className="w-full flex items-center justify-between text-xs text-[#DC2626] font-medium py-1 px-1 hover:underline transition-all"
                 >
                   <div className="flex items-center gap-1.5">
-                    <AlertCircle className="h-3 w-3 shrink-0" />
-                    <span>Revision Feedback</span>
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
+                    <span className="font-semibold text-[12.5px]">Revision Feedback</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="opacity-70">{acknowledgedCount}/{unresolvedCount} fixed</span>
-                    {allVersions.length > 1 && (
-                      <select
-                        className="text-[9px] border rounded px-1 py-0 h-4 bg-background text-foreground"
-                        value={activeVersion}
-                        onChange={e => { e.stopPropagation(); setFeedbackVersionFilter(Number(e.target.value)); }}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {allVersions.map(v => (
-                          <option key={v} value={v}>V{v}{v === currentVersion ? ' (current)' : ''}</option>
-                        ))}
-                      </select>
-                    )}
+                  <div className="flex items-center gap-1.5 text-xs text-[#DC2626]">
+                    <span>{acknowledgedCount}/{unresolvedCount || 1} fixed</span>
                   </div>
                 </button>
 
@@ -1272,66 +1289,66 @@ const [showGuidelines, setShowGuidelines] = useState(false);
               </div>
             )}
 
-            {/* 🔥 Upload Section */}
+            {/* 🔥 Upload / Action Section */}
             {(task.status === "pending" || task.status === "rejected") && (
               <Button
-              size="sm"
-              className={`w-full ${
-                task.status === "rejected" 
-                  ? "bg-red-600 text-white hover:bg-red-700" 
-                  : "bg-green-500 text-white hover:bg-green-600"
-              }`}
-              onClick={() => onStartTask(task.id)}
-            >
-              <Play className="h-3.5 w-3.5 mr-1.5" />
-              {task.status === "rejected" ? "Start Revision" : "Start"}
-            </Button>
-          )}
+                size="sm"
+                className={`w-full h-10 rounded-xl font-semibold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 ${
+                  task.status === "rejected" 
+                    ? "bg-[#B91C1C] text-white hover:bg-[#991B1B]" 
+                    : "bg-black text-white hover:bg-neutral-800"
+                }`}
+                onClick={() => onStartTask(task.id)}
+              >
+                <Play className="h-3.5 w-3.5 fill-current" />
+                <span>{task.status === "rejected" ? "Start Revision" : "Start"}</span>
+              </Button>
+            )}
 
-          {task.status === "in_progress" && (
-            <TaskUploadSections
-              task={task}
-              onUploadComplete={(files) => onUploadComplete(task.id, files)}
-              onBeforeSubmitToQC={() => {
-                // 🔥 Task Actions gate — mirrors the server-side check in
-                // /api/tasks/[id]/status so the editor gets instant feedback
-                // instead of waiting on the 400.
-                if (computeTaskActionCount(task) === 0) {
-                  toast.error('Set at least one Task Action, or mark "No Action Required", before submitting to QC');
-                  return false;
-                }
-                if (!task.taskFeedback || task.taskFeedback.length === 0) return true;
-                const allVersions = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
-                const latestVersion = Math.max(...(allVersions as number[]));
-                const unacknowledged = task.taskFeedback.filter(
-                  (fb: any) => (fb.fileVersion || 1) === latestVersion
-                    && fb.status !== 'resolved'
-                    && fb.status !== 'acknowledged'
-                    && !fb.acknowledgedAt
-                );
-                if (unacknowledged.length > 0) {
-                  toast.error(
-                    `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`
+            {task.status === "in_progress" && (
+              <TaskUploadSections
+                task={task}
+                onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                onBeforeSubmitToQC={() => {
+                  // 🔥 Task Actions gate — mirrors the server-side check in
+                  // /api/tasks/[id]/status so the editor gets instant feedback
+                  // instead of waiting on the 400.
+                  if (computeTaskActionCount(task) === 0) {
+                    toast.error('Set at least one Task Action, or mark "No Action Required", before submitting to QC');
+                    return false;
+                  }
+                  if (!task.taskFeedback || task.taskFeedback.length === 0) return true;
+                  const allVersions = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
+                  const latestVersion = Math.max(...(allVersions as number[]));
+                  const unacknowledged = task.taskFeedback.filter(
+                    (fb: any) => (fb.fileVersion || 1) === latestVersion
+                      && fb.status !== 'resolved'
+                      && fb.status !== 'acknowledged'
+                      && !fb.acknowledgedAt
                   );
-                  return false;
-                }
-                return true;
-              }}
-            />
-          )}
+                  if (unacknowledged.length > 0) {
+                    toast.error(
+                      `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`
+                    );
+                    return false;
+                  }
+                  return true;
+                }}
+              />
+            )}
 
-          {/* 🔥 NEW: Allow editor to move task back from QC to In Progress */}
-          {task.status === "ready_for_qc" && (
-            <Button
-              size="sm"
-              className="w-full text-xs bg-[#ccff00] text-black hover:bg-[#bce600]"
-              onClick={() => onStartTask(task.id)}
-            >
-              ↩ Move Back to In Progress
-            </Button>
-          )}
-        </CardContent>
-      </Card>
+            {/* 🔥 NEW: Allow editor to move task back from QC to In Progress */}
+            {task.status === "ready_for_qc" && (
+              <Button
+                size="sm"
+                className="w-full h-10 rounded-xl text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 shadow-xs"
+                onClick={() => onStartTask(task.id)}
+              >
+                ↩ Move Back to In Progress
+              </Button>
+            )}
+        </div>
+      </div>
 
       {/* 📄 Script Viewer Dialog — read-only for editors */}
       <Dialog open={scriptOpen} onOpenChange={setScriptOpen}>
@@ -1569,19 +1586,19 @@ function DroppableColumn({
   };
 
   return (
-    <div className="space-y-3 sm:space-y-4">
-      <div className="flex items-center justify-between pb-2 border-b">
-        <h3 className="font-medium text-sm sm:text-base">{title}</h3>
-        <Badge variant="outline" className={`text-xs ${getStatusBadgeStyles(status)}`}>
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 pb-1">
+        <h3 className="font-bold text-[15px] text-gray-900 tracking-tight">{title}</h3>
+        <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs rounded-full ${getStatusBadgeStyles(status)}`}>
           {tasks.length}
-        </Badge>
+        </span>
       </div>
 
       <div
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, status)}
         onDragLeave={onDragLeave}
-        className={`space-y-3 sm:space-y-4 min-h-[200px] max-h-[70vh] overflow-y-auto p-2 rounded-lg transition-all duration-200 ${getDropZoneStyles()}`}
+        className={`space-y-3 min-h-[220px] max-h-[calc(100vh-250px)] overflow-y-auto p-1 rounded-xl transition-all duration-200 ${getDropZoneStyles()}`}
       >
         {tasks.map((task) => (
           <TaskCard
@@ -1604,14 +1621,15 @@ function DroppableColumn({
 
         {tasks.length === 0 && (
           <div
-            className={`text-center py-8 rounded-lg ${isDragOver && isValidTarget
-              ? "text-green-600"
-              : isDragOver && !isValidTarget
-                ? "text-red-500"
-                : "text-muted-foreground"
-              }`}
+            className={`flex items-center justify-center h-44 rounded-2xl border border-dashed ${
+              isDragOver && isValidTarget
+                ? "bg-green-50 border-green-400 text-green-700"
+                : isDragOver && !isValidTarget
+                ? "bg-red-50 border-red-300 text-red-600"
+                : "border-gray-200 bg-white text-gray-400"
+            }`}
           >
-            <p className="text-sm">
+            <p className="text-sm font-medium">
               {isDragOver && isValidTarget
                 ? "✓ Drop task here"
                 : isDragOver && !isValidTarget
@@ -1651,8 +1669,10 @@ export function EditorDashboard() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   // Desktop app download progress — window.e8 only exists inside the
-  // Electron shell (see apps/desktop/src/preload.js). Same pattern as
-  // ClientDashboard: keep a ref of fileId -> fileName for the toast text.
+  const [eodReportOpen, setEodReportOpen] = useState(false);
+  const [selectedRawClientId, setSelectedRawClientId] = useState<string>("");
+  const [rawsSending, setRawsSending] = useState(false);
+  const [justSentRaws, setJustSentRaws] = useState(false);
   const downloadFileNamesRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
@@ -2148,7 +2168,7 @@ export function EditorDashboard() {
           )
         );
         toast.error("Failed to update task status. Please try again.");
-      } else if (toStatus === "ready_for_qc") {
+      } else if (targetStatus === "ready_for_qc") {
         // 🔥 Check quota completion after moving to ready_for_qc
         checkDeliverableQuota(draggingTask);
       }
@@ -2356,6 +2376,12 @@ export function EditorDashboard() {
 
   const columns = [
     {
+      id: "revisions",
+      title: "Revisions Needed",
+      status: "rejected",
+      tasks: tasksByStatus.revisions,
+    },
+    {
       id: "pending",
       title: "Pending",
       status: "pending",
@@ -2372,12 +2398,6 @@ export function EditorDashboard() {
       title: "Quality Control",
       status: "ready_for_qc",
       tasks: tasksByStatus.readyForQC,
-    },
-    {
-      id: "revisions",
-      title: "Revisions Needed",
-      status: "rejected",
-      tasks: tasksByStatus.revisions,
     },
   ];
 
@@ -2403,116 +2423,162 @@ export function EditorDashboard() {
         </div>
       )}
 
-      <div className="mb-8 pb-6 border-b border-gray-200">
-        <InstructionsBanner />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              Editor Portal
-            </h1>
-            <p className="text-muted-foreground mt-1 text-lg">
-              Manage your assigned tasks and complete work for QC review.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <RequestRawsButton clients={permittedClients} />
-            <EditorCreateTaskDialog
-              permittedClients={permittedClients}
-              onTaskCreated={() => loadTasks()}
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Filter className="h-4 w-4" />
-              <span className="text-sm">Filter by:</span>
+      {/* 🔥 MOCKUP-STYLED FILTER & ACTION CARD */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs p-4 mb-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-wrap items-end gap-3 flex-1 min-w-0">
+            {/* Client Filter */}
+            <div className="flex flex-col gap-1.5 min-w-[130px]">
+              <label className="text-[12px] font-medium text-gray-500">Client</label>
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black">
+                  <SelectValue placeholder="All Clients" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {availableClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="All Deliverables" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Deliverables</SelectItem>
-                {availableDeliverableTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type.replace(/_/g, " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Deliverables Filter */}
+            <div className="flex flex-col gap-1.5 min-w-[130px]">
+              <label className="text-[12px] font-medium text-gray-500">Deliverables</label>
+              <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
+                <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black">
+                  <SelectValue placeholder="Deliverables" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Deliverables</SelectItem>
+                  {availableDeliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="All Clients" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Clients</SelectItem>
-                {availableClients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Month Filter */}
+            <div className="flex flex-col gap-1.5 min-w-[120px]">
+              <label className="text-[12px] font-medium text-gray-500">Month</label>
+              <Select value={monthFilter} onValueChange={setMonthFilter}>
+                <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black">
+                  <SelectValue placeholder="Months" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Months</SelectItem>
+                  {availableMonths.map((month) => (
+                    <SelectItem key={month} value={month}>
+                      {month}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={monthFilter} onValueChange={(value) => { setMonthFilter(value); }}>
-              <SelectTrigger className="w-[150px]">
-                <Calendar className="h-4 w-4 mr-1.5 text-muted-foreground" />
-                <SelectValue placeholder="All Months" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Months</SelectItem>
-                {availableMonths.map((month) => (
-                  <SelectItem key={month} value={month}>
-                    {month}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Tag Filter */}
+            <div className="flex flex-col gap-1.5 min-w-[110px]">
+              <label className="text-[12px] font-medium text-gray-500">Tag</label>
+              <Select value={tagFilter} onValueChange={setTagFilter}>
+                <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {availableTags.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={tagFilter} onValueChange={setTagFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="All Tags" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Tags</SelectItem>
-                {availableTags.map((tag) => (
-                  <SelectItem key={tag} value={tag}>
-                    {tag}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Request Raw Footage */}
+            <div className="flex flex-col gap-1.5 min-w-[200px]">
+              <label className="text-[12px] font-medium text-gray-500">Request Raw Footage</label>
+              <div className="flex items-center gap-2">
+                <Select value={selectedRawClientId} onValueChange={setSelectedRawClientId}>
+                  <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black w-[130px]">
+                    <SelectValue placeholder="Client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableClients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!selectedRawClientId || rawsSending}
+                  onClick={async () => {
+                    if (!selectedRawClientId) return;
+                    setRawsSending(true);
+                    try {
+                      const res = await fetch("/api/editor/request-raws", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({ clientId: selectedRawClientId }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        setJustSentRaws(true);
+                        setTimeout(() => setJustSentRaws(false), 2500);
+                        toast.success(`Raw footage request sent to ${data.sentToClientChannel ? data.clientName + " Slack" : "E8 channel"}`);
+                      } else {
+                        toast.error(data.error || "Failed to send request");
+                      }
+                    } catch {
+                      toast.error("Network error sending request");
+                    } finally {
+                      setRawsSending(false);
+                    }
+                  }}
+                  className="h-9.5 rounded-xl border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-900 gap-1.5 px-3 shadow-2xs"
+                >
+                  {rawsSending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5 text-gray-700" />
+                  )}
+                  <span>{justSentRaws ? "Sent!" : "Send"}</span>
+                </Button>
+              </div>
+            </div>
 
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-xs">
-                Clear Filters
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                className="h-9.5 text-xs text-gray-500 hover:text-black self-end"
+              >
+                Clear
               </Button>
             )}
-
-
           </div>
 
-          {/* Show filter info */}
-          {/* {deliverableTypeFilter !== "all" && (
-              <div className="mt-3 pt-3 border-t">
-                <p className="text-sm text-muted-foreground">
-                  Showing{" "}
-                  <span className="font-medium text-foreground">
-                    {totalFilteredTasks}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-medium text-foreground">
-                    {totalTasks}
-                  </span>{" "}
-                  tasks filtered by{" "}
-                  <Badge variant="secondary" className="ml-1">
-                    {deliverableTypeFilter.replace(/_/g, " ")}
-                  </Badge>
-                </p>
-              </div>
-            )} */}
+          {/* Send EOD Report Button */}
+          <div className="flex items-center gap-2 self-end">
+            <Button
+              onClick={() => setEodReportOpen(true)}
+              className="h-9.5 rounded-xl bg-black text-white hover:bg-neutral-800 text-xs font-semibold px-4 gap-2 shadow-xs transition-colors"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>Send EOD Report</span>
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Kanban Board with Drag & Drop — each column scrolls independently */}
@@ -2552,8 +2618,12 @@ export function EditorDashboard() {
         onOpenChange={setIsPreviewOpen}
       />
 
-      {/* EOD Report Section */}
-      <EditorEodReport />
+      {/* EOD Report Dialog Modal */}
+      <EditorEodReport
+        open={eodReportOpen}
+        onOpenChange={setEodReportOpen}
+        isDialog={true}
+      />
 
     </div>
   );

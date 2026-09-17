@@ -275,6 +275,7 @@ export function renderPage(
       case "my-tasks":
         return <EditorDashboard />;
       case "script-linking":
+      case "link-scripts":
         return <ScriptLinkingPanel mode="editor" />;
       case "projects":
         return <EditorProjects />;
