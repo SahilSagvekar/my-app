@@ -13,13 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { TaskUploadSections } from "../workflow/TaskUploadSections";
+import { TaskUploadSections, classifyDeliverableType } from "../workflow/TaskUploadSections";
 import { TaskActionsMenu, computeTaskActionCount } from "../workflow/TaskActionsMenu";
 import {
   Calendar,
   FileText,
   Video,
+  Music,
   Image as ImageIcon,
+  LayoutGrid,
   File,
   Download,
   Eye,
@@ -47,7 +49,7 @@ import { InstructionsBanner } from "../editor/InstructionsBanner";
 import {
   getTaskCardThumbnailUrl,
   taskThumbnailFallbackLabel,
-} from "@/lib/task-thumbnail";
+} from "../../lib/task-thumbnail";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { EditorEodReport } from "./EditorEodReport";
@@ -479,12 +481,14 @@ function FilePreviewCard({
 
 function FileViewerDialog({
   files,
+  title = "Task Files",
   open,
   onOpenChange,
   onPreview,
   onDownload,
 }: {
   files: TaskFile[];
+  title?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPreview: (file: TaskFile) => void;
@@ -513,7 +517,7 @@ function FileViewerDialog({
       <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] sm:max-h-[80vh] p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-base sm:text-lg">
-            Task Files ({files.length})
+            {title} ({files.length})
           </DialogTitle>
         </DialogHeader>
 
@@ -616,9 +620,10 @@ function TaskCard({
   // const [showGuidelines, setShowGuidelines] = useState(false);
 
   const [showFiles, setShowFiles] = useState(false);
-const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
-const [selectedFeedback, setSelectedFeedback] = useState<TaskFeedbackItem | null>(null);
-const [showGuidelines, setShowGuidelines] = useState(false);
+  const [activeFileViewer, setActiveFileViewer] = useState<{ title: string; files: TaskFile[] } | null>(null);
+  const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
+  const [selectedFeedback, setSelectedFeedback] = useState<TaskFeedbackItem | null>(null);
+  const [showGuidelines, setShowGuidelines] = useState(false);
   // Version filter for feedback: null = current version (highest), number = specific version
   const allVersions = useMemo(() => {
     if (!task.taskFeedback) return [];
@@ -629,6 +634,14 @@ const [showGuidelines, setShowGuidelines] = useState(false);
   const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | null>(null);
   const activeVersion = feedbackVersionFilter ?? currentVersion;
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+
+  const visibleFeedback = useMemo(() => {
+    return (task.taskFeedback || []).filter(fb => (fb.fileVersion || 1) === activeVersion && fb.status !== 'resolved');
+  }, [task.taskFeedback, activeVersion]);
+  const unresolvedFeedbackCount = visibleFeedback.length;
+  const acknowledgedFeedbackCount = useMemo(() => {
+    return visibleFeedback.filter(fb => fb.status === 'acknowledged' || !!fb.acknowledgedAt).length;
+  }, [visibleFeedback]);
   // Script viewer + attach state
   const [scriptOpen, setScriptOpen] = useState(false);
   const [scriptLoading, setScriptLoading] = useState(false);
@@ -833,27 +846,151 @@ const [showGuidelines, setShowGuidelines] = useState(false);
   };
 
   const isOverdue = new Date(task.dueDate) < new Date();
-
-  // 🔥 Tasks in QC review can now be dragged back to in_progress by editors
   const isDraggable = true;
 
-  // 🔥 Get upload validation for in_progress tasks
-  const uploadValidation =
-    task.status === "in_progress" ? validateRequiredUploads(task) : null;
+  // Deliverable classification and categorized files
+  const category = classifyDeliverableType(task.deliverableType, task.title);
+  const mainFiles = useMemo(
+    () => (task.files || []).filter(f => !f.folderType || f.folderType === "main"),
+    [task.files]
+  );
+  const musicFiles = useMemo(
+    () => (task.files || []).filter(f => f.folderType === "music-license"),
+    [task.files]
+  );
+  const thumbFiles = useMemo(
+    () => (task.files || []).filter(f => f.folderType === "thumbnails"),
+    [task.files]
+  );
+  const tileFiles = useMemo(
+    () => (task.files || []).filter(f => f.folderType === "tiles"),
+    [task.files]
+  );
 
-  // 🔥 Get deliverable type color for card background
-  const deliverableColors = getDeliverableTypeColor(task.deliverableType || '');
+  const hasMusicLicenses = category === 'SHORT_FORM' || category === 'BETA_SHORT_FORM' || category === 'LONG_FORM' || category === 'SQUARE_FORM' || category === 'SNAPCHAT' || category === 'STORIES' || musicFiles.length > 0;
+  const hasThumbnails = category === 'SHORT_FORM' || category === 'BETA_SHORT_FORM' || category === 'LONG_FORM' || category === 'SQUARE_FORM' || category === 'STORIES' || thumbFiles.length > 0;
+  const hasTiles = category === 'SNAPCHAT' || tileFiles.length > 0;
+
+  // Reusable Task Actions Menu element
+  const taskActionsElement = (
+    <TaskActionsMenu
+      task={task}
+      onToggleSponsored={onToggleSponsored}
+      onTaskFieldsChange={(taskId, patch) => onTaskFieldsChange?.(taskId, patch)}
+      showLinkLongForm={!!(
+        task.deliverableType && (
+          task.deliverableType.toLowerCase().includes('short') ||
+          task.deliverableType.toUpperCase().includes('SF')
+        )
+      )}
+      scriptAction={
+        canAttachScript ? (
+          <Popover
+            open={attachOpen}
+            onOpenChange={(open) => {
+              setAttachOpen(open);
+              if (open) void loadAvailableScripts();
+            }}
+          >
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => e.stopPropagation()}
+                className="w-full flex items-center gap-2 px-2.5 py-2 text-left text-sm font-medium rounded hover:bg-muted transition-colors"
+              >
+                <ScrollText className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                <span className="flex-1 truncate">Link Script</span>
+                {task.shootScriptRef && (
+                  <span className="text-xs opacity-70 truncate max-w-[110px]">{linkedScriptTitle}</span>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="w-72 p-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {task.shootScriptRef && (
+                <div className="mb-2 space-y-1.5 border-b border-slate-100 pb-2">
+                  <p className="truncate text-sm font-semibold text-slate-900">
+                    {linkedScriptTitle}
+                  </p>
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 flex-1 text-xs"
+                      disabled={scriptLoading}
+                      onClick={() => void loadScript()}
+                    >
+                      {scriptLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScrollText className="h-3 w-3" />}
+                      <span className="ml-1">View</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                      disabled={attachBusy}
+                      onClick={() => void unlinkScript()}
+                    >
+                      <Unlink className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-slate-500">Pick another below to swap.</p>
+                </div>
+              )}
+              {attachLoading ? (
+                <p className="flex items-center gap-2 py-4 text-xs text-slate-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading scripts…
+                </p>
+              ) : availableScripts.length === 0 ? (
+                <p className="py-3 text-xs text-slate-500">
+                  {task.shootScriptRef
+                    ? 'No other unlinked scripts available.'
+                    : 'No unlinked scripts available for this client.'}
+                </p>
+              ) : (
+                <div className="max-h-56 space-y-1 overflow-y-auto">
+                  {availableScripts.map((s) => (
+                    <button
+                      key={`${s.shootTaskId}::${s.id}`}
+                      type="button"
+                      disabled={attachBusy}
+                      onClick={() => void linkScript(s.shootTaskId, s.id, s.title)}
+                      className="w-full rounded-md border border-slate-200 px-2.5 py-2 text-left hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      <p className="truncate text-sm font-medium text-slate-900">{s.title || 'Untitled script'}</p>
+                      <p className="mt-0.5 text-[11px] text-slate-500">
+                        {s.shootDate
+                          ? new Date(s.shootDate).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })
+                          : 'Unscheduled'}{' '}
+                        — {s.status}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        ) : undefined
+      }
+    />
+  );
 
   return (
     <>
       <div
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
-        className={`bg-white rounded-2xl border border-gray-200 shadow-2xs p-3.5 transition-all ${
+        className={`bg-white rounded-2xl p-4 transition-all shadow-2xs mb-3 ${
+          task.status === "rejected" ? "border border-red-300 ring-1 ring-red-100" : "border border-gray-300"
+        } ${
           isDraggable ? "cursor-grab active:cursor-grabbing hover:shadow-sm" : "cursor-not-allowed opacity-75"
-        } ${isDragging ? "opacity-50 scale-95 ring-2 ring-black" : ""} ${
-          task.status === "rejected" ? "ring-1 ring-red-200" : ""
-        }`}
+        } ${isDragging ? "opacity-50 scale-95 ring-2 ring-black" : ""}`}
       >
         <div>
           {/* Title + Guidelines G Badge */}
@@ -861,91 +998,68 @@ const [showGuidelines, setShowGuidelines] = useState(false);
             <h4 className="font-bold text-[13.5px] text-gray-900 leading-snug break-words flex-1">
               {task.title || task.clientName || task.deliverableType}
             </h4>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {task.clientId && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        loadGuidelines();
-                      }}
-                      className="h-5 w-5 rounded-full bg-[#EA580C] text-white text-[10px] font-bold flex items-center justify-center shadow-xs hover:bg-[#C2410C] transition-colors"
-                    >
-                      G
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" sideOffset={6}>
-                    Guidelines – click to view
-                  </TooltipContent>
-                </Tooltip>
-              )}
-
-              {/* 🔥 Info icon — shows video description popup */}
-
-              {task.description && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={e => e.stopPropagation()}
-                      className="h-5 w-5 flex items-center justify-center rounded-full hover:bg-blue-50 text-blue-500 transition-colors"
-                      title="View description"
-                    >
-                      <Info className="h-[18px] w-[18px]" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    side="bottom"
-                    align="end"
-                    className="w-72 p-3 text-xs"
-                    onClick={e => e.stopPropagation()}
+            {task.clientId && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      loadGuidelines();
+                    }}
+                    className="h-5 w-5 rounded-full bg-[#EA580C] text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-xs hover:bg-[#C2410C] transition-colors"
                   >
-                    <p className="font-semibold mb-1.5 text-foreground">Description</p>
-                    <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap break-words">
-                      {task.description}
-                    </p>
-                  </PopoverContent>
-                </Popover>
-              )}
-
-              {task.files?.some(f => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING') && (
-                <div className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 animate-pulse">
-                  <RefreshCw className="h-2.5 w-2.5 animate-spin" />
-                  <span>Compressing...</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Badges row — deliverable type, one-off, quota (far right) */}
-          <div className="flex items-center gap-1 mb-2 flex-wrap">
-            {task.deliverableType && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-                {task.deliverableType.replace(/_/g, " ")}
-              </Badge>
-            )}
-            {task.id.startsWith("one-off") || (task as any).isOneOff ? (
-              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-yellow-50 text-yellow-700 border-yellow-200">
-                One-Off
-              </Badge>
-            ) : null}
-            {isQuotaComplete && (
-              <Badge className="text-[10px] h-4 px-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                ✓ Quota complete
-              </Badge>
+                    G
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6}>
+                  Guidelines – click to view
+                </TooltipContent>
+              </Tooltip>
             )}
           </div>
 
-          {/* 🔥 TASK FILES BUTTON (mockup style) — shown on pending and rejected cards */}
-          {task.status !== "in_progress" && (
-            <div className="mb-2">
+          {/* In-Progress tasks use TaskUploadSections with TaskActions slotted above Submit */}
+          {task.status === "in_progress" ? (
+            <TaskUploadSections
+              task={task}
+              onUploadComplete={(files) => onUploadComplete(task.id, files)}
+              onBeforeSubmitToQC={() => {
+                if (computeTaskActionCount(task) === 0) {
+                  toast.error('Set at least one Task Action, or mark "No Action Required", before submitting to QC');
+                  return false;
+                }
+                if (!task.taskFeedback || task.taskFeedback.length === 0) return true;
+                const allVersions = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
+                const latestVersion = Math.max(...(allVersions as number[]));
+                const unacknowledged = task.taskFeedback.filter(
+                  (fb: any) => (fb.fileVersion || 1) === latestVersion
+                    && fb.status !== 'resolved'
+                    && fb.status !== 'acknowledged'
+                    && !fb.acknowledgedAt
+                );
+                if (unacknowledged.length > 0) {
+                  toast.error(
+                    `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`
+                  );
+                  return false;
+                }
+                return true;
+              }}
+            >
+              {taskActionsElement}
+            </TaskUploadSections>
+          ) : (
+            <div className="space-y-2">
+              {/* Task Files Button */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowFiles(true);
+                  setActiveFileViewer({
+                    title: "Task Files",
+                    files: mainFiles.length > 0 ? mainFiles : (task.files || []),
+                  });
                 }}
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
               >
@@ -954,401 +1068,262 @@ const [showGuidelines, setShowGuidelines] = useState(false);
                   Task Files<span className="text-red-500">*</span>
                 </span>
                 <span className="text-gray-500 font-normal text-xs">
-                  ({task.files?.length || 0} file{(task.files?.length || 0) !== 1 ? "s" : ""})
+                  ({mainFiles.length || task.files?.length || 0} file{(mainFiles.length || task.files?.length || 0) !== 1 ? "s" : ""})
                 </span>
-                <ChevronDown className="h-3.5 w-3.5 text-gray-400 transition-transform ml-0.5" />
+                <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-0.5" />
               </button>
-            </div>
-          )}
 
-          {/* 🔥 TASK ACTIONS — consolidated tag/script/raw-footage/long-form/
-              sponsor/no-action-required menu. See TaskActionsMenu.tsx. */}
-          <div className="mb-2">
-            <TaskActionsMenu
-              task={task}
-              onToggleSponsored={onToggleSponsored}
-              onTaskFieldsChange={(taskId, patch) => onTaskFieldsChange?.(taskId, patch)}
-              showLinkLongForm={!!(
-                task.deliverableType && (
-                  task.deliverableType.toLowerCase().includes('short') ||
-                  task.deliverableType.toUpperCase().includes('SF')
-                )
-              )}
-              scriptAction={
-                canAttachScript ? (
-                  <Popover
-                    open={attachOpen}
-                    onOpenChange={(open) => {
-                      setAttachOpen(open);
-                      if (open) void loadAvailableScripts();
-                    }}
-                  >
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full flex items-center gap-2 px-2.5 py-2 text-left text-sm font-medium rounded hover:bg-muted transition-colors"
-                      >
-                        <ScrollText className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                        <span className="flex-1 truncate">Link Script</span>
-                        {task.shootScriptRef && (
-                          <span className="text-xs opacity-70 truncate max-w-[110px]">{linkedScriptTitle}</span>
-                        )}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      align="end"
-                      className="w-72 p-3"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {task.shootScriptRef && (
-                        <div className="mb-2 space-y-1.5 border-b border-slate-100 pb-2">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {linkedScriptTitle}
-                          </p>
-                          <div className="flex gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 flex-1 text-xs"
-                              disabled={scriptLoading}
-                              onClick={() => void loadScript()}
-                            >
-                              {scriptLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScrollText className="h-3 w-3" />}
-                              <span className="ml-1">View</span>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
-                              disabled={attachBusy}
-                              onClick={() => void unlinkScript()}
-                            >
-                              <Unlink className="h-3 w-3" />
-                            </Button>
-                          </div>
-                          <p className="text-[11px] text-slate-500">Pick another below to swap.</p>
-                        </div>
-                      )}
-                      {attachLoading ? (
-                        <p className="flex items-center gap-2 py-4 text-xs text-slate-500">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading scripts…
-                        </p>
-                      ) : availableScripts.length === 0 ? (
-                        <p className="py-3 text-xs text-slate-500">
-                          {task.shootScriptRef
-                            ? 'No other unlinked scripts available.'
-                            : 'No unlinked scripts available for this client.'}
-                        </p>
-                      ) : (
-                        <div className="max-h-56 space-y-1 overflow-y-auto">
-                          {availableScripts.map((s) => (
-                            <button
-                              key={`${s.shootTaskId}::${s.id}`}
-                              type="button"
-                              disabled={attachBusy}
-                              onClick={() => void linkScript(s.shootTaskId, s.id, s.title)}
-                              className="w-full rounded-md border border-slate-200 px-2.5 py-2 text-left hover:bg-slate-50 disabled:opacity-50"
-                            >
-                              <p className="truncate text-sm font-medium text-slate-900">{s.title || 'Untitled script'}</p>
-                              <p className="mt-0.5 text-[11px] text-slate-500">
-                                {s.shootDate
-                                  ? new Date(s.shootDate).toLocaleDateString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                    })
-                                  : 'Unscheduled'}{' '}
-                                — {s.status}
-                              </p>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                ) : undefined
-              }
-            />
-          </div>
-
-          {/* Music licenses if present */}
-          {musicLicenseFiles.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1">
-              {musicLicenseFiles.map((file) => (
+              {/* Music Licenses Button (for video tasks that need or have music licenses) */}
+              {hasMusicLicenses && (
                 <button
-                  key={file.id}
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onPreview(file);
+                    setActiveFileViewer({
+                      title: "Music Licenses",
+                      files: musicFiles,
+                    });
                   }}
-                  className="inline-flex items-center gap-1 h-5 px-1.5 rounded border border-orange-200 bg-orange-50 text-orange-700 text-[10px] font-medium hover:bg-orange-100 max-w-[160px]"
-                  title={file.name}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
                 >
-                  <span>🎵</span>
-                  <span className="truncate">{file.name}</span>
+                  <Music className="h-3.5 w-3.5 text-orange-600 shrink-0 mr-0.5" />
+                  <span>
+                    Music Licenses<span className="text-red-500">*</span>
+                  </span>
+                  <span className="text-gray-500 font-normal text-xs">
+                    ({musicFiles.length} file{musicFiles.length !== 1 ? "s" : ""})
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-0.5" />
                 </button>
-              ))}
-            </div>
-          )}
+              )}
 
-          {/* 🔥 VERSION-TAGGED FEEDBACK — styled like mockup below Start Revision */}
-          {task.taskFeedback && task.taskFeedback.length > 0 && (() => {
-            const visibleFeedback = task.taskFeedback!.filter(fb => (fb.fileVersion || 1) === activeVersion && fb.status !== 'resolved');
-            const unresolvedCount = visibleFeedback.length;
-            const acknowledgedCount = visibleFeedback.filter(fb => fb.status === 'acknowledged' || !!fb.acknowledgedAt).length;
-            return (
-              <div className="mt-2 mb-1">
-                {/* Trigger line matching mockup: ⏱ Revision Feedback  1/1 fixed */}
+              {/* Thumbnails Button (for tasks that need or have thumbnails) */}
+              {hasThumbnails && (
                 <button
                   type="button"
-                  onClick={e => { e.stopPropagation(); setFeedbackDialogOpen(true); }}
-                  className="w-full flex items-center justify-between text-xs text-[#DC2626] font-medium py-1 px-1 hover:underline transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveFileViewer({
+                      title: "Thumbnails",
+                      files: thumbFiles,
+                    });
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
-                    <span className="font-semibold text-[12.5px]">Revision Feedback</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-[#DC2626]">
-                    <span>{acknowledgedCount}/{unresolvedCount || 1} fixed</span>
-                  </div>
+                  <ImageIcon className="h-3.5 w-3.5 text-purple-600 shrink-0 mr-0.5" />
+                  <span>
+                    Thumbnails{category === 'LONG_FORM' || category === 'SQUARE_FORM' ? <span className="text-red-500">*</span> : ''}
+                  </span>
+                  <span className="text-gray-500 font-normal text-xs">
+                    ({thumbFiles.length} file{thumbFiles.length !== 1 ? "s" : ""})
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-0.5" />
                 </button>
+              )}
 
-                {/* Dialog popup */}
-                <Dialog open={feedbackDialogOpen} onOpenChange={open => { setFeedbackDialogOpen(open); if (!open) setSelectedFeedback(null); }}>
-                  <DialogContent className="max-w-sm p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
-                    <DialogHeader className="px-4 pt-4 pb-0">
-                      <DialogTitle className="text-sm flex items-center gap-2 pr-6">
-                        {selectedFeedback ? (
-                          <button
-                            className="text-[11px] text-primary hover:underline flex items-center gap-1 font-normal"
-                            onClick={() => setSelectedFeedback(null)}
-                          >
-                            ← Back
-                          </button>
-                        ) : (
-                          <span className="flex-1">{getRevisionFeedbackListLabel(visibleFeedback)}</span>
-                        )}
-                        {selectedFeedback ? (
-                          (() => {
-                            const isAcknowledged = selectedFeedback.status === 'acknowledged' || !!selectedFeedback.acknowledgedAt;
-                            const isAcking = acknowledgingId === selectedFeedback.id;
-                            return !isAcknowledged ? (
-                              <button
-                                className="text-[11px] px-2 py-1 rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 font-normal ml-auto"
-                                disabled={isAcking}
-                                onClick={e => handleAcknowledge(selectedFeedback.id, e)}
-                              >
-                                {isAcking ? '...' : '✓ Mark fixed'}
-                              </button>
-                            ) : (
-                              <span className="text-[11px] text-green-600 font-medium ml-auto">✓ Fixed</span>
-                            );
-                          })()
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground font-normal">{acknowledgedCount}/{unresolvedCount} fixed</span>
-                        )}
-                      </DialogTitle>
-                    </DialogHeader>
+              {/* Tiles Button (Snapchat) */}
+              {hasTiles && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveFileViewer({
+                      title: "Tiles",
+                      files: tileFiles,
+                    });
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
+                >
+                  <LayoutGrid className="h-3.5 w-3.5 text-blue-600 shrink-0 mr-0.5" />
+                  <span>
+                    Tiles<span className="text-red-500">*</span>
+                  </span>
+                  <span className="text-gray-500 font-normal text-xs">
+                    ({tileFiles.length} file{tileFiles.length !== 1 ? "s" : ""})
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-0.5" />
+                </button>
+              )}
 
-                    <div className="max-h-[60vh] overflow-y-auto">
-                      {selectedFeedback ? (
-                        /* Detail view */
-                        <div className="px-4 pb-4 pt-3 space-y-3">
-                          <div className="flex flex-wrap gap-1">
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">V{selectedFeedback.fileVersion || 1}</Badge>
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                              {selectedFeedback.folderType === "main" ? "📁 Main" :
-                                selectedFeedback.folderType === "thumbnails" ? "🖼️ Thumb" :
-                                selectedFeedback.folderType === "tiles" ? "🎨 Tiles" :
-                                selectedFeedback.folderType === "music-license" ? "🎵 Music" :
-                                selectedFeedback.folderType}
-                            </Badge>
-                            {selectedFeedback.timestamp && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {selectedFeedback.timestamp}</Badge>
-                            )}
-                            {selectedFeedback.category && (
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">{selectedFeedback.category}</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
-                            {selectedFeedback.feedback}
-                          </p>
-                          {selectedFeedback.authorName && (
-                            <p className="text-[11px] text-muted-foreground">
-                              — {selectedFeedback.authorName}{selectedFeedback.authorRole === 'qc' ? ' (QC)' : selectedFeedback.authorRole === 'client' ? ' (Client)' : ''}
-                            </p>
-                          )}
-                          {selectedFeedback.fileName && (
-                            <p className="text-[11px] text-muted-foreground truncate" title={selectedFeedback.fileName}>📎 {selectedFeedback.fileName}</p>
-                          )}
-                          {selectedFeedback.acknowledgedAt && (
-                            <p className="text-[11px] text-green-600">Fixed on {new Date(selectedFeedback.acknowledgedAt).toLocaleDateString()}</p>
-                          )}
-                        </div>
-                      ) : (
-                        /* List view */
-                        <div className="divide-y mt-3">
-                          {visibleFeedback.map(fb => {
-                            const isAcknowledged = fb.status === 'acknowledged' || !!fb.acknowledgedAt;
-                            const isAcking = acknowledgingId === fb.id;
-                            return (
-                              <div
-                                key={fb.id}
-                                className={`px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors ${isAcknowledged ? 'opacity-60' : ''}`}
-                                onClick={() => setSelectedFeedback(fb)}
-                              >
-                                <div className="flex items-start gap-2.5">
-                                  <button
-                                    className={`mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                                      isAcknowledged ? 'bg-green-500 border-green-500 text-white' : 'border-muted-foreground/40 hover:border-green-500'
-                                    }`}
-                                    onClick={e => { e.stopPropagation(); if (!isAcknowledged) handleAcknowledge(fb.id, e); }}
-                                    disabled={isAcking || isAcknowledged}
-                                  >
-                                    {isAcknowledged && <span className="text-[9px] leading-none">✓</span>}
-                                    {isAcking && <span className="text-[9px] leading-none">…</span>}
-                                  </button>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1 mb-1 flex-wrap">
-                                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">V{fb.fileVersion || 1}</Badge>
-                                      <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                                        {fb.folderType === "main" ? "📁 Main" :
-                                          fb.folderType === "thumbnails" ? "🖼️ Thumb" :
-                                          fb.folderType === "tiles" ? "🎨 Tiles" :
-                                          fb.folderType === "music-license" ? "🎵 Music" :
-                                          fb.folderType}
-                                      </Badge>
-                                      {fb.timestamp && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {fb.timestamp}</Badge>}
-                                    </div>
-                                    <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{fb.feedback}</p>
-                                    {fb.authorName && (
-                                      <p className="text-[9px] text-muted-foreground mt-1">
-                                        — {fb.authorName}{fb.authorRole === 'qc' ? ' (QC)' : fb.authorRole === 'client' ? ' (Client)' : ''}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <span className="text-muted-foreground shrink-0 mt-1 text-xs">›</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            );
-          })()}
+              {/* Task Actions Button */}
+              {taskActionsElement}
 
-          {/* Compact Due Date + Files */}
-          <div className="flex items-center justify-between mb-2 text-xs">
-            {/* <span
-              className={`text-[10px] ${isOverdue ? "text-red-500 font-medium" : "text-muted-foreground"
-                }`}
-            >
-              Due {new Date(task.dueDate).toLocaleDateString()}
-              {isOverdue && " ⚠"}
-            </span> */}
-
-            {/* {(task.files?.length ?? 0) > 0 && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
-                <FileText className="h-2.5 w-2.5 mr-0.5" />
-                {task.files?.length}
-              </Badge>
-            )} */}
-          </div>
-
-          {/* Compact FILE PREVIEWS - Only show if files exist and not in progress (to avoid duplication) */}
-          {task.files &&
-            task.files.length > 0 &&
-            task.status !== "in_progress" && (
-              <div className="mb-2">
-                <div className="space-y-0.5">
-                  {(showFiles ? task.files : task.files.slice(0, 3)).map((file: TaskFile) => (
-                    <FilePreviewCard
-                      key={file.id}
-                      file={file}
-                      onView={() => onPreview(file)}
-                      onDownload={onDownload ? () => onDownload(file) : undefined}
-                    />
-                  ))}
-                </div>
-                {task.files.length > 3 && (
-                  <button
-                    className="mt-1 text-[10px] text-primary hover:underline cursor-pointer flex items-center gap-0.5"
-                    onClick={(e) => { e.stopPropagation(); setShowFiles(v => !v); }}
+              {/* Action Button */}
+              {task.status === "rejected" && (
+                <div>
+                  <Button
+                    size="sm"
+                    className="w-full h-10 rounded-xl font-semibold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-[#B91C1C] text-white hover:bg-[#991B1B]"
+                    onClick={() => onStartTask(task.id)}
                   >
-                    {showFiles
-                      ? "Show less"
-                      : `+${task.files.length - 3} more files`}
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    <span>Start Revision</span>
+                  </Button>
+
+                  {/* Revision Feedback Trigger */}
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); setFeedbackDialogOpen(true); }}
+                    className="w-full flex items-center justify-between text-xs text-[#DC2626] font-medium pt-2 pb-0.5 px-1 hover:underline transition-all"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
+                      <span className="font-semibold text-[12.5px]">Revision Feedback</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-[#DC2626]">
+                      <span>{acknowledgedFeedbackCount}/{unresolvedFeedbackCount || 1} fixed</span>
+                    </div>
                   </button>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* 🔥 Upload / Action Section */}
-            {(task.status === "pending" || task.status === "rejected") && (
-              <Button
-                size="sm"
-                className={`w-full h-10 rounded-xl font-semibold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 ${
-                  task.status === "rejected" 
-                    ? "bg-[#B91C1C] text-white hover:bg-[#991B1B]" 
-                    : "bg-black text-white hover:bg-neutral-800"
-                }`}
-                onClick={() => onStartTask(task.id)}
-              >
-                <Play className="h-3.5 w-3.5 fill-current" />
-                <span>{task.status === "rejected" ? "Start Revision" : "Start"}</span>
-              </Button>
-            )}
+              {task.status === "pending" && (
+                <Button
+                  size="sm"
+                  className="w-full h-10 rounded-xl font-semibold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-black text-white hover:bg-neutral-800"
+                  onClick={() => onStartTask(task.id)}
+                >
+                  <Play className="h-3.5 w-3.5 fill-current" />
+                  <span>Start</span>
+                </Button>
+              )}
 
-            {task.status === "in_progress" && (
-              <TaskUploadSections
-                task={task}
-                onUploadComplete={(files) => onUploadComplete(task.id, files)}
-                onBeforeSubmitToQC={() => {
-                  // 🔥 Task Actions gate — mirrors the server-side check in
-                  // /api/tasks/[id]/status so the editor gets instant feedback
-                  // instead of waiting on the 400.
-                  if (computeTaskActionCount(task) === 0) {
-                    toast.error('Set at least one Task Action, or mark "No Action Required", before submitting to QC');
-                    return false;
-                  }
-                  if (!task.taskFeedback || task.taskFeedback.length === 0) return true;
-                  const allVersions = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
-                  const latestVersion = Math.max(...(allVersions as number[]));
-                  const unacknowledged = task.taskFeedback.filter(
-                    (fb: any) => (fb.fileVersion || 1) === latestVersion
-                      && fb.status !== 'resolved'
-                      && fb.status !== 'acknowledged'
-                      && !fb.acknowledgedAt
-                  );
-                  if (unacknowledged.length > 0) {
-                    toast.error(
-                      `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`
-                    );
-                    return false;
-                  }
-                  return true;
-                }}
-              />
-            )}
-
-            {/* 🔥 NEW: Allow editor to move task back from QC to In Progress */}
-            {task.status === "ready_for_qc" && (
-              <Button
-                size="sm"
-                className="w-full h-10 rounded-xl text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 shadow-xs"
-                onClick={() => onStartTask(task.id)}
-              >
-                ↩ Move Back to In Progress
-              </Button>
-            )}
+              {task.status === "ready_for_qc" && (
+                <Button
+                  size="sm"
+                  className="w-full h-10 rounded-xl text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 shadow-xs"
+                  onClick={() => onStartTask(task.id)}
+                >
+                  ↩ Move Back to In Progress
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Revision Feedback Dialog */}
+      <Dialog open={feedbackDialogOpen} onOpenChange={open => { setFeedbackDialogOpen(open); if (!open) setSelectedFeedback(null); }}>
+        <DialogContent className="max-w-sm p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
+          <DialogHeader className="px-4 pt-4 pb-0">
+            <DialogTitle className="text-sm flex items-center gap-2 pr-6">
+              {selectedFeedback ? (
+                <button
+                  className="text-[11px] text-primary hover:underline flex items-center gap-1 font-normal"
+                  onClick={() => setSelectedFeedback(null)}
+                >
+                  ← Back
+                </button>
+              ) : (
+                <span className="flex-1">{getRevisionFeedbackListLabel(visibleFeedback)}</span>
+              )}
+              {selectedFeedback ? (
+                (() => {
+                  const isAcknowledged = selectedFeedback.status === 'acknowledged' || !!selectedFeedback.acknowledgedAt;
+                  const isAcking = acknowledgingId === selectedFeedback.id;
+                  return !isAcknowledged ? (
+                    <button
+                      className="text-[11px] px-2 py-1 rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 font-normal ml-auto"
+                      disabled={isAcking}
+                      onClick={e => handleAcknowledge(selectedFeedback.id, e)}
+                    >
+                      {isAcking ? '...' : '✓ Mark fixed'}
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-green-600 font-medium ml-auto">✓ Fixed</span>
+                  );
+                })()
+              ) : (
+                <span className="text-[11px] text-muted-foreground font-normal">{acknowledgedFeedbackCount}/{unresolvedFeedbackCount} fixed</span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-y-auto">
+            {selectedFeedback ? (
+              <div className="px-4 pb-4 pt-3 space-y-3">
+                <div className="flex flex-wrap gap-1">
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">V{selectedFeedback.fileVersion || 1}</Badge>
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                    {selectedFeedback.folderType === "main" ? "📁 Main" :
+                      selectedFeedback.folderType === "thumbnails" ? "🖼️ Thumb" :
+                      selectedFeedback.folderType === "tiles" ? "🎨 Tiles" :
+                      selectedFeedback.folderType === "music-license" ? "🎵 Music" :
+                      selectedFeedback.folderType}
+                  </Badge>
+                  {selectedFeedback.timestamp && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {selectedFeedback.timestamp}</Badge>
+                  )}
+                  {selectedFeedback.category && (
+                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">{selectedFeedback.category}</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
+                  {selectedFeedback.feedback}
+                </p>
+                {selectedFeedback.authorName && (
+                  <p className="text-[11px] text-muted-foreground">
+                    — {selectedFeedback.authorName}{selectedFeedback.authorRole === 'qc' ? ' (QC)' : selectedFeedback.authorRole === 'client' ? ' (Client)' : ''}
+                  </p>
+                )}
+                {selectedFeedback.fileName && (
+                  <p className="text-[11px] text-muted-foreground truncate" title={selectedFeedback.fileName}>📎 {selectedFeedback.fileName}</p>
+                )}
+                {selectedFeedback.acknowledgedAt && (
+                  <p className="text-[11px] text-green-600">Fixed on {new Date(selectedFeedback.acknowledgedAt).toLocaleDateString()}</p>
+                )}
+              </div>
+            ) : (
+              <div className="divide-y mt-3">
+                {visibleFeedback.map(fb => {
+                  const isAcknowledged = fb.status === 'acknowledged' || !!fb.acknowledgedAt;
+                  const isAcking = acknowledgingId === fb.id;
+                  return (
+                    <div
+                      key={fb.id}
+                      className={`px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors ${isAcknowledged ? 'opacity-60' : ''}`}
+                      onClick={() => setSelectedFeedback(fb)}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <button
+                          className={`mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                            isAcknowledged ? 'bg-green-500 border-green-500 text-white' : 'border-muted-foreground/40 hover:border-green-500'
+                          }`}
+                          onClick={e => { e.stopPropagation(); if (!isAcknowledged) handleAcknowledge(fb.id, e); }}
+                          disabled={isAcking || isAcknowledged}
+                        >
+                          {isAcknowledged && <span className="text-[9px] leading-none">✓</span>}
+                          {isAcking && <span className="text-[9px] leading-none">…</span>}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1 mb-1 flex-wrap">
+                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">V{fb.fileVersion || 1}</Badge>
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
+                              {fb.folderType === "main" ? "📁 Main" :
+                                fb.folderType === "thumbnails" ? "🖼️ Thumb" :
+                                fb.folderType === "tiles" ? "🎨 Tiles" :
+                                fb.folderType === "music-license" ? "🎵 Music" :
+                                fb.folderType}
+                            </Badge>
+                            {fb.timestamp && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {fb.timestamp}</Badge>}
+                          </div>
+                          <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{fb.feedback}</p>
+                          {fb.authorName && (
+                            <p className="text-[9px] text-muted-foreground mt-1">
+                              — {fb.authorName}{fb.authorRole === 'qc' ? ' (QC)' : fb.authorRole === 'client' ? ' (Client)' : ''}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-muted-foreground shrink-0 mt-1 text-xs">›</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* 📄 Script Viewer Dialog — read-only for editors */}
       <Dialog open={scriptOpen} onOpenChange={setScriptOpen}>
@@ -1502,15 +1477,19 @@ const [showGuidelines, setShowGuidelines] = useState(false);
       </Dialog>
 
       {/* File Viewer Dialog */}
-      {task.files && task.files.length > 0 && (
-        <FileViewerDialog
-          files={task.files || []}
-          open={showFiles}
-          onOpenChange={setShowFiles}
-          onPreview={onPreview}
-          onDownload={onDownload}
-        />
-      )}
+      <FileViewerDialog
+        title={activeFileViewer?.title || "Task Files"}
+        files={activeFileViewer?.files || (task.files || [])}
+        open={!!activeFileViewer || showFiles}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveFileViewer(null);
+            setShowFiles(false);
+          }
+        }}
+        onPreview={onPreview}
+        onDownload={onDownload}
+      />
     </>
   );
 }

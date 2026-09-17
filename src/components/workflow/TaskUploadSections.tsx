@@ -72,16 +72,47 @@ interface FeedbackRecord {
   };
 }
 
+export function classifyDeliverableType(deliverableType?: string | null, title?: string | null) {
+  const dt = (deliverableType || '').trim().toLowerCase();
+  const t = (title || '').trim().toLowerCase();
+
+  if (dt) {
+    if (dt === 'bsf' || dt.includes('beta')) return 'BETA_SHORT_FORM';
+    if (dt === 'sf' || dt.includes('short form') || dt.includes('short-form') || dt.includes('short_form') || dt === 'short') return 'SHORT_FORM';
+    if (dt === 'lf' || dt.includes('long form') || dt.includes('long-form') || dt.includes('long_form') || dt === 'long') return 'LONG_FORM';
+    if (dt === 'sqf' || dt.includes('square form') || dt.includes('square-form') || dt.includes('square_form') || dt === 'square') return 'SQUARE_FORM';
+    if (dt === 'sep' || dt.includes('snapchat')) return 'SNAPCHAT';
+    if (dt === 'st' || dt.includes('story') || dt.includes('stories')) return 'STORIES';
+    if (dt === 'hp' || dt.includes('hard post') || dt.includes('graphic image')) return 'HARD_POST';
+    if (dt === 'tp' || dt.includes('text post')) return 'TEXT_POST';
+  }
+
+  if (t) {
+    if (t.includes('_bsf') || t.includes('-bsf') || t.includes('betashortform')) return 'BETA_SHORT_FORM';
+    if (t.includes('_sf') || t.includes('-sf') || t.includes('shortform') || t.includes('_short')) return 'SHORT_FORM';
+    if (t.includes('_lf') || t.includes('-lf') || t.includes('longform') || t.includes('_long')) return 'LONG_FORM';
+    if (t.includes('_sqf') || t.includes('-sqf') || t.includes('squareform')) return 'SQUARE_FORM';
+    if (t.includes('_sep') || t.includes('-sep') || t.includes('snapchat')) return 'SNAPCHAT';
+    if (t.includes('_st') || t.includes('-st') || t.includes('story') || t.includes('stories')) return 'STORIES';
+    if (t.includes('_hp') || t.includes('-hp') || t.includes('hardpost')) return 'HARD_POST';
+    if (t.includes('_tp') || t.includes('-tp') || t.includes('textpost')) return 'TEXT_POST';
+  }
+
+  return 'OTHER_VIDEO';
+}
+
 interface TaskUploadSectionsProps {
   task: any;
   onUploadComplete: (files: any[]) => void;
   onBeforeSubmitToQC?: () => boolean; // return false to block submission
+  children?: React.ReactNode;
 }
 
 export function TaskUploadSections({
   task,
   onUploadComplete,
   onBeforeSubmitToQC,
+  children,
 }: TaskUploadSectionsProps) {
   const [sections, setSections] = useState<UploadSection[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, FileRecord[]>>({});
@@ -115,34 +146,7 @@ export function TaskUploadSections({
     return () => { cancelled = true; };
   }, [task.id]);
 
-  const classifyDeliverable = (deliverableType?: string | null, title?: string | null) => {
-    const dt = (deliverableType || '').trim().toLowerCase();
-    const t = (title || '').trim().toLowerCase();
-
-    if (dt) {
-      if (dt === 'bsf' || dt.includes('beta')) return 'BETA_SHORT_FORM';
-      if (dt === 'sf' || dt.includes('short form') || dt.includes('short-form') || dt.includes('short_form') || dt === 'short') return 'SHORT_FORM';
-      if (dt === 'lf' || dt.includes('long form') || dt.includes('long-form') || dt.includes('long_form') || dt === 'long') return 'LONG_FORM';
-      if (dt === 'sqf' || dt.includes('square form') || dt.includes('square-form') || dt.includes('square_form') || dt === 'square') return 'SQUARE_FORM';
-      if (dt === 'sep' || dt.includes('snapchat')) return 'SNAPCHAT';
-      if (dt === 'st' || dt.includes('story') || dt.includes('stories')) return 'STORIES';
-      if (dt === 'hp' || dt.includes('hard post') || dt.includes('graphic image')) return 'HARD_POST';
-      if (dt === 'tp' || dt.includes('text post')) return 'TEXT_POST';
-    }
-
-    if (t) {
-      if (t.includes('_bsf') || t.includes('-bsf') || t.includes('betashortform')) return 'BETA_SHORT_FORM';
-      if (t.includes('_sf') || t.includes('-sf') || t.includes('shortform') || t.includes('_short')) return 'SHORT_FORM';
-      if (t.includes('_lf') || t.includes('-lf') || t.includes('longform') || t.includes('_long')) return 'LONG_FORM';
-      if (t.includes('_sqf') || t.includes('-sqf') || t.includes('squareform')) return 'SQUARE_FORM';
-      if (t.includes('_sep') || t.includes('-sep') || t.includes('snapchat')) return 'SNAPCHAT';
-      if (t.includes('_st') || t.includes('-st') || t.includes('story') || t.includes('stories')) return 'STORIES';
-      if (t.includes('_hp') || t.includes('-hp') || t.includes('hardpost')) return 'HARD_POST';
-      if (t.includes('_tp') || t.includes('-tp') || t.includes('textpost')) return 'TEXT_POST';
-    }
-
-    return 'OTHER_VIDEO';
-  };
+  const classifyDeliverable = classifyDeliverableType;
 
   const isHardPostDeliverable = (deliverableType: string) => {
     return classifyDeliverable(deliverableType, task.title) === 'HARD_POST';
@@ -248,17 +252,17 @@ export function TaskUploadSections({
       case 'SQUARE_FORM':
         return [
           {
-            folderType: "thumbnails",
-            label: "Thumbnails",
-            required: true,
-            icon: "img:/icons/thumbnails.svg",
-            uploaded: false,
-          },
-          {
             folderType: "music-license",
             label: "Music Licenses",
             required: true,
             icon: "img:/icons/music-license.svg",
+            uploaded: false,
+          },
+          {
+            folderType: "thumbnails",
+            label: "Thumbnails",
+            required: true,
+            icon: "img:/icons/thumbnails.svg",
             uploaded: false,
           },
           ...(task.client?.requiresCoverImage
@@ -482,7 +486,7 @@ export function TaskUploadSections({
       : <span>{icon}</span>;
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
 
       {isTextPostDeliverable(task.deliverableType) && (
         <Card className={textContent.trim() ? "border-green-500 bg-green-50/30" : "border-amber-200"}>
@@ -513,7 +517,7 @@ export function TaskUploadSections({
         return (
           <div
             key={section.folderType}
-            className="rounded-xl border border-gray-300 bg-white overflow-hidden shadow-2xs transition-all mb-2"
+            className="rounded-xl border border-gray-300 bg-white overflow-hidden shadow-2xs transition-all"
           >
             <div className="p-0">
               {/* Header formatted like Task Files* in mockup */}
@@ -672,11 +676,14 @@ export function TaskUploadSections({
         );
       })}
 
+      {/* Task Actions Slot */}
+      {children}
+
       {/* Mockup-styled Submit to QC Button */}
       <Button
         onClick={handleSubmitToQC}
         disabled={!canSubmitToQC() || submitting}
-        className="w-full h-10 rounded-xl bg-black text-white hover:bg-neutral-800 font-semibold text-sm shadow-xs transition-colors"
+        className="w-full h-10 rounded-xl bg-black text-white hover:bg-neutral-800 font-semibold text-[13px] shadow-xs transition-colors flex items-center justify-center gap-2"
         size="sm"
       >
         {submitting ? (
