@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { TaskUploadSections, classifyDeliverableType } from "../workflow/TaskUploadSections";
+import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
 import { TaskActionsMenu, computeTaskActionCount } from "../workflow/TaskActionsMenu";
 import {
   Calendar,
@@ -37,6 +38,7 @@ import {
   Unlink,
   Loader2,
   ChevronDown,
+  ChevronUp,
   Send,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
@@ -620,6 +622,10 @@ function TaskCard({
   // const [showGuidelines, setShowGuidelines] = useState(false);
 
   const [showFiles, setShowFiles] = useState(false);
+  const [taskFilesExpanded, setTaskFilesExpanded] = useState(false);
+  const [submittingToQC, setSubmittingToQC] = useState(false);
+  const [textContent, setTextContent] = useState(task.textContent || "");
+  const [savingText, setSavingText] = useState(false);
   const [activeFileViewer, setActiveFileViewer] = useState<{ title: string; files: TaskFile[] } | null>(null);
   const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
   const [selectedFeedback, setSelectedFeedback] = useState<TaskFeedbackItem | null>(null);
@@ -870,6 +876,90 @@ function TaskCard({
   const hasMusicLicenses = category === 'SHORT_FORM' || category === 'BETA_SHORT_FORM' || category === 'LONG_FORM' || category === 'SQUARE_FORM' || category === 'SNAPCHAT' || category === 'STORIES' || musicFiles.length > 0;
   const hasThumbnails = category === 'SHORT_FORM' || category === 'BETA_SHORT_FORM' || category === 'LONG_FORM' || category === 'SQUARE_FORM' || category === 'STORIES' || thumbFiles.length > 0;
   const hasTiles = category === 'SNAPCHAT' || tileFiles.length > 0;
+  const handleSaveTextContent = async () => {
+    setSavingText(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/text-content`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ textContent }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+    } catch (error) {
+      console.error("Failed to save text content:", error);
+      toast.error("Failed to save text post copy.");
+    } finally {
+      setSavingText(false);
+    }
+  };
+
+  const handleSubmitToQC = async () => {
+    if (category === 'TEXT_POST') {
+      if (!textContent.trim()) {
+        toast.error('Please write the post copy before submitting to QC');
+        return;
+      }
+      await handleSaveTextContent();
+    } else {
+      if (mainFiles.length === 0) {
+        toast.error('Please upload the main task file before submitting to QC');
+        return;
+      }
+      if ((category === 'LONG_FORM' || category === 'SQUARE_FORM') && thumbFiles.length === 0) {
+        toast.error('Please upload a thumbnail before submitting to QC');
+        return;
+      }
+      if ((category === 'SHORT_FORM' || category === 'BETA_SHORT_FORM' || category === 'LONG_FORM' || category === 'SQUARE_FORM' || category === 'SNAPCHAT' || category === 'STORIES') && musicFiles.length === 0) {
+        toast.error('Please upload a music license before submitting to QC');
+        return;
+      }
+      if (category === 'SNAPCHAT' && tileFiles.length === 0) {
+        toast.error('Please upload Snapchat tiles before submitting to QC');
+        return;
+      }
+    }
+
+    if (computeTaskActionCount(task) === 0) {
+      toast.error('Set at least one Task Action, or mark "No Action Required", before submitting to QC');
+      return;
+    }
+
+    if (task.taskFeedback && task.taskFeedback.length > 0) {
+      const allVers = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
+      const latestVer = Math.max(...(allVers as number[]));
+      const unacknowledged = task.taskFeedback.filter(
+        (fb: any) => (fb.fileVersion || 1) === latestVer
+          && fb.status !== 'resolved'
+          && fb.status !== 'acknowledged'
+          && !fb.acknowledgedAt
+      );
+      if (unacknowledged.length > 0) {
+        toast.error(
+          `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`
+        );
+        return;
+      }
+    }
+
+    setSubmittingToQC(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'READY_FOR_QC' }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to submit to QC');
+      }
+      toast.success('Task submitted to QC!');
+      window.location.reload();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit to QC');
+    } finally {
+      setSubmittingToQC(false);
+    }
+  };
 
   // Reusable Task Actions Menu element
   const taskActionsElement = (
@@ -987,7 +1077,7 @@ function TaskCard({
         draggable={isDraggable}
         onDragStart={(e) => isDraggable && onDragStart(e, task)}
         className={`bg-white rounded-2xl p-4 transition-all shadow-2xs mb-3 ${
-          task.status === "rejected" ? "border border-red-300 ring-1 ring-red-100" : "border border-gray-300"
+          task.status === "rejected" ? "border border-red-300 ring-1 ring-red-100" : "border border-gray-900"
         } ${
           isDraggable ? "cursor-grab active:cursor-grabbing hover:shadow-sm" : "cursor-not-allowed opacity-75"
         } ${isDragging ? "opacity-50 scale-95 ring-2 ring-black" : ""}`}
@@ -995,7 +1085,7 @@ function TaskCard({
         <div>
           {/* Title + Guidelines G Badge */}
           <div className="flex items-start justify-between gap-2 mb-3">
-            <h4 className="font-bold text-[13.5px] text-gray-900 leading-snug break-words flex-1">
+            <h4 className="font-bold text-[14px] text-gray-900 leading-snug break-words flex-1">
               {task.title || task.clientName || task.deliverableType}
             </h4>
             {task.clientId && (
@@ -1007,7 +1097,7 @@ function TaskCard({
                       e.stopPropagation();
                       loadGuidelines();
                     }}
-                    className="h-5 w-5 rounded-full bg-[#EA580C] text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-xs hover:bg-[#C2410C] transition-colors"
+                    className="h-6 w-6 rounded-full bg-[#EA580C] text-white text-[11px] font-bold flex items-center justify-center shrink-0 shadow-xs hover:bg-[#C2410C] transition-colors"
                   >
                     G
                   </button>
@@ -1019,186 +1109,290 @@ function TaskCard({
             )}
           </div>
 
-          {/* In-Progress tasks use TaskUploadSections with TaskActions slotted above Submit */}
-          {task.status === "in_progress" ? (
-            <TaskUploadSections
-              task={task}
-              onUploadComplete={(files) => onUploadComplete(task.id, files)}
-              onBeforeSubmitToQC={() => {
-                if (computeTaskActionCount(task) === 0) {
-                  toast.error('Set at least one Task Action, or mark "No Action Required", before submitting to QC');
-                  return false;
-                }
-                if (!task.taskFeedback || task.taskFeedback.length === 0) return true;
-                const allVersions = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
-                const latestVersion = Math.max(...(allVersions as number[]));
-                const unacknowledged = task.taskFeedback.filter(
-                  (fb: any) => (fb.fileVersion || 1) === latestVersion
-                    && fb.status !== 'resolved'
-                    && fb.status !== 'acknowledged'
-                    && !fb.acknowledgedAt
-                );
-                if (unacknowledged.length > 0) {
-                  toast.error(
-                    `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`
-                  );
-                  return false;
-                }
-                return true;
-              }}
-            >
-              {taskActionsElement}
-            </TaskUploadSections>
-          ) : (
-            <div className="space-y-2">
-              {/* Task Files Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveFileViewer({
-                    title: "Task Files",
-                    files: mainFiles.length > 0 ? mainFiles : (task.files || []),
-                  });
-                }}
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
-              >
-                <Video className="h-3.5 w-3.5 text-gray-700 shrink-0 mr-0.5" />
-                <span>
-                  Task Files<span className="text-red-500">*</span>
-                </span>
-                <span className="text-gray-500 font-normal text-xs">
-                  ({mainFiles.length || task.files?.length || 0} file{(mainFiles.length || task.files?.length || 0) !== 1 ? "s" : ""})
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-0.5" />
-              </button>
-
-              {/* Music Licenses Button (for video tasks that need or have music licenses) */}
-              {hasMusicLicenses && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveFileViewer({
-                      title: "Music Licenses",
-                      files: musicFiles,
-                    });
-                  }}
-                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
-                >
-                  <Music className="h-3.5 w-3.5 text-orange-600 shrink-0 mr-0.5" />
-                  <span>
-                    Music Licenses<span className="text-red-500">*</span>
-                  </span>
-                  <span className="text-gray-500 font-normal text-xs">
-                    ({musicFiles.length} file{musicFiles.length !== 1 ? "s" : ""})
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-0.5" />
-                </button>
-              )}
-
-              {/* Thumbnails Button (for tasks that need or have thumbnails) */}
-              {hasThumbnails && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveFileViewer({
-                      title: "Thumbnails",
-                      files: thumbFiles,
-                    });
-                  }}
-                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
-                >
-                  <ImageIcon className="h-3.5 w-3.5 text-purple-600 shrink-0 mr-0.5" />
-                  <span>
-                    Thumbnails{category === 'LONG_FORM' || category === 'SQUARE_FORM' ? <span className="text-red-500">*</span> : ''}
-                  </span>
-                  <span className="text-gray-500 font-normal text-xs">
-                    ({thumbFiles.length} file{thumbFiles.length !== 1 ? "s" : ""})
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-0.5" />
-                </button>
-              )}
-
-              {/* Tiles Button (Snapchat) */}
-              {hasTiles && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveFileViewer({
-                      title: "Tiles",
-                      files: tileFiles,
-                    });
-                  }}
-                  className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
-                >
-                  <LayoutGrid className="h-3.5 w-3.5 text-blue-600 shrink-0 mr-0.5" />
-                  <span>
-                    Tiles<span className="text-red-500">*</span>
-                  </span>
-                  <span className="text-gray-500 font-normal text-xs">
-                    ({tileFiles.length} file{tileFiles.length !== 1 ? "s" : ""})
-                  </span>
-                  <ChevronDown className="h-3.5 w-3.5 text-gray-400 ml-0.5" />
-                </button>
-              )}
-
-              {/* Task Actions Button */}
-              {taskActionsElement}
-
-              {/* Action Button */}
-              {task.status === "rejected" && (
-                <div>
-                  <Button
-                    size="sm"
-                    className="w-full h-10 rounded-xl font-semibold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-[#B91C1C] text-white hover:bg-[#991B1B]"
-                    onClick={() => onStartTask(task.id)}
-                  >
-                    <Play className="h-3.5 w-3.5 fill-current" />
-                    <span>Start Revision</span>
-                  </Button>
-
-                  {/* Revision Feedback Trigger */}
+          <div className="space-y-3">
+            {/* If TEXT_POST deliverable, show post copy textarea */}
+            {category === 'TEXT_POST' ? (
+              <Card className={textContent.trim() ? "border-green-500 bg-green-50/30" : "border-amber-200"}>
+                <CardContent className="p-3 space-y-2">
+                  <h3 className="text-sm font-medium">
+                    Post Copy
+                    <span className="text-red-500 ml-0.5">*</span>
+                  </h3>
+                  <textarea
+                    value={textContent}
+                    onChange={(e) => setTextContent(e.target.value)}
+                    onBlur={handleSaveTextContent}
+                    placeholder="Write the text post copy here..."
+                    rows={6}
+                    className="w-full text-sm border rounded-lg p-2 resize-y focus:outline-none focus:ring-1 focus:ring-black"
+                  />
+                  {savingText && <p className="text-xs text-gray-500">Saving...</p>}
+                </CardContent>
+              </Card>
+            ) : (
+              /* Task Files Accordion Container */
+              !taskFilesExpanded ? (
+                <div className="rounded-xl border border-gray-900 bg-white overflow-hidden shadow-2xs transition-all">
                   <button
                     type="button"
-                    onClick={e => { e.stopPropagation(); setFeedbackDialogOpen(true); }}
-                    className="w-full flex items-center justify-between text-xs text-[#DC2626] font-medium pt-2 pb-0.5 px-1 hover:underline transition-all"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTaskFilesExpanded(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold text-gray-900 hover:bg-gray-50/80 transition-colors"
                   >
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
-                      <span className="font-semibold text-[12.5px]">Revision Feedback</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-[#DC2626]">
-                      <span>{acknowledgedFeedbackCount}/{unresolvedFeedbackCount || 1} fixed</span>
-                    </div>
+                    <Video className="h-4 w-4 text-gray-800 shrink-0 mr-0.5" />
+                    <span>
+                      Task Files<span className="text-red-500">*</span>
+                    </span>
+                    <span className="text-gray-500 font-normal text-xs">
+                      ({mainFiles.length} file{mainFiles.length !== 1 ? "s" : ""})
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-gray-400 ml-0.5" />
                   </button>
                 </div>
-              )}
+              ) : (
+                <div className="rounded-2xl border border-gray-900 bg-white p-3.5 space-y-3 shadow-2xs transition-all">
+                  {/* Container Header Toggle */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTaskFilesExpanded(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 text-[13px] font-semibold text-gray-900 hover:opacity-80 transition-opacity"
+                  >
+                    <Video className="h-4 w-4 text-gray-800 shrink-0 mr-0.5" />
+                    <span>
+                      Task Files<span className="text-red-500">*</span>
+                    </span>
+                    <span className="text-gray-500 font-normal text-xs">
+                      ({mainFiles.length} file{mainFiles.length !== 1 ? "s" : ""})
+                    </span>
+                    <ChevronUp className="h-4 w-4 text-gray-400 ml-0.5" />
+                  </button>
 
-              {task.status === "pending" && (
+                  {/* Main Task File Upload Box */}
+                  <FileUploadDialog
+                    task={task}
+                    subfolder="main"
+                    onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                    trigger={
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full border border-dashed border-gray-900 rounded-xl py-6 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
+                      >
+                        <Video className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
+                        <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                          {mainFiles.length > 0 ? "Upload new version" : "Upload new version"}
+                        </span>
+                      </div>
+                    }
+                  />
+
+                  {/* Thumbnails Section */}
+                  {hasThumbnails && (
+                    <>
+                      <div className="border-t border-gray-200" />
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">
+                            THUMBNAILS{category === 'LONG_FORM' || category === 'SQUARE_FORM' ? <span className="text-red-500">*</span> : ''}{' '}
+                            <span className="font-normal normal-case text-gray-500">
+                              ({thumbFiles.length} file{thumbFiles.length !== 1 ? 's' : ''})
+                            </span>
+                          </span>
+                          {thumbFiles.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveFileViewer({ title: "Thumbnails", files: thumbFiles });
+                              }}
+                              className="text-[10px] font-semibold text-blue-600 hover:underline flex items-center gap-0.5 normal-case"
+                            >
+                              <Eye className="h-3 w-3" /> View
+                            </button>
+                          )}
+                        </div>
+                        <FileUploadDialog
+                          task={task}
+                          subfolder="thumbnails"
+                          onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                          trigger={
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
+                            >
+                              <ImageIcon className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
+                              <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                                {thumbFiles.length > 0 ? "Thumbnail uploaded — click to replace" : "Upload thumbnail"}
+                              </span>
+                            </div>
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Music License Section */}
+                  {hasMusicLicenses && (
+                    <>
+                      <div className="border-t border-gray-200" />
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">
+                            MUSIC LICENSE<span className="text-red-500">*</span>{' '}
+                            <span className="font-normal normal-case text-gray-500">
+                              ({musicFiles.length} file{musicFiles.length !== 1 ? 's' : ''})
+                            </span>
+                          </span>
+                          {musicFiles.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveFileViewer({ title: "Music Licenses", files: musicFiles });
+                              }}
+                              className="text-[10px] font-semibold text-blue-600 hover:underline flex items-center gap-0.5 normal-case"
+                            >
+                              <Eye className="h-3 w-3" /> View
+                            </button>
+                          )}
+                        </div>
+                        <FileUploadDialog
+                          task={task}
+                          subfolder="music-license"
+                          onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                          trigger={
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
+                            >
+                              <Music className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
+                              <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                                {musicFiles.length > 0 ? "Music license uploaded — click to replace" : "Upload music license"}
+                              </span>
+                            </div>
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* Snapchat Tiles Section */}
+                  {hasTiles && (
+                    <>
+                      <div className="border-t border-gray-200" />
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold tracking-wider text-gray-500 uppercase">
+                            TILES<span className="text-red-500">*</span>{' '}
+                            <span className="font-normal normal-case text-gray-500">
+                              ({tileFiles.length} file{tileFiles.length !== 1 ? 's' : ''})
+                            </span>
+                          </span>
+                          {tileFiles.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveFileViewer({ title: "Tiles", files: tileFiles });
+                              }}
+                              className="text-[10px] font-semibold text-blue-600 hover:underline flex items-center gap-0.5 normal-case"
+                            >
+                              <Eye className="h-3 w-3" /> View
+                            </button>
+                          )}
+                        </div>
+                        <FileUploadDialog
+                          task={task}
+                          subfolder="tiles"
+                          onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                          trigger={
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
+                            >
+                              <LayoutGrid className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
+                              <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                                {tileFiles.length > 0 ? "Tile uploaded — click to replace" : "Upload tile"}
+                              </span>
+                            </div>
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            )}
+
+            {/* Task Actions Button */}
+            {taskActionsElement}
+
+            {/* Action Button */}
+            {task.status === "rejected" && (
+              <div>
                 <Button
                   size="sm"
-                  className="w-full h-10 rounded-xl font-semibold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-black text-white hover:bg-neutral-800"
+                  className="w-full h-11 rounded-xl font-bold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-[#B91C1C] text-white hover:bg-[#991B1B]"
                   onClick={() => onStartTask(task.id)}
                 >
-                  <Play className="h-3.5 w-3.5 fill-current" />
-                  <span>Start</span>
+                  <Play className="h-4 w-4 fill-current" />
+                  <span>Start Revision</span>
                 </Button>
-              )}
 
-              {task.status === "ready_for_qc" && (
-                <Button
-                  size="sm"
-                  className="w-full h-10 rounded-xl text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 shadow-xs"
-                  onClick={() => onStartTask(task.id)}
+                {/* Revision Feedback Trigger */}
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setFeedbackDialogOpen(true); }}
+                  className="w-full flex items-center justify-between text-xs text-[#DC2626] font-medium pt-2 pb-0.5 px-1 hover:underline transition-all"
                 >
-                  ↩ Move Back to In Progress
-                </Button>
-              )}
-            </div>
-          )}
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
+                    <span className="font-semibold text-[12.5px]">Revision Feedback</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-[#DC2626]">
+                    <span>{acknowledgedFeedbackCount}/{unresolvedFeedbackCount || 1} fixed</span>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {task.status === "pending" && (
+              <Button
+                size="sm"
+                className="w-full h-11 rounded-xl font-bold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-black text-white hover:bg-neutral-800"
+                onClick={() => onStartTask(task.id)}
+              >
+                <Play className="h-4 w-4 fill-current" />
+                <span>Start</span>
+              </Button>
+            )}
+
+            {task.status === "in_progress" && (
+              <Button
+                size="sm"
+                className="w-full h-11 rounded-xl font-bold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-black text-white hover:bg-neutral-800"
+                onClick={handleSubmitToQC}
+                disabled={submittingToQC}
+              >
+                <Send className="h-4 w-4 stroke-[2]" />
+                <span>{submittingToQC ? "Submitting..." : "Submit to QC"}</span>
+              </Button>
+            )}
+
+            {task.status === "ready_for_qc" && (
+              <Button
+                size="sm"
+                className="w-full h-11 rounded-xl text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 shadow-xs"
+                onClick={() => onStartTask(task.id)}
+              >
+                ↩ Move Back to In Progress
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

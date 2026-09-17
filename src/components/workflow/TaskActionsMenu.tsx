@@ -150,14 +150,14 @@ export function TaskActionsMenu({
   };
 
   return (
-    <div className="rounded-xl border border-gray-300 bg-white overflow-hidden shadow-2xs transition-all">
+    <div className="rounded-xl border border-gray-900 bg-white overflow-hidden shadow-2xs transition-all">
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 hover:bg-gray-50/80 transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold text-gray-900 hover:bg-gray-50/80 transition-colors"
       >
         <span>
           Task Actions<span className="text-red-500">*</span>
@@ -165,7 +165,7 @@ export function TaskActionsMenu({
         <span className="text-gray-500 font-normal text-xs">
           ({actionCount} action{actionCount !== 1 ? 's' : ''})
         </span>
-        <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ml-0.5 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ml-0.5 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
