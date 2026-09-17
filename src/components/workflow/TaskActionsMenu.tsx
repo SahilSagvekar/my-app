@@ -15,9 +15,19 @@
 // server-side Submit-to-QC gate in /api/tasks/[id]/status, which must
 // compute this identically.
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronDown, Plus, FolderSearch, Link2, Loader2 } from 'lucide-react';
+import {
+  ChevronDown,
+  Plus,
+  FileText,
+  Camera,
+  Monitor,
+  CircleDollarSign,
+  XCircle,
+  Check,
+  Loader2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { LinkRawFootageButton } from '../shared/LinkRawFootageButton';
 import { LinkLfTask } from '../tasks/LinkLfTask';
@@ -49,13 +59,7 @@ interface TaskActionsMenuProps {
   task: TaskActionsMenuTask;
   onToggleSponsored: (taskId: string, value: boolean) => void;
   onTaskFieldsChange: (taskId: string, patch: Record<string, any>) => void;
-  // Self-contained "Link Script" trigger + popover, passed in by TaskCard
-  // (which owns the script attach/view state/handlers) — undefined when
-  // the deliverable type doesn't support scripts (non-SF/LF).
   scriptAction?: ReactNode;
-  // Long-form linking only applies to short-form tasks (mirrors the
-  // original standalone LinkLfTask panel's condition — LF tasks don't
-  // link to themselves). Undefined/false hides the row entirely.
   showLinkLongForm?: boolean;
   required?: boolean;
 }
@@ -77,36 +81,23 @@ function ActionRow({
     <button
       type="button"
       onClick={(e) => {
-        // Only intercept the click when this row does its own thing. When
-        // used as LinkRawFootageButton's renderTrigger, this row has no
-        // onClick of its own — the actual handler lives on that button's
-        // wrapping element (its Radix PopoverTrigger, an ancestor of this
-        // button) and needs the click to bubble up to it uninterrupted.
         if (onClick) {
           e.stopPropagation();
           onClick();
         }
       }}
-      className={`w-full flex items-center gap-2 px-2.5 py-2 text-left text-sm font-medium rounded transition-colors ${
-        highlighted ? 'bg-foreground text-background' : 'hover:bg-muted'
+      className={`w-full h-11 px-3.5 rounded-xl flex items-center justify-between text-left text-[14px] font-bold transition-colors cursor-pointer ${
+        highlighted
+          ? 'bg-black text-white hover:bg-black/90'
+          : 'bg-white text-gray-900 hover:bg-gray-100'
       }`}
     >
-      <span className="shrink-0 opacity-80">{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
-      {trailing}
+      <div className="flex items-center gap-2.5">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">{label}</span>
+      </div>
+      {trailing && <div className="shrink-0 ml-2">{trailing}</div>}
     </button>
-  );
-}
-
-function Checkbox({ checked }: { checked: boolean }) {
-  return (
-    <span
-      className={`shrink-0 h-4 w-4 rounded border flex items-center justify-center text-[10px] ${
-        checked ? 'bg-current border-current text-background' : 'border-current'
-      }`}
-    >
-      {checked ? '✓' : ''}
-    </span>
   );
 }
 
@@ -115,16 +106,29 @@ export function TaskActionsMenu({
   onToggleSponsored,
   onTaskFieldsChange,
   scriptAction,
-  showLinkLongForm = false,
+  showLinkLongForm = true,
   required = true,
 }: TaskActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [lfExpanded, setLfExpanded] = useState(false);
   const [savingNoAction, setSavingNoAction] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const tags = (task.tags || []).map((t) => t.name);
   const actionCount = computeTaskActionCount(task);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
 
   const handleToggleNoActionRequired = async () => {
     const next = !task.noActionRequired;
@@ -150,80 +154,115 @@ export function TaskActionsMenu({
   };
 
   return (
-    <div className="rounded-xl border border-gray-900 bg-white overflow-hidden shadow-2xs transition-all">
+    <div ref={menuRef} className="relative">
+      {/* Trigger Button */}
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold text-gray-900 hover:bg-gray-50/80 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-[14px] font-bold text-gray-900 rounded-xl border border-gray-900 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
       >
-        <span>
-          Task Actions<span className="text-red-500">*</span>
-        </span>
-        <span className="text-gray-500 font-normal text-xs">
-          ({actionCount} action{actionCount !== 1 ? 's' : ''})
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span>
+            Task Actions<span className="text-red-500">*</span>
+          </span>
+          <span className="text-gray-500 font-normal text-xs">
+            ({actionCount} action{actionCount !== 1 ? 's' : ''})
+          </span>
+        </div>
         <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ml-0.5 ${open ? 'rotate-180' : ''}`} />
       </button>
 
+      {/* Floating Popover Overlay */}
       {open && (
-        <div className="border-t p-1 space-y-0.5" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-gray-100 shadow-2xl p-2 space-y-1 animate-in fade-in-0 zoom-in-95 duration-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* 1. Add tag */}
           <ActionRow
-            icon={<Plus className="h-3.5 w-3.5" />}
+            icon={<Plus className="h-4 w-4 stroke-[2.5]" />}
             label="Add tag"
-            trailing={tags.length > 0 ? <span className="text-xs opacity-70">{tags.length} Tag{tags.length !== 1 ? 's' : ''}</span> : undefined}
+            trailing={tags.length > 0 ? <span className="text-sm font-bold">{tags.length} Tag{tags.length !== 1 ? 's' : ''}</span> : undefined}
             onClick={() => setTagDialogOpen(true)}
+            highlighted={tags.length > 0}
           />
 
-          {scriptAction}
+          {/* 2. Link Script */}
+          {scriptAction || (
+            <ActionRow
+              icon={<FileText className="h-4 w-4 stroke-[2]" />}
+              label="Link Script"
+              trailing={task.shootScriptRef ? <span className="text-sm font-bold">1</span> : undefined}
+              highlighted={!!task.shootScriptRef}
+              onClick={() => toast.info("Script linking is available for SF/LF tasks")}
+            />
+          )}
 
+          {/* 3. Link Raw Footage */}
           <LinkRawFootageButton
             taskId={task.id}
             linkedPaths={task.linkedRawFootagePaths}
             onLinked={(paths) => onTaskFieldsChange(task.id, { linkedRawFootagePaths: paths })}
             renderTrigger={(count) => (
               <ActionRow
-                icon={<FolderSearch className="h-3.5 w-3.5" />}
+                icon={<Camera className="h-4 w-4 stroke-[2]" />}
                 label="Link Raw Footage"
-                trailing={count > 0 ? <span className="text-xs opacity-70">{count} linked</span> : undefined}
+                trailing={count > 0 ? <span className="text-sm font-bold">{count} linked</span> : undefined}
+                highlighted={count > 0}
               />
             )}
           />
 
-          {showLinkLongForm && (
-            <>
-              <ActionRow
-                icon={<Link2 className="h-3.5 w-3.5" />}
-                label="Link Long Form"
-                trailing={task.relatedTaskId ? <span className="text-xs opacity-70">1</span> : undefined}
-                onClick={() => setLfExpanded((v) => !v)}
-              />
-              {lfExpanded && (
-                <div className="mx-1 mb-1 p-2.5 rounded border bg-muted/20">
-                  <LinkLfTask
-                    sfTaskId={task.id}
-                    clientId={task.clientId}
-                    canEdit
-                    onLinkedChange={(relatedTaskId) => onTaskFieldsChange(task.id, { relatedTaskId })}
-                  />
-                </div>
-              )}
-            </>
-          )}
+          {/* 4. Link Long Form */}
           <ActionRow
-            icon={<span className="text-[13px]">💰</span>}
+            icon={<Monitor className="h-4 w-4 stroke-[2]" />}
+            label="Link Long Form"
+            trailing={task.relatedTaskId ? <span className="text-sm font-bold">1</span> : undefined}
+            onClick={() => setLfExpanded((v) => !v)}
+            highlighted={!!task.relatedTaskId}
+          />
+          {lfExpanded && (
+            <div className="mx-1 mb-1 p-2.5 rounded-xl border bg-muted/20">
+              <LinkLfTask
+                sfTaskId={task.id}
+                clientId={task.clientId}
+                canEdit
+                onLinkedChange={(relatedTaskId) => onTaskFieldsChange(task.id, { relatedTaskId })}
+              />
+            </div>
+          )}
+
+          {/* 5. Sponsored? */}
+          <ActionRow
+            icon={<CircleDollarSign className="h-4 w-4 stroke-[2]" />}
             label="Sponsored?"
-            trailing={<Checkbox checked={!!task.isSponsored} />}
+            trailing={
+              <div
+                className={`w-5 h-5 rounded-[5px] border-2 flex items-center justify-center transition-colors ${
+                  task.isSponsored ? 'border-white bg-transparent text-white' : 'border-gray-400 bg-white'
+                }`}
+              >
+                {task.isSponsored && <Check className="h-3.5 w-3.5 stroke-[3.5] text-white" />}
+              </div>
+            }
             onClick={() => onToggleSponsored(task.id, !task.isSponsored)}
             highlighted={!!task.isSponsored}
           />
 
+          {/* 6. No Action Required */}
           <ActionRow
-            icon={savingNoAction ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span className="text-[13px]">⊗</span>}
+            icon={savingNoAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4 stroke-[2]" />}
             label="No Action Required"
-            trailing={<Checkbox checked={!!task.noActionRequired} />}
+            trailing={
+              task.noActionRequired ? (
+                <div className="w-5 h-5 rounded-[5px] border-2 border-white flex items-center justify-center text-white">
+                  <Check className="h-3.5 w-3.5 stroke-[3.5] text-white" />
+                </div>
+              ) : undefined
+            }
             onClick={handleToggleNoActionRequired}
             highlighted={!!task.noActionRequired}
           />

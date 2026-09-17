@@ -18,9 +18,6 @@
 
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -76,15 +73,19 @@ export function AddTagDialog({ taskId, tags, open, onOpenChange, onChange }: Add
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle>Add Tag</DialogTitle>
+      <DialogContent className="max-w-[440px] sm:max-w-[440px] rounded-3xl p-6 bg-white border border-gray-100 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader className="p-0 space-y-1">
+          <DialogTitle className="text-[19px] font-extrabold text-gray-900 tracking-tight">
+            Add Tag
+          </DialogTitle>
+          <p className="text-[13px] text-gray-500 font-normal">
+            Type a tag and add it. You can add more than one.
+          </p>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground -mt-2">
-          Type a tag and add it. You can add more than one.
-        </p>
-        <div className="flex gap-2">
-          <Input
+
+        <div className="flex items-center gap-2.5 mt-4">
+          <input
+            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -96,25 +97,36 @@ export function AddTagDialog({ taskId, tags, open, onOpenChange, onChange }: Add
             placeholder="e.g. Priority, Reshoot"
             disabled={saving}
             autoFocus
+            className="h-11 flex-1 rounded-xl border border-gray-300 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-gray-900 transition-colors shadow-2xs"
           />
-          <Button onClick={handleAdd} disabled={saving || !input.trim()}>
+          <button
+            type="button"
+            onClick={handleAdd}
+            disabled={saving}
+            className="h-11 px-5 rounded-xl bg-black text-white hover:bg-neutral-800 font-bold text-sm shrink-0 transition-colors shadow-xs active:scale-95 disabled:opacity-80"
+          >
             Add
-          </Button>
+          </button>
         </div>
+
         {tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap gap-2 pt-2">
             {tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="gap-1 pr-1 text-sm py-1 px-2.5">
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200/80"
+              >
                 {tag}
                 <button
+                  type="button"
                   onClick={() => handleRemove(tag)}
-                  className="hover:text-red-600"
+                  className="text-gray-400 hover:text-red-500 transition-colors"
                   disabled={saving}
-                  title="Remove tag (admin only)"
+                  title="Remove tag"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
-              </Badge>
+              </span>
             ))}
           </div>
         )}

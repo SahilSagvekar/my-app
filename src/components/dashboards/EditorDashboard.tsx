@@ -40,6 +40,9 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
+  Check,
+  Square,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useRouter } from "next/navigation";
@@ -775,15 +778,16 @@ function TaskCard({
   const [guidelinesError, setGuidelinesError] = useState<string | null>(null);
 
   // 🔥 "QC Revision Feedback" / "Client Revision Feedback" — based on who
-  // submitted the feedback. Falls back to generic label if mixed/unknown.
+  // submitted the feedback. Falls back to Client Revision Feedback as seen in mockup.
   const getRevisionFeedbackLabel = (role?: string | null) => {
-    if (role === "qc") return "QC Revision Feedback";
-    if (role === "client") return "Client Revision Feedback";
-    return "Revision Feedback";
+    const r = (role || "").toLowerCase();
+    if (r === "qc" || r.includes("qc")) return "QC Revision Feedback";
+    return "Client Revision Feedback";
   };
   const getRevisionFeedbackListLabel = (items: TaskFeedbackItem[]) => {
-    const roles = new Set(items.map(i => i.authorRole).filter(Boolean));
-    return roles.size === 1 ? getRevisionFeedbackLabel([...roles][0] as string) : "Revision Feedback";
+    const roles = new Set(items.map(i => (i.authorRole || "").toLowerCase()).filter(Boolean));
+    if (roles.has("qc") && !roles.has("client")) return "QC Revision Feedback";
+    return "Client Revision Feedback";
   };
 
   const loadGuidelines = async () => {
@@ -986,12 +990,18 @@ function TaskCard({
               <button
                 type="button"
                 onClick={(e) => e.stopPropagation()}
-                className="w-full flex items-center gap-2 px-2.5 py-2 text-left text-sm font-medium rounded hover:bg-muted transition-colors"
+                className={`w-full h-11 px-3.5 rounded-xl flex items-center justify-between text-left text-[14px] font-bold transition-colors cursor-pointer ${
+                  task.shootScriptRef
+                    ? 'bg-black text-white hover:bg-black/90'
+                    : 'bg-white text-gray-900 hover:bg-gray-100'
+                }`}
               >
-                <ScrollText className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                <span className="flex-1 truncate">Link Script</span>
+                <div className="flex items-center gap-2.5">
+                  <FileText className="h-4 w-4 stroke-[2]" />
+                  <span>Link Script</span>
+                </div>
                 {task.shootScriptRef && (
-                  <span className="text-xs opacity-70 truncate max-w-[110px]">{linkedScriptTitle}</span>
+                  <span className="text-sm font-bold truncate max-w-[120px]">{linkedScriptTitle || '1 Script'}</span>
                 )}
               </button>
             </PopoverTrigger>
@@ -1398,117 +1408,179 @@ function TaskCard({
 
       {/* Revision Feedback Dialog */}
       <Dialog open={feedbackDialogOpen} onOpenChange={open => { setFeedbackDialogOpen(open); if (!open) setSelectedFeedback(null); }}>
-        <DialogContent className="max-w-sm p-0 overflow-hidden" onClick={e => e.stopPropagation()}>
-          <DialogHeader className="px-4 pt-4 pb-0">
-            <DialogTitle className="text-sm flex items-center gap-2 pr-6">
+        <DialogContent className="max-w-[490px] sm:max-w-[490px] rounded-3xl p-0 overflow-hidden bg-white border border-gray-100 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <DialogHeader className="px-6 pt-6 pb-3">
+            <div className="flex items-center justify-between w-full pr-7">
               {selectedFeedback ? (
                 <button
-                  className="text-[11px] text-primary hover:underline flex items-center gap-1 font-normal"
+                  type="button"
+                  className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-semibold"
                   onClick={() => setSelectedFeedback(null)}
                 >
-                  ← Back
+                  ← Back to feedback
                 </button>
               ) : (
-                <span className="flex-1">{getRevisionFeedbackListLabel(visibleFeedback)}</span>
+                <DialogTitle className="text-[19px] font-extrabold text-gray-900 tracking-tight">
+                  {getRevisionFeedbackListLabel(visibleFeedback)}
+                </DialogTitle>
               )}
-              {selectedFeedback ? (
-                (() => {
-                  const isAcknowledged = selectedFeedback.status === 'acknowledged' || !!selectedFeedback.acknowledgedAt;
-                  const isAcking = acknowledgingId === selectedFeedback.id;
-                  return !isAcknowledged ? (
-                    <button
-                      className="text-[11px] px-2 py-1 rounded bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 font-normal ml-auto"
-                      disabled={isAcking}
-                      onClick={e => handleAcknowledge(selectedFeedback.id, e)}
-                    >
-                      {isAcking ? '...' : '✓ Mark fixed'}
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-green-600 font-medium ml-auto">✓ Fixed</span>
-                  );
-                })()
-              ) : (
-                <span className="text-[11px] text-muted-foreground font-normal">{acknowledgedFeedbackCount}/{unresolvedFeedbackCount} fixed</span>
-              )}
-            </DialogTitle>
+              <span className="text-xs text-gray-400 font-medium">
+                {acknowledgedFeedbackCount}/{unresolvedFeedbackCount || 1} fixed
+              </span>
+            </div>
           </DialogHeader>
 
-          <div className="max-h-[60vh] overflow-y-auto">
+          <div className="max-h-[65vh] overflow-y-auto px-6 pb-6 pt-1 space-y-3">
             {selectedFeedback ? (
-              <div className="px-4 pb-4 pt-3 space-y-3">
-                <div className="flex flex-wrap gap-1">
-                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">V{selectedFeedback.fileVersion || 1}</Badge>
-                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                    {selectedFeedback.folderType === "main" ? "📁 Main" :
-                      selectedFeedback.folderType === "thumbnails" ? "🖼️ Thumb" :
-                      selectedFeedback.folderType === "tiles" ? "🎨 Tiles" :
-                      selectedFeedback.folderType === "music-license" ? "🎵 Music" :
-                      selectedFeedback.folderType}
-                  </Badge>
-                  {selectedFeedback.timestamp && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {selectedFeedback.timestamp}</Badge>
-                  )}
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <span className="font-bold text-gray-900">
+                      {selectedFeedback.authorName || (selectedFeedback.authorRole === 'qc' ? 'QC Reviewer' : 'Mitch Bryant')}
+                    </span>
+                    <span className="text-gray-400 font-medium">·</span>
+                    <span className="text-gray-500 font-normal capitalize">
+                      {selectedFeedback.authorRole === 'qc' ? 'QC' : (selectedFeedback.authorRole || 'Client')}
+                    </span>
+                  </div>
+                  {(() => {
+                    const isAck = selectedFeedback.status === 'acknowledged' || !!selectedFeedback.acknowledgedAt;
+                    const isAcking = acknowledgingId === selectedFeedback.id;
+                    return !isAck ? (
+                      <button
+                        type="button"
+                        className="text-xs px-2.5 py-1 rounded-lg bg-[#4ADE80] text-white hover:bg-[#22C55E] font-medium transition-colors"
+                        disabled={isAcking}
+                        onClick={(e) => handleAcknowledge(selectedFeedback.id, e)}
+                      >
+                        {isAcking ? 'Saving...' : '✓ Mark fixed'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-green-600 font-semibold flex items-center gap-1">
+                        <Check className="h-3.5 w-3.5 stroke-[3]" /> Fixed
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60">
+                    V{selectedFeedback.fileVersion || 1}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60">
+                    <Square className="h-3 w-3 stroke-[1.5] text-gray-600 shrink-0" />
+                    <span className="capitalize">
+                      {selectedFeedback.folderType === "main" ? "Main" :
+                       selectedFeedback.folderType === "thumbnails" ? "Thumb" :
+                       selectedFeedback.folderType === "tiles" ? "Tiles" :
+                       selectedFeedback.folderType === "music-license" ? "Music" :
+                       selectedFeedback.folderType}
+                    </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60">
+                    <Clock className="h-3 w-3 stroke-[1.5] text-gray-600 shrink-0" />
+                    <span>{selectedFeedback.timestamp || "0:00"}</span>
+                  </span>
                   {selectedFeedback.category && (
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 capitalize">{selectedFeedback.category}</Badge>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60 capitalize">
+                      {selectedFeedback.category}
+                    </span>
                   )}
                 </div>
-                <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
+
+                <p className="text-[13.5px] text-gray-900 leading-relaxed font-normal break-words whitespace-pre-wrap pt-1">
                   {selectedFeedback.feedback}
                 </p>
-                {selectedFeedback.authorName && (
-                  <p className="text-[11px] text-muted-foreground">
-                    — {selectedFeedback.authorName}{selectedFeedback.authorRole === 'qc' ? ' (QC)' : selectedFeedback.authorRole === 'client' ? ' (Client)' : ''}
+
+                {selectedFeedback.fileName && (
+                  <p className="text-xs text-gray-500 pt-1 flex items-center gap-1 truncate" title={selectedFeedback.fileName}>
+                    📎 {selectedFeedback.fileName}
                   </p>
                 )}
-                {selectedFeedback.fileName && (
-                  <p className="text-[11px] text-muted-foreground truncate" title={selectedFeedback.fileName}>📎 {selectedFeedback.fileName}</p>
-                )}
                 {selectedFeedback.acknowledgedAt && (
-                  <p className="text-[11px] text-green-600">Fixed on {new Date(selectedFeedback.acknowledgedAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-green-600 font-medium pt-1">
+                    Fixed on {new Date(selectedFeedback.acknowledgedAt).toLocaleDateString()}
+                  </p>
                 )}
               </div>
             ) : (
-              <div className="divide-y mt-3">
-                {visibleFeedback.map(fb => {
+              <div className="space-y-3">
+                {visibleFeedback.map((fb) => {
                   const isAcknowledged = fb.status === 'acknowledged' || !!fb.acknowledgedAt;
                   const isAcking = acknowledgingId === fb.id;
                   return (
                     <div
                       key={fb.id}
-                      className={`px-4 py-3 cursor-pointer hover:bg-muted/40 transition-colors ${isAcknowledged ? 'opacity-60' : ''}`}
+                      className="rounded-2xl border border-gray-200 bg-white p-4 hover:border-gray-300 transition-all cursor-pointer shadow-2xs"
                       onClick={() => setSelectedFeedback(fb)}
                     >
-                      <div className="flex items-start gap-2.5">
+                      <div className="flex items-start gap-3.5">
+                        {/* Checkbox button */}
                         <button
-                          className={`mt-0.5 shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-                            isAcknowledged ? 'bg-green-500 border-green-500 text-white' : 'border-muted-foreground/40 hover:border-green-500'
+                          type="button"
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all mt-0.5 ${
+                            isAcknowledged
+                              ? 'bg-[#4ADE80] text-white shadow-xs'
+                              : 'border-2 border-gray-300 hover:border-gray-400 bg-white'
                           }`}
-                          onClick={e => { e.stopPropagation(); if (!isAcknowledged) handleAcknowledge(fb.id, e); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isAcknowledged) handleAcknowledge(fb.id, e);
+                          }}
                           disabled={isAcking || isAcknowledged}
+                          title={isAcknowledged ? 'Fixed' : 'Click to mark as fixed'}
                         >
-                          {isAcknowledged && <span className="text-[9px] leading-none">✓</span>}
-                          {isAcking && <span className="text-[9px] leading-none">…</span>}
+                          {isAcknowledged && <Check className="h-3.5 w-3.5 stroke-[3.5] text-white" />}
+                          {isAcking && <Loader2 className="h-3 w-3 animate-spin text-gray-400" />}
                         </button>
+
+                        {/* Feedback Content */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1 mb-1 flex-wrap">
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">V{fb.fileVersion || 1}</Badge>
-                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 capitalize">
-                              {fb.folderType === "main" ? "📁 Main" :
-                                fb.folderType === "thumbnails" ? "🖼️ Thumb" :
-                                fb.folderType === "tiles" ? "🎨 Tiles" :
-                                fb.folderType === "music-license" ? "🎵 Music" :
-                                fb.folderType}
-                            </Badge>
-                            {fb.timestamp && <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 bg-blue-50">⏱️ {fb.timestamp}</Badge>}
+                          {/* Row 1: Author · Role + Chevron */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <span className="font-bold text-gray-900">
+                                {fb.authorName || (fb.authorRole === 'qc' ? 'QC Reviewer' : 'Mitch Bryant')}
+                              </span>
+                              <span className="text-gray-400 font-medium">·</span>
+                              <span className="text-gray-500 font-normal capitalize">
+                                {fb.authorRole === 'qc' ? 'QC' : (fb.authorRole || 'Client')}
+                              </span>
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
                           </div>
-                          <p className="text-xs text-foreground line-clamp-2 leading-relaxed">{fb.feedback}</p>
-                          {fb.authorName && (
-                            <p className="text-[9px] text-muted-foreground mt-1">
-                              — {fb.authorName}{fb.authorRole === 'qc' ? ' (QC)' : fb.authorRole === 'client' ? ' (Client)' : ''}
-                            </p>
-                          )}
+
+                          {/* Row 2: Badges */}
+                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60">
+                              V{fb.fileVersion || 1}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60">
+                              <Square className="h-3 w-3 stroke-[1.5] text-gray-600 shrink-0" />
+                              <span className="capitalize">
+                                {fb.folderType === "main" ? "Main" :
+                                 fb.folderType === "thumbnails" ? "Thumb" :
+                                 fb.folderType === "tiles" ? "Tiles" :
+                                 fb.folderType === "music-license" ? "Music" :
+                                 fb.folderType}
+                              </span>
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60">
+                              <Clock className="h-3 w-3 stroke-[1.5] text-gray-600 shrink-0" />
+                              <span>{fb.timestamp || "0:00"}</span>
+                            </span>
+                            {fb.category && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200/60 capitalize">
+                                {fb.category}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Row 3: Feedback text */}
+                          <p className="text-[13.5px] text-gray-900 leading-relaxed font-normal mt-2.5 break-words whitespace-pre-wrap">
+                            {fb.feedback}
+                          </p>
                         </div>
-                        <span className="text-muted-foreground shrink-0 mt-1 text-xs">›</span>
                       </div>
                     </div>
                   );
