@@ -568,6 +568,7 @@ export const task = pgTable("Task", {
 	titleSetByQc: boolean().default(false).notNull(),
 	postingTitle: text(),
 	isSponsored: boolean().default(false).notNull(),
+	noActionRequired: boolean().default(false).notNull(),
 	titleSetByClient: boolean().default(false).notNull(),
 	postingDescriptions: jsonb(),
 	postingTags: jsonb(),
@@ -575,7 +576,6 @@ export const task = pgTable("Task", {
 	textContent: text(),
 	clientReviewStartedAt: timestamp({ precision: 3, mode: 'string' }),
 	lastReminderSentAt: timestamp({ precision: 3, mode: 'string' }),
-	linkedRawFootagePaths: text().array(),
 	shootScriptRef: text(),
 	linkedRawFootagePaths: text().array(),
 }, (table) => [
