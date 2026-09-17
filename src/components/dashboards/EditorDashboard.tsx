@@ -633,24 +633,93 @@ function TaskCard({
   const [expandedFeedbackIds, setExpandedFeedbackIds] = useState<Set<string>>(new Set());
   const [selectedFeedback, setSelectedFeedback] = useState<TaskFeedbackItem | null>(null);
   const [showGuidelines, setShowGuidelines] = useState(false);
-  // Version filter for feedback: null = current version (highest), number = specific version
-  const allVersions = useMemo(() => {
-    if (!task.taskFeedback) return [];
-    const versions = [...new Set(task.taskFeedback.map(fb => fb.fileVersion || 1))].sort((a, b) => b - a);
-    return versions;
-  }, [task.taskFeedback]);
-  const currentVersion = allVersions[0] ?? 1;
-  const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | null>(null);
-  const activeVersion = feedbackVersionFilter ?? currentVersion;
+  const [locallyAcknowledgedIds, setLocallyAcknowledgedIds] = useState<Set<string>>(new Set());
+  const [inlineRevisionsOpen, setInlineRevisionsOpen] = useState(false);
+  const [selectedVersionTab, setSelectedVersionTab] = useState<number | 'all'>('all');
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<'all' | 'client' | 'qc'>('all');
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
 
+  // Gather all revisions across all versions, QC and Client
+  const allRevisions: TaskFeedbackItem[] = useMemo(() => {
+    const list: TaskFeedbackItem[] = [...(task.taskFeedback || [])];
+
+    // Check if qcNotes is already in the list
+    if (task.qcNotes && task.qcNotes.trim()) {
+      const alreadyHas = list.some(
+        (fb) => fb.feedback.trim().toLowerCase() === task.qcNotes!.trim().toLowerCase()
+      );
+      if (!alreadyHas) {
+        const latestVer = Math.max(1, ...(task.files || []).map((f) => f.version || 1));
+        list.push({
+          id: `qc-${task.id}`,
+          fileId: null,
+          folderType: "main",
+          feedback: task.qcNotes.trim(),
+          status: "needs_revision",
+          createdAt: task.createdAt,
+          fileVersion: latestVer,
+          authorName: "QC Reviewer",
+          authorRole: "qc",
+          category: "QC Revision",
+        });
+      }
+    }
+
+    // Check if rejectionReason is already in the list
+    if (task.rejectionReason && task.rejectionReason.trim()) {
+      const alreadyHas = list.some(
+        (fb) => fb.feedback.trim().toLowerCase() === task.rejectionReason!.trim().toLowerCase()
+      );
+      if (!alreadyHas) {
+        const latestVer = Math.max(1, ...(task.files || []).map((f) => f.version || 1));
+        list.push({
+          id: `rejection-${task.id}`,
+          fileId: null,
+          folderType: "main",
+          feedback: task.rejectionReason.trim(),
+          status: "needs_revision",
+          createdAt: task.createdAt,
+          fileVersion: latestVer,
+          authorName: task.clientName || "Client Reviewer",
+          authorRole: "client",
+          category: "Client Revision",
+        });
+      }
+    }
+
+    return list.sort((a, b) => {
+      const vDiff = (b.fileVersion || 1) - (a.fileVersion || 1);
+      if (vDiff !== 0) return vDiff;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+  }, [task.taskFeedback, task.qcNotes, task.rejectionReason, task.files, task.id, task.createdAt, task.clientName]);
+
+  const allVersions = useMemo(() => {
+    return [...new Set(allRevisions.map(fb => fb.fileVersion || 1))].sort((a, b) => b - a);
+  }, [allRevisions]);
+
   const visibleFeedback = useMemo(() => {
-    return (task.taskFeedback || []).filter(fb => (fb.fileVersion || 1) === activeVersion && fb.status !== 'resolved');
-  }, [task.taskFeedback, activeVersion]);
-  const unresolvedFeedbackCount = visibleFeedback.length;
-  const acknowledgedFeedbackCount = useMemo(() => {
-    return visibleFeedback.filter(fb => fb.status === 'acknowledged' || !!fb.acknowledgedAt).length;
-  }, [visibleFeedback]);
+    return allRevisions.filter(fb => {
+      const matchVer = selectedVersionTab === 'all' || (fb.fileVersion || 1) === selectedVersionTab;
+      const role = (fb.authorRole || 'client').toLowerCase();
+      const matchRole = selectedRoleFilter === 'all'
+        || (selectedRoleFilter === 'qc' && role.includes('qc'))
+        || (selectedRoleFilter === 'client' && !role.includes('qc'));
+      return matchVer && matchRole;
+    });
+  }, [allRevisions, selectedVersionTab, selectedRoleFilter]);
+
+  const totalRevisionsCount = allRevisions.length;
+  const fixedRevisionsCount = useMemo(() => {
+    return allRevisions.filter(fb =>
+      fb.status === 'acknowledged' ||
+      fb.status === 'resolved' ||
+      !!fb.acknowledgedAt ||
+      locallyAcknowledgedIds.has(fb.id)
+    ).length;
+  }, [allRevisions, locallyAcknowledgedIds]);
+
+  const hasRevisions = totalRevisionsCount > 0 || task.status === "rejected" || Boolean(task.qcNotes) || Boolean(task.rejectionReason);
   // Script viewer + attach state
   const [scriptOpen, setScriptOpen] = useState(false);
   const [scriptLoading, setScriptLoading] = useState(false);
@@ -841,15 +910,22 @@ function TaskCard({
   const handleAcknowledge = async (fbId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setAcknowledgingId(fbId);
+    setLocallyAcknowledgedIds(prev => new Set(prev).add(fbId));
     try {
-      const res = await fetch(`/api/tasks/${task.id}/feedback?feedbackId=${fbId}&action=acknowledge`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ acknowledgedBy: currentUserId || 0 }),
-      });
-      if (res.ok) {
+      if (!fbId.startsWith('qc-') && !fbId.startsWith('rejection-')) {
+        const res = await fetch(`/api/tasks/${task.id}/feedback?feedbackId=${fbId}&action=acknowledge`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ acknowledgedBy: currentUserId || 0 }),
+        });
+        if (res.ok) {
+          onAcknowledgeFeedback?.(task.id, fbId);
+        }
+      } else {
         onAcknowledgeFeedback?.(task.id, fbId);
       }
+    } catch (err) {
+      console.error("Failed to acknowledge feedback:", err);
     } finally {
       setAcknowledgingId(null);
     }
@@ -928,18 +1004,19 @@ function TaskCard({
       return;
     }
 
-    if (task.taskFeedback && task.taskFeedback.length > 0) {
-      const allVers = [...new Set(task.taskFeedback.map((fb: any) => fb.fileVersion || 1))];
+    if (allRevisions && allRevisions.length > 0) {
+      const allVers = [...new Set(allRevisions.map((fb: any) => fb.fileVersion || 1))];
       const latestVer = Math.max(...(allVers as number[]));
-      const unacknowledged = task.taskFeedback.filter(
+      const unacknowledged = allRevisions.filter(
         (fb: any) => (fb.fileVersion || 1) === latestVer
           && fb.status !== 'resolved'
           && fb.status !== 'acknowledged'
           && !fb.acknowledgedAt
+          && !locallyAcknowledgedIds.has(fb.id)
       );
       if (unacknowledged.length > 0) {
         toast.error(
-          `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} as fixed before sending to QC`
+          `Mark all ${unacknowledged.length} revision comment${unacknowledged.length > 1 ? 's' : ''} on V${latestVer} as fixed before sending to QC`
         );
         return;
       }
@@ -1343,31 +1420,14 @@ function TaskCard({
 
             {/* Action Button */}
             {task.status === "rejected" && (
-              <div>
-                <Button
-                  size="sm"
-                  className="w-full h-11 rounded-xl font-bold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-[#B91C1C] text-white hover:bg-[#991B1B]"
-                  onClick={() => onStartTask(task.id)}
-                >
-                  <Play className="h-4 w-4 fill-current" />
-                  <span>Start Revision</span>
-                </Button>
-
-                {/* Revision Feedback Trigger */}
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); setFeedbackDialogOpen(true); }}
-                  className="w-full flex items-center justify-between text-xs text-[#DC2626] font-medium pt-2 pb-0.5 px-1 hover:underline transition-all"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
-                    <span className="font-semibold text-[12.5px]">Revision Feedback</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-[#DC2626]">
-                    <span>{acknowledgedFeedbackCount}/{unresolvedFeedbackCount || 1} fixed</span>
-                  </div>
-                </button>
-              </div>
+              <Button
+                size="sm"
+                className="w-full h-11 rounded-xl font-bold text-sm shadow-xs transition-colors flex items-center justify-center gap-2 bg-[#B91C1C] text-white hover:bg-[#991B1B]"
+                onClick={() => onStartTask(task.id)}
+              >
+                <Play className="h-4 w-4 fill-current" />
+                <span>Start Revision</span>
+              </Button>
             )}
 
             {task.status === "pending" && (
@@ -1402,6 +1462,129 @@ function TaskCard({
                 ↩ Move Back to In Progress
               </Button>
             )}
+
+            {/* Revision Feedback Section — Visible on Tickets whenever revisions exist! */}
+            {hasRevisions && (
+              <div className="rounded-xl border border-red-200 bg-red-50/25 overflow-hidden transition-all shadow-2xs">
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFeedbackDialogOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 text-[#DC2626] hover:bg-red-50/50 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
+                    <span className="font-bold text-[12.5px] truncate">Revision Feedback</span>
+                    {allVersions.length > 1 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-red-100 text-red-700">
+                        {allVersions.map((v) => `V${v}`).join(", ")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-xs font-semibold text-[#DC2626]">
+                      {fixedRevisionsCount}/{totalRevisionsCount || 1} fixed
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInlineRevisionsOpen(!inlineRevisionsOpen);
+                      }}
+                      className="p-1 rounded hover:bg-red-100/80 text-[#DC2626] transition-colors"
+                      title={inlineRevisionsOpen ? "Collapse revisions" : "Expand revisions on ticket"}
+                    >
+                      {inlineRevisionsOpen ? (
+                        <ChevronUp className="h-3.5 w-3.5 stroke-[2.5]" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5 stroke-[2.5]" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Inline list of all revisions for all versions directly on ticket */}
+                {inlineRevisionsOpen && (
+                  <div className="border-t border-red-100/80 px-2.5 py-2 space-y-1.5 bg-white/90">
+                    {allRevisions.length === 0 ? (
+                      <p className="text-xs text-gray-500 py-1 text-center">No revision feedback found.</p>
+                    ) : (
+                      allRevisions.map((fb) => {
+                        const isAck =
+                          fb.status === "acknowledged" ||
+                          fb.status === "resolved" ||
+                          !!fb.acknowledgedAt ||
+                          locallyAcknowledgedIds.has(fb.id);
+                        const isAcking = acknowledgingId === fb.id;
+                        const isQc = (fb.authorRole || "").toLowerCase().includes("qc");
+                        return (
+                          <div
+                            key={fb.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedFeedback(fb);
+                              setFeedbackDialogOpen(true);
+                            }}
+                            className="p-2 rounded-lg border border-gray-200 bg-white hover:border-gray-300 hover:shadow-2xs transition-all cursor-pointer space-y-1"
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-[12px] text-gray-900 truncate max-w-[120px]">
+                                  {fb.authorName || (isQc ? "QC Reviewer" : "Client")}
+                                </span>
+                                <span
+                                  className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold uppercase tracking-wider ${
+                                    isQc ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                                  }`}
+                                >
+                                  {isQc ? "QC" : "Client"}
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-gray-100 text-gray-700">
+                                  V{fb.fileVersion || 1}
+                                </span>
+                                {fb.timestamp && (
+                                  <span className="text-[10px] text-gray-500 font-medium">
+                                    ⏱ {fb.timestamp}
+                                  </span>
+                                )}
+                              </div>
+                              {isAck ? (
+                                <span className="text-[11px] font-bold text-green-600 flex items-center gap-0.5 shrink-0">
+                                  <Check className="h-3 w-3 stroke-[3]" /> Fixed
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={isAcking}
+                                  onClick={(e) => handleAcknowledge(fb.id, e)}
+                                  className="text-[10.5px] px-2 py-0.5 rounded-md bg-green-500 hover:bg-green-600 text-white font-semibold shrink-0 transition-colors"
+                                >
+                                  {isAcking ? "..." : "Mark fixed"}
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-[12px] text-gray-800 leading-snug break-words line-clamp-3">
+                              {fb.feedback}
+                            </p>
+                          </div>
+                        );
+                      })
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFeedbackDialogOpen(true);
+                      }}
+                      className="w-full text-center text-[11px] font-bold text-red-600 hover:underline pt-1"
+                    >
+                      Open in Dialog ↗
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1409,7 +1592,7 @@ function TaskCard({
       {/* Revision Feedback Dialog */}
       <Dialog open={feedbackDialogOpen} onOpenChange={open => { setFeedbackDialogOpen(open); if (!open) setSelectedFeedback(null); }}>
         <DialogContent className="max-w-[490px] sm:max-w-[490px] rounded-3xl p-0 overflow-hidden bg-white border border-gray-100 shadow-2xl" onClick={e => e.stopPropagation()}>
-          <DialogHeader className="px-6 pt-6 pb-3">
+          <DialogHeader className="px-6 pt-6 pb-2">
             <div className="flex items-center justify-between w-full pr-7">
               {selectedFeedback ? (
                 <button
@@ -1421,22 +1604,91 @@ function TaskCard({
                 </button>
               ) : (
                 <DialogTitle className="text-[19px] font-extrabold text-gray-900 tracking-tight">
-                  {getRevisionFeedbackListLabel(visibleFeedback)}
+                  {getRevisionFeedbackListLabel(allRevisions)}
                 </DialogTitle>
               )}
               <span className="text-xs text-gray-400 font-medium">
-                {acknowledgedFeedbackCount}/{unresolvedFeedbackCount || 1} fixed
+                {fixedRevisionsCount}/{totalRevisionsCount || 1} fixed
               </span>
             </div>
           </DialogHeader>
 
-          <div className="max-h-[65vh] overflow-y-auto px-6 pb-6 pt-1 space-y-3">
+          {/* Filter Bar inside Dialog */}
+          {!selectedFeedback && (
+            <div className="px-6 pb-3 space-y-2 border-b border-gray-100">
+              {/* Version Tabs */}
+              {allVersions.length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVersionTab('all')}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                      selectedVersionTab === 'all'
+                        ? 'bg-black text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    All Versions ({allRevisions.length})
+                  </button>
+                  {allVersions.map((ver) => {
+                    const count = allRevisions.filter((r) => (r.fileVersion || 1) === ver).length;
+                    return (
+                      <button
+                        key={ver}
+                        type="button"
+                        onClick={() => setSelectedVersionTab(ver)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                          selectedVersionTab === ver
+                            ? 'bg-black text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        V{ver} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Role Filter Tabs (Client vs QC) */}
+              {allRevisions.some(r => (r.authorRole || '').toLowerCase().includes('qc')) &&
+               allRevisions.some(r => !(r.authorRole || '').toLowerCase().includes('qc')) && (
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  {(['all', 'client', 'qc'] as const).map((role) => {
+                    const count = role === 'all'
+                      ? allRevisions.length
+                      : allRevisions.filter((r) =>
+                          role === 'qc'
+                            ? (r.authorRole || '').toLowerCase().includes('qc')
+                            : !(r.authorRole || '').toLowerCase().includes('qc')
+                        ).length;
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => setSelectedRoleFilter(role)}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-all ${
+                          selectedRoleFilter === role
+                            ? 'bg-gray-900 text-white'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        {role} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="max-h-[65vh] overflow-y-auto px-6 pb-6 pt-3 space-y-3">
             {selectedFeedback ? (
               <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3 shadow-2xs">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-sm">
                     <span className="font-bold text-gray-900">
-                      {selectedFeedback.authorName || (selectedFeedback.authorRole === 'qc' ? 'QC Reviewer' : 'Mitch Bryant')}
+                      {selectedFeedback.authorName || (selectedFeedback.authorRole === 'qc' ? 'QC Reviewer' : 'Client Reviewer')}
                     </span>
                     <span className="text-gray-400 font-medium">·</span>
                     <span className="text-gray-500 font-normal capitalize">
@@ -1444,7 +1696,7 @@ function TaskCard({
                     </span>
                   </div>
                   {(() => {
-                    const isAck = selectedFeedback.status === 'acknowledged' || !!selectedFeedback.acknowledgedAt;
+                    const isAck = selectedFeedback.status === 'acknowledged' || selectedFeedback.status === 'resolved' || !!selectedFeedback.acknowledgedAt || locallyAcknowledgedIds.has(selectedFeedback.id);
                     const isAcking = acknowledgingId === selectedFeedback.id;
                     return !isAck ? (
                       <button
@@ -1503,11 +1755,16 @@ function TaskCard({
                   </p>
                 )}
               </div>
+            ) : visibleFeedback.length === 0 ? (
+              <div className="py-8 text-center text-sm text-gray-500">
+                No revision feedback found for this filter.
+              </div>
             ) : (
               <div className="space-y-3">
                 {visibleFeedback.map((fb) => {
-                  const isAcknowledged = fb.status === 'acknowledged' || !!fb.acknowledgedAt;
+                  const isAcknowledged = fb.status === 'acknowledged' || fb.status === 'resolved' || !!fb.acknowledgedAt || locallyAcknowledgedIds.has(fb.id);
                   const isAcking = acknowledgingId === fb.id;
+                  const isQc = (fb.authorRole || '').toLowerCase().includes('qc');
                   return (
                     <div
                       key={fb.id}
@@ -1540,11 +1797,11 @@ function TaskCard({
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-1.5 text-sm">
                               <span className="font-bold text-gray-900">
-                                {fb.authorName || (fb.authorRole === 'qc' ? 'QC Reviewer' : 'Mitch Bryant')}
+                                {fb.authorName || (isQc ? 'QC Reviewer' : 'Client Reviewer')}
                               </span>
                               <span className="text-gray-400 font-medium">·</span>
                               <span className="text-gray-500 font-normal capitalize">
-                                {fb.authorRole === 'qc' ? 'QC' : (fb.authorRole || 'Client')}
+                                {isQc ? 'QC' : (fb.authorRole || 'Client')}
                               </span>
                             </div>
                             <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
@@ -2058,25 +2315,68 @@ export function EditorDashboard() {
             relatedTaskId: t.relatedTaskId || null,
             noActionRequired: t.noActionRequired || false,
             // 🔥 Map taskFeedback with file version info from nested file data
-            taskFeedback: (t.taskFeedback || []).map((fb: any) => ({
-              id: fb.id,
-              fileId: fb.fileId,
-              folderType: fb.folderType,
-              feedback: fb.feedback,
-              status: fb.status,
-              timestamp: fb.timestamp,
-              category: fb.category,
-              createdAt: fb.createdAt,
-              resolvedAt: fb.resolvedAt,
-              acknowledgedAt: fb.acknowledgedAt,
-              acknowledgedBy: fb.acknowledgedBy,
-              // Use nested file data from API response
-              fileVersion: fb.file?.version || 1,
-              fileName: fb.file?.name || null,
-              // 🔥 Who submitted this feedback (QC or client), for the dialog title + byline
-              authorName: fb.user?.name || null,
-              authorRole: fb.user?.role || null,
-            })),
+            taskFeedback: (() => {
+              const mapped = (t.taskFeedback || []).map((fb: any) => {
+                const matchedFile = fb.file || (t.files || []).find((f: any) => f.id === fb.fileId);
+                return {
+                  id: fb.id,
+                  fileId: fb.fileId,
+                  folderType: fb.folderType || "main",
+                  feedback: fb.feedback,
+                  status: fb.status,
+                  timestamp: fb.timestamp,
+                  category: fb.category,
+                  createdAt: fb.createdAt,
+                  resolvedAt: fb.resolvedAt,
+                  acknowledgedAt: fb.acknowledgedAt,
+                  acknowledgedBy: fb.acknowledgedBy,
+                  fileVersion: matchedFile?.version || fb.fileVersion || 1,
+                  fileName: matchedFile?.name || fb.fileName || null,
+                  authorName: fb.user?.name || (fb.user?.role === 'qc' ? 'QC Reviewer' : (t.clientName || 'Client')),
+                  authorRole: fb.user?.role || fb.authorRole || 'client',
+                };
+              });
+
+              if (t.qcNotes && t.qcNotes.trim()) {
+                const exists = mapped.some((f: any) => f.feedback.trim().toLowerCase() === t.qcNotes.trim().toLowerCase());
+                if (!exists) {
+                  const maxVer = Math.max(1, ...(t.files || []).map((f: any) => f.version || 1));
+                  mapped.push({
+                    id: `qc-notes-${t.id}`,
+                    fileId: null,
+                    folderType: "main",
+                    feedback: t.qcNotes.trim(),
+                    status: "needs_revision",
+                    createdAt: t.createdAt,
+                    fileVersion: maxVer,
+                    authorName: "QC Reviewer",
+                    authorRole: "qc",
+                    category: "QC Revision",
+                  });
+                }
+              }
+
+              if (t.rejectionReason && t.rejectionReason.trim()) {
+                const exists = mapped.some((f: any) => f.feedback.trim().toLowerCase() === t.rejectionReason.trim().toLowerCase());
+                if (!exists) {
+                  const maxVer = Math.max(1, ...(t.files || []).map((f: any) => f.version || 1));
+                  mapped.push({
+                    id: `rejection-${t.id}`,
+                    fileId: null,
+                    folderType: "main",
+                    feedback: t.rejectionReason.trim(),
+                    status: "needs_revision",
+                    createdAt: t.createdAt,
+                    fileVersion: maxVer,
+                    authorName: t.clientName || "Client",
+                    authorRole: "client",
+                    category: "Client Revision",
+                  });
+                }
+              }
+
+              return mapped;
+            })(),
           };
         });
 
@@ -2669,14 +2969,14 @@ export function EditorDashboard() {
       )}
 
       {/* 🔥 MOCKUP-STYLED FILTER & ACTION CARD */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs p-4 mb-6">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs p-4 sm:p-5 mb-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-wrap items-end gap-3 flex-1 min-w-0">
             {/* Client Filter */}
-            <div className="flex flex-col gap-1.5 min-w-[130px]">
-              <label className="text-[12px] font-medium text-gray-500">Client</label>
+            <div className="flex flex-col gap-1.5 min-w-[135px]">
+              <label className="text-[12px] font-bold text-gray-500">Client</label>
               <Select value={clientFilter} onValueChange={setClientFilter}>
-                <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black">
+                <SelectTrigger className="h-10 rounded-xl border border-gray-300 bg-white px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs hover:bg-gray-50/50 focus:ring-1 focus:ring-black">
                   <SelectValue placeholder="All Clients" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2691,10 +2991,10 @@ export function EditorDashboard() {
             </div>
 
             {/* Deliverables Filter */}
-            <div className="flex flex-col gap-1.5 min-w-[130px]">
-              <label className="text-[12px] font-medium text-gray-500">Deliverables</label>
+            <div className="flex flex-col gap-1.5 min-w-[145px]">
+              <label className="text-[12px] font-bold text-gray-500">Deliverables</label>
               <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-                <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black">
+                <SelectTrigger className="h-10 rounded-xl border border-gray-300 bg-white px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs hover:bg-gray-50/50 focus:ring-1 focus:ring-black">
                   <SelectValue placeholder="Deliverables" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2709,10 +3009,10 @@ export function EditorDashboard() {
             </div>
 
             {/* Month Filter */}
-            <div className="flex flex-col gap-1.5 min-w-[120px]">
-              <label className="text-[12px] font-medium text-gray-500">Month</label>
+            <div className="flex flex-col gap-1.5 min-w-[125px]">
+              <label className="text-[12px] font-bold text-gray-500">Month</label>
               <Select value={monthFilter} onValueChange={setMonthFilter}>
-                <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black">
+                <SelectTrigger className="h-10 rounded-xl border border-gray-300 bg-white px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs hover:bg-gray-50/50 focus:ring-1 focus:ring-black">
                   <SelectValue placeholder="Months" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2728,9 +3028,9 @@ export function EditorDashboard() {
 
             {/* Tag Filter */}
             <div className="flex flex-col gap-1.5 min-w-[110px]">
-              <label className="text-[12px] font-medium text-gray-500">Tag</label>
+              <label className="text-[12px] font-bold text-gray-500">Tag</label>
               <Select value={tagFilter} onValueChange={setTagFilter}>
-                <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black">
+                <SelectTrigger className="h-10 rounded-xl border border-gray-300 bg-white px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs hover:bg-gray-50/50 focus:ring-1 focus:ring-black">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
@@ -2745,11 +3045,11 @@ export function EditorDashboard() {
             </div>
 
             {/* Request Raw Footage */}
-            <div className="flex flex-col gap-1.5 min-w-[200px]">
-              <label className="text-[12px] font-medium text-gray-500">Request Raw Footage</label>
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[12px] font-bold text-gray-500">Request Raw Footage</label>
+              <div className="flex items-center">
                 <Select value={selectedRawClientId} onValueChange={setSelectedRawClientId}>
-                  <SelectTrigger className="h-9.5 rounded-xl border-gray-200 bg-white text-xs font-semibold text-gray-900 focus:ring-1 focus:ring-black w-[130px]">
+                  <SelectTrigger className="h-10 rounded-l-xl rounded-r-none border border-gray-300 border-r-0 bg-gray-100/90 px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs focus:ring-0 focus:border-gray-300 w-[125px]">
                     <SelectValue placeholder="Client" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2789,12 +3089,12 @@ export function EditorDashboard() {
                       setRawsSending(false);
                     }
                   }}
-                  className="h-9.5 rounded-xl border-gray-200 bg-white hover:bg-gray-50 text-xs font-semibold text-gray-900 gap-1.5 px-3 shadow-2xs"
+                  className="h-10 rounded-r-xl rounded-l-none border border-gray-300 bg-white hover:bg-gray-50 text-[13.5px] font-bold text-gray-900 gap-1.5 px-3.5 shadow-2xs"
                 >
                   {rawsSending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <Send className="h-3.5 w-3.5 text-gray-700" />
+                    <Send className="h-3.5 w-3.5 stroke-[2] text-gray-900" />
                   )}
                   <span>{justSentRaws ? "Sent!" : "Send"}</span>
                 </Button>
@@ -2806,7 +3106,7 @@ export function EditorDashboard() {
                 variant="ghost"
                 size="sm"
                 onClick={clearAllFilters}
-                className="h-9.5 text-xs text-gray-500 hover:text-black self-end"
+                className="h-10 text-xs text-gray-500 hover:text-black self-end"
               >
                 Clear
               </Button>
@@ -2814,12 +3114,12 @@ export function EditorDashboard() {
           </div>
 
           {/* Send EOD Report Button */}
-          <div className="flex items-center gap-2 self-end">
+          <div className="flex items-center self-end">
             <Button
               onClick={() => setEodReportOpen(true)}
-              className="h-9.5 rounded-xl bg-black text-white hover:bg-neutral-800 text-xs font-semibold px-4 gap-2 shadow-xs transition-colors"
+              className="h-10 rounded-xl bg-black text-white hover:bg-neutral-800 text-sm font-bold px-4 sm:px-5 gap-2 shadow-xs transition-colors"
             >
-              <Send className="h-3.5 w-3.5" />
+              <Send className="h-3.5 w-3.5 stroke-[2]" />
               <span>Send EOD Report</span>
             </Button>
           </div>

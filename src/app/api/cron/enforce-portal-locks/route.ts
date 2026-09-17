@@ -21,6 +21,7 @@ import {
   clientPortalAccess as clientPortalAccessTable,
   invoice as invoiceTable,
   stripeCustomer as stripeCustomerTable,
+  client as clientTable,
 } from '@/lib/db/schema';
 import { and, eq, exists, inArray, isNotNull, lt, notInArray } from 'drizzle-orm';
 
@@ -70,8 +71,22 @@ export async function POST(req: NextRequest) {
     // OVERDUE label or dueDate, so this also catches anything the flagging
     // step above missed or that was created with a status this job doesn't
     // manage, and deliberately ignores each client's grace-period setting.
-    const overdueCustomers = await db.query.stripeCustomer.findMany({
-      where: exists(
+    //
+    // 🔥 Plain select + leftJoin, not db.query.stripeCustomer.findMany —
+    // Drizzle's relational query API loses the InvoiceStatus enum's cast on
+    // the notInArray bind params when the where clause is a hand-built
+    // exists(select...) subquery, which postgres then rejects (works fine
+    // as a plain top-level where, as step 1 above shows).
+    const overdueRows = await db
+      .select({
+        id: stripeCustomerTable.id,
+        clientId: stripeCustomerTable.clientId,
+        clientName: clientTable.name,
+        clientCompanyName: clientTable.companyName,
+      })
+      .from(stripeCustomerTable)
+      .leftJoin(clientTable, eq(clientTable.id, stripeCustomerTable.clientId))
+      .where(exists(
         db
           .select({ id: invoiceTable.id })
           .from(invoiceTable)
@@ -81,10 +96,13 @@ export async function POST(req: NextRequest) {
             lt(invoiceTable.sentAt, lockCutoff),
             notInArray(invoiceTable.status, ['PAID', 'CANCELED', 'REFUNDED', 'DRAFT']),
           ))
-      ),
-      columns: { id: true, clientId: true },
-      with: { client: { columns: { name: true, companyName: true } } },
-    });
+      ));
+
+    const overdueCustomers = overdueRows.map((r) => ({
+      id: r.id,
+      clientId: r.clientId,
+      client: { name: r.clientName, companyName: r.clientCompanyName },
+    }));
 
     const results: Array<{ clientId: string; status: 'locked' | 'skipped'; reason?: string }> = [];
 
