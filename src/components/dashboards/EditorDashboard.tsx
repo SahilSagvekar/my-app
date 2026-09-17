@@ -43,6 +43,10 @@ import { toast } from "sonner";
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 import { RequestRawsButton } from "../editor/RequestRawsButton";
 import { InstructionsBanner } from "../editor/InstructionsBanner";
+import {
+  getTaskCardThumbnailUrl,
+  taskThumbnailFallbackLabel,
+} from "@/lib/task-thumbnail";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { EditorEodReport } from "./EditorEodReport";
@@ -599,6 +603,29 @@ const [showGuidelines, setShowGuidelines] = useState(false);
   const canAttachScript = isSfLfDeliverable(task.deliverableType);
   const linkedScriptTitle = scriptRefTitle(task.shootScriptRef);
 
+  // 🔥 Thumbnail cover — same resolution QC/Client cards use (newest active
+  // "thumbnails" upload, falling back to the generated video preview), which
+  // was never wired into the editor card before.
+  const thumbnailUrl = useMemo(
+    () => getTaskCardThumbnailUrl(task.files),
+    [task.files]
+  );
+  const thumbnailFallbackLabel = useMemo(
+    () => taskThumbnailFallbackLabel(task.files),
+    [task.files]
+  );
+
+  // 🔥 Music licenses — every active "music-license" upload, not just the
+  // most recent (uploads to this folder type are multi-asset and never
+  // version-replace one another).
+  const musicLicenseFiles = useMemo(
+    () =>
+      (task.files || []).filter(
+        (f) => f.folderType === "music-license" && f.isActive !== false
+      ),
+    [task.files]
+  );
+
   const loadScript = async () => {
     setScriptLoading(true);
     try {
@@ -992,6 +1019,50 @@ const [showGuidelines, setShowGuidelines] = useState(false);
               </button>
             </div>
           </div>
+
+          {/* 🔥 THUMBNAIL COVER — was missing entirely on the editor card;
+              QC/Client cards already show this via task-thumbnail.ts. Shown
+              regardless of task.status so it doesn't get hidden while a task
+              is in_progress. */}
+          <div className="mb-2 rounded-lg overflow-hidden border border-zinc-800/60 bg-muted/30 aspect-video relative flex items-center justify-center">
+            {thumbnailUrl ? (
+              <img
+                src={thumbnailUrl}
+                alt={task.title}
+                className="absolute inset-0 w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.opacity = "0";
+                }}
+              />
+            ) : (
+              <span className="text-[10px] text-muted-foreground">
+                {thumbnailFallbackLabel}
+              </span>
+            )}
+          </div>
+
+          {/* 🔥 MUSIC LICENSES — separate multi-asset uploads that were being
+              lumped into the generic file list (and hidden entirely while
+              task.status === "in_progress"). Shown unconditionally here. */}
+          {musicLicenseFiles.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1">
+              {musicLicenseFiles.map((file) => (
+                <button
+                  key={file.id}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPreview(file);
+                  }}
+                  className="inline-flex items-center gap-1 h-5 px-1.5 rounded border border-orange-200 bg-orange-50 text-orange-700 text-[10px] font-medium hover:bg-orange-100 max-w-[160px]"
+                  title={file.name}
+                >
+                  <span>🎵</span>
+                  <span className="truncate">{file.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* 🔥 VERSION-TAGGED FEEDBACK — popup button instead of inline list */}
           {task.taskFeedback && task.taskFeedback.length > 0 && (() => {
