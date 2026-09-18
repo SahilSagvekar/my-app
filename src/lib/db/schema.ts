@@ -2011,6 +2011,10 @@ export const client = pgTable("Client", {
 	name: text().notNull(),
 	email: text().notNull(),
 	companyName: text(),
+	// Optional short name used in generated task titles instead of the
+	// slugified companyName (e.g. "B&M" instead of "B&MMarineConstruction,Inc.").
+	// Falls back to the existing companyName-slug behavior when null.
+	taskNamePrefix: text(),
 	phone: text().notNull(),
 	createdBy: text(),
 	status: text().default('active').notNull(),

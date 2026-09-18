@@ -344,6 +344,7 @@ model Client {
   name                         String
   email                        String
   companyName                  String?
+  taskNamePrefix               String?
   phone                        String
   createdBy                    String?
   status                       String                   @default("active")

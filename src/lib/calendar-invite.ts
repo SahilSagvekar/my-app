@@ -65,6 +65,29 @@ export function resolveShootWindow(opts: {
   return { start, end: new Date(start.getTime() + DEFAULT_SHOOT_DURATION_MS) };
 }
 
+// The .ics attachment alone relies on the recipient's mail client rendering
+// its own Accept/Decline UI from a `text/calendar` part — Gmail/Outlook do
+// this sometimes, but it's inconsistent (depends on sending domain
+// reputation, webmail vs app, etc.), so there was no visible way to accept
+// the invite in practice. A plain link to Google Calendar's "add event" page
+// always works, in any email client, regardless of ics rendering support.
+export function buildGoogleCalendarLink(opts: {
+  title: string;
+  description?: string;
+  location?: string | null;
+  start: Date;
+  end: Date;
+}): string {
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: opts.title,
+    dates: `${toIcsDateUtc(opts.start)}/${toIcsDateUtc(opts.end)}`,
+  });
+  if (opts.description) params.set('details', opts.description);
+  if (opts.location) params.set('location', opts.location);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 export function buildShootCalendarInvite(opts: ShootCalendarInviteOptions): string {
   const now = toIcsDateUtc(new Date());
   const dtStart = toIcsDateUtc(opts.start);

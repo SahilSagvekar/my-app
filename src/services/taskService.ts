@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { addSignedUrlsToFiles } from "@/lib/s3";
 import { resolveClientIdForUser } from "@/lib/auth";
 import { ServerTiming } from "@/lib/server-timing";
+import { getClientTaskSlug } from "@/lib/client-task-name";
 
 const s3Client = new S3Client({
   region: process.env.AWS_S3_REGION!,
@@ -270,6 +271,7 @@ export class TaskService {
       select: {
         name: true,
         companyName: true,
+        taskNamePrefix: true,
         rawFootageFolderId: true,
         essentialsFolderId: true,
         requiresClientReview: true,
@@ -418,7 +420,7 @@ export class TaskService {
       if (deliverable) {
         const existingCount = await prisma.task.count({ where: { clientId, oneOffDeliverableId: deliverable.id } });
         const companyName = client.companyName || client.name;
-        const companyNameSlug = companyName.replace(/\s/g, '');
+        const companyNameSlug = getClientTaskSlug(client);
         const deliverableSlug = this.getDeliverableShortCode(deliverable.type);
         const createdAtStr = this.formatDateMMDDYYYY(task.createdAt);
         const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${existingCount}`;

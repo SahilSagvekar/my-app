@@ -11,6 +11,7 @@ import { and, eq } from "drizzle-orm";
 import { createTaskOutputFolder, getS3, BUCKET } from "@/lib/s3";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { assignRawFootageFolderForTask } from "@/lib/raw-footage-folders";
+import { getClientTaskSlug } from "@/lib/client-task-name";
 
 const s3Client = getS3();
 
@@ -230,7 +231,7 @@ export async function generateMonthlyTasksFromTemplate(taskId: string, monthlyDe
 
   // STEP 5 — Naming parts
   const companyName = client?.companyName || client.name;
-  const companyNameSlug = (client?.companyName || client.name).replace(/\s/g, '');
+  const companyNameSlug = getClientTaskSlug(client);
   const deliverableSlug = getDeliverableShortCode(deliverable.type);
   const createdAtStr = formatDateMMDDYYYY(new Date(templateTask.createdAt));
 

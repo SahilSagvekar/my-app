@@ -640,6 +640,12 @@ export async function PATCH(
               taskTitle: task.title,
               schedulerId: task.scheduler,
               notificationStage: "ready_for_scheduling",
+              // 🔥 Who actually approved THIS task — previously slack.ts
+              // guessed this from client.requiresClientReview (a general
+              // client-wide policy flag), which said "Approved by Client"
+              // even when this specific task/deliverable type skipped
+              // client review and a QC approval alone completed it.
+              approvedByRole: role,
             },
           });
         }

@@ -7,7 +7,7 @@
 import { getDbHttp } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { buildShootCalendarInvite } from '@/lib/calendar-invite';
+import { buildShootCalendarInvite, buildGoogleCalendarLink } from '@/lib/calendar-invite';
 import { sendShootScheduledEmail, sendShootCancelledEmail } from '@/lib/email';
 
 async function getClientContact(clientId: string): Promise<{ name: string; emails: string[] } | null> {
@@ -49,18 +49,28 @@ export async function notifyClientShootScheduled(opts: {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const organizerEmail = process.env.SMTP_USER || 'no-reply@e8productions.com';
 
+    const description = `E8 Productions shoot day${opts.location ? ` at ${opts.location}` : ''}.`;
+
     const icsContent = buildShootCalendarInvite({
       uid: `shoot-${opts.taskId}@e8productions.com`,
       method: 'REQUEST',
       sequence: Math.floor(Date.now() / 1000),
       title: `Shoot: ${opts.taskTitle}`,
-      description: `E8 Productions shoot day${opts.location ? ` at ${opts.location}` : ''}.`,
+      description,
       location: opts.location,
       start: opts.start,
       end: opts.end,
       organizerEmail,
       organizerName: 'E8 Productions',
       attendees: client.emails.map((email) => ({ email })),
+    });
+
+    const googleCalendarUrl = buildGoogleCalendarLink({
+      title: `Shoot: ${opts.taskTitle}`,
+      description,
+      location: opts.location,
+      start: opts.start,
+      end: opts.end,
     });
 
     await sendShootScheduledEmail({
@@ -73,6 +83,7 @@ export async function notifyClientShootScheduled(opts: {
       end: opts.end,
       portalUrl: `${appUrl}/client`,
       icsContent,
+      googleCalendarUrl,
     });
   } catch (err) {
     console.error('[ShootNotify] Failed to send shoot scheduled email:', err);

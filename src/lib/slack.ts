@@ -510,15 +510,27 @@ export async function deliverSlackNotification(
     const scheduledNotification = { ...notification };
 
     if (stage === "ready_for_scheduling") {
-      let approvedBy = "QC";
-      if (notification.payload?.taskId) {
-        try {
-          const t = await db.query.task.findFirst({
-            where: eq(taskTable.id, notification.payload.taskId),
-            with: { client: true },
-          });
-          if (t?.client?.requiresClientReview) approvedBy = "Client";
-        } catch (e) {}
+      // Prefer the actual approver role captured at approval time (see
+      // status route) — falling back to the old client-policy-flag guess
+      // only for notifications queued before that payload field existed.
+      // The flag guess was wrong whenever a client generally requires
+      // review but THIS task's deliverable type is exempt from it: QC
+      // alone completes those, yet the flag alone said "Approved by Client".
+      let approvedBy: string;
+      const approvedByRole = notification.payload?.approvedByRole;
+      if (approvedByRole) {
+        approvedBy = approvedByRole === "client" ? "Client" : "QC";
+      } else {
+        approvedBy = "QC";
+        if (notification.payload?.taskId) {
+          try {
+            const t = await db.query.task.findFirst({
+              where: eq(taskTable.id, notification.payload.taskId),
+              with: { client: true },
+            });
+            if (t?.client?.requiresClientReview) approvedBy = "Client";
+          } catch (e) {}
+        }
       }
       scheduledNotification.message = `:mag: :eyes: ${schedulerMention}✅ Content Approved by ${approvedBy}: Task "${taskTitle}" has been approved.`;
     } else {

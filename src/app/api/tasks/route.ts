@@ -23,6 +23,7 @@ import { uploadBufferToS3, addSignedUrlsToFiles } from "@/lib/s3";
 import { ClientRequest } from "http";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
+import { getClientTaskSlug } from "@/lib/client-task-name";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
 import { notifyUser, notifyEditorTaskAssignment } from "@/lib/notify";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
@@ -770,6 +771,7 @@ export async function POST(req: any) {
     const [client] = await db.select({
       name: clientTable.name,
       companyName: clientTable.companyName,
+      taskNamePrefix: clientTable.taskNamePrefix,
       rawFootageFolderId: clientTable.rawFootageFolderId,
       essentialsFolderId: clientTable.essentialsFolderId,
       requiresClientReview: clientTable.requiresClientReview,
@@ -969,7 +971,7 @@ export async function POST(req: any) {
     // 🔁 AUTO GENERATE TASKS (Only if it's a monthly deliverable)
     if (isExtraMonthlyTask && extraMonthlyDeliverable && extraSequence) {
       const companyName = client.companyName || client.name;
-      const companyNameSlug = companyName.replace(/\s/g, '');
+      const companyNameSlug = getClientTaskSlug(client);
       const deliverableSlug = getDeliverableShortCode(extraMonthlyDeliverable.type);
       const taskCreatedAt = new Date(task.createdAt);
       const createdAtStr = formatDateMMDDYYYY(taskCreatedAt);
@@ -1075,7 +1077,7 @@ export async function POST(req: any) {
         ));
 
         const companyName = client.companyName || client.name;
-        const companyNameSlug = companyName.replace(/\s/g, '');
+        const companyNameSlug = getClientTaskSlug(client);
         const deliverableSlug = getDeliverableShortCode(deliverable.type);
         const createdAtStr = formatDateMMDDYYYY(new Date(task.createdAt));
         // existingCount already includes the current task

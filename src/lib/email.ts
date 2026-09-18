@@ -1980,6 +1980,7 @@ export async function sendShootScheduledEmail(data: {
   end: Date;
   portalUrl: string;
   icsContent: string;
+  googleCalendarUrl: string;
 }) {
   const transporter = createTransporter();
   if (!transporter) {
@@ -1998,7 +1999,7 @@ export async function sendShootScheduledEmail(data: {
 
   const contentHtml = `
       <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Your shoot is scheduled</td></tr>
-      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${data.clientName}, a shoot day has been planned for <strong>${data.taskTitle}</strong>. A calendar invite is attached — accept it to add this to your calendar.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${data.clientName}, a shoot day has been planned for <strong>${data.taskTitle}</strong>. Add it to your calendar below, or accept the calendar invite attached to this email.</td></tr>
       <tr><td class="px" style="padding:20px 40px 0 40px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
           <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Date</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${dateLabel}</td></tr>
@@ -2008,9 +2009,15 @@ export async function sendShootScheduledEmail(data: {
         </table>
       </td></tr>
       <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
-          <a href="${data.portalUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">View in Client Portal</a>
-        </td></tr></table>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+          <td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+            <a href="${data.googleCalendarUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Add to Google Calendar</a>
+          </td>
+          <td style="width:10px;">&nbsp;</td>
+          <td style="background-color:#ffffff;border:1px solid #d3d3d6;text-align:center;border-radius:8px;">
+            <a href="${data.portalUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#0a0a0b;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">View in Client Portal</a>
+          </td>
+        </tr></table>
       </td></tr>
       <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">If this time doesn't work, reply to this email and we'll get it rescheduled.</td></tr>`;
 

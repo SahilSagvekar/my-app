@@ -6,6 +6,7 @@ import { createId } from "@/lib/db/id";
 import { and, eq, inArray, gte, lte, isNull, asc, count } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3, BUCKET } from "@/lib/s3";
+import { getClientTaskSlug } from "@/lib/client-task-name";
 
 // ─────────────────────────────────────────
 // Types
@@ -241,6 +242,7 @@ export async function POST(req: Request) {
       id: clientTable.id,
       companyName: clientTable.companyName,
       name: clientTable.name,
+      taskNamePrefix: clientTable.taskNamePrefix,
       rawFootageFolderId: clientTable.rawFootageFolderId,
     }).from(clientTable).where(eq(clientTable.status, "active"));
 
@@ -409,7 +411,7 @@ export async function POST(req: Request) {
         // Build task titles
         // ─────────────────────────────────────────
         const companyName = client.companyName || client.name;
-        const clientSlug = companyName.replace(/\s+/g, "");  // Use companyName for task title
+        const clientSlug = getClientTaskSlug(client);
         const deliverableSlug = getDeliverableShortCode(deliverable.type);
         // Use 1st of target month so titles are consistent regardless of when the API runs
         const monthFirstDay = new Date(targetYear, targetMonth, 1);
