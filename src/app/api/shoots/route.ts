@@ -6,6 +6,8 @@ import { createId } from '@/lib/db/id';
 import { eq, isNotNull, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
+import { resolveShootWindow } from '@/lib/calendar-invite';
+import { notifyClientShootScheduled } from '@/lib/shoot-notify';
 
 // Shoot-day status is a focused subset of the broader TaskStatus enum —
 // all three values are valid TaskStatus members already, so no schema
@@ -75,6 +77,11 @@ export async function GET(req: NextRequest) {
       plannedEndTime: r.shoot.plannedEndTime,
       actualStartTime: r.shoot.actualStartTime,
       actualEndTime: r.shoot.actualEndTime,
+      cancelledAt: r.shoot.cancelledAt,
+      cancelledBy: r.shoot.cancelledBy,
+      cancellationReason: r.shoot.cancellationReason,
+      replacementTaskId: r.shoot.replacementTaskId,
+      replacesTaskId: r.shoot.replacesTaskId,
     });
     });
 
@@ -171,6 +178,25 @@ export async function POST(req: NextRequest) {
       actualEndTime: actualEndTime ? new Date(actualEndTime).toISOString() : null,
       updatedAt: new Date().toISOString(),
     }).returning();
+
+    if (clientId) {
+      const window = resolveShootWindow({
+        shootDate: createdShootDetail.shootDate,
+        plannedStartTime: createdShootDetail.plannedStartTime,
+        plannedEndTime: createdShootDetail.plannedEndTime,
+      });
+      if (window) {
+        await notifyClientShootScheduled({
+          taskId,
+          clientId,
+          taskTitle: taskTitle,
+          location: createdShootDetail.location,
+          hostName: createdShootDetail.hostName,
+          start: window.start,
+          end: window.end,
+        });
+      }
+    }
 
     return NextResponse.json({ task: createdTask, shootDetail: createdShootDetail }, { status: 201 });
   } catch (error: unknown) {

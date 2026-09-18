@@ -55,6 +55,7 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
   VIDEOGRAPHER_ASSIGNED: "Videographer Assigned",
   POSTED: "Posted",
   HIDDEN: "Hidden",
+  CANCELLED: "Cancelled",
 };
 
 export function getTaskStatusLabel(status: string | null | undefined): string {

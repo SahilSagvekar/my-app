@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
 import {
-  Camera, Plus, Loader, PackageCheck, ChevronDown, X, ExternalLink,
+  Camera, Plus, Loader, PackageCheck, ChevronDown, X, ExternalLink, Ban, ArrowRightCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ShootScriptsDialog } from './ShootScriptsDialog';
@@ -67,15 +67,28 @@ interface Shoot {
   endTime?: string | null;
   stops?: string[];
   expenses?: { description?: string; amount?: number; receiptUrl?: string }[];
+  cancelledAt?: string | null;
+  cancelledBy?: number | null;
+  cancellationReason?: string | null;
+  replacementTaskId?: string | null;
+  replacesTaskId?: string | null;
 }
 
+// Cycle-able statuses — the "click to change" status pill on the edit form
+// only steps through these. Cancelling is a separate, deliberate action
+// (with a reason prompt) rather than something you can land on by clicking.
 const SHOOT_STATUSES = ['PENDING', 'IN_PROGRESS', 'COMPLETED'] as const;
 type ShootStatus = typeof SHOOT_STATUSES[number];
+const CANCELLED_STATUS = 'CANCELLED' as const;
+// Filter dropdown additionally offers Cancelled, since cancelled shoots are
+// a real (if terminal) status a scheduler would want to filter by.
+const FILTER_STATUSES = [...SHOOT_STATUSES, CANCELLED_STATUS] as const;
 
-const STATUS_META: Record<ShootStatus, { label: string; className: string }> = {
+const STATUS_META: Record<ShootStatus | typeof CANCELLED_STATUS, { label: string; className: string }> = {
   PENDING: { label: 'Pending', className: 'bg-amber-100 text-amber-800' },
   IN_PROGRESS: { label: 'In Progress', className: 'bg-blue-100 text-blue-800' },
   COMPLETED: { label: 'Completed', className: 'bg-green-100 text-green-800' },
+  CANCELLED: { label: 'Cancelled', className: 'bg-rose-100 text-rose-800' },
 };
 
 const EMPTY_FORM = {
@@ -141,6 +154,12 @@ export function ShootingSchedulePage() {
   const [equipOpen, setEquipOpen] = useState(false);
 
   const [scriptDialogShoot, setScriptDialogShoot] = useState<Shoot | null>(null);
+
+  // Cancel-shoot confirmation dialog (separate from the edit form — a
+  // deliberate action with an optional reason, not a status-cycle click).
+  const [cancelDialogShoot, setCancelDialogShoot] = useState<Shoot | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   // Filters — all applied client-side over the already-fetched list.
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -439,6 +458,31 @@ export function ShootingSchedulePage() {
     setScriptDialogShoot(shoot);
   };
 
+  const submitCancelShoot = async () => {
+    if (!cancelDialogShoot) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/shoots/${cancelDialogShoot.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELLED', cancellationReason: cancelReason.trim() || undefined }),
+      });
+      if (res.ok) {
+        toast.success('Shoot cancelled — a replacement shoot was created');
+        setCancelDialogShoot(null);
+        setCancelReason('');
+        fetchAll();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || 'Failed to cancel shoot');
+      }
+    } catch {
+      toast.error('Something went wrong');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -470,7 +514,7 @@ export function ShootingSchedulePage() {
             <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              {SHOOT_STATUSES.map(s => (
+              {FILTER_STATUSES.map(s => (
                 <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
               ))}
             </SelectContent>
@@ -519,13 +563,20 @@ export function ShootingSchedulePage() {
           </div>
         ) : (
           filteredShoots.map((shoot) => {
-            const statusMeta = STATUS_META[SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? (shoot.status as ShootStatus) : 'PENDING'];
+            const isCancelled = shoot.status === CANCELLED_STATUS;
+            const statusMeta = STATUS_META[
+              isCancelled ? CANCELLED_STATUS
+                : SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? (shoot.status as ShootStatus) : 'PENDING'
+            ];
             const scriptSent = shoot.scriptStatus === 'sent';
             const mapsHref = shoot.location
               ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(shoot.location)}`
               : null;
+            const replacementShoot = shoot.replacementTaskId ? shoots.find(s => s.id === shoot.replacementTaskId) : null;
+            const replacesShoot = shoot.replacesTaskId ? shoots.find(s => s.id === shoot.replacesTaskId) : null;
+            const cancelledByPerson = shoot.cancelledBy ? videographers.find(v => v.id === shoot.cancelledBy) : null;
             return (
-              <Card key={shoot.id} className="flex h-full flex-col overflow-hidden rounded-xl border-0 bg-slate-950 text-white shadow-none">
+              <Card key={shoot.id} className={`flex h-full flex-col overflow-hidden rounded-xl border-0 bg-slate-950 text-white shadow-none ${isCancelled ? 'opacity-70' : ''}`}>
                 <CardContent className="flex h-full flex-col p-0">
                   <div className="flex items-center justify-between gap-3 p-5 pb-4">
                     <h3 className="truncate text-lg font-extrabold">{shoot.client?.companyName || shoot.client?.name || shoot.title || 'Shoot'}</h3>
@@ -539,8 +590,50 @@ export function ShootingSchedulePage() {
                       >
                         Edit Shoot Details
                       </Button>
+                      {!isCancelled && shoot.status !== 'COMPLETED' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setCancelDialogShoot(shoot); setCancelReason(''); }}
+                          className="h-8 w-8 p-0 border-rose-400/30 bg-transparent text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+                          title="Cancel shoot"
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
+
+                  {isCancelled && (
+                    <div className="mx-5 mb-4 rounded-lg border border-rose-400/25 bg-rose-500/10 px-3.5 py-2.5 text-xs">
+                      <p className="font-semibold text-rose-200">
+                        Cancelled{cancelledByPerson ? ` by ${cancelledByPerson.name || cancelledByPerson.email}` : ''}
+                        {shoot.cancelledAt ? ` · ${new Date(shoot.cancelledAt).toLocaleDateString()}` : ''}
+                      </p>
+                      {shoot.cancellationReason && <p className="mt-1 text-rose-100/80">{shoot.cancellationReason}</p>}
+                      {replacementShoot && (
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(replacementShoot)}
+                          className="mt-2 inline-flex items-center gap-1 font-semibold text-rose-100 underline-offset-2 hover:underline"
+                        >
+                          <ArrowRightCircle className="h-3.5 w-3.5" /> View replacement shoot
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {replacesShoot && (
+                    <div className="mx-5 mb-4 rounded-lg border border-white/10 bg-white/5 px-3.5 py-2 text-xs text-white/70">
+                      Replaces a cancelled shoot for the same client.
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(replacesShoot)}
+                        className="ml-1 font-semibold text-white underline-offset-2 hover:underline"
+                      >
+                        View original
+                      </button>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-x-6 gap-y-4 px-5 pb-4">
                     <div className="min-w-0">
@@ -1146,6 +1239,36 @@ export function ShootingSchedulePage() {
         onOpenChange={(open) => { if (!open) setScriptDialogShoot(null); }}
         onChanged={fetchAll}
       />
+
+      {/* Cancel Shoot confirmation */}
+      <Dialog open={!!cancelDialogShoot} onOpenChange={(open) => { if (!open) { setCancelDialogShoot(null); setCancelReason(''); } }}>
+        <DialogContent className="w-full sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-gray-900">Cancel this shoot?</DialogTitle>
+            <DialogDescription className="text-sm text-gray-500 mt-0.5">
+              {cancelDialogShoot?.client?.companyName || cancelDialogShoot?.client?.name || cancelDialogShoot?.title || 'This shoot'} will be marked cancelled, and a replacement shoot will be created automatically so it can be rescheduled.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 pt-2">
+            <Label className="text-xs">Reason (optional)</Label>
+            <Textarea
+              className="bg-gray-50 border-gray-200 resize-none min-h-[80px]"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Why is this shoot being cancelled?"
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" className="h-10 px-5 border-gray-300 text-gray-700" onClick={() => { setCancelDialogShoot(null); setCancelReason(''); }}>
+              Keep Shoot
+            </Button>
+            <Button variant="destructive" className="h-10 px-5" onClick={submitCancelShoot} disabled={cancelling}>
+              {cancelling ? 'Cancelling...' : 'Cancel Shoot'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -27,7 +27,7 @@ export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer'
 export const signerStatus = pgEnum("SignerStatus", ['PENDING', 'VIEWED', 'SIGNED', 'DECLINED'])
 export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'TRIALING', 'PAUSED'])
 export const syncStatus = pgEnum("SyncStatus", ['PENDING', 'SYNCING', 'COMPLETED', 'FAILED'])
-export const taskStatus = pgEnum("TaskStatus", ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED', 'SCHEDULED', 'ON_HOLD', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW', 'VIDEOGRAPHER_ASSIGNED', 'POSTED', 'HIDDEN'])
+export const taskStatus = pgEnum("TaskStatus", ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED', 'SCHEDULED', 'ON_HOLD', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW', 'VIDEOGRAPHER_ASSIGNED', 'POSTED', 'HIDDEN', 'CANCELLED'])
 
 
 export const verificationToken = pgTable("VerificationToken", {
@@ -926,6 +926,13 @@ export const shootDetail = pgTable("ShootDetail", {
 	plannedEndTime: timestamp({ precision: 3, mode: 'string' }),
 	actualStartTime: timestamp({ precision: 3, mode: 'string' }),
 	actualEndTime: timestamp({ precision: 3, mode: 'string' }),
+	cancelledAt: timestamp({ precision: 3, mode: 'string' }),
+	cancelledBy: integer(),
+	cancellationReason: text(),
+	// Points to the newly-created Task that replaces this cancelled shoot.
+	replacementTaskId: text(),
+	// Set on the replacement shoot itself, pointing back at the one it replaced.
+	replacesTaskId: text(),
 }, (table) => [
 	uniqueIndex("ShootDetail_taskId_key").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -937,6 +944,21 @@ export const shootDetail = pgTable("ShootDetail", {
 			columns: [table.videographerId],
 			foreignColumns: [user.id],
 			name: "ShootDetail_videographerId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.cancelledBy],
+			foreignColumns: [user.id],
+			name: "ShootDetail_cancelledBy_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.replacementTaskId],
+			foreignColumns: [task.id],
+			name: "ShootDetail_replacementTaskId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.replacesTaskId],
+			foreignColumns: [task.id],
+			name: "ShootDetail_replacesTaskId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
