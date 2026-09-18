@@ -50,6 +50,10 @@ export async function GET(req: NextRequest) {
         location: shootDetailTable.location,
         videographerNotes: shootDetailTable.videographerNotes,
         videographerName: userTable.name,
+        plannedStartTime: shootDetailTable.plannedStartTime,
+        plannedEndTime: shootDetailTable.plannedEndTime,
+        actualStartTime: shootDetailTable.actualStartTime,
+        actualEndTime: shootDetailTable.actualEndTime,
       })
       .from(shootDetailTable)
       .innerJoin(taskTable, eq(shootDetailTable.taskId, taskTable.id))
@@ -58,10 +62,21 @@ export async function GET(req: NextRequest) {
       .where(isNotNull(shootDetailTable.shootDate))
       .orderBy(desc(shootDetailTable.shootDate));
 
+    const computeMinutes = (startStr: string | null, endStr: string | null): number | null => {
+      if (!startStr || !endStr) return null;
+      const start = new Date(startStr).getTime();
+      const end = new Date(endStr).getTime();
+      if (isNaN(start) || isNaN(end) || end <= start) return null;
+      return Math.round((end - start) / (1000 * 60));
+    };
+
     const now = Date.now();
     const shootEntries = shootRows.map((row) => {
       const shootTime = row.shootDate ? new Date(row.shootDate).getTime() : null;
       const completed = row.taskStatus === 'COMPLETED' || (shootTime !== null && shootTime < now);
+      const plannedMinutes = computeMinutes(row.plannedStartTime, row.plannedEndTime);
+      const actualMinutes = computeMinutes(row.actualStartTime, row.actualEndTime);
+
       return {
         id: `shoot-${row.taskId}`,
         type: 'shoot' as const,
@@ -71,8 +86,8 @@ export async function GET(req: NextRequest) {
         title: row.taskTitle,
         location: row.location,
         attendees: row.videographerName ? [row.videographerName] : [],
-        plannedMinutes: null,
-        actualMinutes: null,
+        plannedMinutes,
+        actualMinutes,
         status: completed ? 'Completed' : 'Planned',
         note: row.videographerNotes ? { label: 'Notes', body: row.videographerNotes } : null,
         editable: false, // shoots are edited via /api/shoots, not here

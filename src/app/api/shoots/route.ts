@@ -71,6 +71,10 @@ export async function GET(req: NextRequest) {
       scriptSentAt: r.shoot.scriptSentAt,
       videosPlanned: scriptDocument.videosPlanned,
       scriptsCount: scriptDocument.scripts.length,
+      plannedStartTime: r.shoot.plannedStartTime,
+      plannedEndTime: r.shoot.plannedEndTime,
+      actualStartTime: r.shoot.actualStartTime,
+      actualEndTime: r.shoot.actualEndTime,
     });
     });
 
@@ -110,6 +114,10 @@ export async function POST(req: NextRequest) {
       notes,
       status,
       videosPlanned,
+      plannedStartTime,
+      plannedEndTime,
+      actualStartTime,
+      actualEndTime,
     } = body;
 
     if (!shootDate) {
@@ -157,6 +165,10 @@ export async function POST(req: NextRequest) {
       equipmentIds: Array.isArray(equipmentIds) ? equipmentIds : [],
       scriptContent: writeShootScriptDocument({ version: 1, videosPlanned: Math.max(1, Number(videosPlanned) || 1), scripts: [] }),
       videographerId: assignedVideographerId,
+      plannedStartTime: plannedStartTime ? new Date(plannedStartTime).toISOString() : null,
+      plannedEndTime: plannedEndTime ? new Date(plannedEndTime).toISOString() : null,
+      actualStartTime: actualStartTime ? new Date(actualStartTime).toISOString() : null,
+      actualEndTime: actualEndTime ? new Date(actualEndTime).toISOString() : null,
       updatedAt: new Date().toISOString(),
     }).returning();
 

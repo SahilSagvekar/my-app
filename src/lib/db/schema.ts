@@ -922,6 +922,10 @@ export const shootDetail = pgTable("ShootDetail", {
 	scriptSentBy: integer(),
 	scriptLastEditedAt: timestamp({ precision: 3, mode: 'string' }),
 	scriptLastEditedBy: integer(),
+	plannedStartTime: timestamp({ precision: 3, mode: 'string' }),
+	plannedEndTime: timestamp({ precision: 3, mode: 'string' }),
+	actualStartTime: timestamp({ precision: 3, mode: 'string' }),
+	actualEndTime: timestamp({ precision: 3, mode: 'string' }),
 }, (table) => [
 	uniqueIndex("ShootDetail_taskId_key").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
 	foreignKey({

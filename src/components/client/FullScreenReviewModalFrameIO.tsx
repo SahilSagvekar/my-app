@@ -504,8 +504,14 @@ export function FullScreenReviewModalFrameIO({
             const data = await res.json();
             if (data.feedback && Array.isArray(data.feedback)) {
                 const targetFolder = currentFileSection?.folderType || 'main';
+                const targetFileId = currentFileSection?.fileId || null;
                 const mappedComments: ReviewComment[] = data.feedback
                     .filter((fb: any) => (fb.folderType || 'main') === targetFolder)
+                    // Scope to the file version currently being reviewed —
+                    // otherwise unresolved comments from an earlier rejected
+                    // round (tied to a since-replaced fileId) resurface here
+                    // and get bundled into the next rejection's Slack message.
+                    .filter((fb: any) => !targetFileId || !fb.fileId || fb.fileId === targetFileId)
                     .map((fb: any) => {
                         const ts = fb.timestamp || '0:00';
                         const parts = ts.split(':');
@@ -536,7 +542,7 @@ export function FullScreenReviewModalFrameIO({
         } catch (err) {
             console.error('Error fetching feedback:', err);
         }
-    }, [taskId, asset?.id, currentFileSection?.folderType]);
+    }, [taskId, asset?.id, currentFileSection?.folderType, currentFileSection?.fileId]);
 
     /* ── Initialise on asset change ── */
     useEffect(() => {

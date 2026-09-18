@@ -267,55 +267,88 @@ export function VideographerProductionLogPage() {
       )}
 
       {showAddDialog && (
-        <div onClick={() => setShowAddDialog(false)} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-          <div onClick={(e) => e.stopPropagation()} className="w-[520px] max-w-[92vw] bg-white rounded-2xl p-7 shadow-xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+        <div onClick={() => setShowAddDialog(false)} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 sm:p-6">
+          <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-3xl lg:max-w-4xl bg-white rounded-2xl p-6 sm:p-8 shadow-2xl flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
-              <div className="text-lg font-black tracking-tight">Add log entry</div>
-              <button onClick={() => setShowAddDialog(false)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-zinc-50 flex-shrink-0">
+              <div>
+                <div className="text-xl font-black tracking-tight text-zinc-950">Add log entry</div>
+                <p className="text-xs text-zinc-500 mt-0.5">Log a call, meeting, or analytics review for production tracking.</p>
+              </div>
+              <button onClick={() => setShowAddDialog(false)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition-colors flex-shrink-0">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="h-px bg-zinc-200" />
 
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Client</label>
-            <select
-              value={form.clientId}
-              onChange={(e) => setForm({ ...form, clientId: e.target.value })}
-              className="h-10 rounded-lg border border-zinc-200 px-3 text-sm"
-            >
-              <option value="">Select a client…</option>
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Type</label>
-            <div className="flex gap-2">
-              {(['call', 'meeting', 'analytics'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setForm({ ...form, type: t })}
-                  className={`h-9 px-3.5 rounded-lg text-[13px] font-bold ${form.type === t ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600'}`}
+            {/* Row 1: Client & Type */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Client</label>
+                <select
+                  value={form.clientId}
+                  onChange={(e) => setForm({ ...form, clientId: e.target.value })}
+                  className="h-10 rounded-lg border border-zinc-200 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-black bg-white"
                 >
-                  {TYPE_LABEL[t]}
-                </button>
-              ))}
+                  <option value="">Select a client…</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Type</label>
+                <div className="flex gap-2 flex-wrap">
+                  {(['call', 'meeting', 'analytics'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm({ ...form, type: t })}
+                      className={`h-10 px-4 rounded-lg text-[13px] font-bold transition-colors ${form.type === t ? 'bg-zinc-950 text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'}`}
+                    >
+                      {TYPE_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Title (optional)</label>
-            <input
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="h-10 rounded-lg border border-zinc-200 px-3 text-sm"
-              placeholder="e.g. Monthly check-in"
-            />
+            {/* Row 2: Title & Status */}
+            <div className="grid grid-cols-1 sm:grid-cols-[1.6fr_1fr] gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Title (optional)</label>
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className="h-10 rounded-lg border border-zinc-200 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  placeholder="e.g. Monthly check-in"
+                />
+              </div>
 
-            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Status</label>
+                <div className="flex gap-2">
+                  {(['PLANNED', 'COMPLETED'] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setForm({ ...form, status: s })}
+                      className={`h-10 px-4 rounded-lg text-[13px] font-bold flex-1 transition-colors ${form.status === s ? 'bg-zinc-950 text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'}`}
+                    >
+                      {s === 'PLANNED' ? 'Planned' : 'Completed'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: Date & time + Planned (minutes) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Date & time</label>
                 <input
                   type="datetime-local"
                   value={form.date}
                   onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="h-10 rounded-lg border border-zinc-200 px-3 text-sm"
+                  className="h-10 rounded-lg border border-zinc-200 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-black"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -324,50 +357,64 @@ export function VideographerProductionLogPage() {
                   type="number"
                   value={form.plannedMinutes}
                   onChange={(e) => setForm({ ...form, plannedMinutes: e.target.value })}
-                  className="h-10 rounded-lg border border-zinc-200 px-3 text-sm"
+                  className="h-10 rounded-lg border border-zinc-200 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  placeholder="e.g. 60"
                 />
               </div>
             </div>
 
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Location (optional)</label>
-            <input
-              value={form.location}
-              onChange={(e) => setForm({ ...form, location: e.target.value })}
-              className="h-10 rounded-lg border border-zinc-200 px-3 text-sm"
-              placeholder="e.g. Zoom, or a physical address"
-            />
-
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Attendees (comma-separated)</label>
-            <input
-              value={form.attendees}
-              onChange={(e) => setForm({ ...form, attendees: e.target.value })}
-              className="h-10 rounded-lg border border-zinc-200 px-3 text-sm"
-              placeholder="e.g. Eric Davis, Jay-ar Patra"
-            />
-
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Notes (optional)</label>
-            <textarea
-              value={form.noteBody}
-              onChange={(e) => setForm({ ...form, noteBody: e.target.value })}
-              className="min-h-[80px] rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-            />
-
-            <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Status</label>
-            <div className="flex gap-2">
-              {(['PLANNED', 'COMPLETED'] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setForm({ ...form, status: s })}
-                  className={`h-9 px-3.5 rounded-lg text-[13px] font-bold ${form.status === s ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-600'}`}
-                >
-                  {s === 'PLANNED' ? 'Planned' : 'Completed'}
-                </button>
-              ))}
+            {/* Row 4: Location & Attendees */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Location (optional)</label>
+                <input
+                  value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  className="h-10 rounded-lg border border-zinc-200 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  placeholder="e.g. Zoom, or a physical address"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Attendees (comma-separated)</label>
+                <input
+                  value={form.attendees}
+                  onChange={(e) => setForm({ ...form, attendees: e.target.value })}
+                  className="h-10 rounded-lg border border-zinc-200 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                  placeholder="e.g. Eric Davis, Jay-ar Patra"
+                />
+              </div>
             </div>
 
-            <Button onClick={handleCreate} disabled={saving} className="mt-2">
-              {saving ? 'Saving…' : 'Add entry'}
-            </Button>
+            {/* Row 5: Notes */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wide">Notes (optional)</label>
+              <textarea
+                value={form.noteBody}
+                onChange={(e) => setForm({ ...form, noteBody: e.target.value })}
+                rows={3}
+                className="min-h-[90px] rounded-lg border border-zinc-200 p-3 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+                placeholder="Add any agenda, discussion points, or recap..."
+              />
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddDialog(false)}
+                className="h-10 px-5 rounded-lg text-sm font-semibold"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreate}
+                disabled={saving}
+                className="h-10 px-6 rounded-lg bg-black text-white hover:bg-neutral-800 text-sm font-semibold shadow-xs"
+              >
+                {saving ? 'Saving…' : 'Add entry'}
+              </Button>
+            </div>
           </div>
         </div>
       )}

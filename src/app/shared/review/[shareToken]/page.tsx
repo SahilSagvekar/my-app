@@ -133,6 +133,24 @@ export default function SharedReviewPage() {
         };
     };
 
+    // Scopes fetched/submitted feedback to the exact file version being
+    // shown — without this, FullScreenReviewModalFrameIO falls back to
+    // folder-only filtering and resurfaces unresolved comments from every
+    // earlier (already-replaced) file version on this share link.
+    const getCurrentFileSection = () => {
+        if (!reviewData?.task) return undefined;
+        const files = reviewData.task.files || [];
+        const primaryFile = files.find((f: any) =>
+            f.folderType === 'main' && f.mimeType?.startsWith('video/')
+        ) || files.find((f: any) => f.mimeType?.startsWith('video/'));
+        if (!primaryFile) return undefined;
+        return {
+            folderType: primaryFile.folderType || 'main',
+            fileId: primaryFile.id,
+            version: primaryFile.version || 1,
+        };
+    };
+
     const formatFileSize = (bytes: number | bigint) => {
         const size = Number(bytes);
         if (size === 0) return '0 Bytes';
@@ -270,6 +288,7 @@ export default function SharedReviewPage() {
                     }}
                     userRole="client"
                     taskId={reviewData?.task.id}
+                    currentFileSection={getCurrentFileSection()}
                     shareToken={shareToken}
                 />
             )}

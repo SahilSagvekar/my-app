@@ -59,6 +59,10 @@ interface Shoot {
   scriptSentAt: string | null;
   videosPlanned: number;
   scriptsCount: number;
+  plannedStartTime?: string | null;
+  plannedEndTime?: string | null;
+  actualStartTime?: string | null;
+  actualEndTime?: string | null;
   startTime?: string | null;
   endTime?: string | null;
   stops?: string[];
@@ -90,8 +94,10 @@ const EMPTY_FORM = {
   notes: '',
   videosPlanned: '1',
   status: 'PENDING' as ShootStatus,
-  startTime: '',
-  endTime: '',
+  plannedStartTime: '',
+  plannedEndTime: '',
+  actualStartTime: '',
+  actualEndTime: '',
   odometerBefore: '',
   odometerAfter: '',
   stops: [] as string[],
@@ -290,8 +296,10 @@ export function ShootingSchedulePage() {
       notes: shoot.videographerNotes || '',
       videosPlanned: String(shoot.videosPlanned || 1),
       status: (SHOOT_STATUSES.includes(shoot.status as ShootStatus) ? shoot.status : 'PENDING') as ShootStatus,
-      startTime: toDatetimeLocal(shoot.startTime || null),
-      endTime: toDatetimeLocal(shoot.endTime || null),
+      plannedStartTime: toDatetimeLocal(shoot.plannedStartTime || shoot.startTime || null),
+      plannedEndTime: toDatetimeLocal(shoot.plannedEndTime || shoot.endTime || null),
+      actualStartTime: toDatetimeLocal(shoot.actualStartTime || null),
+      actualEndTime: toDatetimeLocal(shoot.actualEndTime || null),
       odometerBefore: '',
       odometerAfter: '',
       stops: shoot.stops || [],
@@ -398,8 +406,10 @@ export function ShootingSchedulePage() {
           notes: form.notes,
           videosPlanned: form.videosPlanned,
           status: form.status,
-          startTime: form.startTime || undefined,
-          endTime: form.endTime || undefined,
+          plannedStartTime: form.plannedStartTime || undefined,
+          plannedEndTime: form.plannedEndTime || undefined,
+          actualStartTime: form.actualStartTime || undefined,
+          actualEndTime: form.actualEndTime || undefined,
           odometerBefore: form.odometerBefore || undefined,
           odometerAfter: form.odometerAfter || undefined,
           stops: form.stops,
@@ -672,22 +682,74 @@ export function ShootingSchedulePage() {
               </div>
             </div>
 
-            {/* Shoot Started + Ended row */}
+            {/* Planned Shoot Started + Ended row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Shoot Started</Label>
+                <Label className="text-xs">Planned Shoot Started</Label>
                 <Input
                   type="datetime-local"
-                  value={form.startTime}
-                  onChange={(e) => setForm(f => ({ ...f, startTime: e.target.value }))}
+                  value={form.plannedStartTime}
+                  onChange={(e) => setForm(f => ({ ...f, plannedStartTime: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Shoot Ended</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Planned Shoot Ended</Label>
+                  {(() => {
+                    if (!form.plannedStartTime || !form.plannedEndTime) return null;
+                    const s = new Date(form.plannedStartTime).getTime();
+                    const e = new Date(form.plannedEndTime).getTime();
+                    if (isNaN(s) || isNaN(e) || e <= s) return null;
+                    const mins = Math.round((e - s) / 60000);
+                    const h = Math.floor(mins / 60);
+                    const m = mins % 60;
+                    return (
+                      <span className="text-[11px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                        {h}h{m ? ` ${m}m` : ''} planned
+                      </span>
+                    );
+                  })()}
+                </div>
                 <Input
                   type="datetime-local"
-                  value={form.endTime}
-                  onChange={(e) => setForm(f => ({ ...f, endTime: e.target.value }))}
+                  value={form.plannedEndTime}
+                  onChange={(e) => setForm(f => ({ ...f, plannedEndTime: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Actual Shoot Started + Ended row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Actual Shoot Started</Label>
+                <Input
+                  type="datetime-local"
+                  value={form.actualStartTime}
+                  onChange={(e) => setForm(f => ({ ...f, actualStartTime: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Actual Shoot Ended</Label>
+                  {(() => {
+                    if (!form.actualStartTime || !form.actualEndTime) return null;
+                    const s = new Date(form.actualStartTime).getTime();
+                    const e = new Date(form.actualEndTime).getTime();
+                    if (isNaN(s) || isNaN(e) || e <= s) return null;
+                    const mins = Math.round((e - s) / 60000);
+                    const h = Math.floor(mins / 60);
+                    const m = mins % 60;
+                    return (
+                      <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        {h}h{m ? ` ${m}m` : ''} actual
+                      </span>
+                    );
+                  })()}
+                </div>
+                <Input
+                  type="datetime-local"
+                  value={form.actualEndTime}
+                  onChange={(e) => setForm(f => ({ ...f, actualEndTime: e.target.value }))}
                 />
               </div>
             </div>

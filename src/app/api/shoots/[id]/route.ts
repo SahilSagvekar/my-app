@@ -47,6 +47,10 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     // reads it) but was never ALSO reaching this column — so it never
     // showed up in the Production Log no matter what was typed.
     ...(body.notes !== undefined ? { videographerNotes: body.notes || null } : {}),
+    ...(body.plannedStartTime !== undefined ? { plannedStartTime: body.plannedStartTime ? new Date(body.plannedStartTime).toISOString() : null } : {}),
+    ...(body.plannedEndTime !== undefined ? { plannedEndTime: body.plannedEndTime ? new Date(body.plannedEndTime).toISOString() : null } : {}),
+    ...(body.actualStartTime !== undefined ? { actualStartTime: body.actualStartTime ? new Date(body.actualStartTime).toISOString() : null } : {}),
+    ...(body.actualEndTime !== undefined ? { actualEndTime: body.actualEndTime ? new Date(body.actualEndTime).toISOString() : null } : {}),
     ...(existingDocument ? { scriptContent: writeShootScriptDocument({ ...existingDocument, videosPlanned: Math.max(1, Math.min(99, Number(body.videosPlanned) || 1)) }) } : {}),
     updatedAt: now,
   }).where(eq(shootDetailTable.taskId, id));
