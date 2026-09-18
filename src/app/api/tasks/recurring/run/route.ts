@@ -7,6 +7,7 @@ import { and, eq, inArray, gte, lte, isNull, asc, count } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getS3, BUCKET } from "@/lib/s3";
 import { getClientTaskSlug } from "@/lib/client-task-name";
+import { assignRawFootageFolderForTask } from "@/lib/raw-footage-folders";
 
 // ─────────────────────────────────────────
 // Types
@@ -480,6 +481,24 @@ export async function POST(req: Request) {
             isTrial: deliverable.isTrial ?? client.isTrial ?? false,
             updatedAt: new Date().toISOString(),
           }).returning();
+
+          // 🔥 FIX: this cron used to create the task row and stop there —
+          // only the very first task ever created for a deliverable (the
+          // manually-created "master template", via generateMonthlyTasksFromTemplate)
+          // ever got a real raw-footage folder. Every task this monthly cron
+          // generated afterward had no RawFootageFolder row and no physical
+          // folder, ever. Mirrors generateMonthly.ts so every SF/LF task gets
+          // one. No-op (returns null) for non-SF/LF deliverables; swallows
+          // its own errors, so a folder hiccup never blocks task generation.
+          await assignRawFootageFolderForTask({
+            clientId: rt.clientId,
+            companyName,
+            monthFolder: monthYearFolder,
+            deliverableSlug,
+            deliverableType: deliverable.type,
+            number: taskNumber,
+            taskId: newTask.id,
+          });
 
           createdTasks.push(newTask);
         }

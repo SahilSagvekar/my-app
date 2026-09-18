@@ -496,58 +496,52 @@ export function ShootingSchedulePage() {
 
   return (
     <div className="space-y-6 p-2 sm:p-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">Shooting Schedule</h1>
-          <p className="mt-1 text-sm text-slate-600">All upcoming and past shoot days</p>
-        </div>
-        <Button onClick={openCreateForm} className="h-10 gap-2 rounded-lg bg-slate-950 px-4 hover:opacity-85 w-full sm:w-auto">
-          <Plus className="h-4 w-4" /> New Shoot
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="grid grid-cols-1 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-1 min-w-[140px]">
-          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Status</Label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {FILTER_STATUSES.map(s => (
-                <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Heading, filters, and New Shoot all on one row (wraps only if the
+          viewport is too narrow to fit everything) */}
+      <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 p-4">
+        <div className="mr-auto">
+          <h1 className="text-2xl font-bold leading-tight tracking-tight text-slate-950">Shooting Schedule</h1>
+          <p className="text-sm text-slate-600">All upcoming and past shoot days</p>
         </div>
 
-        <div className="space-y-1 min-w-[160px]">
-          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Client</Label>
-          <Select value={clientFilter} onValueChange={setClientFilter}>
-            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All clients</SelectItem>
-              {clients.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-9 w-[150px] bg-white"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {FILTER_STATUSES.map(s => (
+              <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <div className="space-y-1 min-w-[130px]">
-          <Label className="text-[11px] uppercase tracking-wide text-slate-400">From</Label>
-          <Input type="date" className="h-9" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+        <Select value={clientFilter} onValueChange={setClientFilter}>
+          <SelectTrigger className="h-9 w-[170px] bg-white"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All clients</SelectItem>
+            {clients.map(c => (
+              <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex items-center gap-1.5">
+          <Label className="text-xs font-medium text-slate-400 whitespace-nowrap">From</Label>
+          <Input type="date" className="h-9 w-[145px] bg-white" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
         </div>
-        <div className="space-y-1 min-w-[130px]">
-          <Label className="text-[11px] uppercase tracking-wide text-slate-400">To</Label>
-          <Input type="date" className="h-9" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        <div className="flex items-center gap-1.5">
+          <Label className="text-xs font-medium text-slate-400 whitespace-nowrap">To</Label>
+          <Input type="date" className="h-9 w-[145px] bg-white" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
 
         {filtersActive && (
-          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground h-9 lg:col-span-4 lg:justify-self-start">
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 text-muted-foreground h-9">
             <X className="h-3.5 w-3.5" /> Clear
           </Button>
         )}
+
+        <Button onClick={openCreateForm} className="h-10 gap-2 rounded-lg bg-slate-950 px-4 hover:opacity-85">
+          <Plus className="h-4 w-4" /> New Shoot
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

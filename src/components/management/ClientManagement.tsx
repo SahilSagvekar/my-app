@@ -2914,7 +2914,24 @@ export function ClientManagement() {
 
                     {/* Admin unlock/lock button */}
                     {client.portalAccess && (
-                      client.portalAccess.status === 'LOCKED' ? (
+                      client.portalAccess.status === 'ACTIVE' ? (
+                        <button
+                          className="text-xs text-red-500 hover:text-red-700 underline ml-1"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!window.confirm(`Lock ${client.companyName || client.name}'s portal? They won't be able to access it until unlocked.`)) return;
+                            await fetch('/api/portal/admin-unlock', {
+                              method: 'DELETE',
+                              headers: { 'Content-Type': 'application/json' },
+                              credentials: 'include',
+                              body: JSON.stringify({ clientId: client.id }),
+                            });
+                            window.location.reload();
+                          }}
+                        >
+                          Lock
+                        </button>
+                      ) : client.portalAccess.status === 'LOCKED' ? (
                         <button
                           className="text-xs text-blue-600 hover:text-blue-800 underline ml-1"
                           onClick={async (e) => {

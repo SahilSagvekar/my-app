@@ -1,107 +1,176 @@
-// src/app/api/admin/backfill-raw-footage-folders/route.ts
-//
-// ONE-TIME backfill — creates RawFootageFolder rows (+ physical R2 folders)
-// for SF/LF deliverable tasks that were already created THIS month, before
-// the raw-footage-folder auto-numbering hook existed in generateMonthly.ts.
-//
-// Going forward, every NEW month's tasks get this automatically at
-// creation time — this route only exists to catch up tasks created before
-// that hook was added. Safe to re-run: assignRawFootageFolderForTask()
-// reuses an existing row instead of duplicating it if a slot already
-// exists for that (client, month, code, number).
-//
-// The folder number is recovered from the task's own title, since that's
-// where generateMonthly.ts already put it (e.g. "AcmeCorp_09-01-2026_SF3"
-// -> code "SF", number 3) — the exact same source of truth the live
-// generation code uses, so a backfilled folder can never disagree with
-// how the task was actually numbered.
-
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { and, eq, isNotNull, or } from 'drizzle-orm';
-import { getCurrentUser2 } from '@/lib/auth';
 import { getDbHttp } from '@/lib/db';
-import { task as taskTable, client as clientTable } from '@/lib/db/schema';
-import { assignRawFootageFolderForTask, toFolderCode } from '@/lib/raw-footage-folders';
+import {
+  task as taskTable,
+  client as clientTable,
+  monthlyDeliverable as monthlyDeliverableTable,
+  rawFootageFolder as rawFootageFolderTable,
+} from '@/lib/db/schema';
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { requireAdmin } from '@/lib/auth';
+import { assignRawFootageFolderForTask } from '@/lib/raw-footage-folders';
 
-function currentMonthFolder(): string {
-  const now = new Date();
-  const month = now.toLocaleDateString('en-US', { month: 'long' });
-  return `${month}-${now.getFullYear()}`; // matches generateMonthly.ts's format exactly
-}
-
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/admin/backfill-raw-footage-folders
+//
+// One-time repair for a gap in /api/tasks/recurring/run (now fixed
+// alongside this route): that monthly cron created SF/LF task rows but
+// never called assignRawFootageFolderForTask, so only the very first task
+// ever created for a deliverable (the manually-created "master template",
+// via generateMonthlyTasksFromTemplate) ever got a real raw-footage folder
+// + RawFootageFolder DB row. Every task the cron generated since then has a
+// task row and a script-quota slot, but no folder — which is why the
+// "Which deliverable is this for?" script picker and the raw-footage view
+// only ever show the one original slot per deliverable.
+//
+// This finds every SF/LF task missing its RawFootageFolder link and
+// creates it, reusing assignRawFootageFolderForTask so behavior (and the
+// unique client+month+code+number slot, and reuse-if-slot-exists logic)
+// exactly matches what task-creation-time assignment would have done.
+//
+// Body: { clientId?: string, dryRun?: boolean }
+//   - clientId omitted -> backfills every active client
+//   - dryRun: true     -> reports what it WOULD assign, creates nothing
+// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser2(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if ((user.role || '').toLowerCase() !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
   const db = getDbHttp();
   try {
-    const body = await req.json().catch(() => ({}));
-    const monthFolder: string = body.monthFolder || currentMonthFolder();
+    await requireAdmin(req);
 
-    // Only tasks tagged SF/LF for this month — everything else
-    // (thumbnails, hard posts, etc.) is out of scope for this feature.
-    const tasks = await db
-      .select({
-        id: taskTable.id,
-        title: taskTable.title,
-        clientId: taskTable.clientId,
-        deliverableType: taskTable.deliverableType,
-      })
+    const { clientId, dryRun }: { clientId?: string; dryRun?: boolean } = await req.json().catch(() => ({}));
+
+    const conditions = [
+      inArray(taskTable.deliverableType, ['SF', 'LF']),
+      isNotNull(taskTable.monthlyDeliverableId),
+      isNotNull(taskTable.monthFolder),
+      isNotNull(taskTable.clientId),
+      isNull(rawFootageFolderTable.id), // anti-join: no RawFootageFolder references this task yet
+    ];
+    if (clientId) conditions.push(eq(taskTable.clientId, clientId));
+
+    const rows = await db.select({
+      taskId: taskTable.id,
+      title: taskTable.title,
+      clientId: taskTable.clientId,
+      companyName: clientTable.companyName,
+      clientName: clientTable.name,
+      monthFolder: taskTable.monthFolder,
+      deliverableSlug: taskTable.deliverableType,
+      deliverableType: monthlyDeliverableTable.type,
+    })
       .from(taskTable)
-      .where(and(
-        eq(taskTable.monthFolder, monthFolder),
-        or(eq(taskTable.deliverableType, 'SF'), eq(taskTable.deliverableType, 'LF')),
-        isNotNull(taskTable.clientId),
-      ));
+      .leftJoin(rawFootageFolderTable, eq(rawFootageFolderTable.taskId, taskTable.id))
+      .innerJoin(clientTable, eq(clientTable.id, taskTable.clientId))
+      .leftJoin(monthlyDeliverableTable, eq(monthlyDeliverableTable.id, taskTable.monthlyDeliverableId))
+      .where(and(...conditions));
 
-    if (!tasks.length) {
-      return NextResponse.json({ monthFolder, processed: 0, results: [], note: 'No SF/LF tasks found for this month' });
-    }
+    const results: { taskId: string; title: string | null; ok: boolean; reason?: string }[] = [];
 
-    // Cache companyName per client so we don't re-query it per task.
-    const clientIds = [...new Set(tasks.map((t) => t.clientId!))];
-    const clients = await db.select({ id: clientTable.id, companyName: clientTable.companyName, name: clientTable.name })
-      .from(clientTable);
-    const companyNameById = new Map(clients.filter(c => clientIds.includes(c.id)).map((c) => [c.id, c.companyName || c.name]));
-
-    const results: Array<{ taskId: string; title: string; status: string }> = [];
-
-    for (const t of tasks) {
-      const code = toFolderCode(t.deliverableType!);
-      if (!code) { results.push({ taskId: t.id, title: t.title, status: 'skipped (not SF/LF)' }); continue; }
-
-      // Recover the number from the title's trailing "<code><digits>".
-      const match = t.title?.match(new RegExp(`${code}(\\d+)$`));
-      if (!match) { results.push({ taskId: t.id, title: t.title, status: 'skipped (could not parse folder number from title)' }); continue; }
-      const number = parseInt(match[1], 10);
-
-      const companyName = companyNameById.get(t.clientId!);
-      if (!companyName) { results.push({ taskId: t.id, title: t.title, status: 'skipped (client not found)' }); continue; }
-
-      try {
-        await assignRawFootageFolderForTask({
-          clientId: t.clientId!,
-          companyName,
-          monthFolder,
-          deliverableSlug: code,
-          number,
-          taskId: t.id,
-        });
-        results.push({ taskId: t.id, title: t.title, status: `assigned ${code}${number}` });
-      } catch (err) {
-        console.error(`[Backfill Raw Footage Folders] Failed for task ${t.id}:`, err);
-        results.push({ taskId: t.id, title: t.title, status: 'error — see server logs' });
+    // Sequential on purpose — assignRawFootageFolderForTask does a
+    // read-then-maybe-write against a unique (client, month, code, number)
+    // slot; running these concurrently for the same client+month risks two
+    // tasks racing for the same slot number.
+    for (const row of rows) {
+      const match = row.title?.match(/(SF|LF)(\d+)$/);
+      if (!match) {
+        results.push({ taskId: row.taskId, title: row.title, ok: false, reason: 'Could not parse SF/LF number from task title' });
+        continue;
       }
+      const number = parseInt(match[2], 10);
+      const companyName = (row.companyName || row.clientName || '').trim();
+      if (!companyName || !row.clientId || !row.monthFolder || !row.deliverableSlug) {
+        results.push({ taskId: row.taskId, title: row.title, ok: false, reason: 'Missing clientId/companyName/monthFolder/deliverableSlug' });
+        continue;
+      }
+
+      if (dryRun) {
+        results.push({ taskId: row.taskId, title: row.title, ok: true, reason: `Would assign ${row.deliverableSlug}${number} in ${row.monthFolder}` });
+        continue;
+      }
+
+      const assigned = await assignRawFootageFolderForTask({
+        clientId: row.clientId,
+        companyName,
+        monthFolder: row.monthFolder,
+        deliverableSlug: row.deliverableSlug,
+        deliverableType: row.deliverableType || undefined,
+        number,
+        taskId: row.taskId,
+      });
+
+      results.push({
+        taskId: row.taskId,
+        title: row.title,
+        ok: !!assigned,
+        reason: assigned ? undefined : 'assignRawFootageFolderForTask returned null — check server logs',
+      });
     }
 
-    return NextResponse.json({ monthFolder, processed: results.length, results });
-  } catch (error: unknown) {
-    console.error('[Backfill Raw Footage Folders] error:', error);
-    return NextResponse.json({ error: 'Backfill failed' }, { status: 500 });
+    const assignedCount = results.filter(r => r.ok).length;
+    const failedCount = results.filter(r => !r.ok).length;
+
+    return NextResponse.json({
+      scanned: rows.length,
+      assigned: assignedCount,
+      failed: failedCount,
+      dryRun: !!dryRun,
+      results,
+    });
+  } catch (err: any) {
+    console.error('backfill-raw-footage-folders error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/backfill-raw-footage-folders
+// Same scan as the POST, but read-only — lets the admin see the damage
+// before running the real thing (equivalent to POST with dryRun: true, but
+// with no request body needed, e.g. for a quick curl/browser check).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function GET(req: NextRequest) {
+  const db = getDbHttp();
+  try {
+    await requireAdmin(req);
+
+    const { searchParams } = new URL(req.url);
+    const clientId = searchParams.get('clientId') || undefined;
+
+    const conditions = [
+      inArray(taskTable.deliverableType, ['SF', 'LF']),
+      isNotNull(taskTable.monthlyDeliverableId),
+      isNotNull(taskTable.monthFolder),
+      isNotNull(taskTable.clientId),
+      isNull(rawFootageFolderTable.id),
+    ];
+    if (clientId) conditions.push(eq(taskTable.clientId, clientId));
+
+    const rows = await db.select({
+      taskId: taskTable.id,
+      title: taskTable.title,
+      companyName: clientTable.companyName,
+      clientName: clientTable.name,
+      monthFolder: taskTable.monthFolder,
+      deliverableSlug: taskTable.deliverableType,
+    })
+      .from(taskTable)
+      .leftJoin(rawFootageFolderTable, eq(rawFootageFolderTable.taskId, taskTable.id))
+      .innerJoin(clientTable, eq(clientTable.id, taskTable.clientId))
+      .where(and(...conditions));
+
+    const byClient: Record<string, { count: number; titles: string[] }> = {};
+    for (const row of rows) {
+      const name = row.companyName || row.clientName || 'Unknown';
+      if (!byClient[name]) byClient[name] = { count: 0, titles: [] };
+      byClient[name].count++;
+      byClient[name].titles.push(row.title || row.taskId);
+    }
+
+    return NextResponse.json({ missingCount: rows.length, byClient });
+  } catch (err: any) {
+    console.error('backfill-raw-footage-folders GET error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
