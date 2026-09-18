@@ -72,7 +72,7 @@ export async function PATCH(req: NextRequest) {
         }
 
         // Validate allowed fields
-        const allowedFields = ['status', 'assignedTo', 'qc_specialist', 'scheduler', 'videographer', 'priority'];
+        const allowedFields = ['status', 'assignedTo', 'thumbnailEditor', 'qc_specialist', 'scheduler', 'videographer', 'priority'];
         // Prisma field name -> Drizzle schema.ts property name (only differs
         // for qc_specialist, which maps to the DB column "qc_specialist").
         const fieldNameMap: Record<string, string> = { qc_specialist: 'qcSpecialist' };
@@ -92,13 +92,24 @@ export async function PATCH(req: NextRequest) {
         // selected tasks actually change editor — only those should trigger
         // a Slack notification, not tasks already assigned to that editor.
         let reassignedTaskIds: string[] = [];
-        if (updateData.assignedTo !== undefined && updateData.assignedTo) {
-            const existingTasks = await db.select({ id: taskTable.id, assignedTo: taskTable.assignedTo })
+        let reassignedThumbnailTaskIds: string[] = [];
+        if (
+            (updateData.assignedTo !== undefined && updateData.assignedTo) ||
+            (updateData.thumbnailEditor !== undefined && updateData.thumbnailEditor)
+        ) {
+            const existingTasks = await db.select({ id: taskTable.id, assignedTo: taskTable.assignedTo, thumbnailEditor: taskTable.thumbnailEditor })
                 .from(taskTable)
                 .where(inArray(taskTable.id, taskIds));
-            reassignedTaskIds = existingTasks
-                .filter((t) => t.assignedTo !== updateData.assignedTo)
-                .map((t) => t.id);
+            if (updateData.assignedTo !== undefined && updateData.assignedTo) {
+                reassignedTaskIds = existingTasks
+                    .filter((t) => t.assignedTo !== updateData.assignedTo)
+                    .map((t) => t.id);
+            }
+            if (updateData.thumbnailEditor !== undefined && updateData.thumbnailEditor) {
+                reassignedThumbnailTaskIds = existingTasks
+                    .filter((t) => t.thumbnailEditor !== updateData.thumbnailEditor)
+                    .map((t) => t.id);
+            }
         }
 
         // Perform bulk update
@@ -114,6 +125,13 @@ export async function PATCH(req: NextRequest) {
                 await notifyEditorTaskAssignment(updateData.assignedTo, reassignedTaskIds);
             } catch (err) {
                 console.error('Failed to send bulk assignment notification:', err);
+            }
+        }
+        if (reassignedThumbnailTaskIds.length > 0) {
+            try {
+                await notifyEditorTaskAssignment(updateData.thumbnailEditor, reassignedThumbnailTaskIds);
+            } catch (err) {
+                console.error('Failed to send bulk thumbnail-editor assignment notification:', err);
             }
         }
 

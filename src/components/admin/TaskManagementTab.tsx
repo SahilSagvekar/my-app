@@ -43,12 +43,14 @@ interface Task {
   createdAt: string;
   workflowStep: string | null;
   assignedTo: number;
+  thumbnailEditor: number | null;
   qc_specialist: number | null;
   scheduler: number | null;
   videographer: number | null;
   _linkedSfCount?: number;
   clientId: string | null;
   editor: { id: number; name: string; email: string; role: string } | null;
+  thumbnailEditorUser: { id: number; name: string; role: string } | null;
   qcSpecialist: { id: number; name: string; role: string } | null;
   schedulerUser: { id: number; name: string; role: string } | null;
   videographerUser: { id: number; name: string; role: string } | null;
@@ -212,10 +214,10 @@ export function TaskManagementTab() {
 
   // ── Edit / delete dialogs ─────────────
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [editForm, setEditForm] = useState({ status: '', assignedTo: '', qc_specialist: '', scheduler: '', videographer: '', priority: '', dueDate: '' });
+  const [editForm, setEditForm] = useState({ status: '', assignedTo: '', thumbnailEditor: '', qc_specialist: '', scheduler: '', videographer: '', priority: '', dueDate: '' });
   const [editTags, setEditTags] = useState<string[]>([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
-  const [bulkEditForm, setBulkEditForm] = useState({ status: 'no_change', assignedTo: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' });
+  const [bulkEditForm, setBulkEditForm] = useState({ status: 'no_change', assignedTo: 'no_change', thumbnailEditor: 'no_change', qc_specialist: 'no_change', scheduler: 'no_change', videographer: 'no_change', priority: 'no_change', dueDate: 'no_change' });
   const [saving, setSaving] = useState(false);
   const [deleteConfirmTask, setDeleteConfirmTask] = useState<Task | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -375,6 +377,7 @@ export function TaskManagementTab() {
     setEditForm({
       status: task.status,
       assignedTo: task.assignedTo?.toString() || '',
+      thumbnailEditor: task.thumbnailEditor?.toString() || 'none',
       qc_specialist: task.qc_specialist?.toString() || 'none',
       scheduler: task.scheduler?.toString() || 'none',
       videographer: task.videographer?.toString() || 'none',
@@ -391,6 +394,7 @@ export function TaskManagementTab() {
       const updates: any = {};
       if (editForm.status !== editingTask.status) updates.status = editForm.status;
       if (editForm.assignedTo && editForm.assignedTo !== editingTask.assignedTo?.toString()) updates.assignedTo = parseInt(editForm.assignedTo);
+      if (editForm.thumbnailEditor !== (editingTask.thumbnailEditor?.toString() || 'none')) updates.thumbnailEditor = editForm.thumbnailEditor !== 'none' ? parseInt(editForm.thumbnailEditor) : null;
       if (editForm.qc_specialist !== (editingTask.qc_specialist?.toString() || 'none')) updates.qc_specialist = editForm.qc_specialist !== 'none' ? parseInt(editForm.qc_specialist) : null;
       if (editForm.scheduler !== (editingTask.scheduler?.toString() || 'none')) updates.scheduler = editForm.scheduler !== 'none' ? parseInt(editForm.scheduler) : null;
       if (editForm.videographer !== (editingTask.videographer?.toString() || 'none')) updates.videographer = editForm.videographer !== 'none' ? parseInt(editForm.videographer) : null;
@@ -418,6 +422,7 @@ export function TaskManagementTab() {
       const updates: any = {};
       if (bulkEditForm.status !== 'no_change') updates.status = bulkEditForm.status;
       if (bulkEditForm.assignedTo !== 'no_change') updates.assignedTo = parseInt(bulkEditForm.assignedTo);
+      if (bulkEditForm.thumbnailEditor !== 'no_change') updates.thumbnailEditor = bulkEditForm.thumbnailEditor !== 'none' ? parseInt(bulkEditForm.thumbnailEditor) : null;
       if (bulkEditForm.qc_specialist !== 'no_change') updates.qc_specialist = bulkEditForm.qc_specialist !== 'none' ? parseInt(bulkEditForm.qc_specialist) : null;
       if (bulkEditForm.scheduler !== 'no_change') updates.scheduler = bulkEditForm.scheduler !== 'none' ? parseInt(bulkEditForm.scheduler) : null;
       if (bulkEditForm.videographer !== 'no_change') updates.videographer = bulkEditForm.videographer !== 'none' ? parseInt(bulkEditForm.videographer) : null;
@@ -673,6 +678,7 @@ export function TaskManagementTab() {
                     setBulkEditForm({
                       status: 'no_change',
                       assignedTo: 'no_change',
+                      thumbnailEditor: 'no_change',
                       qc_specialist: 'no_change',
                       scheduler: 'no_change',
                       videographer: 'no_change',
@@ -950,7 +956,16 @@ export function TaskManagementTab() {
                       <td className="px-4 py-3.5 text-sm text-slate-700">
                         {task.client?.companyName || task.client?.name || '-'}
                       </td>
-                      <td className="px-4 py-3.5 text-sm text-slate-700">{task.editor?.name || '-'}</td>
+                      <td className="px-4 py-3.5 text-sm text-slate-700">
+                        <div className="flex flex-col gap-0.5 leading-snug">
+                          <span>{task.editor?.name || '-'}</span>
+                          {task.thumbnailEditorUser && task.thumbnailEditorUser.id !== task.assignedTo && (
+                            <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                              <ImageIcon className="h-3 w-3" /> {task.thumbnailEditorUser.name}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3.5 text-sm text-slate-700">
                         {task.qcSpecialist?.name || '-'}
                       </td>
@@ -1104,7 +1119,8 @@ export function TaskManagementTab() {
           <div className="grid gap-4 py-4">
             {[
               { label: 'Status', key: 'status', items: STATUS_OPTIONS.map(([k, c]) => ({ id: k, name: c.label })), hasNone: false },
-              { label: 'Editor', key: 'assignedTo', items: editors.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: false },
+              { label: 'Editor (Video)', key: 'assignedTo', items: editors.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: false },
+              { label: 'Thumbnail Editor', key: 'thumbnailEditor', items: editors.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'QC Specialist', key: 'qc_specialist', items: qcMembers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Scheduler', key: 'scheduler', items: schedulers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
               { label: 'Videographer', key: 'videographer', items: videographers.map(m => ({ id: m.id.toString(), name: m.name })), hasNone: true },
@@ -1149,7 +1165,8 @@ export function TaskManagementTab() {
           <div className="grid gap-4 py-4">
             {[
               { label: 'Status', key: 'status', items: STATUS_OPTIONS.map(([k, c]) => ({ id: k, name: c.label })) },
-              { label: 'Editor', key: 'assignedTo', items: editors.map(m => ({ id: m.id.toString(), name: m.name })) },
+              { label: 'Editor (Video)', key: 'assignedTo', items: editors.map(m => ({ id: m.id.toString(), name: m.name })) },
+              { label: 'Thumbnail Editor', key: 'thumbnailEditor', items: [{ id: 'none', name: 'Remove Thumbnail Editor' }, ...editors.map(m => ({ id: m.id.toString(), name: m.name }))] },
               { label: 'QC Specialist', key: 'qc_specialist', items: [{ id: 'none', name: 'Remove QC' }, ...qcMembers.map(m => ({ id: m.id.toString(), name: m.name }))] },
               { label: 'Scheduler', key: 'scheduler', items: [{ id: 'none', name: 'Remove Scheduler' }, ...schedulers.map(m => ({ id: m.id.toString(), name: m.name }))] },
               { label: 'Videographer', key: 'videographer', items: [{ id: 'none', name: 'Remove Videographer' }, ...videographers.map(m => ({ id: m.id.toString(), name: m.name }))] },

@@ -443,13 +443,18 @@ export async function deliverSlackNotification(
       }
     }
 
+    // Task now supports a separate video editor vs thumbnail editor — tag
+    // which deliverable this rejection is about so whoever gets pinged
+    // knows at a glance whether it's their video or their thumbnail.
+    const assetLabel = notification.payload?.folderType === "thumbnails" ? "Thumbnail" : "Video";
+
     let mentionedNotification;
     if (isClientRejection) {
       const comment = notification.payload?.revisionComment;
       mentionedNotification = {
         ...notification,
-        title: `❗ ${editorMention}Client Rejected — Content Needs Revisions`,
-        body: `Your content "${notification.payload?.taskTitle || "Task"}" was rejected by the client.${
+        title: `❗ ${editorMention}Client Rejected — ${assetLabel} Needs Revisions`,
+        body: `Your ${assetLabel.toLowerCase()} for "${notification.payload?.taskTitle || "Task"}" was rejected by the client.${
           comment ? `\n\n*Revision comments:*\n${comment}` : ""
         }${schedulerMention ? `\n\ncc${schedulerMention}` : ""}`,
       };
@@ -460,8 +465,8 @@ export async function deliverSlackNotification(
 
       mentionedNotification = {
         ...notification,
-        title: `${editorMention}Content Needs Revisions`,
-        body: `Your content "${notification.payload?.taskTitle || "Task"}" needs revisions.${revisionNote}`,
+        title: `${editorMention}${assetLabel} Needs Revisions`,
+        body: `Your ${assetLabel.toLowerCase()} for "${notification.payload?.taskTitle || "Task"}" needs revisions.${revisionNote}`,
       };
     }
 

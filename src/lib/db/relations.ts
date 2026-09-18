@@ -243,6 +243,11 @@ export const taskRelations = relations(task, ({one, many}) => ({
 		references: [user.id],
 		relationName: "task_assignedTo_user_id"
 	}),
+	user_thumbnailEditor: one(user, {
+		fields: [task.thumbnailEditor],
+		references: [user.id],
+		relationName: "task_thumbnailEditor_user_id"
+	}),
 	client: one(client, {
 		fields: [task.clientId],
 		references: [client.id]

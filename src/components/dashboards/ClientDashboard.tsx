@@ -124,6 +124,7 @@ const persistClientResult = async ({
   postingTitles,
   postingDescriptions,
   postingTags,
+  folderType,
 }: {
   taskId: string;
   approved: boolean;
@@ -131,8 +132,12 @@ const persistClientResult = async ({
   postingTitles?: { id: string; text: string }[];
   postingDescriptions?: { id: string; text: string }[];
   postingTags?: { id: string; text: string }[];
+  // Which deliverable this rejection is about — lets the Slack notification
+  // tag the video editor vs the (possibly different) thumbnail editor.
+  folderType?: 'main' | 'thumbnails';
 }) => {
   const metaBody: any = {};
+  if (!approved && folderType) metaBody.folderType = folderType;
 
   if (approved) {
     metaBody.status = "COMPLETED";
@@ -595,6 +600,7 @@ export function ClientDashboard() {
         postingTitles,
         postingDescriptions,
         postingTags,
+        folderType: 'main',
       });
 
       // Remove task from list - Revision requested tasks should disappear as they go back to the editor
@@ -665,6 +671,7 @@ export function ClientDashboard() {
         postingTitles,
         postingDescriptions,
         postingTags,
+        folderType: 'thumbnails',
       });
 
       refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });

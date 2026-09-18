@@ -376,6 +376,10 @@ interface WorkflowTask {
   assignedTo: string;
   assignedToName: string;
   assignedToRole: string;
+  // Separate thumbnail-editor assignment — set only when the thumbnail is
+  // owned by a different editor than the main video (`assignedTo`).
+  thumbnailEditorId?: number | null;
+  thumbnailEditorName?: string | null;
   createdAt: string;
   dueDate: string;
   workflowStep: string;
@@ -1195,6 +1199,24 @@ function TaskCard({
               </Tooltip>
             )}
           </div>
+
+          {/* Split editor badge — shown whenever this task's video and
+              thumbnail are assigned to two different editors, so whichever
+              one is looking at it knows they only own part of it. */}
+          {task.thumbnailEditorId && task.thumbnailEditorId !== Number(task.assignedTo) && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[11px] font-medium">
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                currentUserId === Number(task.assignedTo) ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+              }`}>
+                <Video className="h-3 w-3" /> {task.assignedToName || 'Video editor'}
+              </span>
+              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                currentUserId === task.thumbnailEditorId ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'
+              }`}>
+                <ImageIcon className="h-3 w-3" /> {task.thumbnailEditorName || 'Thumbnail editor'}
+              </span>
+            </div>
+          )}
 
           <div className="space-y-3">
             {/* If TEXT_POST deliverable, show post copy textarea */}
@@ -2272,7 +2294,7 @@ export function EditorDashboard() {
       }
 
       const formatted: WorkflowTask[] = (data.tasks || [])
-        .filter((t: any) => t.assignedTo === Number(currentUser.id))
+        .filter((t: any) => t.assignedTo === Number(currentUser.id) || t.thumbnailEditor === Number(currentUser.id))
         .map((t: any) => {
           console.log("🔍 Mapping task:", {
             taskId: t.id,
@@ -2288,8 +2310,10 @@ export function EditorDashboard() {
             type: mapTaskTypeToWorkflow(t.taskType),
             status: mapStatus(t.status),
             assignedTo: String(t.assignedTo),
-            assignedToName: currentUser.name,
+            assignedToName: t.user?.name || currentUser.name,
             assignedToRole: currentUser.role,
+            thumbnailEditorId: t.thumbnailEditor || null,
+            thumbnailEditorName: t.thumbnailEditorUser?.name || null,
             createdAt: t.createdAt,
             dueDate: t.dueDate,
             folderType: "outputs",

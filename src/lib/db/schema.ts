@@ -523,6 +523,9 @@ export const task = pgTable("Task", {
 	scheduler: integer(),
 	videographer: integer(),
 	createdBy: integer(),
+	// Optional second editor who owns the thumbnail deliverable, separate from
+	// `assignedTo` (the main video editor) — a task can have one editor per file type.
+	thumbnailEditor: integer(),
 	clientId: text(),
 	monthlyDeliverableId: text(),
 	driveFolderId: text(),
@@ -595,6 +598,12 @@ export const task = pgTable("Task", {
 	index("Task_scheduler_idx").using("btree", table.scheduler.asc().nullsLast().op("int4_ops")),
 	index("Task_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
 	index("Task_videographer_idx").using("btree", table.videographer.asc().nullsLast().op("int4_ops")),
+	index("Task_thumbnailEditor_idx").using("btree", table.thumbnailEditor.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.thumbnailEditor],
+			foreignColumns: [user.id],
+			name: "Task_thumbnailEditor_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
 	foreignKey({
 			columns: [table.monthlyDeliverableId],
 			foreignColumns: [monthlyDeliverable.id],

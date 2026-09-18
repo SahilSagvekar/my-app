@@ -64,6 +64,9 @@ export async function GET(
                 user_assignedTo: {
                     columns: { id: true, name: true, email: true, role: true },
                 },
+                user_thumbnailEditor: {
+                    columns: { id: true, name: true, email: true, role: true },
+                },
                 client: {
                     columns: { id: true, name: true, companyName: true },
                 },
@@ -88,8 +91,8 @@ export async function GET(
 
         // Rename Drizzle relation keys back to the Prisma field names this
         // handler was written against (qc_specialist raw FK, user relation).
-        const { qcSpecialist, user_assignedTo, ...restTask } = rawTask as any;
-        const task = { ...restTask, qc_specialist: qcSpecialist, user: user_assignedTo };
+        const { qcSpecialist, user_assignedTo, user_thumbnailEditor, ...restTask } = rawTask as any;
+        const task = { ...restTask, qc_specialist: qcSpecialist, user: user_assignedTo, thumbnailEditorUser: user_thumbnailEditor };
 
         // Fetch team member details
         const userIds: number[] = [];
@@ -144,7 +147,7 @@ export async function PATCH(
         const body = await req.json();
 
         // Validate task exists
-        const [existingTask] = await db.select({ id: taskTable.id, title: taskTable.title, status: taskTable.status, assignedTo: taskTable.assignedTo })
+        const [existingTask] = await db.select({ id: taskTable.id, title: taskTable.title, status: taskTable.status, assignedTo: taskTable.assignedTo, thumbnailEditor: taskTable.thumbnailEditor })
             .from(taskTable).where(eq(taskTable.id, id)).limit(1);
 
         if (!existingTask) {
@@ -157,6 +160,7 @@ export async function PATCH(
             priority,
             dueDate,
             assignedTo,
+            thumbnailEditor,
             qc_specialist,
             scheduler,
             videographer,
@@ -203,6 +207,19 @@ export async function PATCH(
                 }
             }
             updateData.assignedTo = assignedTo;
+        }
+
+        if (thumbnailEditor !== undefined) {
+            if (thumbnailEditor) {
+                const [user] = await db.select().from(userTable).where(eq(userTable.id, thumbnailEditor)).limit(1);
+                if (!user) {
+                    return NextResponse.json(
+                        { message: `Thumbnail editor not found (id: ${thumbnailEditor})` },
+                        { status: 404 }
+                    );
+                }
+            }
+            updateData.thumbnailEditor = thumbnailEditor;
         }
 
         if (qc_specialist !== undefined) {
@@ -258,6 +275,10 @@ export async function PATCH(
 
         const [updatedUser] = await db.select({ id: userTable.id, name: userTable.name, email: userTable.email, role: userTable.role })
             .from(userTable).where(eq(userTable.id, updatedTaskRaw.assignedTo)).limit(1);
+        const [updatedThumbnailEditor] = updatedTaskRaw.thumbnailEditor
+            ? await db.select({ id: userTable.id, name: userTable.name, email: userTable.email, role: userTable.role })
+                .from(userTable).where(eq(userTable.id, updatedTaskRaw.thumbnailEditor)).limit(1)
+            : [null];
         const [updatedClient] = updatedTaskRaw.clientId
             ? await db.select({ id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName })
                 .from(clientTable).where(eq(clientTable.id, updatedTaskRaw.clientId)).limit(1)
@@ -271,6 +292,7 @@ export async function PATCH(
             ...restUpdatedTask,
             qc_specialist: qcSpecialist,
             user: updatedUser ?? null,
+            thumbnailEditorUser: updatedThumbnailEditor ?? null,
             client: updatedClient ?? null,
         };
 
@@ -300,6 +322,19 @@ export async function PATCH(
                 await notifyEditorTaskAssignment(assignedTo, [id]);
             } catch (err) {
                 console.error("Failed to send assignment notification:", err);
+            }
+        }
+
+        // 🔔 Same, for the separately-assigned thumbnail editor.
+        if (
+            thumbnailEditor !== undefined &&
+            thumbnailEditor &&
+            thumbnailEditor !== existingTask.thumbnailEditor
+        ) {
+            try {
+                await notifyEditorTaskAssignment(thumbnailEditor, [id]);
+            } catch (err) {
+                console.error("Failed to send thumbnail editor assignment notification:", err);
             }
         }
 

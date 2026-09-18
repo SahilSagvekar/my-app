@@ -139,8 +139,10 @@ const buildRoleWhereQuery = async (role: string | null, userId: number, clientId
 
   switch (role.toLowerCase()) {
     case "editor":
+      // An editor sees a task if they're either the main (video) editor OR
+      // the separately-assigned thumbnail editor for it.
       return and(
-        eq(taskTable.assignedTo, userId),
+        or(eq(taskTable.assignedTo, userId), eq(taskTable.thumbnailEditor, userId)),
         inArray(taskTable.status, ["PENDING", "IN_PROGRESS", "READY_FOR_QC", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] as any)
       );
 
@@ -329,6 +331,7 @@ const effectiveRole =
           status: true,
           dueDate: true,
           assignedTo: true,
+          thumbnailEditor: true,
           createdBy: true,
           clientId: true,
           clientUserId: true,
@@ -410,6 +413,13 @@ const effectiveRole =
               role: true,
             },
           },
+          user_thumbnailEditor: {
+            columns: {
+              id: true,
+              name: true,
+              role: true,
+            },
+          },
           user_qcReviewedBy: {
             columns: {
               id: true,
@@ -454,10 +464,11 @@ const effectiveRole =
       // (and the frontend) expects, since Drizzle's relational query API
       // keys results by the relation name in relations.ts, not the FK name.
       tasks = rawTasks.map((t: any) => {
-        const { user_assignedTo, user_qcReviewedBy, taskFeedbacks, shootDetails, tagToTasks, ...rest } = t;
+        const { user_assignedTo, user_thumbnailEditor, user_qcReviewedBy, taskFeedbacks, shootDetails, tagToTasks, ...rest } = t;
         return {
           ...rest,
           user: user_assignedTo,
+          thumbnailEditorUser: user_thumbnailEditor,
           qcReviewer: user_qcReviewedBy,
           taskFeedback: taskFeedbacks,
           shootDetail: shootDetails?.[0] ?? null,
@@ -496,10 +507,17 @@ const effectiveRole =
         ? await db.select().from(fileTable).where(inArray(fileTable.taskId, taskIds))
         : [];
 
+      const thumbnailEditorIds = Array.from(new Set(rawRows.map(t => t.thumbnailEditor).filter((v): v is number => !!v)));
+      const thumbnailEditors = thumbnailEditorIds.length > 0
+        ? await db.select({ id: userTable.id, name: userTable.name, role: userTable.role }).from(userTable).where(inArray(userTable.id, thumbnailEditorIds))
+        : [];
+      const thumbnailEditorMap = new Map(thumbnailEditors.map(u => [u.id, u]));
+
       tasks = rawRows.map(t => ({
         ...t,
         client: { name: t.clientName, companyName: t.clientCompanyName },
         user: { name: t.userName, role: t.userRole },
+        thumbnailEditorUser: t.thumbnailEditor ? thumbnailEditorMap.get(t.thumbnailEditor) ?? null : null,
         files: allFiles.filter(f => f.taskId === t.id),
         taskFeedback: []
       }));

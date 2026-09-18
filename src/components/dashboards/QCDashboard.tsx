@@ -186,6 +186,7 @@ const persistQCResult = async ({
   postingDescriptions,
   postingTags,
   viewingAsRole,
+  folderType,
 }: {
   taskId: string;
   approved: boolean;
@@ -195,9 +196,13 @@ const persistQCResult = async ({
   postingDescriptions?: { id: string; text: string }[];
   postingTags?: { id: string; text: string }[];
   viewingAsRole?: string | null;
+  // Which deliverable this rejection is about — lets the Slack notification
+  // tag the video editor vs the (possibly different) thumbnail editor.
+  folderType?: 'main' | 'thumbnails';
 }) => {
   const newStatus = approved ? "COMPLETED" : "REJECTED_BY_QC";
   const metaBody: any = {};
+  if (!approved && folderType) metaBody.folderType = folderType;
 
   if (approved && feedback) metaBody.feedback = feedback;
   if (!approved && feedback) metaBody.qcNotes = feedback;
@@ -563,6 +568,7 @@ useEffect(() => {
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
         viewingAsRole,
+        folderType: 'main',
       });
 
       setQCTasks((prev) =>
@@ -685,6 +691,7 @@ useEffect(() => {
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
         viewingAsRole,
+        folderType: 'thumbnails',
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       toast('📝 Revisions Requested', { description: 'Feedback has been sent back to the editor.' });

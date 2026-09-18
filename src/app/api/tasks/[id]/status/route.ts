@@ -111,7 +111,7 @@ export async function PATCH(
         : role;
 
     const body = await req.json();
-    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags, forceClientReview, imageOrder } = body;
+    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags, forceClientReview, imageOrder, folderType } = body;
 
     if (!status)
       return NextResponse.json({ message: "Status is required" }, { status: 400 });
@@ -485,9 +485,18 @@ export async function PATCH(
       //   });
       // }
       else if (isRejectedStatus(finalStatus) && !isRejectedStatus(task.status)) {
+        // Route the notification to whichever editor actually owns the file
+        // type this rejection is about — the thumbnail editor when this is
+        // a thumbnail-specific rejection AND one is assigned, the main
+        // (video) editor otherwise. See slack.ts task_rejected handler.
+        const isThumbnailRejection = folderType === "thumbnails";
+        const targetEditorId = isThumbnailRejection && task.thumbnailEditor
+          ? task.thumbnailEditor
+          : task.assignedTo;
+
         // Notify Editor
         await notifyUser({
-          userId: task.assignedTo,
+          userId: targetEditorId,
           type: "task_rejected",
           title: effectiveRole === "scheduler" ? "Content Sent Back by Scheduler" : "Content Needs Revisions",
           body: effectiveRole === "scheduler"
@@ -496,7 +505,7 @@ export async function PATCH(
           payload: {
             taskId: task.id,
             clientId: task.clientId,
-            editorId: task.assignedTo,
+            editorId: targetEditorId,
             taskTitle: task.title,
             // 🔥 Who actually rejected it — lets the Slack dispatcher tell
             // a client rejection apart from a QC one and react differently
@@ -507,6 +516,8 @@ export async function PATCH(
             // Only carry the comment text through for client rejections —
             // QC-rejection Slack messages stay exactly as they are today.
             revisionComment: role === "client" ? (feedback || null) : null,
+            // Lets slack.ts label the message "Video" vs "Thumbnail".
+            folderType: isThumbnailRejection ? "thumbnails" : "main",
           },
         });
       } else if (

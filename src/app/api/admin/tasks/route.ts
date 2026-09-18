@@ -465,6 +465,7 @@ export async function GET(req: NextRequest) {
                     updatedAt: true,
                     workflowStep: true,
                     assignedTo: true,
+                    thumbnailEditor: true,
                     qcSpecialist: true,
                     scheduler: true,
                     videographer: true,
@@ -531,6 +532,7 @@ export async function GET(req: NextRequest) {
             if (task.qc_specialist) userIds.add(task.qc_specialist);
             if (task.scheduler) userIds.add(task.scheduler);
             if (task.videographer) userIds.add(task.videographer);
+            if (task.thumbnailEditor) userIds.add(task.thumbnailEditor);
         });
 
         const teamMembers = userIds.size > 0
@@ -548,6 +550,7 @@ export async function GET(req: NextRequest) {
             qcSpecialist: task.qc_specialist ? memberMap.get(task.qc_specialist) : null,
             schedulerUser: task.scheduler ? memberMap.get(task.scheduler) : null,
             videographerUser: task.videographer ? memberMap.get(task.videographer) : null,
+            thumbnailEditorUser: task.thumbnailEditor ? memberMap.get(task.thumbnailEditor) : null,
         }));
 
         // Calculate stats for quick summary
