@@ -1261,15 +1261,17 @@ function TaskCard({
                       e.stopPropagation();
                       setTaskFilesExpanded(true);
                     }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold text-gray-900 hover:bg-gray-50/80 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-[14px] font-bold text-gray-900 hover:bg-gray-50/80 transition-colors"
                   >
-                    <Video className="h-4 w-4 text-gray-800 shrink-0 mr-0.5" />
-                    <span>
-                      Task Files<span className="text-red-500">*</span>
-                    </span>
-                    <span className="text-gray-500 font-normal text-xs">
-                      ({mainFiles.length} file{mainFiles.length !== 1 ? "s" : ""})
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Video className="h-4 w-4 text-gray-800 shrink-0" />
+                      <span>
+                        Task Files<span className="text-red-500">*</span>
+                      </span>
+                      <span className="text-gray-500 font-normal text-xs">
+                        ({mainFiles.length} file{mainFiles.length !== 1 ? "s" : ""})
+                      </span>
+                    </div>
                     <ChevronDown className="h-4 w-4 text-gray-400 ml-0.5" />
                   </button>
                 </div>
@@ -1282,15 +1284,17 @@ function TaskCard({
                       e.stopPropagation();
                       setTaskFilesExpanded(false);
                     }}
-                    className="w-full flex items-center justify-center gap-1.5 text-[13px] font-semibold text-gray-900 hover:opacity-80 transition-opacity"
+                    className="w-full flex items-center justify-between text-[14px] font-bold text-gray-900 hover:opacity-80 transition-opacity"
                   >
-                    <Video className="h-4 w-4 text-gray-800 shrink-0 mr-0.5" />
-                    <span>
-                      Task Files<span className="text-red-500">*</span>
-                    </span>
-                    <span className="text-gray-500 font-normal text-xs">
-                      ({mainFiles.length} file{mainFiles.length !== 1 ? "s" : ""})
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Video className="h-4 w-4 text-gray-800 shrink-0" />
+                      <span>
+                        Task Files<span className="text-red-500">*</span>
+                      </span>
+                      <span className="text-gray-500 font-normal text-xs">
+                        ({mainFiles.length} file{mainFiles.length !== 1 ? "s" : ""})
+                      </span>
+                    </div>
                     <ChevronUp className="h-4 w-4 text-gray-400 ml-0.5" />
                   </button>
 
@@ -2159,8 +2163,8 @@ function DroppableColumn({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 pb-1">
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
         <h3 className="font-bold text-[15px] text-gray-900 tracking-tight">{title}</h3>
         <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs rounded-full ${getStatusBadgeStyles(status)}`}>
           {tasks.length}
@@ -2171,7 +2175,7 @@ function DroppableColumn({
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, status)}
         onDragLeave={onDragLeave}
-        className={`space-y-3 min-h-[220px] max-h-[calc(100vh-250px)] overflow-y-auto p-1 rounded-xl transition-all duration-200 ${getDropZoneStyles()}`}
+        className={`space-y-3 min-h-[220px] max-h-[calc(100vh-250px)] overflow-y-auto rounded-xl transition-all duration-200 ${getDropZoneStyles()}`}
       >
         {tasks.map((task) => (
           <TaskCard
