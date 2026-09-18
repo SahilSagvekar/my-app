@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { HeadObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getDbHttp } from '@/lib/db';
 import { client as clientTable, task as taskTable } from '@/lib/db/schema';
-import { eq, isNotNull, desc } from 'drizzle-orm';
+import { eq, isNotNull, and, desc, count } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { requireAdmin } from '@/lib/auth';
 import { getDeliverableFolderName } from '@/lib/deliverable-folder-name';
@@ -72,7 +72,7 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
     where: eq(clientTable.status, 'active'),
     columns: { id: true, name: true, companyName: true },
     with: {
-      monthlyDeliverables: { columns: { type: true, quantity: true } },
+      monthlyDeliverables: { columns: { id: true, type: true, quantity: true } },
     },
     orderBy: (c, { asc }) => asc(c.name),
   });
@@ -89,6 +89,29 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
     if (!row.clientId || !row.monthFolder) continue;
     if (!clientMonths.has(row.clientId)) clientMonths.set(row.clientId, new Set());
     clientMonths.get(row.clientId)!.add(row.monthFolder);
+  }
+
+  // Actual per-(client, deliverable, month) task counts. Each SF/LF task
+  // created a numbered raw-footage folder 1:1 (see generateMonthly.ts /
+  // raw-footage-folders.ts), so for months that have already run, "how
+  // many tasks of this deliverable exist this month" IS the correct
+  // expected folder count — NOT the deliverable's current `quantity`,
+  // which can drift from what was actually generated in the past if the
+  // client's quantity was changed since (see note below).
+  const deliverableMonthCounts = await db.select({
+    clientId: taskTable.clientId,
+    monthlyDeliverableId: taskTable.monthlyDeliverableId,
+    monthFolder: taskTable.monthFolder,
+    taskCount: count(),
+  })
+    .from(taskTable)
+    .where(and(isNotNull(taskTable.monthlyDeliverableId), isNotNull(taskTable.monthFolder)))
+    .groupBy(taskTable.clientId, taskTable.monthlyDeliverableId, taskTable.monthFolder);
+
+  const actualCountByKey = new Map<string, number>();
+  for (const row of deliverableMonthCounts) {
+    if (!row.clientId || !row.monthlyDeliverableId || !row.monthFolder) continue;
+    actualCountByKey.set(`${row.clientId}|${row.monthlyDeliverableId}|${row.monthFolder}`, row.taskCount);
   }
 
   // Always include the current + next month for every active client
@@ -115,9 +138,16 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
       nextMonth,
     ]);
 
-    const deliverableFolderNames = [
-      ...new Set(client.monthlyDeliverables.map(d => getDeliverableFolderName(d.type))),
-    ];
+    // Raw-footage subfolders only ever get created for SF/LF deliverables
+    // (assignRawFootageFolderForTask returns null — does nothing — for
+    // every other deliverable type). Thumbnails/Tiles/Stories/etc. never
+    // get a raw-footage/<month>/<type>/ folder anywhere in the app, so
+    // expecting one for them (as this used to do, unfiltered) flagged
+    // every such folder as permanently "missing" for every client that
+    // has any non-SF/LF deliverable.
+    const rawFootageDeliverables = client.monthlyDeliverables.filter(
+      d => ['SF', 'LF'].includes(getDeliverableShortCode(d.type))
+    );
 
     for (const month of months) {
       expected.push({
@@ -133,44 +163,35 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
         companyName: company,
       });
 
-      // Deliverable sub-folders inside raw-footage (the main gap)
-      for (const folderName of deliverableFolderNames) {
+      // A month is "upcoming" (current or next) if tasks for it may not
+      // have been generated yet — for those we still expect the client's
+      // CURRENTLY configured quantity, same as before. A month that
+      // already has tasks in it is "historical": we expect exactly the
+      // number of SF/LF tasks that actually exist for it, so a quantity
+      // change made after that month ran doesn't retroactively make old
+      // folders look missing (or hide real gaps).
+      const isUpcoming = month === currentMonth || month === nextMonth;
+
+      for (const deliverable of rawFootageDeliverables) {
+        const shortCode = getDeliverableShortCode(deliverable.type);
+        const deliverableFolderName = getDeliverableFolderName(deliverable.type);
+
+        const expectedCount = isUpcoming
+          ? (deliverable.quantity || 0)
+          : (actualCountByKey.get(`${client.id}|${deliverable.id}|${month}`) || 0);
+
+        if (expectedCount === 0) continue; // nothing expected for this deliverable this month
+
+        // The deliverable's raw-footage container folder only matters if
+        // we expect at least one numbered subfolder in it this month.
         expected.push({
-          key: `${company}/raw-footage/${month}/${folderName}/`,
-          label: `raw-footage/${month}/${folderName}`,
+          key: `${company}/raw-footage/${month}/${deliverableFolderName}/`,
+          label: `raw-footage/${month}/${deliverableFolderName}`,
           clientId: client.id,
           companyName: company,
         });
-      }
 
-      // Scripting feature — auto-numbered SF1..SFn / LF1..LFn raw-footage
-      // subfolders. These normally get created by generateMonthly.ts at
-      // task-creation time (or the one-time backfill route for months that
-      // predate that hook); this scan exists to catch any that failed or
-      // were skipped, using the client's CURRENT deliverable quantities as
-      // the expected count. Note: if quantities changed after a month's
-      // tasks were already generated, this will expect more/fewer numbered
-      // folders than that month's tasks actually created — that's a
-      // pre-existing limitation of this scan-by-current-config approach,
-      // same as how it already treats deliverableFolderNames above.
-      // for (const deliverable of client.monthlyDeliverables) {
-      //   const shortCode = getDeliverableShortCode(deliverable.type);
-      //   if (shortCode !== 'SF' && shortCode !== 'LF') continue;
-      //   for (let n = 1; n <= (deliverable.quantity || 0); n++) {
-      //     expected.push({
-      //       key: `${company}/raw-footage/${month}/${shortCode}${n}/`,
-      //       label: `raw-footage/${month}/${shortCode}${n}`,
-      //       clientId: client.id,
-      //       companyName: company,
-      //     });
-      //   }
-      // }
-
-            for (const deliverable of client.monthlyDeliverables) {
-        const shortCode = getDeliverableShortCode(deliverable.type);
-        if (shortCode !== 'SF' && shortCode !== 'LF') continue;
-        const deliverableFolderName = getDeliverableFolderName(deliverable.type);
-        for (let n = 1; n <= (deliverable.quantity || 0); n++) {
+        for (let n = 1; n <= expectedCount; n++) {
           expected.push({
             key: `${company}/raw-footage/${month}/${deliverableFolderName}/${shortCode}${n}/`,
             label: `raw-footage/${month}/${deliverableFolderName}/${shortCode}${n}`,
@@ -179,7 +200,6 @@ async function buildExpectedFolders(): Promise<ExpectedFolder[]> {
           });
         }
       }
-    // }
     }
   }
 
