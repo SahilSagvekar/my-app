@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask } from "./schema";
+import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, roleEodReport, roleEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask } from "./schema";
 
 export const monthlyDeliverableRelations = relations(monthlyDeliverable, ({one, many}) => ({
 	client: one(client, {
@@ -113,6 +113,7 @@ export const userRelations = relations(user, ({one, many}) => ({
 	invoices: many(invoice),
 	salesLeadGenerationJobs: many(salesLeadGenerationJob),
 	editorEodReports: many(editorEodReport),
+	roleEodReports: many(roleEodReport),
 	salesLeads: many(salesLead),
 	contracts: many(contract),
 	employeeDocuments_employeeId: many(employeeDocument, {
@@ -283,6 +284,7 @@ export const taskRelations = relations(task, ({one, many}) => ({
 	files: many(file),
 	socialPosts: many(socialPost),
 	editorEodReportItems: many(editorEodReportItem),
+	roleEodReportItems: many(roleEodReportItem),
 	tagToTasks: many(tagToTask),
 }));
 
@@ -720,6 +722,25 @@ export const editorEodReportItemRelations = relations(editorEodReportItem, ({one
 	}),
 	task: one(task, {
 		fields: [editorEodReportItem.taskId],
+		references: [task.id]
+	}),
+}));
+
+export const roleEodReportRelations = relations(roleEodReport, ({one, many}) => ({
+	user: one(user, {
+		fields: [roleEodReport.userId],
+		references: [user.id]
+	}),
+	roleEodReportItems: many(roleEodReportItem),
+}));
+
+export const roleEodReportItemRelations = relations(roleEodReportItem, ({one}) => ({
+	roleEodReport: one(roleEodReport, {
+		fields: [roleEodReportItem.reportId],
+		references: [roleEodReport.id]
+	}),
+	task: one(task, {
+		fields: [roleEodReportItem.taskId],
 		references: [task.id]
 	}),
 }));

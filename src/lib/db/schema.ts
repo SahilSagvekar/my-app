@@ -1898,6 +1898,58 @@ export const editorEodReportItem = pgTable("EditorEodReportItem", {
 		}).onUpdate("cascade").onDelete("restrict"),
 ]);
 
+// Scheduler/videographer EOD reports — same shape as EditorEodReport/Item
+// but shared across both roles (via a `role` discriminator) instead of
+// duplicating a table pair per role. `detail` on the item row is a flexible
+// jsonb bag since what's worth reporting differs by role (proof links for a
+// scheduler's scheduled post vs. shoot/equipment info for a videographer),
+// unlike the editor version's fixed `proofLinks` column.
+export const roleEodReport = pgTable("RoleEodReport", {
+	id: text().primaryKey().notNull(),
+	userId: integer().notNull(),
+	role: text().notNull(),
+	reportDate: text().notNull(),
+	slackChannel: text(),
+	slackTs: text(),
+	status: text().default('DRAFT').notNull(),
+	notes: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("RoleEodReport_userId_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	uniqueIndex("RoleEodReport_userId_reportDate_key").using("btree", table.userId.asc().nullsLast().op("int4_ops"), table.reportDate.asc().nullsLast().op("text_ops")),
+	index("RoleEodReport_reportDate_idx").using("btree", table.reportDate.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "RoleEodReport_userId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const roleEodReportItem = pgTable("RoleEodReportItem", {
+	id: text().primaryKey().notNull(),
+	reportId: text().notNull(),
+	taskId: text().notNull(),
+	taskTitle: text().notNull(),
+	detail: jsonb().default({}).notNull(),
+	statusAtSend: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("RoleEodReportItem_reportId_idx").using("btree", table.reportId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("RoleEodReportItem_reportId_taskId_key").using("btree", table.reportId.asc().nullsLast().op("text_ops"), table.taskId.asc().nullsLast().op("text_ops")),
+	index("RoleEodReportItem_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.reportId],
+			foreignColumns: [roleEodReport.id],
+			name: "RoleEodReportItem_reportId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.taskId],
+			foreignColumns: [task.id],
+			name: "RoleEodReportItem_taskId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
 export const nasSyncLog = pgTable("NasSyncLog", {
 	id: text().primaryKey().notNull(),
 	status: text().notNull(),

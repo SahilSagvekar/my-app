@@ -11,6 +11,8 @@ import { useTaskWorkflow, WorkflowTask, TaskFeedbackItem } from '../workflow/Tas
 import { FilePreviewModal } from '../FileViewerModal';
 import { toast } from 'sonner';
 import { sortTaskImages } from '@/lib/task-image-order';
+import { TeamEodReport } from './TeamEodReport';
+import { Send } from 'lucide-react';
 
 // Mock current scheduler user
 const currentUser = {
@@ -183,6 +185,7 @@ export function SchedulerDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<WorkflowTask | null>(null);
   const [feedbackVersionFilter, setFeedbackVersionFilter] = useState<number | 'all'>('all');
+  const [eodReportOpen, setEodReportOpen] = useState(false);
 
   // Desktop app download progress — window.e8 only exists inside the
   // Electron shell (see apps/desktop/src/preload.js). Same pattern used
@@ -435,10 +438,16 @@ export function SchedulerDashboard() {
             Schedule QC-approved content and manage production timeline
           </p>
         </div>
-        <Button className="shadow-sm">
-          <Calendar className="h-4 w-4 mr-2" />
-          New Schedule
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="shadow-sm" onClick={() => setEodReportOpen(true)}>
+            <Send className="h-4 w-4 mr-2" />
+            Send EOD Report
+          </Button>
+          <Button className="shadow-sm">
+            <Calendar className="h-4 w-4 mr-2" />
+            New Schedule
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -859,6 +868,8 @@ export function SchedulerDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TeamEodReport open={eodReportOpen} onOpenChange={setEodReportOpen} isDialog={true} />
     </div>
   );
 }

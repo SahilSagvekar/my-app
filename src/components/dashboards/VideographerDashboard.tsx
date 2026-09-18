@@ -29,8 +29,10 @@ import {
   Video,
   Image as ImageIcon,
   File as FileIcon,
+  Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { TeamEodReport } from './TeamEodReport';
 
 // ─────────────────────────────────────────
 // Types
@@ -121,6 +123,7 @@ export function VideographerDashboard({ initialTab }: VideographerDashboardProps
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab || 'jobs');
+  const [eodReportOpen, setEodReportOpen] = useState(false);
 
   // Sync activeTab with initialTab prop
   useEffect(() => {
@@ -580,6 +583,18 @@ export function VideographerDashboard({ initialTab }: VideographerDashboardProps
 
   return (
     <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2 pb-6 border-b border-gray-200">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Videographer Portal</h1>
+          <p className="text-muted-foreground mt-1 text-lg">Shoots, uploads, and your schedule</p>
+        </div>
+        <Button variant="outline" className="shadow-sm" onClick={() => setEodReportOpen(true)}>
+          <Send className="h-4 w-4 mr-2" />
+          Send EOD Report
+        </Button>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="jobs">Available Jobs</TabsTrigger>
@@ -599,6 +614,8 @@ export function VideographerDashboard({ initialTab }: VideographerDashboardProps
           <CalendarTab />
         </TabsContent>
       </Tabs>
+
+      <TeamEodReport open={eodReportOpen} onOpenChange={setEodReportOpen} isDialog={true} />
     </div>
   );
 }

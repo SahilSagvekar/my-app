@@ -16,7 +16,7 @@ interface LogEntry {
   attendees: string[];
   plannedMinutes: number | null;
   actualMinutes: number | null;
-  status: 'Planned' | 'Completed';
+  status: 'Planned' | 'Completed' | 'Cancelled';
   note: { label: string; body: string } | null;
   reportFile?: { url: string; name: string | null } | null;
 }
@@ -141,7 +141,9 @@ export function ClientProductionLogPage() {
                 <div className="text-[13px] text-zinc-600">{entry.attendees.length ? entry.attendees.join(', ') : '—'}</div>
                 <div className="text-[13px] text-zinc-600">{formatDuration(entry.plannedMinutes, entry.actualMinutes)}</div>
                 <span className={`inline-flex items-center h-6 px-2.5 rounded-md text-[11px] font-extrabold tracking-wide uppercase w-fit ${
-                  entry.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-700'
+                  entry.status === 'Completed' ? 'bg-green-100 text-green-800'
+                    : entry.status === 'Cancelled' ? 'bg-rose-100 text-rose-800'
+                    : 'bg-blue-100 text-blue-700'
                 }`}>
                   {entry.status}
                 </span>

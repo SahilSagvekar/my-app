@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
         plannedEndTime: shootDetailTable.plannedEndTime,
         actualStartTime: shootDetailTable.actualStartTime,
         actualEndTime: shootDetailTable.actualEndTime,
+        cancellationReason: shootDetailTable.cancellationReason,
       })
       .from(shootDetailTable)
       .innerJoin(taskTable, eq(shootDetailTable.taskId, taskTable.id))
@@ -73,9 +74,15 @@ export async function GET(req: NextRequest) {
     const now = Date.now();
     const shootEntries = shootRows.map((row) => {
       const shootTime = row.shootDate ? new Date(row.shootDate).getTime() : null;
-      const completed = row.taskStatus === 'COMPLETED' || (shootTime !== null && shootTime < now);
+      const isCancelled = row.taskStatus === 'CANCELLED';
+      const completed = !isCancelled && (row.taskStatus === 'COMPLETED' || (shootTime !== null && shootTime < now));
       const plannedMinutes = computeMinutes(row.plannedStartTime, row.plannedEndTime);
       const actualMinutes = computeMinutes(row.actualStartTime, row.actualEndTime);
+      const note = isCancelled
+        ? { label: 'Cancelled', body: row.cancellationReason || 'This shoot was cancelled.' }
+        : row.videographerNotes
+          ? { label: 'Notes', body: row.videographerNotes }
+          : null;
 
       return {
         id: `shoot-${row.taskId}`,
@@ -88,8 +95,8 @@ export async function GET(req: NextRequest) {
         attendees: row.videographerName ? [row.videographerName] : [],
         plannedMinutes,
         actualMinutes,
-        status: completed ? 'Completed' : 'Planned',
-        note: row.videographerNotes ? { label: 'Notes', body: row.videographerNotes } : null,
+        status: isCancelled ? 'Cancelled' : completed ? 'Completed' : 'Planned',
+        note,
         editable: false, // shoots are edited via /api/shoots, not here
       };
     });
