@@ -960,6 +960,19 @@ function TaskCard({
   const hasMusicLicenses = category === 'SHORT_FORM' || category === 'BETA_SHORT_FORM' || category === 'LONG_FORM' || category === 'SQUARE_FORM' || category === 'SNAPCHAT' || category === 'STORIES' || musicFiles.length > 0;
   const hasThumbnails = category === 'SHORT_FORM' || category === 'BETA_SHORT_FORM' || category === 'LONG_FORM' || category === 'SQUARE_FORM' || category === 'STORIES' || thumbFiles.length > 0;
   const hasTiles = category === 'SNAPCHAT' || tileFiles.length > 0;
+
+  // Video editor vs thumbnail editor upload gating — mirrors the server-side
+  // check in /api/upload/initiate and /api/upload/complete. Thumbnails are
+  // the thumbnail editor's territory when one is assigned (falling back to
+  // the main editor when not); everything else (main video, music license,
+  // tiles, covers) is always the main editor's. `currentUserId` is undefined
+  // for viewers this dashboard doesn't scope by identity — don't block those.
+  const canUploadThumbnails = currentUserId == null
+    ? true
+    : task.thumbnailEditorId != null
+      ? currentUserId === task.thumbnailEditorId
+      : currentUserId === Number(task.assignedTo);
+  const canUploadMain = currentUserId == null ? true : currentUserId === Number(task.assignedTo);
   const handleSaveTextContent = async () => {
     setSavingText(true);
     try {
@@ -1281,23 +1294,32 @@ function TaskCard({
                     <ChevronUp className="h-4 w-4 text-gray-400 ml-0.5" />
                   </button>
 
-                  {/* Main Task File Upload Box */}
-                  <FileUploadDialog
-                    task={task}
-                    subfolder="main"
-                    onUploadComplete={(files) => onUploadComplete(task.id, files)}
-                    trigger={
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full border border-dashed border-gray-900 rounded-xl py-6 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
-                      >
-                        <Video className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
-                        <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
-                          {mainFiles.length > 0 ? "Upload new version" : "Upload new version"}
-                        </span>
-                      </div>
-                    }
-                  />
+                  {/* Main Task File Upload Box — only the video editor assigned to this task */}
+                  {canUploadMain ? (
+                    <FileUploadDialog
+                      task={task}
+                      subfolder="main"
+                      onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                      trigger={
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full border border-dashed border-gray-900 rounded-xl py-6 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
+                        >
+                          <Video className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
+                          <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                            {mainFiles.length > 0 ? "Upload new version" : "Upload new version"}
+                          </span>
+                        </div>
+                      }
+                    />
+                  ) : (
+                    <div className="w-full border border-dashed border-gray-200 rounded-xl py-6 px-4 flex flex-col items-center justify-center text-center bg-gray-50/60">
+                      <Video className="h-6 w-6 text-gray-300 mb-2 stroke-[1.5]" />
+                      <span className="text-xs font-medium text-gray-400">
+                        {task.assignedToName ? `Only ${task.assignedToName} can upload the main file` : "You're not assigned to upload the main file"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Thumbnails Section */}
                   {hasThumbnails && (
@@ -1324,22 +1346,31 @@ function TaskCard({
                             </button>
                           )}
                         </div>
-                        <FileUploadDialog
-                          task={task}
-                          subfolder="thumbnails"
-                          onUploadComplete={(files) => onUploadComplete(task.id, files)}
-                          trigger={
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
-                            >
-                              <ImageIcon className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
-                              <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
-                                {thumbFiles.length > 0 ? "Thumbnail uploaded — click to replace" : "Upload thumbnail"}
-                              </span>
-                            </div>
-                          }
-                        />
+                        {canUploadThumbnails ? (
+                          <FileUploadDialog
+                            task={task}
+                            subfolder="thumbnails"
+                            onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                            trigger={
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
+                              >
+                                <ImageIcon className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
+                                <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                                  {thumbFiles.length > 0 ? "Thumbnail uploaded — click to replace" : "Upload thumbnail"}
+                                </span>
+                              </div>
+                            }
+                          />
+                        ) : (
+                          <div className="w-full border border-dashed border-gray-200 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center bg-gray-50/60">
+                            <ImageIcon className="h-6 w-6 text-gray-300 mb-2 stroke-[1.5]" />
+                            <span className="text-xs font-medium text-gray-400">
+                              {task.thumbnailEditorName ? `Only ${task.thumbnailEditorName} can upload the thumbnail` : "You're not assigned to upload the thumbnail"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -1369,22 +1400,31 @@ function TaskCard({
                             </button>
                           )}
                         </div>
-                        <FileUploadDialog
-                          task={task}
-                          subfolder="music-license"
-                          onUploadComplete={(files) => onUploadComplete(task.id, files)}
-                          trigger={
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
-                            >
-                              <Music className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
-                              <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
-                                {musicFiles.length > 0 ? "Music license uploaded — click to replace" : "Upload music license"}
-                              </span>
-                            </div>
-                          }
-                        />
+                        {canUploadMain ? (
+                          <FileUploadDialog
+                            task={task}
+                            subfolder="music-license"
+                            onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                            trigger={
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
+                              >
+                                <Music className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
+                                <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                                  {musicFiles.length > 0 ? "Music license uploaded — click to replace" : "Upload music license"}
+                                </span>
+                              </div>
+                            }
+                          />
+                        ) : (
+                          <div className="w-full border border-dashed border-gray-200 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center bg-gray-50/60">
+                            <Music className="h-6 w-6 text-gray-300 mb-2 stroke-[1.5]" />
+                            <span className="text-xs font-medium text-gray-400">
+                              {task.assignedToName ? `Only ${task.assignedToName} can upload this` : "You're not assigned to upload this"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -1414,22 +1454,31 @@ function TaskCard({
                             </button>
                           )}
                         </div>
-                        <FileUploadDialog
-                          task={task}
-                          subfolder="tiles"
-                          onUploadComplete={(files) => onUploadComplete(task.id, files)}
-                          trigger={
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
-                            >
-                              <LayoutGrid className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
-                              <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
-                                {tileFiles.length > 0 ? "Tile uploaded — click to replace" : "Upload tile"}
-                              </span>
-                            </div>
-                          }
-                        />
+                        {canUploadMain ? (
+                          <FileUploadDialog
+                            task={task}
+                            subfolder="tiles"
+                            onUploadComplete={(files) => onUploadComplete(task.id, files)}
+                            trigger={
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full border border-dashed border-gray-900 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-gray-50/80 transition-colors group"
+                              >
+                                <LayoutGrid className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
+                                <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
+                                  {tileFiles.length > 0 ? "Tile uploaded — click to replace" : "Upload tile"}
+                                </span>
+                              </div>
+                            }
+                          />
+                        ) : (
+                          <div className="w-full border border-dashed border-gray-200 rounded-xl py-5 px-4 flex flex-col items-center justify-center text-center bg-gray-50/60">
+                            <LayoutGrid className="h-6 w-6 text-gray-300 mb-2 stroke-[1.5]" />
+                            <span className="text-xs font-medium text-gray-400">
+                              {task.assignedToName ? `Only ${task.assignedToName} can upload this` : "You're not assigned to upload this"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}

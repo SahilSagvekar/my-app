@@ -4,11 +4,12 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { client as clientTable } from '@/lib/db/schema';
+import { client as clientTable, task as taskTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { initiateMultipart } from '@/lib/file-server';
 import { getClientStorageInfo } from '@/lib/storage-service';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { getCurrentUser2 } from '@/lib/auth';
 
 function normalizeUploadPathSegment(value: string): string {
   return value
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest) {
   const db = getDbHttp();
   const { env } = getCloudflareContext();
   try {
+    // 🔒 This route previously had NO auth check at all — any request,
+    // authenticated or not, could get a presigned upload URL into any
+    // task's R2 folder. Login is required for every real upload path, so
+    // this was always a gap, not a deliberate allowance.
+    const currentUser = await getCurrentUser2(req);
+    if (!currentUser) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await req.json();
     const {
       fileName,
@@ -56,6 +66,39 @@ export async function POST(req: NextRequest) {
 
     if (!fileName || !taskId || !clientId) {
       return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+    }
+
+    // 🔒 Video editor vs thumbnail editor — a task can have a separate
+    // editor assigned to each (Task.assignedTo = main video, .thumbnailEditor
+    // = thumbnail). Neither may upload into the other's folder. Only checked
+    // for real task deliverable uploads (folderType 'outputs'), and only
+    // enforced for the 'editor' role — admin/manager can always upload.
+    if (folderType === 'outputs' && taskId !== 'drive-upload') {
+      const [taskRow] = await db
+        .select({ assignedTo: taskTable.assignedTo, thumbnailEditor: taskTable.thumbnailEditor })
+        .from(taskTable)
+        .where(eq(taskTable.id, taskId))
+        .limit(1);
+
+      const role = (currentUser.role || '').toLowerCase();
+      if (taskRow && role === 'editor') {
+        const currentUserId = Number(currentUser.id);
+        const isThumbnailUpload = subfolder === 'thumbnails';
+        const allowed = isThumbnailUpload
+          ? currentUserId === taskRow.thumbnailEditor || (!taskRow.thumbnailEditor && currentUserId === taskRow.assignedTo)
+          : currentUserId === taskRow.assignedTo;
+
+        if (!allowed) {
+          return NextResponse.json(
+            {
+              message: isThumbnailUpload
+                ? 'Only the editor assigned to the thumbnail can upload it for this task.'
+                : 'Only the editor assigned to the main video can upload it for this task.',
+            },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     // Infer MIME type from filename if browser didn't provide one (common for .mov folder uploads)

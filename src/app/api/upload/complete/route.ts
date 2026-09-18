@@ -123,6 +123,8 @@ export async function POST(request: NextRequest) {
               requiresClientReview: true,
               driveFolderId: true,
               clientId: true,
+              assignedTo: true,
+              thumbnailEditor: true,
             },
             with: {
               client: { columns: { companyName: true, name: true } },
@@ -149,6 +151,29 @@ export async function POST(request: NextRequest) {
             : null;
           clientName = taskResult.client?.companyName || taskResult.client?.name || null;
           clientId = taskResult.clientId || null;
+
+          // 🔒 Same video-editor-vs-thumbnail-editor gate as /api/upload/initiate
+          // — defense in depth, since this is the route that actually creates
+          // the app-visible File row. Only enforced for the 'editor' role.
+          const role = (user.role || '').toLowerCase();
+          if (role === 'editor') {
+            const currentUserId = Number(userId);
+            const isThumbnailUpload = subfolder === 'thumbnails';
+            const allowed = isThumbnailUpload
+              ? currentUserId === taskResult.thumbnailEditor || (!taskResult.thumbnailEditor && currentUserId === taskResult.assignedTo)
+              : currentUserId === taskResult.assignedTo;
+
+            if (!allowed) {
+              return NextResponse.json(
+                {
+                  message: isThumbnailUpload
+                    ? 'Only the editor assigned to the thumbnail can upload it for this task.'
+                    : 'Only the editor assigned to the main video can upload it for this task.',
+                },
+                { status: 403 },
+              );
+            }
+          }
         }
         existingActiveFile = existingFile ?? null;
       } else {
