@@ -316,11 +316,23 @@ export async function GET(req: NextRequest) {
         if (status) conditions.push(eq(taskTable.status, status as any));
         if (priority) conditions.push(eq(taskTable.priority, priority));
 
-        // Deliverable type filter
+        // Deliverable type filter — a task's real type can live in three
+        // different places depending on how it was created: the flat
+        // task.deliverableType short code (extra/one-off tasks), the linked
+        // MonthlyDeliverable, or the linked OneOffDeliverable. Matching only
+        // the MonthlyDeliverable relation (as this used to) silently
+        // excluded every task that wasn't month-recurring-linked.
         if (deliverableType) {
-            conditions.push(exists(
-                db.select({ one: drizzleSql`1` }).from(monthlyDeliverableTable)
-                    .where(and(eq(monthlyDeliverableTable.id, taskTable.monthlyDeliverableId), eq(monthlyDeliverableTable.type, deliverableType)))
+            conditions.push(or(
+                eq(taskTable.deliverableType, deliverableType),
+                exists(
+                    db.select({ one: drizzleSql`1` }).from(monthlyDeliverableTable)
+                        .where(and(eq(monthlyDeliverableTable.id, taskTable.monthlyDeliverableId), eq(monthlyDeliverableTable.type, deliverableType)))
+                ),
+                exists(
+                    db.select({ one: drizzleSql`1` }).from(oneOffDeliverableTable)
+                        .where(and(eq(oneOffDeliverableTable.id, taskTable.oneOffDeliverableId), eq(oneOffDeliverableTable.type, deliverableType)))
+                ),
             ));
         }
 
@@ -440,17 +452,20 @@ export async function GET(req: NextRequest) {
             return order === "desc" ? sorted.reverse() : sorted;
         };
 
-        // Smart title sort: fetch only the current page window after a DB-side count.
-        // Previously fetched 1000 rows and sorted in JS — replaced with a reasonable
-        // cap (500) that still covers all practical cases while avoiding OOM on EC2.
-        // The sort itself still runs in JS because Postgres can't parse the title format.
-        const SMART_SORT_CAP = 500;
+        // Smart title sort: fetch only enough rows to cover the requested page
+        // after a DB-side count. Was a flat 500-row cap, which silently
+        // dropped every page past row 500 (the JS sort+slice below only ever
+        // had that first 500-row window to slice from, no matter how deep
+        // the actual page number went) — the floor still avoids re-fetching
+        // huge unfiltered result sets for the common shallow-navigation case.
+        const SMART_SORT_MIN_CAP = 500;
+        const smartSortCap = Math.max(SMART_SORT_MIN_CAP, page * limit);
 
         // Fetch tasks with related data + unique deliverable types + available months
-        const [rawTasks, [{ value: total }], deliverableTypesRaw, distinctMonths] = await Promise.all([
+        const [rawTasks, [{ value: total }], monthlyTypesRaw, oneOffTypesRaw, flatTypesRaw, distinctMonths] = await Promise.all([
             db.query.task.findMany({
                 where,
-                limit: useSmartTitleSort ? SMART_SORT_CAP : limit,
+                limit: useSmartTitleSort ? smartSortCap : limit,
                 offset: useSmartTitleSort ? 0 : (page - 1) * limit,
                 orderBy,
                 columns: {
@@ -487,11 +502,22 @@ export async function GET(req: NextRequest) {
             }),
             db.select({ value: count() }).from(taskTable).where(where),
             db.selectDistinct({ type: monthlyDeliverableTable.type }).from(monthlyDeliverableTable).orderBy(asc(monthlyDeliverableTable.type)),
+            db.selectDistinct({ type: oneOffDeliverableTable.type }).from(oneOffDeliverableTable).orderBy(asc(oneOffDeliverableTable.type)),
+            db.selectDistinct({ type: taskTable.deliverableType }).from(taskTable).where(isNotNull(taskTable.deliverableType)),
             // Distinct monthFolder values — calendar-sorted below (string ORDER BY is alphabetical)
             db.selectDistinct({ monthFolder: taskTable.monthFolder }).from(taskTable)
                 .where(isNotNull(taskTable.monthFolder)),
         ]);
-        const deliverableTypes = deliverableTypesRaw;
+        // Union of every raw value the deliverableType filter above can
+        // actually match against — a mix of long-form labels (from the
+        // MonthlyDeliverable/OneOffDeliverable relations) and short codes
+        // (from task.deliverableType on extra/one-off tasks). Each option's
+        // raw value round-trips straight back into the filter condition.
+        const deliverableTypes = Array.from(new Set([
+            ...monthlyTypesRaw.map(d => d.type),
+            ...oneOffTypesRaw.map(d => d.type),
+            ...flatTypesRaw.map(d => d.type),
+        ].filter((t): t is string => !!t)));
 
         const MONTH_INDEX: Record<string, number> = {
             january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
@@ -575,7 +601,7 @@ export async function GET(req: NextRequest) {
                 total,
                 totalPages: Math.ceil(total / limit),
             },
-            deliverableTypes: deliverableTypes.map(d => d.type),
+            deliverableTypes,
             availableMonths: (distinctMonths.map(d => d.monthFolder).filter(Boolean) as string[])
                 .sort((a, b) => monthFolderSortKey(b) - monthFolderSortKey(a)), // newest first
             stats: {
