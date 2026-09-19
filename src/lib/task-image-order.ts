@@ -1,7 +1,11 @@
 export function isHardPostTask(task: any): boolean {
   if (!task) return false;
-  const type = (task.deliverableType || task.taskType || '').toLowerCase();
-  return type.includes('hard post') || type.includes('graphic image');
+  const type = (task.deliverableType || task.taskType || '').toLowerCase().trim();
+  // deliverableType is stored as the short code ("hp"), not the long phrase —
+  // see getDeliverableShortCode() in src/app/api/tasks/route.ts. The substring
+  // checks below only ever matched a long-form value that's never actually
+  // what's in the DB, so this never fired without the short-code check.
+  return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
 }
 
 /**

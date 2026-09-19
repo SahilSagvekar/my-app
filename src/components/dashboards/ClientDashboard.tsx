@@ -1088,8 +1088,9 @@ export function ClientDashboard() {
   const isOverdue = (task: ClientTask) => new Date(task.dueDate) < new Date();
 
   const isHardPostTask = (task: ClientTask) => {
-    const type = ((task as any).deliverableType || task.monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || (task as any).taskType || '').toLowerCase();
-    return type.includes('hard post') || type.includes('graphic image');
+    const type = ((task as any).deliverableType || task.monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || (task as any).taskType || '').toLowerCase().trim();
+    // deliverableType is stored as the short code ("hp"), not the long phrase.
+    return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
   };
 
   const isTextPostTask = (task: ClientTask) => {

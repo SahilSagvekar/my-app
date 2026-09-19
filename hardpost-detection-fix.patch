@@ -1,0 +1,64 @@
+diff --git a/src/components/dashboards/ClientDashboard.tsx b/src/components/dashboards/ClientDashboard.tsx
+index f1a9e0bb..97f3a951 100644
+--- a/src/components/dashboards/ClientDashboard.tsx
++++ b/src/components/dashboards/ClientDashboard.tsx
+@@ -1088,8 +1088,9 @@ export function ClientDashboard() {
+   const isOverdue = (task: ClientTask) => new Date(task.dueDate) < new Date();
+ 
+   const isHardPostTask = (task: ClientTask) => {
+-    const type = ((task as any).deliverableType || task.monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || (task as any).taskType || '').toLowerCase();
+-    return type.includes('hard post') || type.includes('graphic image');
++    const type = ((task as any).deliverableType || task.monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || (task as any).taskType || '').toLowerCase().trim();
++    // deliverableType is stored as the short code ("hp"), not the long phrase.
++    return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
+   };
+ 
+   const isTextPostTask = (task: ClientTask) => {
+diff --git a/src/components/dashboards/QCDashboard.tsx b/src/components/dashboards/QCDashboard.tsx
+index a66d1c68..2ef7040e 100644
+--- a/src/components/dashboards/QCDashboard.tsx
++++ b/src/components/dashboards/QCDashboard.tsx
+@@ -512,7 +512,12 @@ useEffect(() => {
+         nextDestination: task.nextDestination || "client",
+         requiresClientReview: task.requiresClientReview ?? false,
+         files: task.files || [],
+-        deliverableType: task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "Other",
++        // 🔧 FIX: was discarding the API's real task.deliverableType (the
++        // short code, e.g. "hp") whenever the task had no linked
++        // monthlyDeliverable/oneOffDeliverable, forcing it to "Other" —
++        // which broke isHardPostTask() for most hard-post tasks on this
++        // dashboard specifically.
++        deliverableType: task.deliverableType || task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "Other",
+         clientName: task.client?.companyName || task.client?.name || "Unknown Client",
+       }));
+ 
+@@ -1020,8 +1025,9 @@ useEffect(() => {
+   };
+ 
+   const isHardPostTask = (task: EnhancedWorkflowTask) => {
+-    const type = ((task as any).deliverableType || (task as any).monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || task.taskType || '').toLowerCase();
+-    return type.includes('hard post') || type.includes('graphic image');
++    const type = ((task as any).deliverableType || (task as any).monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || task.taskType || '').toLowerCase().trim();
++    // deliverableType is stored as the short code ("hp"), not the long phrase.
++    return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
+   };
+ 
+   const isTextPostTask = (task: EnhancedWorkflowTask) => {
+diff --git a/src/lib/task-image-order.ts b/src/lib/task-image-order.ts
+index 03361762..99491783 100644
+--- a/src/lib/task-image-order.ts
++++ b/src/lib/task-image-order.ts
+@@ -1,7 +1,11 @@
+ export function isHardPostTask(task: any): boolean {
+   if (!task) return false;
+-  const type = (task.deliverableType || task.taskType || '').toLowerCase();
+-  return type.includes('hard post') || type.includes('graphic image');
++  const type = (task.deliverableType || task.taskType || '').toLowerCase().trim();
++  // deliverableType is stored as the short code ("hp"), not the long phrase —
++  // see getDeliverableShortCode() in src/app/api/tasks/route.ts. The substring
++  // checks below only ever matched a long-form value that's never actually
++  // what's in the DB, so this never fired without the short-code check.
++  return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
+ }
+ 
+ /**

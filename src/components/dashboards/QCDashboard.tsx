@@ -512,7 +512,12 @@ useEffect(() => {
         nextDestination: task.nextDestination || "client",
         requiresClientReview: task.requiresClientReview ?? false,
         files: task.files || [],
-        deliverableType: task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "Other",
+        // 🔧 FIX: was discarding the API's real task.deliverableType (the
+        // short code, e.g. "hp") whenever the task had no linked
+        // monthlyDeliverable/oneOffDeliverable, forcing it to "Other" —
+        // which broke isHardPostTask() for most hard-post tasks on this
+        // dashboard specifically.
+        deliverableType: task.deliverableType || task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "Other",
         clientName: task.client?.companyName || task.client?.name || "Unknown Client",
       }));
 
@@ -1020,8 +1025,9 @@ useEffect(() => {
   };
 
   const isHardPostTask = (task: EnhancedWorkflowTask) => {
-    const type = ((task as any).deliverableType || (task as any).monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || task.taskType || '').toLowerCase();
-    return type.includes('hard post') || type.includes('graphic image');
+    const type = ((task as any).deliverableType || (task as any).monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || task.taskType || '').toLowerCase().trim();
+    // deliverableType is stored as the short code ("hp"), not the long phrase.
+    return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
   };
 
   const isTextPostTask = (task: EnhancedWorkflowTask) => {
