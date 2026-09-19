@@ -1696,6 +1696,128 @@ export async function sendInvoiceCopiesToAdditionalEmails(
   return { sent };
 }
 
+/**
+ * Resend an already-sent, still-unpaid invoice to every email on file for
+ * the client — primary Client.email + all Client.emails — one message per
+ * recipient. Unlike sendInvoiceCopiesToAdditionalEmails (used on first send,
+ * where Stripe itself emails the primary), this covers the primary too:
+ * Stripe's sendInvoice API only works on DRAFT invoices, so there's no way
+ * to make Stripe re-fire that email once an invoice is finalized — this is
+ * our own email standing in for that resend, using the invoice's already-
+ * stored hosted link/PDF. Failures are logged and do not throw.
+ */
+export async function sendInvoiceReminderToAllEmails(
+  data: InvoiceCopyEmailData
+): Promise<{ sent: string[] }> {
+  const sent: string[] = [];
+
+  try {
+    const { getDbHttp } = await import('@/lib/db');
+    const { client: clientTable } = await import('@/lib/db/schema');
+    const { eq } = await import('drizzle-orm');
+    const db = getDbHttp();
+
+    const [client] = await db
+      .select({
+        name: clientTable.name,
+        companyName: clientTable.companyName,
+        email: clientTable.email,
+        emails: clientTable.emails,
+      })
+      .from(clientTable)
+      .where(eq(clientTable.id, data.clientId))
+      .limit(1);
+
+    if (!client) {
+      console.warn(`[InvoiceReminder] Client ${data.clientId} not found — skipping`);
+      return { sent };
+    }
+
+    const recipients = Array.from(
+      new Set(
+        [client.email, ...(client.emails || [])]
+          .map((e) => (e || '').trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (recipients.length === 0) {
+      console.log(`[InvoiceReminder] No emails on file for client ${data.clientId}`);
+      return { sent };
+    }
+
+    const clientName = client.companyName || client.name || 'there';
+    const currency = (data.currency || 'usd').toUpperCase();
+    const amountLabel = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+    }).format((data.amountCents || 0) / 100);
+
+    let dueLabel = '';
+    if (data.dueDate) {
+      const due = data.dueDate instanceof Date ? data.dueDate : new Date(data.dueDate);
+      if (!isNaN(due.getTime())) {
+        dueLabel = due.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+      }
+    }
+
+    const description = (data.description || '').trim();
+    const invoiceUrl = data.invoiceUrl || '';
+    const pdfUrl = data.pdfUrl || '';
+
+    const contentHtml = `
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">Invoice reminder</td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">Hi ${clientName},</td></tr>
+      <tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">This is a reminder that the invoice below is still unpaid.</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:28px;font-weight:bold;color:#0a0a0b;">${amountLabel}</td></tr>
+      <tr><td class="px" style="padding:4px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Invoice ${data.invoiceNumber}${dueLabel ? ' · Due ' + dueLabel : ''}</td></tr>
+      ${description ? `<tr><td class="px" style="padding:14px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#222225;">${description}</td></tr>` : ''}
+      <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+          ${invoiceUrl ? `<td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b"><a href="${invoiceUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">View &amp; Pay Invoice</a></td>` : ''}
+          ${invoiceUrl && pdfUrl ? `<td style="width:10px;">&nbsp;</td>` : ''}
+          ${pdfUrl ? `<td style="background-color:#ffffff;border:1px solid #d3d3d6;text-align:center;border-radius:8px;"><a href="${pdfUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#0a0a0b;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Download PDF</a></td>` : ''}
+        </tr></table>
+      </td></tr>
+      <tr><td class="px" style="padding:24px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">If you have questions, reply to this email or contact <a href="mailto:payments@e8productions.com" style="color:#0a0a0b;">payments@e8productions.com</a>.</td></tr>`;
+
+    const html = renderEmailShell({
+      previewText: `Reminder: Invoice ${data.invoiceNumber} is still unpaid.`,
+      contentHtml,
+    });
+
+    const transporter = createTransporter();
+    if (!transporter) {
+      console.log(`📧 [DEV] Invoice ${data.invoiceNumber} reminder would be sent to:`, recipients);
+      return { sent: recipients };
+    }
+
+    for (const to of recipients) {
+      try {
+        const mailOptions = {
+          from: `"E8 Productions Billing" <${process.env.SMTP_USER}>`,
+          to,
+          subject: `Reminder: Invoice ${data.invoiceNumber} from E8 Productions — ${amountLabel}`,
+          html,
+        };
+        await transporter.sendMail(addGlobalBcc(mailOptions));
+        sent.push(to);
+        console.log(`✅ Invoice reminder sent to: ${to}`);
+      } catch (err) {
+        console.error(`❌ Failed to send invoice reminder to ${to}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error('[InvoiceReminder] Unexpected error fan-out:', err);
+  }
+
+  return { sent };
+}
+
 // ==========================================
 // PAYMENT NOTIFICATION EMAILS
 // ==========================================

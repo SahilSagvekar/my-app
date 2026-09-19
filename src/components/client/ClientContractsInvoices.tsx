@@ -678,6 +678,32 @@ export function ClientContractsInvoices({
     }
   };
 
+  // Resend invoice — nudges an already-sent, unpaid invoice to every email
+  // on file for the client (primary + additional).
+  const [resendingInvoiceId, setResendingInvoiceId] = useState<string | null>(null);
+  const handleResendInvoice = async (invoiceId: string) => {
+    setResendingInvoiceId(invoiceId);
+    try {
+      const res = await fetch(`/api/billing/invoices/${invoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'resend' }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(`Invoice resent to ${data.sentTo?.length || 0} email${data.sentTo?.length === 1 ? '' : 's'}`);
+      } else {
+        toast.error(data.message || 'Failed to resend invoice');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to resend invoice');
+    } finally {
+      setResendingInvoiceId(null);
+    }
+  };
+
   // Void invoice
   const handleVoidInvoice = async (invoiceId: string) => {
     if (!confirm('Are you sure you want to void this invoice?')) return;
@@ -1257,6 +1283,17 @@ export function ClientContractsInvoices({
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </>
+                          )}
+                          {(invoice.status === 'SENT' || invoice.status === 'PENDING' || invoice.status === 'OVERDUE') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendInvoice(invoice.id)}
+                              disabled={resendingInvoiceId === invoice.id}
+                              title="Resend Invoice — emails everyone on file for this client"
+                            >
+                              <RefreshCw className={`h-4 w-4 ${resendingInvoiceId === invoice.id ? 'animate-spin' : ''}`} />
+                            </Button>
                           )}
                           {(invoice.status === 'SENT' || invoice.status === 'PENDING') && (
                             <Button

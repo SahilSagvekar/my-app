@@ -12,7 +12,7 @@ import {
   createInvoiceCheckoutSession,
   formatAmount
 } from '@/lib/stripe';
-import { sendInvoiceCopiesToAdditionalEmails } from '@/lib/email';
+import { sendInvoiceCopiesToAdditionalEmails, sendInvoiceReminderToAllEmails } from '@/lib/email';
 
 // GET - Get single invoice
 export async function GET(
@@ -155,6 +155,43 @@ export async function PATCH(
       }
 
       return NextResponse.json({ ok: true, invoice: updatedInvoice });
+    }
+
+    if (action === 'resend') {
+      // Admin only — nudges an already-sent, still-unpaid invoice. Doesn't
+      // touch Stripe (its sendInvoice API only works on DRAFT invoices) or
+      // change the invoice's status — just re-emails everyone on file for
+      // the client using the invoice's already-stored hosted link/PDF.
+      const authError = requireAdmin(currentUser);
+      if (authError) {
+        return NextResponse.json({ ok: false, message: authError.error }, { status: authError.status });
+      }
+
+      if (!['SENT', 'PENDING', 'OVERDUE'].includes(invoice.status)) {
+        return NextResponse.json({ ok: false, message: 'Only sent, unpaid invoices can be resent' }, { status: 400 });
+      }
+
+      const clientId = invoice.stripeCustomer?.client?.id;
+      if (!clientId) {
+        return NextResponse.json({ ok: false, message: 'No client found for this invoice' }, { status: 400 });
+      }
+
+      const { sent } = await sendInvoiceReminderToAllEmails({
+        clientId,
+        invoiceNumber: invoice.invoiceNumber,
+        amountCents: invoice.amount,
+        currency: invoice.currency || 'usd',
+        description: invoice.description,
+        dueDate: invoice.dueDate,
+        invoiceUrl: invoice.stripeHostedInvoiceUrl,
+        pdfUrl: invoice.stripePdfUrl,
+      });
+
+      if (sent.length === 0) {
+        return NextResponse.json({ ok: false, message: 'No email addresses on file for this client' }, { status: 400 });
+      }
+
+      return NextResponse.json({ ok: true, sentTo: sent });
     }
 
     if (action === 'void' || action === 'cancel') {
