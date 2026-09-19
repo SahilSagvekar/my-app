@@ -12,6 +12,7 @@ import {
     ArrowLeft,
 } from 'lucide-react';
 import { Button } from '../../ui/button';
+import { PageHeader } from '../../ui/page-header';
 import { Checkbox } from '../../ui/checkbox';
 import { Textarea } from '../../ui/textarea';
 import { Label } from '../../ui/label';
@@ -147,10 +148,9 @@ export function SchedulerSpreadsheetView() {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold">Scheduling Queue</h1>
-                </div>
+            <PageHeader
+                title="Scheduling Queue"
+                actions={
                 <div className="flex items-center gap-2">
                     {selectedRows.size > 0 && (
                         <Button onClick={bulkMarkAsScheduled} size="sm">
@@ -163,7 +163,8 @@ export function SchedulerSpreadsheetView() {
                         Refresh
                     </Button>
                 </div>
-            </div>
+                }
+            />
 
             <FilterBar 
                 searchTerm={searchTerm}
