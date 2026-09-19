@@ -11,7 +11,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, actions, className }: PageHeaderProps) {
   return (
-    <div className={cn("mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start", className)}>
+    <div className={cn("mb-6 flex flex-col justify-between gap-4 border-b border-gray-200 pb-5 md:flex-row md:items-start", className)}>
       <div>
         <h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">{title}</h1>
         {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
