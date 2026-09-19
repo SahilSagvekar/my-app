@@ -53,7 +53,7 @@ export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
         title={
           <span className="flex items-center gap-3">
             <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg">
-              <Target className="h-6 w-6 text-white" />
+              {/* <Target className="h-6 w-6 text-white" /> */}
             </div>
             Daily Posting Tracker
           </span>

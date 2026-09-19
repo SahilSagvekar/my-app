@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { PageHeader } from "./ui/page-header";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
@@ -1157,16 +1158,10 @@ export function SocialLogins() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-            {isClient ? "Your Social Media Logins" : "Social Media Logins"}
-          </h2>
-          <p className="text-sm text-gray-600">
-            {isClient ? "Your social media credentials" : "Secure storage for client social media credentials"}
-          </p>
-        </div>
+      <PageHeader
+        title={isClient ? "Your Social Media Logins" : "Social Media Logins"}
+        description={isClient ? "Your social media credentials" : "Secure storage for client social media credentials"}
+        actions={
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm"
             className="gap-2 text-green-600 border-green-300 bg-green-50 hover:bg-green-100 hover:text-green-700 pointer-events-none">
@@ -1186,7 +1181,8 @@ export function SocialLogins() {
             </Button>
           )}
         </div>
-      </div>
+        }
+      />
 
       {/* Session warning */}
       <Alert className="bg-amber-50 border-amber-200">

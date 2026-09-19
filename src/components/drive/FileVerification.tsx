@@ -484,7 +484,7 @@ export function FileVerification({ role }: FileVerificationProps) {
       <PageHeader
         title={
           <span className="flex items-center gap-2">
-            <FolderCheck className="h-6 w-6" />
+            {/* <FolderCheck className="h-6 w-6" /> */}
             File Verification
           </span>
         }
