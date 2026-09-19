@@ -168,9 +168,9 @@ export function ShootingSchedulePage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (opts: { silent?: boolean } = {}) => {
     try {
-      setLoading(true);
+      if (!opts.silent) setLoading(true);
       const [shootsRes, equipmentRes, videographersRes, clientsRes] = await Promise.all([
         fetch('/api/shoots'),
         fetch('/api/equipment'),
@@ -189,7 +189,7 @@ export function ShootingSchedulePage() {
       console.error('Failed to load shooting schedule:', err);
       toast.error('Failed to load shooting schedule');
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   }, []);
 
@@ -1231,7 +1231,7 @@ export function ShootingSchedulePage() {
         shoot={scriptDialogShoot}
         open={!!scriptDialogShoot}
         onOpenChange={(open) => { if (!open) setScriptDialogShoot(null); }}
-        onChanged={fetchAll}
+        onChanged={() => fetchAll({ silent: true })}
       />
 
       {/* Cancel Shoot confirmation */}
