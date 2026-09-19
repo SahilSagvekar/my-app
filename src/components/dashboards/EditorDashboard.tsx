@@ -15,6 +15,8 @@ import {
 } from "../ui/select";
 import { TaskUploadSections, classifyDeliverableType } from "../workflow/TaskUploadSections";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
+import { uploadService } from "@/lib/upload-service";
+import { sortTaskImages } from "@/lib/task-image-order";
 import { TaskActionsMenu, computeTaskActionCount } from "../workflow/TaskActionsMenu";
 import {
   Calendar,
@@ -973,6 +975,43 @@ function TaskCard({
       ? currentUserId === task.thumbnailEditorId
       : currentUserId === Number(task.assignedTo);
   const canUploadMain = currentUserId == null ? true : currentUserId === Number(task.assignedTo);
+
+  // 🖼️ Hard-post images — each image is its own slot: a revision on image 3
+  // must replace exactly that image, not pile on a 6th one. isActive filters
+  // out whatever a prior replace already deactivated.
+  const isHardPostTask = category === 'HARD_POST';
+  const hardPostImages = useMemo(
+    () => (isHardPostTask ? sortTaskImages(mainFiles.filter(f => f.isActive !== false)) : []),
+    [isHardPostTask, mainFiles]
+  );
+  const imageFeedbackCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (task.taskFeedback || []).forEach((fb) => {
+      if (!fb.fileId) return;
+      const resolved = fb.status === 'acknowledged' || fb.status === 'resolved' || !!fb.acknowledgedAt || locallyAcknowledgedIds.has(fb.id);
+      if (resolved) return;
+      counts[fb.fileId] = (counts[fb.fileId] || 0) + 1;
+    });
+    return counts;
+  }, [task.taskFeedback, locallyAcknowledgedIds]);
+  const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
+  const handleReplaceImage = async (imageId: string, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    setReplacingImageId(imageId);
+    try {
+      await uploadService.startUpload(file, { ...task, replaceFileId: imageId }, 'main', undefined, 'outputs');
+      toast.success('Image replaced');
+      onUploadComplete(task.id, []);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to replace image');
+    } finally {
+      setReplacingImageId(null);
+    }
+  };
+
   const handleSaveTextContent = async () => {
     setSavingText(true);
     try {
@@ -1298,6 +1337,62 @@ function TaskCard({
                     <ChevronUp className="h-4 w-4 text-gray-400 ml-0.5" />
                   </button>
 
+                  {/* Hard-post images — one tile per active image, each with
+                      its own Replace control + unresolved-comment badge, so
+                      a revision on image 3 replaces just that image instead
+                      of piling on a 6th one. */}
+                  {isHardPostTask && hardPostImages.length > 0 && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="grid grid-cols-3 gap-2"
+                    >
+                      {hardPostImages.map((img, idx) => {
+                        const commentCount = imageFeedbackCounts[img.id] || 0;
+                        const isReplacing = replacingImageId === img.id;
+                        return (
+                          <div key={img.id} className="relative rounded-lg border border-gray-200 overflow-hidden bg-gray-100 group/img">
+                            <img
+                              src={img.url}
+                              alt={img.name}
+                              className="w-full aspect-square object-cover"
+                            />
+                            <div className="absolute top-1 left-1 text-[10px] font-medium bg-black/60 text-white px-1.5 py-0.5 rounded">
+                              #{idx + 1}
+                            </div>
+                            {commentCount > 0 && (
+                              <div
+                                className="absolute top-1 right-1 flex items-center gap-0.5 text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full"
+                                title={`${commentCount} unresolved comment${commentCount !== 1 ? "s" : ""}`}
+                              >
+                                {commentCount}
+                              </div>
+                            )}
+                            {canUploadMain && (
+                              <label
+                                className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/70 text-white text-[10px] font-medium py-1 cursor-pointer hover:bg-black/85 transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Replace this image"
+                              >
+                                {isReplacing ? "Replacing..." : "Replace"}
+                                <input
+                                  type="file"
+                                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                                  className="hidden"
+                                  disabled={isReplacing}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = "";
+                                    if (file) handleReplaceImage(img.id, file);
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Main Task File Upload Box — only the video editor assigned to this task */}
                   {canUploadMain ? (
                     <FileUploadDialog
@@ -1311,7 +1406,7 @@ function TaskCard({
                         >
                           <Video className="h-7 w-7 text-gray-400 mb-2 stroke-[1.5] group-hover:text-gray-600 transition-colors" />
                           <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
-                            {mainFiles.length > 0 ? "Upload new version" : "Upload new version"}
+                            {isHardPostTask && hardPostImages.length > 0 ? "Add another image" : "Upload new version"}
                           </span>
                         </div>
                       }

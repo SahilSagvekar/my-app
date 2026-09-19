@@ -20,6 +20,8 @@ import {
     Film,
     ListOrdered,
     ChevronDown,
+    ChevronLeft,
+    ChevronRight,
     ImageIcon,
     Send,
     CheckSquare,
@@ -48,6 +50,7 @@ interface TaskFile {
     version?: number;
     isActive?: boolean;
     replacedAt?: string;
+    replacedBy?: string;
     revisionNote?: string;
     s3Key?: string;
     downloadUrl?: string;
@@ -201,12 +204,55 @@ export function ThumbnailReviewModal({
     /* ── Ordered Thumbnails State ── */
     const [orderedThumbnails, setOrderedThumbnails] = useState<TaskFile[]>([]);
 
-    useEffect(() => {
+    // Per-image version history — each "slot" is one image position, walked
+    // backward from its current active file through replacedBy links to
+    // every file that ever occupied that slot. Lets the reviewer step back
+    // to see the whole set as it looked at an earlier round, even though
+    // each image was revised independently (image 3 might be on v2 while
+    // the rest are still v1).
+    const imageSlots = useMemo(() => {
         const folder = file?.folderType || 'thumbnails';
-        const filtered = allFiles.filter(f => f.folderType === folder && f.isActive !== false);
-        const sorted = sortTaskImages(filtered, initialImageOrder);
-        setOrderedThumbnails(sorted);
+        const imagesInFolder = allFiles.filter(f => f.folderType === folder);
+        const predecessorOf = new Map<string, TaskFile>();
+        imagesInFolder.forEach(f => {
+            if (f.replacedBy) predecessorOf.set(f.replacedBy, f);
+        });
+
+        const activeFiles = imagesInFolder.filter(f => f.isActive !== false);
+        const sortedActive = sortTaskImages(activeFiles, initialImageOrder);
+
+        return sortedActive.map(activeFile => {
+            const chain: TaskFile[] = [activeFile];
+            let cur = activeFile;
+            while (predecessorOf.has(cur.id)) {
+                const prev = predecessorOf.get(cur.id)!;
+                chain.unshift(prev);
+                cur = prev;
+            }
+            return chain; // ordered v1 → current, one entry per revision
+        });
     }, [allFiles, file?.folderType, initialImageOrder]);
+
+    // True latest version — independent of what's currently being viewed.
+    const latestVersion = useMemo(() => {
+        return imageSlots.reduce((max, chain) => Math.max(max, ...chain.map(f => f.version || 1)), 1);
+    }, [imageSlots]);
+
+    const [viewingVersion, setViewingVersion] = useState(() => latestVersion);
+
+    useEffect(() => {
+        // For each slot, show its own file at this version if it has one,
+        // otherwise its latest-so-far (nothing changed for it after that).
+        const resolved = imageSlots.map(chain => {
+            let pick = chain[0];
+            for (const f of chain) {
+                if ((f.version || 1) <= viewingVersion) pick = f;
+                else break;
+            }
+            return pick;
+        });
+        setOrderedThumbnails(resolved);
+    }, [imageSlots, viewingVersion]);
 
     const handleReorderImages = async (newFiles: any[]) => {
         const typedFiles = newFiles as TaskFile[];
@@ -239,13 +285,6 @@ export function ThumbnailReviewModal({
 
     const unresolvedCount = comments.filter(c => !c.resolved).length;
 
-    // Task-level version — highest per-image version among the active set.
-    // Bumps to 2 the first time any single image in the set gets replaced,
-    // even though the other images are still on v1.
-    const taskVersion = useMemo(() => {
-        return orderedThumbnails.reduce((max, f) => Math.max(max, f.version || 1), 1);
-    }, [orderedThumbnails]);
-
     /* ── Initialise on file change ── */
     useEffect(() => {
         if (file) {
@@ -253,6 +292,10 @@ export function ThumbnailReviewModal({
             setComments([]);
             setShowCommentInput(false);
             setImgCrossOriginFailed(false);
+            // Snap back to latest whenever a new task/file is opened — only
+            // reset here, not on every background refetch, so a reviewer
+            // mid-way through browsing history doesn't get yanked forward.
+            setViewingVersion(latestVersion);
             fetchFeedback(file.id);
         }
     }, [file]);
@@ -526,10 +569,28 @@ export function ThumbnailReviewModal({
 
                                 <div className="flex items-baseline gap-3 min-w-0">
                                     <h1 className="text-base font-semibold text-white truncate max-w-md" style={{ letterSpacing: '-0.01em' }}>{taskTitle}</h1>
-                                    {taskVersion > 1 && (
-                                        <span className="text-[11px] font-semibold text-white bg-white/15 rounded-full px-2 py-0.5 shrink-0">
-                                            Version {taskVersion}
-                                        </span>
+                                    {latestVersion > 1 && (
+                                        <div className="flex items-center gap-0.5 bg-white/15 rounded-full pl-1 pr-2 py-0.5 shrink-0">
+                                            <button
+                                                onClick={() => setViewingVersion(v => Math.max(1, v - 1))}
+                                                disabled={viewingVersion <= 1}
+                                                className="disabled:opacity-30 disabled:cursor-not-allowed text-white hover:bg-white/15 rounded-full p-0.5 transition-colors"
+                                                title="Previous version"
+                                            >
+                                                <ChevronLeft className="h-3 w-3" />
+                                            </button>
+                                            <span className="text-[11px] font-semibold text-white px-0.5">
+                                                Version {viewingVersion}{viewingVersion === latestVersion ? ' (Latest)' : ''}
+                                            </span>
+                                            <button
+                                                onClick={() => setViewingVersion(v => Math.min(latestVersion, v + 1))}
+                                                disabled={viewingVersion >= latestVersion}
+                                                className="disabled:opacity-30 disabled:cursor-not-allowed text-white hover:bg-white/15 rounded-full p-0.5 transition-colors"
+                                                title="Next version"
+                                            >
+                                                <ChevronRight className="h-3 w-3" />
+                                            </button>
+                                        </div>
                                     )}
                                     <span style={{ width: 1, height: 14, background: 'var(--review-border)', flex: 'none', alignSelf: 'center' }} />
                                     <span className="text-xs text-[var(--review-text-muted)] font-medium">
@@ -697,7 +758,7 @@ export function ThumbnailReviewModal({
                                             >
                                                 <LayoutGrid className="h-4 w-4" />
                                             </button>
-                                            {orderedThumbnails.length > 1 && (
+                                            {orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
                                                 <>
                                                     <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
                                                     <ImageOrderPopover
@@ -717,7 +778,7 @@ export function ThumbnailReviewModal({
                                 )}
 
                                 {/* Floating Order button in gallery view */}
-                                {viewMode === 'gallery' && orderedThumbnails.length > 1 && (
+                                {viewMode === 'gallery' && orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
                                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[var(--review-bg-secondary)]/90 backdrop-blur-md border border-[var(--review-border)] rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl z-20">
                                         <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-1">
                                             {imageLabel} ({orderedThumbnails.length})
@@ -779,22 +840,28 @@ export function ThumbnailReviewModal({
 
                                 {/* ── COMMENTS TAB ── */}
                                 {sidebarTab === 'comments' && (<>
-                                    <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
-                                        <CommentInput
-                                            taskId={taskId}
-                                            currentTime={0}
-                                            currentTimestamp={`#${currentNumber}`}
-                                            authorId={user?.id ? String(user.id) : 'guest'}
-                                            authorName={user?.name || 'Client'}
-                                            imageRef={imageRef}
-                                            mode="thumbnail"
-                                            thumbnailIndex={currentNumber}
-                                            onSubmit={handleCommentSubmit}
-                                            onCancel={() => setShowCommentInput(false)}
-                                            isExpanded={showCommentInput}
-                                            onToggleExpand={() => setShowCommentInput(true)}
-                                        />
-                                    </div>
+                                    {viewingVersion === latestVersion ? (
+                                        <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
+                                            <CommentInput
+                                                taskId={taskId}
+                                                currentTime={0}
+                                                currentTimestamp={`#${currentNumber}`}
+                                                authorId={user?.id ? String(user.id) : 'guest'}
+                                                authorName={user?.name || 'Client'}
+                                                imageRef={imageRef}
+                                                mode="thumbnail"
+                                                thumbnailIndex={currentNumber}
+                                                onSubmit={handleCommentSubmit}
+                                                onCancel={() => setShowCommentInput(false)}
+                                                isExpanded={showCommentInput}
+                                                onToggleExpand={() => setShowCommentInput(true)}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="px-3 py-2 border-b border-[var(--review-border)] flex-shrink-0 text-xs text-zinc-500">
+                                            Viewing a past version — comments shown are from that version.
+                                        </div>
+                                    )}
                                     <div className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
                                         {comments.length === 0 ? (
                                             <div className="text-center py-12 text-[var(--review-text-muted)]">
@@ -1006,7 +1073,19 @@ export function ThumbnailReviewModal({
                                         </div>
                                     </div>
 
-                                    {userRole === 'qc' ? (
+                                    {viewingVersion !== latestVersion ? (
+                                        <div className="flex flex-col items-center gap-2 text-center py-2">
+                                            <span className="text-xs text-zinc-400">
+                                                Viewing Version {viewingVersion} — a past snapshot of this set.
+                                            </span>
+                                            <button
+                                                onClick={() => setViewingVersion(latestVersion)}
+                                                className="text-xs font-semibold text-white bg-white/10 hover:bg-white/20 rounded-lg px-3 py-1.5 transition-colors"
+                                            >
+                                                Back to Latest (Version {latestVersion}) to take action
+                                            </button>
+                                        </div>
+                                    ) : userRole === 'qc' ? (
                                         <div className="flex flex-col gap-2">
                                             {/* Row 1: Approve & Send Back (Side by Side) */}
                                             <div className="grid grid-cols-2 gap-2">

@@ -390,6 +390,8 @@ const effectiveRole =
               folderType: true,
               version: true,
               isActive: true,
+              replacedAt: true,
+              replacedBy: true,
               codec: true,
               proxyUrl: true,
               reviewDriveUrl: true,
