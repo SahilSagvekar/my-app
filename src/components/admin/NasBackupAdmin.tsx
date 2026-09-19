@@ -138,9 +138,9 @@ export function NasBackupAdmin() {
       <PageHeader
         title={
           <span className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center">
+            {/* <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center"> */}
               {/* <HardDrive className="h-4 w-4 text-white" /> */}
-            </div>
+            {/* </div> */}
             NAS Backup
           </span>
         }

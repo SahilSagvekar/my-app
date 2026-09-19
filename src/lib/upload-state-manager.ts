@@ -27,6 +27,7 @@ interface UploadState {
   taggedEditorIds?: string[];  // admin-selected editors to tag in Slack notification (raw footage)
   batchId?: string;            // set when 2+ files were selected together — groups Slack notifications
   batchTotal?: number;         // total files in this batch
+  replaceFileId?: string;      // explicit target file to deactivate/replace (e.g. one image in a hard-post set)
 }
 
 interface UploadDB extends DBSchema {

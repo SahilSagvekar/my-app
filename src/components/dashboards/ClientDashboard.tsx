@@ -1088,12 +1088,12 @@ export function ClientDashboard() {
   const isOverdue = (task: ClientTask) => new Date(task.dueDate) < new Date();
 
   const isHardPostTask = (task: ClientTask) => {
-    const type = ((task as any).deliverableType || (task as any).taskType || '').toLowerCase();
+    const type = ((task as any).deliverableType || task.monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || (task as any).taskType || '').toLowerCase();
     return type.includes('hard post') || type.includes('graphic image');
   };
 
   const isTextPostTask = (task: ClientTask) => {
-    const type = ((task as any).deliverableType || (task as any).taskType || '').toLowerCase();
+    const type = ((task as any).deliverableType || task.monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || (task as any).taskType || '').toLowerCase();
     return type.includes('text post');
   };
 

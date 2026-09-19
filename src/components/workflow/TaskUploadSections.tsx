@@ -9,6 +9,8 @@ import { Textarea } from "../ui/textarea";
 import { FileUploadDialog } from "./FileUploadDialog-Resumable";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { toast } from "sonner";
+import { uploadService } from "@/lib/upload-service";
+import { sortTaskImages } from "@/lib/task-image-order";
 import {
   CheckCircle,
   AlertCircle,
@@ -132,6 +134,46 @@ export function TaskUploadSections({
   const [requestPopoverFileId, setRequestPopoverFileId] = useState<string | null>(null);
   const [requestReason, setRequestReason] = useState("");
   const [submittingRequestFileId, setSubmittingRequestFileId] = useState<string | null>(null);
+
+  // 🖼️ Hard-post per-image revisions — unresolved comment count per fileId,
+  // so the editor can see which image among the set needs a replacement.
+  const [imageFeedbackCounts, setImageFeedbackCounts] = useState<Record<string, number>>({});
+  const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (classifyDeliverableType(task.deliverableType, task.title) !== 'HARD_POST') return;
+    let cancelled = false;
+    fetch(`/api/tasks/${task.id}/feedback`)
+      .then((res) => (res.ok ? res.json() : { feedback: [] }))
+      .then((data) => {
+        if (cancelled) return;
+        const counts: Record<string, number> = {};
+        (data.feedback || []).forEach((fb: any) => {
+          if (!fb.fileId || fb.status === "resolved") return;
+          counts[fb.fileId] = (counts[fb.fileId] || 0) + 1;
+        });
+        setImageFeedbackCounts(counts);
+      })
+      .catch(() => {}); // non-critical — worst case no badge shows
+    return () => { cancelled = true; };
+  }, [task.id, task.deliverableType, task.title]);
+
+  const handleReplaceImage = async (imageId: string, file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    setReplacingImageId(imageId);
+    try {
+      await uploadService.startUpload(file, { ...task, replaceFileId: imageId }, "main", undefined, "outputs");
+      toast.success("Image replaced");
+      onUploadComplete([]);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to replace image");
+    } finally {
+      setReplacingImageId(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -552,8 +594,72 @@ export function TaskUploadSections({
               {/* Expanded Content */}
               {isOpen && (
                 <div className="mt-2 space-y-2 animate-in slide-in-from-top-2">
-                  {/* Show uploaded files for this section */}
-                  {sectionFiles.length > 0 && (
+                  {/* Hard-post images: one tile per active image, each with its
+                      own Replace control + unresolved-comment badge, so a
+                      revision on image 3 replaces just that image instead of
+                      piling on a 6th one. */}
+                  {section.folderType === "main" && isHardPostDeliverable(task.deliverableType) ? (
+                    sortTaskImages(
+                      sectionFiles.filter((f: any) => f.isActive !== false),
+                      (task as any).attachments?.imageOrder
+                    ).length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1.5">
+                        {sortTaskImages(
+                          sectionFiles.filter((f: any) => f.isActive !== false),
+                          (task as any).attachments?.imageOrder
+                        ).map((img: any, idx: number) => {
+                          const commentCount = imageFeedbackCounts[img.id] || 0;
+                          const isReplacing = replacingImageId === img.id;
+                          return (
+                            <div key={img.id} className="relative rounded-lg border overflow-hidden bg-gray-100 group">
+                              <img
+                                src={img.url}
+                                alt={img.name}
+                                className="w-full aspect-square object-cover"
+                              />
+                              <div className="absolute top-1 left-1 text-[10px] font-medium bg-black/60 text-white px-1.5 py-0.5 rounded">
+                                #{idx + 1}
+                              </div>
+                              {commentCount > 0 && (
+                                <div
+                                  className="absolute top-1 right-1 flex items-center gap-0.5 text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full"
+                                  title={`${commentCount} unresolved comment${commentCount !== 1 ? "s" : ""}`}
+                                >
+                                  <MessageSquare className="h-2.5 w-2.5" />
+                                  {commentCount}
+                                </div>
+                              )}
+                              <label
+                                className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/70 text-white text-[11px] font-medium py-1 cursor-pointer hover:bg-black/85 transition-colors"
+                                title="Replace this image"
+                              >
+                                {isReplacing ? (
+                                  <>
+                                    <RefreshCw className="h-3 w-3 animate-spin" /> Replacing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <RefreshCw className="h-3 w-3" /> Replace
+                                  </>
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                                  className="hidden"
+                                  disabled={isReplacing}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = "";
+                                    if (file) handleReplaceImage(img.id, file);
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : sectionFiles.length > 0 && (
                     <div className="space-y-1 p-1.5 bg-white/50 rounded border">
                       {sectionFiles.map((file, idx) => {
                         const isPending = pendingDeletionFileIds.has(file.id);

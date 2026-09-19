@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
       taggedEditorIds,
       batchId,
       batchTotal,
+      replaceFileId,
     } = await request.json();
 
     console.log("📥 Complete request:", {
@@ -134,11 +135,21 @@ export async function POST(request: NextRequest) {
             .select({ id: fileTable.id, version: fileTable.version })
             .from(fileTable)
             .where(
-              and(
-                eq(fileTable.taskId, taskId),
-                eq(fileTable.folderType, !subfolder || subfolder === 'main' ? 'main' : subfolder),
-                eq(fileTable.isActive, true),
-              ),
+              // An explicit replaceFileId (e.g. swapping one image out of a
+              // hard-post set) targets that exact row instead of "whatever's
+              // currently latest in this folderType" — folderType alone can't
+              // identify a single image among several active ones.
+              replaceFileId
+                ? and(
+                    eq(fileTable.id, replaceFileId),
+                    eq(fileTable.taskId, taskId),
+                    eq(fileTable.isActive, true),
+                  )
+                : and(
+                    eq(fileTable.taskId, taskId),
+                    eq(fileTable.folderType, !subfolder || subfolder === 'main' ? 'main' : subfolder),
+                    eq(fileTable.isActive, true),
+                  ),
             )
             .orderBy(desc(fileTable.version))
             .limit(1),
@@ -191,7 +202,10 @@ export async function POST(request: NextRequest) {
 
       // ── STEP 3: Create file record — file appears in UI immediately ───────
       const folderType = !subfolder || subfolder === 'main' ? 'main' : subfolder;
-      const keepPreviousAssets = !shouldVersionReplaceUpload(folderType, fileType);
+      // An explicit replaceFileId always wins over the folderType's default
+      // accumulate/replace policy — the caller identified exactly which file
+      // this upload replaces.
+      const keepPreviousAssets = !replaceFileId && !shouldVersionReplaceUpload(folderType, fileType);
       const newVersion = existingActiveFile ? existingActiveFile.version + 1 : 1;
 
       let fileRecord: { id: string; version: number } | null = null;

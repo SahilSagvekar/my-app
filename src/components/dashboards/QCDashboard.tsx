@@ -1020,12 +1020,12 @@ useEffect(() => {
   };
 
   const isHardPostTask = (task: EnhancedWorkflowTask) => {
-    const type = ((task as any).deliverableType || task.taskType || '').toLowerCase();
+    const type = ((task as any).deliverableType || (task as any).monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || task.taskType || '').toLowerCase();
     return type.includes('hard post') || type.includes('graphic image');
   };
 
   const isTextPostTask = (task: EnhancedWorkflowTask) => {
-    const type = ((task as any).deliverableType || task.taskType || '').toLowerCase();
+    const type = ((task as any).deliverableType || (task as any).monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || task.taskType || '').toLowerCase();
     return type.includes('text post');
   };
 

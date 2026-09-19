@@ -203,7 +203,7 @@ export function ThumbnailReviewModal({
 
     useEffect(() => {
         const folder = file?.folderType || 'thumbnails';
-        const filtered = allFiles.filter(f => f.folderType === folder);
+        const filtered = allFiles.filter(f => f.folderType === folder && f.isActive !== false);
         const sorted = sortTaskImages(filtered, initialImageOrder);
         setOrderedThumbnails(sorted);
     }, [allFiles, file?.folderType, initialImageOrder]);
@@ -238,6 +238,13 @@ export function ThumbnailReviewModal({
     }, [currentFile, orderedThumbnails]);
 
     const unresolvedCount = comments.filter(c => !c.resolved).length;
+
+    // Task-level version — highest per-image version among the active set.
+    // Bumps to 2 the first time any single image in the set gets replaced,
+    // even though the other images are still on v1.
+    const taskVersion = useMemo(() => {
+        return orderedThumbnails.reduce((max, f) => Math.max(max, f.version || 1), 1);
+    }, [orderedThumbnails]);
 
     /* ── Initialise on file change ── */
     useEffect(() => {
@@ -519,9 +526,14 @@ export function ThumbnailReviewModal({
 
                                 <div className="flex items-baseline gap-3 min-w-0">
                                     <h1 className="text-base font-semibold text-white truncate max-w-md" style={{ letterSpacing: '-0.01em' }}>{taskTitle}</h1>
+                                    {taskVersion > 1 && (
+                                        <span className="text-[11px] font-semibold text-white bg-white/15 rounded-full px-2 py-0.5 shrink-0">
+                                            Version {taskVersion}
+                                        </span>
+                                    )}
                                     <span style={{ width: 1, height: 14, background: 'var(--review-border)', flex: 'none', alignSelf: 'center' }} />
                                     <span className="text-xs text-[var(--review-text-muted)] font-medium">
-                                        Thumbnails &bull; {orderedThumbnails.length} image{orderedThumbnails.length !== 1 ? 's' : ''}
+                                        {imageLabel} &bull; {orderedThumbnails.length} image{orderedThumbnails.length !== 1 ? 's' : ''}
                                     </span>
                                 </div>
                             </div>
