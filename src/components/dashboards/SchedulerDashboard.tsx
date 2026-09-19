@@ -57,8 +57,9 @@ function mapStatus(status: string) {
 }
 
 function isHardPostTask(task: WorkflowTask): boolean {
-  const type = ((task as any).deliverableType || (task as any).taskType || '').toLowerCase();
-  return type.includes('hard post') || type.includes('graphic image');
+  // deliverableType is stored as the short code ("hp"), not the long phrase.
+  const type = ((task as any).deliverableType || (task as any).taskType || '').toLowerCase().trim();
+  return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
 }
 
 function getTaskThumbnails(task: WorkflowTask): string[] {

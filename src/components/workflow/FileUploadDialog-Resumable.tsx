@@ -150,13 +150,15 @@ export function FileUploadDialog({
   };
 
   const isHardPost = () => {
-    const type = (task?.deliverableType || task?.taskType || '').toLowerCase();
-    return type.includes('hard post') || type.includes('graphic image');
+    // deliverableType is stored as the short code ("hp"), not the long phrase —
+    // see getDeliverableShortCode() in src/app/api/tasks/route.ts.
+    const type = (task?.deliverableType || task?.taskType || '').toLowerCase().trim();
+    return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
   };
 
   const isStoryPost = () => {
-    const type = (task?.deliverableType || task?.taskType || '').toLowerCase();
-    return type.includes('stories') || type.includes('story');
+    const type = (task?.deliverableType || task?.taskType || '').toLowerCase().trim();
+    return type === 'st' || type.includes('stories') || type.includes('story');
   };
 
   const getAcceptedTypes = (folder: string): string => {

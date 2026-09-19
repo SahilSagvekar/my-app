@@ -31,8 +31,9 @@ interface ScheduledPost {
 }
 
 function isHardPostTask(task: any): boolean {
-  const type = (task?.deliverableType || task?.taskType || '').toLowerCase();
-  return type.includes('hard post') || type.includes('graphic image');
+  // deliverableType is stored as the short code ("hp"), not the long phrase.
+  const type = (task?.deliverableType || task?.taskType || '').toLowerCase().trim();
+  return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
 }
 
 function getHardPostImages(task: any) {
