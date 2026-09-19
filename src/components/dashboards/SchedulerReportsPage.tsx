@@ -5,6 +5,7 @@ import { Separator } from '../ui/separator';
 import { useState, useEffect } from 'react';
 import { Calendar, TrendingUp, Video, Users, Clock, AlertTriangle, Award, Zap, CheckCircle } from 'lucide-react';
 import { useTaskWorkflow, WorkflowTask } from '../workflow/TaskWorkflowEngine';
+import { PageHeader } from '../ui/page-header';
 
 export function SchedulerReportsPage() {
   // Mock data for stats
@@ -16,12 +17,10 @@ export function SchedulerReportsPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1>Schedule Reports</h1>
-        <p className="text-muted-foreground mt-2">
-          Analytics and metrics for production scheduling operations
-        </p>
-      </div>
+      <PageHeader
+        title="Schedule Reports"
+        description="Analytics and metrics for production scheduling operations"
+      />
 
       <Card>
         <CardHeader>

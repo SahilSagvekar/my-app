@@ -23,6 +23,7 @@ import {
     DialogTitle,
 } from '../ui/dialog';
 import { CheckCircle, BookOpen, Loader2, Plus, Edit, Trash2 } from 'lucide-react';
+import { PageHeader } from '../ui/page-header';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { useAuth } from '../auth/AuthContext';
@@ -193,13 +194,10 @@ export function DynamicGuidelinesPage({ role, title, description }: DynamicGuide
     return (
         <div className="space-y-6">
             {/* Page Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold">{title}</h1>
-                    <p className="text-muted-foreground mt-2">
-                        {description}
-                    </p>
-                </div>
+            <PageHeader
+                title={title}
+                description={description}
+                actions={
                 <div className="flex items-center gap-3">
                     {canEdit && (
                         <Button onClick={openAddDialog} className="gap-2">
@@ -209,7 +207,8 @@ export function DynamicGuidelinesPage({ role, title, description }: DynamicGuide
                     )}
                     <BookOpen className="h-10 w-10 text-primary opacity-20" />
                 </div>
-            </div>
+                }
+            />
 
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">

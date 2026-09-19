@@ -21,6 +21,7 @@ import {
   Clock
 } from 'lucide-react';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { PageHeader } from '../ui/page-header';
 
 const brandAssets = [
   {
@@ -227,12 +228,10 @@ export function SchedulerResourcesPage () {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1>Resources</h1>
-        <p className="text-muted-foreground mt-2">
-          Access brand assets, tutorials, stock resources, and helpful tools
-        </p>
-      </div>
+      <PageHeader
+        title="Resources"
+        description="Access brand assets, tutorials, stock resources, and helpful tools"
+      />
 
       {/* Search */}
       <div className="relative max-w-md">

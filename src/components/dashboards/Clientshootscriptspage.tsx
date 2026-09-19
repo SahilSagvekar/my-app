@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import type { ShootScript } from '@/lib/shoot-scripts';
 import { useEffectiveClientId } from '@/lib/hooks/useEffectiveClientId';
 import { ScriptReferencesPanel } from './ScriptReferencesPanel';
+import { PageHeader } from '../ui/page-header';
 
 interface ScriptEntry extends ShootScript {
   taskId: string;
@@ -293,11 +294,10 @@ export function ClientShootScriptsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-zinc-950">Scripts</h1>
-          <p className="text-zinc-500 text-sm mt-1.5">Review scripts before production and keep a record of what's been made</p>
-        </div>
+      <PageHeader
+        title="Scripts"
+        description="Review scripts before production and keep a record of what's been made"
+        actions={
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1 flex-wrap bg-zinc-100 rounded-xl p-1">
             {pill('all', 'All', counts.all, 'bg-zinc-200 text-zinc-900')}
@@ -308,7 +308,8 @@ export function ClientShootScriptsPage() {
             <Plus className="h-4 w-4" /> New Script
           </Button>
         </div>
-      </div>
+        }
+      />
 
       {visible.length === 0 ? (
         <div className="text-center py-16 bg-zinc-50 rounded-xl border border-dashed border-zinc-200">

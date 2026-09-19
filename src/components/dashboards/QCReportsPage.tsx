@@ -259,6 +259,7 @@ import { Separator } from '../ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { BarChart3, TrendingUp, Video, Palette, FileText, AlertTriangle, Award, Zap, Loader } from 'lucide-react';
 import { toast } from 'sonner';
+import { PageHeader } from '../ui/page-header';
 
 interface PerformanceMetrics {
   avgReviewTime: number;
@@ -386,13 +387,10 @@ export function QCReportsPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1>QC Reports</h1>
-          <p className="text-muted-foreground mt-2">
-            Analytics and metrics for quality control operations
-          </p>
-        </div>
+      <PageHeader
+        title="QC Reports"
+        description="Analytics and metrics for quality control operations"
+        actions={
         <Select value={period} onValueChange={(value: any) => setPeriod(value)}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Select period" />
@@ -403,7 +401,8 @@ export function QCReportsPage() {
             <SelectItem value="year">This Year</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+        }
+      />
 
       <Card>
         <CardHeader>

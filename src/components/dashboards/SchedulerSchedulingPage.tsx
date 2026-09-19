@@ -8,6 +8,7 @@ import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Calendar, Clock, Plus, Video, Image as ImageIcon, FileText, AlertCircle, Instagram, Facebook, Twitter, Youtube, CheckCircle, ExternalLink, Building } from 'lucide-react';
+import { PageHeader } from '../ui/page-header';
 import { toast } from 'sonner';
 import { useGlobalTasks } from '../workflow/GlobalTaskManager';
 import { getPostingScheduleForClient, getClients } from '../utils/clientData';
@@ -212,14 +213,10 @@ export function SchedulerSchedulingPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1>Social Media Scheduling</h1>
-          <p className="text-muted-foreground mt-2">
-            Schedule approved content across social media platforms
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Social Media Scheduling"
+        description="Schedule approved content across social media platforms"
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">

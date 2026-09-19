@@ -9,6 +9,7 @@ import { Label } from '../ui/label';
 import { Shield, FileCheck, Palette, FileText, Video, Info, ExternalLink, Download, CheckCircle, Building, Image as ImageIcon } from 'lucide-react';
 import { getClients } from '../utils/clientData';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { PageHeader } from '../ui/page-header';
 
 export function QCResourcesPage() {
   const [clients, setClients] = useState<any[]>([]);
@@ -39,16 +40,11 @@ export function QCResourcesPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1>QC Resources</h1>
-          <p className="text-muted-foreground mt-2">
-            Client brand guidelines, QC checklists, and quality standards
-          </p>
-        </div>
-        
-        {/* Client Selector */}
-        {clients.length > 0 && (
+      <PageHeader
+        title="QC Resources"
+        description="Client brand guidelines, QC checklists, and quality standards"
+        actions={
+        clients.length > 0 && (
           <div className="flex items-center gap-2">
             <Label htmlFor="qc-client-select" className="text-sm text-muted-foreground whitespace-nowrap">
               Client:
@@ -69,8 +65,9 @@ export function QCResourcesPage() {
               </SelectContent>
             </Select>
           </div>
-        )}
-      </div>
+        )
+        }
+      />
 
       <Tabs defaultValue="brand-guidelines" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">

@@ -10,6 +10,7 @@ import {
     RefreshCw,
 } from 'lucide-react';
 import { Button } from '../ui/button';
+import { PageHeader } from '../ui/page-header';
 import { toast } from 'sonner';
 
 interface RejectionItem {
@@ -56,16 +57,10 @@ export function QCRejectionPatternsPage() {
     return (
         <div className="flex flex-col h-full space-y-6">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-                        Rejection Patterns
-                    </h1>
-                    <p className="text-muted-foreground mt-1 text-lg">
-                        Tasks rejected 3+ times for the same reason across the last 90 days
-                    </p>
-                </div>
-
+            <PageHeader
+                title="Rejection Patterns"
+                description="Tasks rejected 3+ times for the same reason across the last 90 days"
+                actions={
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
                         <div className="flex flex-col items-center text-center">
@@ -92,7 +87,8 @@ export function QCRejectionPatternsPage() {
                         Refresh
                     </Button>
                 </div>
-            </div>
+                }
+            />
 
             {/* Content */}
             {loading ? (

@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Calendar, Download, FileText, TrendingUp, Eye, Heart, Share2, MousePointer, DollarSign, CreditCard, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { PageHeader } from '../ui/page-header';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { ClientCalendarView } from './ClientCalendarView';
 
@@ -266,14 +267,10 @@ export function ClientMonthlyOverview() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1>Client Portal</h1>
-          <p className="text-muted-foreground mt-2">
-            Track your monthly content performance, analytics, and billing
-          </p>
-        </div>
-        
+      <PageHeader
+        title="Client Portal"
+        description="Track your monthly content performance, analytics, and billing"
+        actions={
         <div className="flex items-center gap-3">
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
             <SelectTrigger className="w-48">
@@ -286,18 +283,19 @@ export function ClientMonthlyOverview() {
               <SelectItem value="2024-05">May 2024</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Button variant="outline" onClick={() => handleExport('pdf')}>
             <Download className="h-4 w-4 mr-2" />
             Export PDF
           </Button>
-          
+
           <Button variant="outline" onClick={() => handleExport('csv')}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
         </div>
-      </div>
+        }
+      />
 
       {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

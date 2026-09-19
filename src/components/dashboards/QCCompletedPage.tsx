@@ -26,6 +26,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PageHeader } from '../ui/page-header';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
 
 const PAGE_SIZE = 15;
@@ -395,12 +396,10 @@ export function QCCompletedPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1>Completed Reviews</h1>
-        <p className="text-muted-foreground mt-2">
-          Review history and performance tracking
-        </p>
-      </div>
+      <PageHeader
+        title="Completed Reviews"
+        description="Review history and performance tracking"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
