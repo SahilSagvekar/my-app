@@ -26,6 +26,7 @@ import {
   Package,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -460,18 +461,15 @@ export function ClientPortalPage({ clientId: propClientId }: ClientPortalPagePro
     <div className="space-y-12 pb-12">
       {/* ===== SECTION 1: CLIENT INFO (redesigned) ===== */}
       <section>
-        {/* Same header treatment as "My Contracts" / "Billing" below. Kept as an
-            h1 (rather than the h2 those use) because this is the page's top-level
-            heading — the styling is identical either way. */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
-            <User className="h-6 w-6 text-blue-600" />
-            Welcome Back
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            View your account details, contracts, and invoices
-          </p>
-        </div>
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2">
+              <User className="h-6 w-6 text-blue-600" />
+              Welcome Back
+            </span>
+          }
+          description="View your account details, contracts, and invoices"
+        />
 
         {clientInfo ? (
           <div className="space-y-5">

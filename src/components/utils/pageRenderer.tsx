@@ -1,4 +1,5 @@
 import React from "react";
+import { PageHeader } from "../ui/page-header";
 // import { AdminDashboard } from "../dashboards/AdminDashboard";
 import { EditorDashboard } from "../dashboards/EditorDashboard";
 import { EditorUploadHistory } from "../dashboards/EditorUploadHistory";
@@ -206,42 +207,22 @@ export function renderPage(
       case "training":
         return (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Training Management</h1>
-                <p className="text-muted-foreground mt-1 text-lg">
-                  Upload and manage role-specific training videos (Cloudinary). Staff see them as a course.
-                </p>
-              </div>
-            </div>
+            <PageHeader
+              title="Training Management"
+              description="Upload and manage role-specific training videos (Cloudinary). Staff see them as a course."
+            />
             <TrainingManagementTab />
           </div>
         );
       case "logins":
-        return (
-          <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Social Logins</h1>
-                <p className="text-muted-foreground mt-1 text-lg">
-                  Securely manage social media credentials and account access
-                </p>
-              </div>
-            </div>
-            <SocialLogins />
-          </div>
-        );
+        return <SocialLogins />;
       case "drive":
         return (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Files & Drive</h1>
-                <p className="text-muted-foreground mt-1 text-lg">
-                  Centralized storage for assets, project files, and shared documents
-                </p>
-              </div>
-            </div>
+            <PageHeader
+              title="Files & Drive"
+              description="Centralized storage for assets, project files, and shared documents"
+            />
             <DriveExplorer role={role} />
           </div>
         );

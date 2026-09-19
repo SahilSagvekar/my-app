@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MessageSquare, ExternalLink, Send, Loader2, Image as ImageIcon } from "lucide-react";
 import { Badge } from "./ui/badge";
+import { PageHeader } from "./ui/page-header";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import {
@@ -146,28 +147,28 @@ export function FeedbackSystem({ currentRole }: FeedbackSystemProps) {
 
   return (
     <div className="space-y-6">
-      <div className="mb-2 pb-6 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
             <MessageSquare className="h-7 w-7" />
             Feedback
-          </h1>
-          <p className="text-muted-foreground mt-1 text-lg">
-            Everything reported via "Report a Problem" across every portal, in one queue.
-          </p>
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All ({items.length})</SelectItem>
-            <SelectItem value="pending">Pending ({pendingCount})</SelectItem>
-            <SelectItem value="acknowledged">Acknowledged</SelectItem>
-            <SelectItem value="resolved">Resolved</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          </span>
+        }
+        description={'Everything reported via "Report a Problem" across every portal, in one queue.'}
+        actions={
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All ({items.length})</SelectItem>
+              <SelectItem value="pending">Pending ({pendingCount})</SelectItem>
+              <SelectItem value="acknowledged">Acknowledged</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      />
 
       {loading && (
         <div className="flex items-center justify-center py-16 text-muted-foreground">

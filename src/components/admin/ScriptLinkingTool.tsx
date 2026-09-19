@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { PageHeader } from '../ui/page-header';
 import { Badge } from '../ui/badge';
 import { Textarea } from '../ui/textarea';
 import { CheckCircle2, XCircle, RefreshCw, FileText, Link2, Loader2 } from 'lucide-react';
@@ -215,12 +216,10 @@ export function ScriptLinkingTool() {
 
   return (
     <div className="space-y-6">
-      <div className="pb-6 border-b">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Script Links</h1>
-        <p className="text-muted-foreground mt-1">
-          Every SF/LF deliverable slot for a client's month, and whether its raw-footage folder, editor task, and script are linked. Auto-generated monthly for clients with "Scripts required" on — use this to fix or create any that are missing.
-        </p>
-      </div>
+      <PageHeader
+        title="Script Links"
+        description={'Every SF/LF deliverable slot for a client\'s month, and whether its raw-footage folder, editor task, and script are linked. Auto-generated monthly for clients with "Scripts required" on — use this to fix or create any that are missing.'}
+      />
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">

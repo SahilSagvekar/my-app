@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { PageHeader } from '../ui/page-header';
 import { Badge } from '../ui/badge';
 import { Checkbox } from '../ui/checkbox';
 import {
@@ -250,29 +251,26 @@ export function FolderRepairTool() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Folder Repair</h1>
-          <p className="text-muted-foreground mt-1">
-            Scan R2 for missing deliverable folders across all active clients, then create only the ones you choose.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {selectedCount > 0 && (
-            <Button onClick={handleCreate} disabled={creating} className="gap-2">
-              {creating
-                ? <><RefreshCw className="h-4 w-4 animate-spin" />Creating…</>
-                : <><FolderPlus className="h-4 w-4" />Create {selectedCount} folder{selectedCount !== 1 ? 's' : ''}</>}
+      <PageHeader
+        title="Folder Repair"
+        description="Scan R2 for missing deliverable folders across all active clients, then create only the ones you choose."
+        actions={
+          <div className="flex items-center gap-3">
+            {selectedCount > 0 && (
+              <Button onClick={handleCreate} disabled={creating} className="gap-2">
+                {creating
+                  ? <><RefreshCw className="h-4 w-4 animate-spin" />Creating…</>
+                  : <><FolderPlus className="h-4 w-4" />Create {selectedCount} folder{selectedCount !== 1 ? 's' : ''}</>}
+              </Button>
+            )}
+            <Button variant="outline" onClick={handleScan} disabled={scanning || creating} className="gap-2">
+              {scanning
+                ? <><RefreshCw className="h-4 w-4 animate-spin" />Scanning…</>
+                : <><FolderSearch className="h-4 w-4" />{scanResult ? 'Re-scan' : 'Scan Now'}</>}
             </Button>
-          )}
-          <Button variant="outline" onClick={handleScan} disabled={scanning || creating} className="gap-2">
-            {scanning
-              ? <><RefreshCw className="h-4 w-4 animate-spin" />Scanning…</>
-              : <><FolderSearch className="h-4 w-4" />{scanResult ? 'Re-scan' : 'Scan Now'}</>}
-          </Button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* Summary bar */}
       {scanResult && (

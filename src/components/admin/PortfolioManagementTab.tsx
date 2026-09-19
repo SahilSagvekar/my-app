@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { PageHeader } from "../ui/page-header";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -2657,24 +2658,20 @@ export function PortfolioManagementTab() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2 pb-6 border-b border-gray-200">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-                        Portfolio Management
-                    </h1>
-                    <p className="text-muted-foreground mt-1 text-lg">
-                        Manage portfolio leads and control public video content
-                    </p>
-                </div>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open("/portfolio", "_blank")}
-                >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    View Public Portfolio
-                </Button>
-            </div>
+            <PageHeader
+                title="Portfolio Management"
+                description="Manage portfolio leads and control public video content"
+                actions={
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open("/portfolio", "_blank")}
+                    >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        View Public Portfolio
+                    </Button>
+                }
+            />
 
             <Tabs defaultValue="leads" className="w-full">
                 <TabsList className="grid w-full grid-cols-6 max-w-4xl">
