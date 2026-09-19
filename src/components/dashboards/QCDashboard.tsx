@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { PageHeader } from "../ui/page-header";
 // import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw } from 'lucide-react';
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
@@ -1360,14 +1361,10 @@ useEffect(() => {
   return (
     <>
       <div className="flex flex-col h-full space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-zinc-200">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-[26px] font-bold tracking-tight text-zinc-950 leading-tight">Content Review</h1>
-            <p className="text-zinc-500 mt-1 text-xs sm:text-[13px]">
-              Review submitted work and approve or reject with feedback
-            </p>
-          </div>
-
+        <PageHeader
+          title="Content Review"
+          description="Review submitted work and approve or reject with feedback"
+          actions={
           <div className="flex flex-wrap items-center gap-3">
             {/* Dashboard Filters */}
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
@@ -1491,7 +1488,8 @@ useEffect(() => {
               </span>
             </div>
           </div>
-        </div>
+          }
+        />
 
         {selectionMode && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-violet-50 border border-violet-200 rounded-xl">
