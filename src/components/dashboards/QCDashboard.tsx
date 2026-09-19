@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { PageHeader } from "../ui/page-header";
+import { FilterSelect } from "../ui/filter-select";
 // import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw } from 'lucide-react';
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
@@ -1379,47 +1380,35 @@ useEffect(() => {
                 <span className="text-xs sm:text-sm font-medium text-zinc-500">Filter:</span>
               </div>
 
-              <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-                <SelectTrigger className="h-9 w-[145px] sm:w-[155px] text-xs sm:text-sm font-medium bg-white border border-zinc-200 rounded-lg text-zinc-800 hover:bg-zinc-50/80 shadow-none focus:ring-0 focus:border-zinc-300">
-                  <SelectValue placeholder="All Deliverables" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Deliverables</SelectItem>
-                  {availableDeliverableTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={deliverableTypeFilter}
+                onValueChange={setDeliverableTypeFilter}
+                placeholder="All Deliverables"
+                options={[
+                  { value: 'all', label: 'All Deliverables' },
+                  ...availableDeliverableTypes.map((type) => ({ value: type, label: type })),
+                ]}
+              />
 
-              <Select value={clientFilter} onValueChange={setClientFilter}>
-                <SelectTrigger className="h-9 w-[135px] sm:w-[145px] text-xs sm:text-sm font-medium bg-white border border-zinc-200 rounded-lg text-zinc-800 hover:bg-zinc-50/80 shadow-none focus:ring-0 focus:border-zinc-300">
-                  <SelectValue placeholder="All Clients" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clients</SelectItem>
-                  {availableClients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={clientFilter}
+                onValueChange={setClientFilter}
+                placeholder="All Clients"
+                options={[
+                  { value: 'all', label: 'All Clients' },
+                  ...availableClients.map((client) => ({ value: client.id, label: client.name })),
+                ]}
+              />
 
-              <Select value={tagFilter} onValueChange={setTagFilter}>
-                <SelectTrigger className="h-9 w-[135px] sm:w-[145px] text-xs sm:text-sm font-medium bg-white border border-zinc-200 rounded-lg text-zinc-800 hover:bg-zinc-50/80 shadow-none focus:ring-0 focus:border-zinc-300">
-                  <SelectValue placeholder="All Tags" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Tags</SelectItem>
-                  {availableTags.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
-                      {tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={tagFilter}
+                onValueChange={setTagFilter}
+                placeholder="All Tags"
+                options={[
+                  { value: 'all', label: 'All Tags' },
+                  ...availableTags.map((tag) => ({ value: tag, label: tag })),
+                ]}
+              />
 
               {hasActiveFilters && (
                 <Button
