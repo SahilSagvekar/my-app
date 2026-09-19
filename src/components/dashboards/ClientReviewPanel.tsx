@@ -71,7 +71,7 @@ export function ClientReviewPanel({ scope }: { scope: 'scheduler' | 'qc' }) {
       <PageHeader
         title={
           <span className="flex items-center gap-3">
-            <Clock className="h-7 w-7" />
+            {/* <Clock className="h-7 w-7" /> */}
             Client Review
             {tasks.length > 0 && (
               <Badge variant="secondary" className="text-sm font-normal">{tasks.length}</Badge>

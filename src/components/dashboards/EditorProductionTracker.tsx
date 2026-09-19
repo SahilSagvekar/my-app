@@ -152,7 +152,7 @@ export function EditorProductionTracker() {
       <PageHeader
         title={
           <span className="flex items-center gap-2">
-            <Target className="h-6 w-6 text-violet-600" />
+            {/* <Target className="h-6 w-6 text-violet-600" /> */}
             My Tracker
           </span>
         }

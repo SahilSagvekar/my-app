@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Loader, ListChecks, X, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
+import { PageHeader } from '../ui/page-header';
 import { toast } from 'sonner';
 
 type EntryType = 'shoot' | 'call' | 'meeting' | 'analytics';
@@ -179,11 +180,10 @@ export function VideographerProductionLogPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-zinc-950">Production Log</h1>
-          <p className="text-zinc-500 text-sm mt-1.5">Every shoot day, meeting, call, and analytics review across all your clients — logged in one place</p>
-        </div>
+      <PageHeader
+        title="Production Log"
+        description="Every shoot day, meeting, call, and analytics review across all your clients — logged in one place"
+        actions={
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 flex-wrap bg-zinc-100 rounded-xl p-1">
             {FILTERS.map((f) => (
@@ -202,7 +202,8 @@ export function VideographerProductionLogPage() {
             <Plus className="h-4 w-4" /> Add entry
           </Button>
         </div>
-      </div>
+        }
+      />
 
       {visible.length === 0 ? (
         <div className="text-center py-16 bg-zinc-50 rounded-xl border border-dashed border-zinc-200">

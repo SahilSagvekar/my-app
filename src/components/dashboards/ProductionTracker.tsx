@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { PageHeader } from '../ui/page-header';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { Button } from '../ui/button';
@@ -555,40 +556,39 @@ export function ProductionTracker() {
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        {/* ─── Header ─── */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Target className="h-6 w-6 text-indigo-600" />
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2">
+              {/* <Target className="h-6 w-6 text-indigo-600" /> */}
               Production Tracker
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Monthly deliverable progress & employee performance
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Select value={selectedMonth} onValueChange={handleMonthChange}>
-              <SelectTrigger className="w-[180px] h-9 text-sm">
-                <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Select month" />
-              </SelectTrigger>
-              <SelectContent>
-                {data.availableMonths.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fetchData(selectedMonth)}
-              disabled={loading}
-              className="h-9"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
+            </span>
+          }
+          description="Monthly deliverable progress & employee performance"
+          actions={
+            <div className="flex items-center gap-3">
+              <Select value={selectedMonth} onValueChange={handleMonthChange}>
+                <SelectTrigger className="w-[180px] h-9 text-sm">
+                  <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent>
+                  {data.availableMonths.map((m) => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchData(selectedMonth)}
+                disabled={loading}
+                className="h-9"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </Button>
+            </div>
+          }
+        />
 
         {/* ─── Summary Cards ─── */}
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4">

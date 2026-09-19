@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
-import { Label } from '../ui/label';
-import { Badge } from '../ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';0
+import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
+import { Label } from './ui/label';
+import { Badge } from './ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Settings, Plus, Pencil, Trash2, Loader } from 'lucide-react';
+import { PageHeader } from './ui/page-header';
 import { toast } from 'sonner';
 
 interface EquipmentItem {
@@ -142,15 +143,15 @@ export function EquipmentPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Equipment</h1>
-          <p className="text-muted-foreground text-sm mt-1">Everything E8 owns, available to select on a shoot</p>
-        </div>
+      <PageHeader
+        title="Equipment"
+        description="Everything E8 owns, available to select on a shoot"
+        actions={
         <Button onClick={openCreateForm} className="gap-2 w-full sm:w-auto">
           <Plus className="h-4 w-4" /> Add Equipment
         </Button>
-      </div>
+        }
+      />
 
       {equipment.length === 0 ? (
         <div className="text-center py-16 bg-slate-50 rounded-xl border border-dashed border-slate-200">

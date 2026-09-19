@@ -150,7 +150,7 @@ export function FeedbackSystem({ currentRole }: FeedbackSystemProps) {
       <PageHeader
         title={
           <span className="flex items-center gap-2">
-            <MessageSquare className="h-7 w-7" />
+            {/* <MessageSquare className="h-7 w-7" /> */}
             Feedback
           </span>
         }

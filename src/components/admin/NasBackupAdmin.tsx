@@ -7,6 +7,7 @@ import {
   FolderSync, Archive,
 } from 'lucide-react';
 import { Button } from '../ui/button';
+import { PageHeader } from '../ui/page-header';
 import ManualNasSweepPanel from '@/components/admin/ManualNasSweepPanel';
 import NasCleanupPanel from '@/components/admin/NasCleanupPanel';
 
@@ -134,22 +135,23 @@ export function NasBackupAdmin() {
   return (
     <div className="space-y-6 max-w-4xl">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2.5">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center">
-              <HardDrive className="h-4 w-4 text-white" />
+              {/* <HardDrive className="h-4 w-4 text-white" /> */}
             </div>
             NAS Backup
-          </h2>
-          <p className="text-sm text-gray-400 mt-0.5">UGREEN DXP2800 · Cloudflare R2 → /volume2/Backup</p>
-        </div>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={load} disabled={loading}>
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-      </div>
+          </span>
+        }
+        description="UGREEN DXP2800 · Cloudflare R2 → /volume2/Backup"
+        actions={
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={load} disabled={loading}>
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        }
+      />
 
       {loading && !stats ? (
         <div className="flex items-center justify-center py-24 text-gray-400">

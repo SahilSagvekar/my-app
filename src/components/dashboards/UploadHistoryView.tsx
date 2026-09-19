@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { PageHeader } from '../ui/page-header';
 
 interface UploadEntry {
   id: string;
@@ -302,19 +303,22 @@ export function UploadHistoryView({
   return (
     <div className={embedded ? '' : 'max-w-3xl mx-auto px-4 py-8'}>
 
-      {/* Header */}
       {(title || subtitle) && (
-        <div className="mb-6">
-          {title && (
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center">
-                <Clock className="h-4 w-4 text-white" />
-              </div>
-              {title}
-            </h1>
-          )}
-          {subtitle && <p className="text-sm text-gray-400 mt-1">{subtitle}</p>}
-        </div>
+        <PageHeader
+          title={
+            title ? (
+              <span className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-zinc-900 flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-white" />
+                </div>
+                {title}
+              </span>
+            ) : (
+              ''
+            )
+          }
+          description={subtitle}
+        />
       )}
 
       {/* Stats bar */}

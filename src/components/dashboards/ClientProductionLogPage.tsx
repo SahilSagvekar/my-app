@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Loader, ListChecks, X } from 'lucide-react';
 import { useEffectiveClientId } from '@/lib/hooks/useEffectiveClientId';
+import { PageHeader } from '../ui/page-header';
 
 type EntryType = 'shoot' | 'call' | 'meeting' | 'analytics';
 type Filter = 'all' | EntryType;
@@ -93,11 +94,10 @@ export function ClientProductionLogPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-zinc-950">Production Log</h1>
-          <p className="text-zinc-500 text-sm mt-1.5">Every shoot day, meeting, call, and analytics review — logged in one place</p>
-        </div>
+      <PageHeader
+        title="Production Log"
+        description="Every shoot day, meeting, call, and analytics review — logged in one place"
+        actions={
         <div className="flex items-center gap-1 flex-wrap bg-zinc-100 rounded-xl p-1">
           {FILTERS.map((f) => (
             <button
@@ -111,7 +111,8 @@ export function ClientProductionLogPage() {
             </button>
           ))}
         </div>
-      </div>
+        }
+      />
 
       {filter !== 'all' && filter !== 'shoot' && unavailableTypes.includes(filter) ? (
         <div className="text-center py-16 bg-zinc-50 rounded-xl border border-dashed border-zinc-200">
