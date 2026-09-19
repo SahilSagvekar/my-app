@@ -1,0 +1,417 @@
+diff --git a/src/components/admin/ActivityLogReportTab.tsx b/src/components/admin/ActivityLogReportTab.tsx
+index ff3fc58..73c3fb8 100644
+--- a/src/components/admin/ActivityLogReportTab.tsx
++++ b/src/components/admin/ActivityLogReportTab.tsx
+@@ -27,7 +27,7 @@ import { toast } from 'sonner';
+ import { cn } from '../ui/utils';
+ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+ import { Input } from '../ui/input';
+-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
++import { FilterSelect } from '../ui/filter-select';
+ 
+ interface ActivityReport {
+     id: string;
+@@ -352,21 +352,19 @@ export function ActivityLogReportTab() {
+ 
+                                 <div className="flex flex-wrap gap-2 sm:gap-4">
+                                     <div className="w-[160px]">
+-                                        <Select value={roleFilter} onValueChange={setRoleFilter}>
+-                                            <SelectTrigger className="bg-white border-slate-200 hover:border-slate-300 transition-colors">
+-                                                <div className="flex items-center gap-2">
+-                                                    <Users className="h-4 w-4 text-slate-400" />
+-                                                    <SelectValue placeholder="All Roles" />
+-                                                </div>
+-                                            </SelectTrigger>
+-                                            <SelectContent>
+-                                                <SelectItem value="all">All Roles</SelectItem>
+-                                                <SelectItem value="editor">Editors</SelectItem>
+-                                                <SelectItem value="qc">QC Specialists</SelectItem>
+-                                                <SelectItem value="scheduler">Schedulers</SelectItem>
+-                                                <SelectItem value="videographer">Videographers</SelectItem>
+-                                            </SelectContent>
+-                                        </Select>
++                                        <FilterSelect
++                                            value={roleFilter}
++                                            onValueChange={setRoleFilter}
++                                            placeholder="All Roles"
++                                            options={[
++                                                { value: 'all', label: 'All Roles' },
++                                                { value: 'editor', label: 'Editors' },
++                                                { value: 'qc', label: 'QC Specialists' },
++                                                { value: 'scheduler', label: 'Schedulers' },
++                                                { value: 'videographer', label: 'Videographers' },
++                                            ]}
++                                            className="w-full"
++                                        />
+                                     </div>
+ 
+                                     <div className="w-[180px]">
+diff --git a/src/components/admin/GuidelinesManagementTab.tsx b/src/components/admin/GuidelinesManagementTab.tsx
+index 074418d..135a8fa 100644
+--- a/src/components/admin/GuidelinesManagementTab.tsx
++++ b/src/components/admin/GuidelinesManagementTab.tsx
+@@ -14,6 +14,7 @@ import {
+     SelectTrigger,
+     SelectValue,
+ } from "../ui/select";
++import { FilterSelect } from "../ui/filter-select";
+ import {
+     Dialog,
+     DialogContent,
+@@ -331,40 +332,32 @@ export function GuidelinesManagementTab() {
+                             />
+                         </div>
+ 
+-                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+-                            <SelectTrigger className="w-[200px]">
+-                                <SelectValue placeholder="All Categories" />
+-                            </SelectTrigger>
+-                            <SelectContent>
+-                                <SelectItem value="all">All Categories</SelectItem>
+-                                {CATEGORIES.map(cat => (
+-                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+-                                ))}
+-                            </SelectContent>
+-                        </Select>
++                        <FilterSelect
++                            value={categoryFilter}
++                            onValueChange={setCategoryFilter}
++                            placeholder="All Categories"
++                            options={[
++                                { value: "all", label: "All Categories" },
++                                ...CATEGORIES.map(cat => ({ value: cat, label: cat })),
++                            ]}
++                        />
+ 
+-                        <Select value={roleFilter} onValueChange={setRoleFilter}>
+-                            <SelectTrigger className="w-[180px]">
+-                                <SelectValue placeholder="All Roles" />
+-                            </SelectTrigger>
+-                            <SelectContent>
+-                                {ROLES.map(role => (
+-                                    <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+-                                ))}
+-                            </SelectContent>
+-                        </Select>
++                        <FilterSelect
++                            value={roleFilter}
++                            onValueChange={setRoleFilter}
++                            placeholder="All Roles"
++                            options={ROLES.map(role => ({ value: role.id, label: role.name }))}
++                        />
+ 
+-                        <Select value={clientFilter} onValueChange={setClientFilter}>
+-                            <SelectTrigger className="w-[180px]">
+-                                <SelectValue placeholder="All Clients" />
+-                            </SelectTrigger>
+-                            <SelectContent>
+-                                <SelectItem value="all">All Clients</SelectItem>
+-                                {clients.map(client => (
+-                                    <SelectItem key={client.id} value={client.id}>{client.companyName || client.name}</SelectItem>
+-                                ))}
+-                            </SelectContent>
+-                        </Select>
++                        <FilterSelect
++                            value={clientFilter}
++                            onValueChange={setClientFilter}
++                            placeholder="All Clients"
++                            options={[
++                                { value: "all", label: "All Clients" },
++                                ...clients.map(client => ({ value: client.id, label: client.companyName || client.name })),
++                            ]}
++                        />
+                     </div>
+ 
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+diff --git a/src/components/admin/HiringTab.tsx b/src/components/admin/HiringTab.tsx
+index 456a1b5..cad14c8 100644
+--- a/src/components/admin/HiringTab.tsx
++++ b/src/components/admin/HiringTab.tsx
+@@ -10,6 +10,7 @@ import { Badge } from '../ui/badge';
+ import { Input } from '../ui/input';
+ import { Textarea } from '../ui/textarea';
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
++import { FilterSelect } from '../ui/filter-select';
+ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
+ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
+ import { toast } from 'sonner';
+@@ -119,17 +120,15 @@ export function HiringTab() {
+           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+           <Input placeholder="Search name or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full" />
+         </div>
+-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+-          <SelectTrigger className="w-48 h-9 text-sm">
+-            <SelectValue placeholder="All statuses" />
+-          </SelectTrigger>
+-          <SelectContent>
+-            <SelectItem value="all">All statuses</SelectItem>
+-            {(Object.keys(STATUS_LABELS) as CandidateStatus[]).map((s) => (
+-              <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+-            ))}
+-          </SelectContent>
+-        </Select>
++        <FilterSelect
++          value={statusFilter}
++          onValueChange={setStatusFilter}
++          placeholder="All statuses"
++          options={[
++            { value: 'all', label: 'All statuses' },
++            ...(Object.keys(STATUS_LABELS) as CandidateStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
++          ]}
++        />
+       </div>
+ 
+       {/* List */}
+diff --git a/src/components/admin/LeavesComponent.tsx b/src/components/admin/LeavesComponent.tsx
+index 9aff9a0..8037385 100644
+--- a/src/components/admin/LeavesComponent.tsx
++++ b/src/components/admin/LeavesComponent.tsx
+@@ -10,6 +10,7 @@ import {
+   SelectTrigger,
+   SelectValue,
+ } from "../ui/select";
++import { FilterSelect } from "../ui/filter-select";
+ import {
+   Table,
+   TableBody,
+@@ -1137,33 +1138,25 @@ export default function LeavesComponent() {
+                 />
+               </div>
+ 
+-              <Select value={roleFilter} onValueChange={setRoleFilter}>
+-                <SelectTrigger className="w-40 h-9">
+-                  <SelectValue placeholder="All Roles" />
+-                </SelectTrigger>
+-                <SelectContent>
+-                  <SelectItem value="all">All Roles</SelectItem>
+-                  {roles.map((role) => (
+-                    <SelectItem key={role.id} value={role.id}>
+-                      {role.name}
+-                    </SelectItem>
+-                  ))}
+-                </SelectContent>
+-              </Select>
+-
+-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+-                <SelectTrigger className="w-40 h-9">
+-                  <SelectValue placeholder="All Status" />
+-                </SelectTrigger>
+-                <SelectContent>
+-                  <SelectItem value="all">All Status</SelectItem>
+-                  {statusOptions.map((status) => (
+-                    <SelectItem key={status.id} value={status.id}>
+-                      {status.name}
+-                    </SelectItem>
+-                  ))}
+-                </SelectContent>
+-              </Select>
++              <FilterSelect
++                value={roleFilter}
++                onValueChange={setRoleFilter}
++                placeholder="All Roles"
++                options={[
++                  { value: "all", label: "All Roles" },
++                  ...roles.map((role) => ({ value: role.id, label: role.name })),
++                ]}
++              />
++
++              <FilterSelect
++                value={statusFilter}
++                onValueChange={setStatusFilter}
++                placeholder="All Status"
++                options={[
++                  { value: "all", label: "All Status" },
++                  ...statusOptions.map((status) => ({ value: status.id, label: status.name })),
++                ]}
++              />
+             </div>
+ 
+             <Dialog
+@@ -1583,23 +1576,21 @@ export default function LeavesComponent() {
+               setPage(1);
+             }}
+           />
+-          <Select
++          <FilterSelect
+             value={leaveStatusFilter}
+             onValueChange={(v: string) => {
+               setLeaveStatusFilter(v);
+               setPage(1);
+             }}
+-          >
+-            <SelectTrigger className="w-32 h-9">
+-              <SelectValue placeholder="Status" />
+-            </SelectTrigger>
+-            <SelectContent>
+-              <SelectItem value="ALL">All Status</SelectItem>
+-              <SelectItem value="PENDING">Pending</SelectItem>
+-              <SelectItem value="APPROVED">Approved</SelectItem>
+-              <SelectItem value="REJECTED">Rejected</SelectItem>
+-            </SelectContent>
+-          </Select>
++            placeholder="Status"
++            options={[
++              { value: "ALL", label: "All Status" },
++              { value: "PENDING", label: "Pending" },
++              { value: "APPROVED", label: "Approved" },
++              { value: "REJECTED", label: "Rejected" },
++            ]}
++            className="w-32"
++          />
+         </div>
+       </div>
+ 
+diff --git a/src/components/dashboards/ClientDashboard.tsx b/src/components/dashboards/ClientDashboard.tsx
+index 29e5b1d..516510b 100644
+--- a/src/components/dashboards/ClientDashboard.tsx
++++ b/src/components/dashboards/ClientDashboard.tsx
+@@ -44,6 +44,7 @@ import { ShareDialog } from '../review/ShareDialog';
+ import { Checkbox } from '../ui/checkbox';
+ 
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
++import { FilterSelect } from '../ui/filter-select';
+ import { useAuth } from '../auth/AuthContext';
+ import { toast } from 'sonner';
+ import { FilePreviewModal } from '../FileViewerModal';
+@@ -1235,19 +1236,16 @@ export function ClientDashboard() {
+             )}
+ 
+             {/* Deliverables Dropdown Filter */}
+-            <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
+-              <SelectTrigger className="h-10 w-[165px] sm:w-[175px] shrink-0 px-3.5 text-xs sm:text-[13px] font-semibold bg-white border border-zinc-200/90 rounded-xl text-zinc-900 hover:border-zinc-300 shadow-xs focus:ring-0 cursor-pointer flex items-center justify-between gap-2">
+-                <SelectValue placeholder="All Deliverables" />
+-              </SelectTrigger>
+-              <SelectContent className="rounded-xl border border-zinc-200 bg-white shadow-lg">
+-                <SelectItem value="all" className="text-xs sm:text-sm font-medium">All Deliverables</SelectItem>
+-                {availableDeliverableTypes.map((type) => (
+-                  <SelectItem key={type} value={type} className="text-xs sm:text-sm font-medium">
+-                    {type}
+-                  </SelectItem>
+-                ))}
+-              </SelectContent>
+-            </Select>
++            <FilterSelect
++              value={deliverableTypeFilter}
++              onValueChange={setDeliverableTypeFilter}
++              placeholder="All Deliverables"
++              className="w-[165px] sm:w-[175px]"
++              options={[
++                { value: 'all', label: 'All Deliverables' },
++                ...availableDeliverableTypes.map((type) => ({ value: type, label: type })),
++              ]}
++            />
+ 
+             {/* Status Filter Badges Track */}
+             <div className="flex items-center gap-0.5 sm:gap-1 p-1 sm:p-1.5 bg-[#f3f4f6] rounded-2xl border border-zinc-200/40 shrink-0">
+diff --git a/src/components/dashboards/SchedulerPostedArchivePage.tsx b/src/components/dashboards/SchedulerPostedArchivePage.tsx
+index 2392075..045a747 100644
+--- a/src/components/dashboards/SchedulerPostedArchivePage.tsx
++++ b/src/components/dashboards/SchedulerPostedArchivePage.tsx
+@@ -12,13 +12,7 @@ import { Button } from "../ui/button";
+ import { Badge } from "../ui/badge";
+ import { Input } from "../ui/input";
+ import { Label } from "../ui/label";
+-import {
+-    Select,
+-    SelectContent,
+-    SelectItem,
+-    SelectTrigger,
+-    SelectValue,
+-} from "../ui/select";
++import { FilterSelect } from "../ui/filter-select";
+ import {
+     Table,
+     TableBody,
+@@ -254,55 +248,52 @@ export function SchedulerPostedArchivePage() {
+                         </div>
+ 
+                         {/* Client Filter */}
+-                        <div className="space-y-2">
++                        <div className="space-y-2 flex flex-col">
+                             <Label>Client</Label>
+-                            <Select value={selectedClient} onValueChange={setSelectedClient}>
+-                                <SelectTrigger>
+-                                    <SelectValue placeholder="All Clients" />
+-                                </SelectTrigger>
+-                                <SelectContent>
+-                                    <SelectItem value="all">All Clients</SelectItem>
+-                                    {clients.map(client => (
+-                                        <SelectItem key={client.id} value={client.id}>
+-                                            {client.companyName || client.name}
+-                                        </SelectItem>
+-                                    ))}
+-                                </SelectContent>
+-                            </Select>
++                            <FilterSelect
++                                value={selectedClient}
++                                onValueChange={setSelectedClient}
++                                placeholder="All Clients"
++                                className="w-full"
++                                options={[
++                                    { value: "all", label: "All Clients" },
++                                    ...clients.map(client => ({ value: client.id, label: client.companyName || client.name })),
++                                ]}
++                            />
+                         </div>
+ 
+                         {/* Platform Filter */}
+-                        <div className="space-y-2">
++                        <div className="space-y-2 flex flex-col">
+                             <Label>Platform</Label>
+-                            <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+-                                <SelectTrigger>
+-                                    <SelectValue placeholder="All Platforms" />
+-                                </SelectTrigger>
+-                                <SelectContent>
+-                                    <SelectItem value="all">All Platforms</SelectItem>
+-                                    <SelectItem value="instagram">Instagram</SelectItem>
+-                                    <SelectItem value="tiktok">TikTok</SelectItem>
+-                                    <SelectItem value="youtube">YouTube</SelectItem>
+-                                    <SelectItem value="facebook">Facebook</SelectItem>
+-                                    <SelectItem value="twitter">Twitter</SelectItem>
+-                                </SelectContent>
+-                            </Select>
++                            <FilterSelect
++                                value={selectedPlatform}
++                                onValueChange={setSelectedPlatform}
++                                placeholder="All Platforms"
++                                className="w-full"
++                                options={[
++                                    { value: "all", label: "All Platforms" },
++                                    { value: "instagram", label: "Instagram" },
++                                    { value: "tiktok", label: "TikTok" },
++                                    { value: "youtube", label: "YouTube" },
++                                    { value: "facebook", label: "Facebook" },
++                                    { value: "twitter", label: "Twitter" },
++                                ]}
++                            />
+                         </div>
+ 
+                         {/* Type Filter */}
+-                        <div className="space-y-2">
++                        <div className="space-y-2 flex flex-col">
+                             <Label>Content Type</Label>
+-                            <Select value={selectedType} onValueChange={setSelectedType}>
+-                                <SelectTrigger>
+-                                    <SelectValue placeholder="All Types" />
+-                                </SelectTrigger>
+-                                <SelectContent>
+-                                    <SelectItem value="all">All Types</SelectItem>
+-                                    {deliverableTypes.map(type => (
+-                                        <SelectItem key={type} value={type}>{type}</SelectItem>
+-                                    ))}
+-                                </SelectContent>
+-                            </Select>
++                            <FilterSelect
++                                value={selectedType}
++                                onValueChange={setSelectedType}
++                                placeholder="All Types"
++                                className="w-full"
++                                options={[
++                                    { value: "all", label: "All Types" },
++                                    ...deliverableTypes.map(type => ({ value: type, label: type })),
++                                ]}
++                            />
+                         </div>
+ 
+                         {/* Clear All */}

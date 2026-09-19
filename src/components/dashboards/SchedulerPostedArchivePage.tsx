@@ -12,13 +12,7 @@ import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import {
     Table,
     TableBody,
@@ -254,55 +248,52 @@ export function SchedulerPostedArchivePage() {
                         </div>
 
                         {/* Client Filter */}
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                             <Label>Client</Label>
-                            <Select value={selectedClient} onValueChange={setSelectedClient}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Clients" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Clients</SelectItem>
-                                    {clients.map(client => (
-                                        <SelectItem key={client.id} value={client.id}>
-                                            {client.companyName || client.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <FilterSelect
+                                value={selectedClient}
+                                onValueChange={setSelectedClient}
+                                placeholder="All Clients"
+                                className="w-full"
+                                options={[
+                                    { value: "all", label: "All Clients" },
+                                    ...clients.map(client => ({ value: client.id, label: client.companyName || client.name })),
+                                ]}
+                            />
                         </div>
 
                         {/* Platform Filter */}
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                             <Label>Platform</Label>
-                            <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Platforms" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Platforms</SelectItem>
-                                    <SelectItem value="instagram">Instagram</SelectItem>
-                                    <SelectItem value="tiktok">TikTok</SelectItem>
-                                    <SelectItem value="youtube">YouTube</SelectItem>
-                                    <SelectItem value="facebook">Facebook</SelectItem>
-                                    <SelectItem value="twitter">Twitter</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <FilterSelect
+                                value={selectedPlatform}
+                                onValueChange={setSelectedPlatform}
+                                placeholder="All Platforms"
+                                className="w-full"
+                                options={[
+                                    { value: "all", label: "All Platforms" },
+                                    { value: "instagram", label: "Instagram" },
+                                    { value: "tiktok", label: "TikTok" },
+                                    { value: "youtube", label: "YouTube" },
+                                    { value: "facebook", label: "Facebook" },
+                                    { value: "twitter", label: "Twitter" },
+                                ]}
+                            />
                         </div>
 
                         {/* Type Filter */}
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                             <Label>Content Type</Label>
-                            <Select value={selectedType} onValueChange={setSelectedType}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="All Types" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Types</SelectItem>
-                                    {deliverableTypes.map(type => (
-                                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <FilterSelect
+                                value={selectedType}
+                                onValueChange={setSelectedType}
+                                placeholder="All Types"
+                                className="w-full"
+                                options={[
+                                    { value: "all", label: "All Types" },
+                                    ...deliverableTypes.map(type => ({ value: type, label: type })),
+                                ]}
+                            />
                         </div>
 
                         {/* Clear All */}

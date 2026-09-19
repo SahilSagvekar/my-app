@@ -44,6 +44,7 @@ import { ShareDialog } from '../review/ShareDialog';
 import { Checkbox } from '../ui/checkbox';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { useAuth } from '../auth/AuthContext';
 import { toast } from 'sonner';
 import { FilePreviewModal } from '../FileViewerModal';
@@ -1235,19 +1236,16 @@ export function ClientDashboard() {
             )}
 
             {/* Deliverables Dropdown Filter */}
-            <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-              <SelectTrigger className="h-10 w-[165px] sm:w-[175px] shrink-0 px-3.5 text-xs sm:text-[13px] font-semibold bg-white border border-zinc-200/90 rounded-xl text-zinc-900 hover:border-zinc-300 shadow-xs focus:ring-0 cursor-pointer flex items-center justify-between gap-2">
-                <SelectValue placeholder="All Deliverables" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl border border-zinc-200 bg-white shadow-lg">
-                <SelectItem value="all" className="text-xs sm:text-sm font-medium">All Deliverables</SelectItem>
-                {availableDeliverableTypes.map((type) => (
-                  <SelectItem key={type} value={type} className="text-xs sm:text-sm font-medium">
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={deliverableTypeFilter}
+              onValueChange={setDeliverableTypeFilter}
+              placeholder="All Deliverables"
+              className="w-[165px] sm:w-[175px]"
+              options={[
+                { value: 'all', label: 'All Deliverables' },
+                ...availableDeliverableTypes.map((type) => ({ value: type, label: type })),
+              ]}
+            />
 
             {/* Status Filter Badges Track */}
             <div className="flex items-center gap-0.5 sm:gap-1 p-1 sm:p-1.5 bg-[#f3f4f6] rounded-2xl border border-zinc-200/40 shrink-0">

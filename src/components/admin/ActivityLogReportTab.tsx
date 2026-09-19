@@ -27,7 +27,7 @@ import { toast } from 'sonner';
 import { cn } from '../ui/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Input } from '../ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 
 interface ActivityReport {
     id: string;
@@ -352,21 +352,19 @@ export function ActivityLogReportTab() {
 
                                 <div className="flex flex-wrap gap-2 sm:gap-4">
                                     <div className="w-[160px]">
-                                        <Select value={roleFilter} onValueChange={setRoleFilter}>
-                                            <SelectTrigger className="bg-white border-slate-200 hover:border-slate-300 transition-colors">
-                                                <div className="flex items-center gap-2">
-                                                    <Users className="h-4 w-4 text-slate-400" />
-                                                    <SelectValue placeholder="All Roles" />
-                                                </div>
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">All Roles</SelectItem>
-                                                <SelectItem value="editor">Editors</SelectItem>
-                                                <SelectItem value="qc">QC Specialists</SelectItem>
-                                                <SelectItem value="scheduler">Schedulers</SelectItem>
-                                                <SelectItem value="videographer">Videographers</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                        <FilterSelect
+                                            value={roleFilter}
+                                            onValueChange={setRoleFilter}
+                                            placeholder="All Roles"
+                                            options={[
+                                                { value: 'all', label: 'All Roles' },
+                                                { value: 'editor', label: 'Editors' },
+                                                { value: 'qc', label: 'QC Specialists' },
+                                                { value: 'scheduler', label: 'Schedulers' },
+                                                { value: 'videographer', label: 'Videographers' },
+                                            ]}
+                                            className="w-full"
+                                        />
                                     </div>
 
                                     <div className="w-[180px]">

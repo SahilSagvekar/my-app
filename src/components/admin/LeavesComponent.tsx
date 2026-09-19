@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import {
   Table,
   TableBody,
@@ -1137,33 +1138,25 @@ export default function LeavesComponent() {
                 />
               </div>
 
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-40 h-9">
-                  <SelectValue placeholder="All Roles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Roles</SelectItem>
-                  {roles.map((role) => (
-                    <SelectItem key={role.id} value={role.id}>
-                      {role.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={roleFilter}
+                onValueChange={setRoleFilter}
+                placeholder="All Roles"
+                options={[
+                  { value: "all", label: "All Roles" },
+                  ...roles.map((role) => ({ value: role.id, label: role.name })),
+                ]}
+              />
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40 h-9">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status.id} value={status.id}>
-                      {status.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={statusFilter}
+                onValueChange={setStatusFilter}
+                placeholder="All Status"
+                options={[
+                  { value: "all", label: "All Status" },
+                  ...statusOptions.map((status) => ({ value: status.id, label: status.name })),
+                ]}
+              />
             </div>
 
             <Dialog
@@ -1583,23 +1576,21 @@ export default function LeavesComponent() {
               setPage(1);
             }}
           />
-          <Select
+          <FilterSelect
             value={leaveStatusFilter}
             onValueChange={(v: string) => {
               setLeaveStatusFilter(v);
               setPage(1);
             }}
-          >
-            <SelectTrigger className="w-32 h-9">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All Status</SelectItem>
-              <SelectItem value="PENDING">Pending</SelectItem>
-              <SelectItem value="APPROVED">Approved</SelectItem>
-              <SelectItem value="REJECTED">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
+            placeholder="Status"
+            options={[
+              { value: "ALL", label: "All Status" },
+              { value: "PENDING", label: "Pending" },
+              { value: "APPROVED", label: "Approved" },
+              { value: "REJECTED", label: "Rejected" },
+            ]}
+            className="w-32"
+          />
         </div>
       </div>
 

@@ -14,6 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import {
     Dialog,
     DialogContent,
@@ -331,40 +332,32 @@ export function GuidelinesManagementTab() {
                             />
                         </div>
 
-                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                            <SelectTrigger className="w-[200px]">
-                                <SelectValue placeholder="All Categories" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Categories</SelectItem>
-                                {CATEGORIES.map(cat => (
-                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <FilterSelect
+                            value={categoryFilter}
+                            onValueChange={setCategoryFilter}
+                            placeholder="All Categories"
+                            options={[
+                                { value: "all", label: "All Categories" },
+                                ...CATEGORIES.map(cat => ({ value: cat, label: cat })),
+                            ]}
+                        />
 
-                        <Select value={roleFilter} onValueChange={setRoleFilter}>
-                            <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="All Roles" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {ROLES.map(role => (
-                                    <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <FilterSelect
+                            value={roleFilter}
+                            onValueChange={setRoleFilter}
+                            placeholder="All Roles"
+                            options={ROLES.map(role => ({ value: role.id, label: role.name }))}
+                        />
 
-                        <Select value={clientFilter} onValueChange={setClientFilter}>
-                            <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="All Clients" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Clients</SelectItem>
-                                {clients.map(client => (
-                                    <SelectItem key={client.id} value={client.id}>{client.companyName || client.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <FilterSelect
+                            value={clientFilter}
+                            onValueChange={setClientFilter}
+                            placeholder="All Clients"
+                            options={[
+                                { value: "all", label: "All Clients" },
+                                ...clients.map(client => ({ value: client.id, label: client.companyName || client.name })),
+                            ]}
+                        />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

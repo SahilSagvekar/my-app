@@ -10,6 +10,7 @@ import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { toast } from 'sonner';
@@ -119,17 +120,15 @@ export function HiringTab() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search name or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full" />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48 h-9 text-sm">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {(Object.keys(STATUS_LABELS) as CandidateStatus[]).map((s) => (
-              <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FilterSelect
+          value={statusFilter}
+          onValueChange={setStatusFilter}
+          placeholder="All statuses"
+          options={[
+            { value: 'all', label: 'All statuses' },
+            ...(Object.keys(STATUS_LABELS) as CandidateStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] })),
+          ]}
+        />
       </div>
 
       {/* List */}
