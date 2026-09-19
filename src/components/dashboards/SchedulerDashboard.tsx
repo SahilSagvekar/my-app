@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { sortTaskImages } from '@/lib/task-image-order';
 import { TeamEodReport } from './TeamEodReport';
 import { Send } from 'lucide-react';
+import { PageHeader } from '../ui/page-header';
 
 // Mock current scheduler user
 const currentUser = {
@@ -430,25 +431,22 @@ export function SchedulerDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Scheduler Portal</h1>
-          <p className="text-muted-foreground mt-1 text-lg">
-            Schedule QC-approved content and manage production timeline
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="shadow-sm" onClick={() => setEodReportOpen(true)}>
-            <Send className="h-4 w-4 mr-2" />
-            Send EOD Report
-          </Button>
-          <Button className="shadow-sm">
-            <Calendar className="h-4 w-4 mr-2" />
-            New Schedule
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Scheduler Portal"
+        description="Schedule QC-approved content and manage production timeline"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setEodReportOpen(true)}>
+              <Send className="h-4 w-4 mr-2" />
+              Send EOD Report
+            </Button>
+            <Button>
+              <Calendar className="h-4 w-4 mr-2" />
+              New Schedule
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
