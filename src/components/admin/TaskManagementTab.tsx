@@ -11,6 +11,7 @@ import { FilterSelect } from '../ui/filter-select';
 import { Checkbox } from '../ui/checkbox';
 import { DateRangePicker } from '../ui/date-range-picker';
 import { LinkLfTask } from '../tasks/LinkLfTask';
+import { FilePreviewModal } from '../FileViewerModal';
 import {
   ListTodo, Search, RefreshCw, Filter, ChevronLeft, ChevronRight,
   AlertCircle, Clock, CheckCircle2, XCircle, Eye, MoreHorizontal,
@@ -234,6 +235,7 @@ export function TaskManagementTab() {
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
   const [fileFilterStatus, setFileFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [fileFolderFilter, setFileFolderFilter] = useState<string>('all');
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
 
   const availableFolders = useMemo(() => {
     const folders = new Set<string>();
@@ -1366,6 +1368,17 @@ export function TaskManagementTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {isAdmin && file.url && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      title="Preview file"
+                      onClick={() => setPreviewFile(file)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
                   {file.url && (
                     <Button
                       variant="ghost"
@@ -1399,6 +1412,12 @@ export function TaskManagementTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <FilePreviewModal
+        file={previewFile}
+        open={!!previewFile}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+      />
     </div>
   );
 }
