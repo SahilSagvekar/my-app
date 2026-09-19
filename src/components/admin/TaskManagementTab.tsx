@@ -7,6 +7,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { Checkbox } from '../ui/checkbox';
 import { DateRangePicker } from '../ui/date-range-picker';
 import { LinkLfTask } from '../tasks/LinkLfTask';
@@ -714,151 +715,92 @@ export function TaskManagementTab() {
 
         {showFilters && (
           <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
+            <div className="flex flex-wrap items-center gap-2">
               {[
                 { label: 'Editor', key: 'editor', items: editors },
                 { label: 'QC Specialist', key: 'qc', items: qcMembers },
                 { label: 'Scheduler', key: 'scheduler', items: schedulers },
                 { label: 'Videographer', key: 'videographer', items: videographers },
               ].map(({ label, key, items }) => (
-                <div key={key} className="space-y-1">
-                  <label className="text-xs text-slate-500">{label}</label>
-                  <Select
-                    value={(filters as any)[key]}
-                    onValueChange={(v) => {
-                      setFilters((f) => ({ ...f, [key]: v }));
-                      setPage(1);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 bg-white">
-                      <SelectValue placeholder={`All ${label}s`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All {label}s</SelectItem>
-                      {items.map((m) => (
-                        <SelectItem key={m.id} value={m.id.toString()}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <FilterSelect
+                  key={key}
+                  value={(filters as any)[key]}
+                  onValueChange={(v) => {
+                    setFilters((f) => ({ ...f, [key]: v }));
+                    setPage(1);
+                  }}
+                  placeholder={`All ${label}s`}
+                  options={[
+                    { value: 'all', label: `All ${label}s` },
+                    ...items.map((m) => ({ value: m.id.toString(), label: m.name })),
+                  ]}
+                />
               ))}
 
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">Client</label>
-                <Select
-                  value={filters.client}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, client: v }));
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-9 bg-white">
-                    <SelectValue placeholder="All Clients" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Clients</SelectItem>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.companyName || c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterSelect
+                value={filters.client}
+                onValueChange={(v) => {
+                  setFilters((f) => ({ ...f, client: v }));
+                  setPage(1);
+                }}
+                placeholder="All Clients"
+                options={[
+                  { value: 'all', label: 'All Clients' },
+                  ...clients.map((c) => ({ value: c.id, label: c.companyName || c.name })),
+                ]}
+              />
 
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">Status</label>
-                <Select
-                  value={filters.status}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, status: v }));
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-9 bg-white">
-                    <SelectValue placeholder="All Statuses" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    {STATUS_OPTIONS.map(([k, c]) => (
-                      <SelectItem key={k} value={k}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterSelect
+                value={filters.status}
+                onValueChange={(v) => {
+                  setFilters((f) => ({ ...f, status: v }));
+                  setPage(1);
+                }}
+                placeholder="All Statuses"
+                options={[
+                  { value: 'all', label: 'All Statuses' },
+                  ...STATUS_OPTIONS.map(([k, c]) => ({ value: k, label: c.label })),
+                ]}
+              />
 
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">Type</label>
-                <Select
-                  value={filters.deliverableType}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, deliverableType: v }));
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-9 bg-white">
-                    <SelectValue placeholder="All Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {availableDeliverableTypes.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t.replace(/_/g, ' ')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterSelect
+                value={filters.deliverableType}
+                onValueChange={(v) => {
+                  setFilters((f) => ({ ...f, deliverableType: v }));
+                  setPage(1);
+                }}
+                placeholder="All Types"
+                options={[
+                  { value: 'all', label: 'All Types' },
+                  ...availableDeliverableTypes.map((t) => ({ value: t, label: t.replace(/_/g, ' ') })),
+                ]}
+              />
 
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">Month</label>
-                <Select
-                  value={filters.month}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, month: v }));
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-9 bg-white">
-                    <SelectValue placeholder="All Months" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Months</SelectItem>
-                    {availableMonths.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterSelect
+                value={filters.month}
+                onValueChange={(v) => {
+                  setFilters((f) => ({ ...f, month: v }));
+                  setPage(1);
+                }}
+                placeholder="All Months"
+                options={[
+                  { value: 'all', label: 'All Months' },
+                  ...availableMonths.map((m) => ({ value: m, label: m })),
+                ]}
+              />
 
-              <div className="space-y-1">
-                <label className="text-xs text-slate-500">Tag</label>
-                <Select
-                  value={filters.tag}
-                  onValueChange={(v) => {
-                    setFilters((f) => ({ ...f, tag: v }));
-                    setPage(1);
-                  }}
-                >
-                  <SelectTrigger className="h-9 bg-white">
-                    <SelectValue placeholder="All Tags" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Tags</SelectItem>
-                    {allTags.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterSelect
+                value={filters.tag}
+                onValueChange={(v) => {
+                  setFilters((f) => ({ ...f, tag: v }));
+                  setPage(1);
+                }}
+                placeholder="All Tags"
+                options={[
+                  { value: 'all', label: 'All Tags' },
+                  ...allTags.map((t) => ({ value: t, label: t })),
+                ]}
+              />
             </div>
           </div>
         )}
