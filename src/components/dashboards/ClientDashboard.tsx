@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Switch } from '../ui/switch';
+import { PageHeader } from '../ui/page-header';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
@@ -1213,14 +1214,10 @@ export function ClientDashboard() {
         {pageView === 'content' && (
           <>
         {/* Page Header & Filter Row */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-zinc-200/80">
-          <div>
-            <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-zinc-950 leading-tight">Content Review</h1>
-            <p className="text-zinc-500 mt-1 text-xs sm:text-[13px] font-normal">
-              Review submitted work and approve or reject with feedback
-            </p>
-          </div>
-
+        <PageHeader
+          title="Content Review"
+          description="Review submitted work and approve or reject with feedback"
+          actions={
           <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
             {/* Desktop App auto-download toggle */}
             {typeof window !== 'undefined' && (window as any).e8?.isDesktopApp && (
@@ -1317,7 +1314,8 @@ export function ClientDashboard() {
               </button>
             </div>
           </div>
-        </div>
+          }
+        />
 
         <div className="flex-1">
           {loading ? (
