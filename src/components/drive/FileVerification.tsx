@@ -49,6 +49,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -480,15 +481,15 @@ export function FileVerification({ role }: FileVerificationProps) {
 
   return (
     <div className="space-y-6 max-w-6xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <FolderCheck className="h-6 w-6" />
-          File Verification
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Compare a folder on your computer against a folder in Files &amp; Drive by file name.
-        </p>
-      </div>
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
+            <FolderCheck className="h-6 w-6" />
+            File Verification
+          </span>
+        }
+        description="Compare a folder on your computer against a folder in Files & Drive by file name."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* ── Local folder ── */}

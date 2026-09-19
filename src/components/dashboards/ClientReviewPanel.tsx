@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent } from '../ui/card';
+import { PageHeader } from '../ui/page-header';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Loader2, Clock, ExternalLink, Send, RefreshCw, Inbox } from 'lucide-react';
@@ -67,26 +68,24 @@ export function ClientReviewPanel({ scope }: { scope: 'scheduler' | 'qc' }) {
 
   return (
     <div className="space-y-6">
-      {/* Page Header — matches the convention used by other full-page
-          destinations in this nav (e.g. "Content Review") */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-200">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-3">
             <Clock className="h-7 w-7" />
             Client Review
             {tasks.length > 0 && (
               <Badge variant="secondary" className="text-sm font-normal">{tasks.length}</Badge>
             )}
-          </h1>
-          <p className="text-muted-foreground mt-1 text-lg">
-            Videos currently awaiting client review, and reminders sent
-          </p>
-        </div>
-        <Button variant="outline" onClick={loadTasks} disabled={loading}>
-          <RefreshCw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
-          Refresh
-        </Button>
-      </div>
+          </span>
+        }
+        description="Videos currently awaiting client review, and reminders sent"
+        actions={
+          <Button variant="outline" onClick={loadTasks} disabled={loading}>
+            <RefreshCw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
+            Refresh
+          </Button>
+        }
+      />
 
       {loading ? (
         <div className="flex items-center justify-center py-24">

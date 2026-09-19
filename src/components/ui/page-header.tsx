@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 // Standard page header. Same look everywhere: Admin's spec, copied exact.
 // title required. description optional. actions = right side buttons.
 interface PageHeaderProps {
-  title: string;
-  description?: string;
+  title: React.ReactNode;
+  description?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
 }

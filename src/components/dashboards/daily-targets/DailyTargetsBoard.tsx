@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Target, Calendar, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '../../ui/button';
+import { PageHeader } from '../../ui/page-header';
 import { cn } from '@/lib/utils';
 import { useDailyTargetsProgress } from './useDailyTargetsProgress';
 import { ClientProgressDrawer } from './ClientProgressDrawer';
@@ -48,49 +49,47 @@ export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
 
   return (
     <div className="flex flex-col h-full space-y-6" data-role={role}>
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-gray-200">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-3">
             <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg">
               <Target className="h-6 w-6 text-white" />
             </div>
             Daily Posting Tracker
-          </h1>
-          <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-            Track scheduler posting compliance per platform per client (EST)
-          </p>
-        </div>
+          </span>
+        }
+        description="Track scheduler posting compliance per platform per client (EST)"
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
+            {data && (
+              <div className={cn(
+                "px-4 py-2 rounded-xl text-white font-bold text-lg",
+                `bg-gradient-to-r ${getProgressColor(data.grandProgress)}`
+              )}>
+                {data.grandCompleted}/{data.grandTotal} today
+              </div>
+            )}
 
-        <div className="flex flex-wrap items-center gap-3">
-          {data && (
-            <div className={cn(
-              "px-4 py-2 rounded-xl text-white font-bold text-lg",
-              `bg-gradient-to-r ${getProgressColor(data.grandProgress)}`
-            )}>
-              {data.grandCompleted}/{data.grandTotal} today
+            <div className="flex items-center gap-1 border rounded-lg px-1 py-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateDate(-1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="text-xs font-medium" onClick={goToToday}>
+                <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                {data ? formatDateEST(data.date) : 'Today'}
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateDate(1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          )}
 
-          <div className="flex items-center gap-1 border rounded-lg px-1 py-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateDate(-1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="text-xs font-medium" onClick={goToToday}>
-              <Calendar className="h-3.5 w-3.5 mr-1.5" />
-              {data ? formatDateEST(data.date) : 'Today'}
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateDate(1)}>
-              <ChevronRight className="h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={refetch} disabled={isFetching}>
+              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isFetching && "animate-spin")} />
+              Refresh
             </Button>
           </div>
-
-          <Button variant="outline" size="sm" onClick={refetch} disabled={isFetching}>
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isFetching && "animate-spin")} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {loading && !data && (
         <div className="flex-1 flex items-center justify-center">
