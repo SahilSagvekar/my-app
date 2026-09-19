@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDbHttp } from "@/lib/db";
-import { task, editorEodReport } from "@/lib/db/schema";
+import { task, editorEodReport, taskFeedback } from "@/lib/db/schema";
 import { and, eq, inArray, desc, gte } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 import {
@@ -80,6 +80,16 @@ export async function GET(req: NextRequest) {
       limit: 200,
     });
 
+    // Revision signal: task has ever received QC/client feedback.
+    const revisionTaskIds = new Set<string>();
+    if (tasks.length > 0) {
+      const feedbackRows = await db
+        .selectDistinct({ taskId: taskFeedback.taskId })
+        .from(taskFeedback)
+        .where(inArray(taskFeedback.taskId, tasks.map((t) => t.id)));
+      feedbackRows.forEach((r) => revisionTaskIds.add(r.taskId));
+    }
+
     const payload = tasks.map((row) => {
       const proofLinks = extractTaskProofLinks({
         files: row.files,
@@ -105,6 +115,7 @@ export async function GET(req: NextRequest) {
         clientName: row.client?.companyName || row.client?.name || null,
         status: row.status,
         proofLinks,
+        isRevision: revisionTaskIds.has(row.id),
         eligible: eligibility.eligible,
         disabledReason: eligibility.disabledReason || null,
       };

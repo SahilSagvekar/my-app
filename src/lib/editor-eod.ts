@@ -195,18 +195,33 @@ export function formatEditorEodSlackMessage(params: {
   tasks: Array<{
     title: string;
     proofLinks: ProofLink[];
+    isRevision?: boolean;
   }>;
   notes?: string;
 }): string {
   const { editorName, reportDate, tasks, notes } = params;
   const dateFormatted = formatReportDate(reportDate);
 
-  let message = `📌 *EOD Report — ${editorName}*\nDate: ${dateFormatted}\n\n✅ *Tasks Completed / Worked On*\n`;
+  let message = `📌 *EOD Report — ${editorName}*\nDate: ${dateFormatted}\n`;
 
-  tasks.forEach((task, i) => {
-    message += `\n${i + 1}. ${task.title}`;
-    message += "\n";
-  });
+  const freshTasks = tasks.filter((t) => !t.isRevision);
+  const revisionTasks = tasks.filter((t) => t.isRevision);
+
+  if (freshTasks.length > 0) {
+    message += `\n✅ *Fresh Tasks*\n`;
+    freshTasks.forEach((task, i) => {
+      message += `\n${i + 1}. ${task.title}`;
+      message += "\n";
+    });
+  }
+
+  if (revisionTasks.length > 0) {
+    message += `\n🔁 *Revisions*\n`;
+    revisionTasks.forEach((task, i) => {
+      message += `\n${i + 1}. ${task.title}`;
+      message += "\n";
+    });
+  }
 
   if (notes && notes.trim()) {
     message += `\n*Notes:*\n${notes.trim()}\n`;

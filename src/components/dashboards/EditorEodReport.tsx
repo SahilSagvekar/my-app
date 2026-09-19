@@ -33,6 +33,7 @@ interface EodTask {
   clientName: string | null;
   status: string;
   proofLinks: ProofLink[];
+  isRevision: boolean;
   eligible: boolean;
   disabledReason: string | null;
 }
@@ -106,6 +107,13 @@ export function EditorEodReport({ open, onOpenChange, isDialog }: EditorEodRepor
 
   const selectedTasks = tasks.filter((t) => selectedIds.has(t.id));
   const eligibleCount = tasks.filter((t) => t.eligible).length;
+
+  // Fresh vs revision — split purely for display/grouping, selection still
+  // works across both.
+  const freshTasks = tasks.filter((t) => !t.isRevision);
+  const revisionTasks = tasks.filter((t) => t.isRevision);
+  const freshSelectedTasks = selectedTasks.filter((t) => !t.isRevision);
+  const revisionSelectedTasks = selectedTasks.filter((t) => t.isRevision);
 
   const handleSend = async () => {
     if (selectedIds.size === 0) return;
@@ -216,6 +224,71 @@ export function EditorEodReport({ open, onOpenChange, isDialog }: EditorEodRepor
     return <FileText className="h-3 w-3 text-gray-400" />;
   };
 
+  const renderTaskCard = (task: EodTask) => (
+    <div
+      key={task.id}
+      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+        !task.eligible
+          ? "bg-gray-50 opacity-60 cursor-not-allowed"
+          : selectedIds.has(task.id)
+            ? "bg-indigo-50 border-indigo-200"
+            : "bg-white hover:bg-gray-50 border-gray-200"
+      }`}
+    >
+      <div className="pt-0.5">
+        <Checkbox
+          checked={selectedIds.has(task.id)}
+          onCheckedChange={() => toggleTask(task.id)}
+          disabled={!task.eligible}
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium truncate">
+            {task.title}
+          </span>
+          {getStatusBadge(task.status)}
+        </div>
+        {task.clientName && (
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {task.clientName}
+          </p>
+        )}
+        {!task.eligible && task.disabledReason && (
+          <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {task.disabledReason}
+          </p>
+        )}
+        {task.eligible && task.proofLinks.length > 0 && (
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {task.proofLinks.slice(0, 3).map((link, i) => (
+              <a
+                key={i}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {getLinkIcon(link.type)}
+                <span className="truncate max-w-[120px]">
+                  {link.name}
+                </span>
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            ))}
+            {task.proofLinks.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">
+                +{task.proofLinks.length - 3} more
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <Card>
@@ -298,72 +371,29 @@ export function EditorEodReport({ open, onOpenChange, isDialog }: EditorEodRepor
               </button>
             </div>
 
-            {/* Tasks */}
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-                    !task.eligible
-                      ? "bg-gray-50 opacity-60 cursor-not-allowed"
-                      : selectedIds.has(task.id)
-                        ? "bg-indigo-50 border-indigo-200"
-                        : "bg-white hover:bg-gray-50 border-gray-200"
-                  }`}
-                >
-                  <div className="pt-0.5">
-                    <Checkbox
-                      checked={selectedIds.has(task.id)}
-                      onCheckedChange={() => toggleTask(task.id)}
-                      disabled={!task.eligible}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium truncate">
-                        {task.title}
-                      </span>
-                      {getStatusBadge(task.status)}
-                    </div>
-                    {task.clientName && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {task.clientName}
-                      </p>
-                    )}
-                    {!task.eligible && task.disabledReason && (
-                      <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        {task.disabledReason}
-                      </p>
-                    )}
-                    {task.eligible && task.proofLinks.length > 0 && (
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        {task.proofLinks.slice(0, 3).map((link, i) => (
-                          <a
-                            key={i}
-                            href={link.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[10px] text-blue-600 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {getLinkIcon(link.type)}
-                            <span className="truncate max-w-[120px]">
-                              {link.name}
-                            </span>
-                            <ExternalLink className="h-2.5 w-2.5" />
-                          </a>
-                        ))}
-                        {task.proofLinks.length > 3 && (
-                          <span className="text-[10px] text-muted-foreground">
-                            +{task.proofLinks.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    )}
+            {/* Tasks — grouped fresh vs revision */}
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+              {freshTasks.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                    Fresh Tasks &middot; {freshTasks.length}
+                  </p>
+                  <div className="space-y-2">
+                    {freshTasks.map((task) => renderTaskCard(task))}
                   </div>
                 </div>
-              ))}
+              )}
+
+              {revisionTasks.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                    Revisions &middot; {revisionTasks.length}
+                  </p>
+                  <div className="space-y-2">
+                    {revisionTasks.map((task) => renderTaskCard(task))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Notes */}
@@ -404,31 +434,66 @@ export function EditorEodReport({ open, onOpenChange, isDialog }: EditorEodRepor
                     <p className="text-gray-400">
                       Date: {formatPreviewDate(reportDate)}
                     </p>
-                    <p className="mt-2 font-bold">
-                      ✅ Tasks Completed / Worked On
-                    </p>
-                    {selectedTasks.map((task, i) => (
-                      <div key={task.id} className="mt-2">
-                        <p>
-                          {i + 1}. {task.title}
+
+                    {freshSelectedTasks.length > 0 && (
+                      <>
+                        <p className="mt-2 font-bold">
+                          ✅ Fresh Tasks
                         </p>
-                        {task.proofLinks.length > 0 && (
-                          <>
-                            <p className="text-gray-400 text-xs">
-                              Cloudflare/Output Link:
+                        {freshSelectedTasks.map((task, i) => (
+                          <div key={task.id} className="mt-2">
+                            <p>
+                              {i + 1}. {task.title}
                             </p>
-                            {task.proofLinks.map((link, j) => (
-                              <p
-                                key={j}
-                                className="text-blue-400 text-xs truncate"
-                              >
-                                {link.url}
-                              </p>
-                            ))}
-                          </>
-                        )}
-                      </div>
-                    ))}
+                            {task.proofLinks.length > 0 && (
+                              <>
+                                <p className="text-gray-400 text-xs">
+                                  Cloudflare/Output Link:
+                                </p>
+                                {task.proofLinks.map((link, j) => (
+                                  <p
+                                    key={j}
+                                    className="text-blue-400 text-xs truncate"
+                                  >
+                                    {link.url}
+                                  </p>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {revisionSelectedTasks.length > 0 && (
+                      <>
+                        <p className="mt-3 font-bold">
+                          🔁 Revisions
+                        </p>
+                        {revisionSelectedTasks.map((task, i) => (
+                          <div key={task.id} className="mt-2">
+                            <p>
+                              {i + 1}. {task.title}
+                            </p>
+                            {task.proofLinks.length > 0 && (
+                              <>
+                                <p className="text-gray-400 text-xs">
+                                  Cloudflare/Output Link:
+                                </p>
+                                {task.proofLinks.map((link, j) => (
+                                  <p
+                                    key={j}
+                                    className="text-blue-400 text-xs truncate"
+                                  >
+                                    {link.url}
+                                  </p>
+                                ))}
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
                     {notes.trim() && (
                       <div className="mt-3">
                         <p className="font-bold">Notes:</p>

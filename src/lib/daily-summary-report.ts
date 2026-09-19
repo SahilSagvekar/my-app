@@ -2,7 +2,7 @@
 // Generates a daily summary of what each team member did (12 AM – 7 PM EST)
 // Includes: task status changes, login/logout times, client activity
 import { getDbHttp } from './db';
-import { auditLog, task as taskTable, user as userTable } from './db/schema';
+import { auditLog, task as taskTable, user as userTable, taskFeedback as taskFeedbackTable } from './db/schema';
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { format, subSeconds } from 'date-fns';
 import { sendDailySummaryToSlack } from './slack';
@@ -25,6 +25,11 @@ interface UserDailySummary {
     // Editor metrics
     tasksMovedToInProgress: number;
     tasksMovedToReadyForQC: number;
+    // Of the above — how many were revisions (task has prior QC/client
+    // feedback) rather than a first pass. Simple signal: any TaskFeedback
+    // row ever created for the task.
+    tasksMovedToInProgressRevision: number;
+    tasksMovedToReadyForQCRevision: number;
     // QC metrics
     tasksQCApproved: number;       // QC moved to COMPLETED or CLIENT_REVIEW
     tasksQCRejected: number;       // QC moved to REJECTED
@@ -137,6 +142,21 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
 
         console.log(`📅 Found ${scheduledTasks.length} tasks scheduled in this window`);
 
+        // === 3b. Which of today's touched tasks are revisions? ===
+        // Simple signal: the task has at least one TaskFeedback row ever
+        // (QC/client left a comment/rejection at some point) — no need to
+        // walk status history for this.
+        const touchedTaskIds = Array.from(new Set(taskAuditLogs.map(l => l.entityId).filter((id): id is string => !!id)));
+        const revisionTaskIds = new Set<string>();
+        if (touchedTaskIds.length > 0) {
+            const feedbackRows = await db
+                .selectDistinct({ taskId: taskFeedbackTable.taskId })
+                .from(taskFeedbackTable)
+                .where(inArray(taskFeedbackTable.taskId, touchedTaskIds));
+            feedbackRows.forEach(r => revisionTaskIds.add(r.taskId));
+        }
+        console.log(`🔁 ${revisionTaskIds.size} of ${touchedTaskIds.length} touched tasks have prior feedback (revision)`);
+
         // === 4. Build per-user summary ===
         const userMap: Record<number, UserDailySummary> = {};
 
@@ -148,6 +168,8 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
                     role,
                     tasksMovedToInProgress: 0,
                     tasksMovedToReadyForQC: 0,
+                    tasksMovedToInProgressRevision: 0,
+                    tasksMovedToReadyForQCRevision: 0,
                     tasksQCApproved: 0,
                     tasksQCRejected: 0,
                     tasksScheduled: 0,
@@ -218,14 +240,18 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
             };
 
             // === Editor actions ===
+            const isRevision = revisionTaskIds.has(log.entityId || '');
+
             if (newStatus === 'IN_PROGRESS') {
                 userSummary.tasksMovedToInProgress++;
-                taskDetail.action = 'Moved to In Progress';
+                if (isRevision) userSummary.tasksMovedToInProgressRevision++;
+                taskDetail.action = isRevision ? 'Moved to In Progress (Revision)' : 'Moved to In Progress';
             }
 
             if (newStatus === 'READY_FOR_QC') {
                 userSummary.tasksMovedToReadyForQC++;
-                taskDetail.action = 'Sent to QC';
+                if (isRevision) userSummary.tasksMovedToReadyForQCRevision++;
+                taskDetail.action = isRevision ? 'Sent to QC (Revision)' : 'Sent to QC';
             }
 
             // === QC actions ===
@@ -351,12 +377,14 @@ export async function generateDailySummaryReport(options: DailySummaryOptions = 
 
         try {
             // --- CSV Section 1: Team Summary ---
-            const summaryHeaders = ['Name', 'Role', 'Started / In Progress', 'Sent to QC', 'QC Approved', 'QC Rejected', 'Scheduled / Posted', 'Client Approved', 'Client Revisions', 'Files Uploaded', 'Tasks Created', 'Total Actions'];
+            const summaryHeaders = ['Name', 'Role', 'Started / In Progress', 'Started (Revision)', 'Sent to QC', 'Sent to QC (Revision)', 'QC Approved', 'QC Rejected', 'Scheduled / Posted', 'Client Approved', 'Client Revisions', 'Files Uploaded', 'Tasks Created', 'Total Actions'];
             const summaryRows = activeUsers.map(u => [
                 u.userName,
                 u.role,
                 u.tasksMovedToInProgress,
+                u.tasksMovedToInProgressRevision,
                 u.tasksMovedToReadyForQC,
+                u.tasksMovedToReadyForQCRevision,
                 u.tasksQCApproved,
                 u.tasksQCRejected,
                 u.tasksScheduled,

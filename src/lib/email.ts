@@ -1071,19 +1071,27 @@ export async function sendDailySummaryReportEmail(report: {
     const metrics: string[] = [];
 
     if (user.tasksMovedToInProgress > 0) {
+      const revisionNote = user.tasksMovedToInProgressRevision > 0
+        ? `<div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${user.tasksMovedToInProgressRevision} revision${user.tasksMovedToInProgressRevision !== 1 ? 's' : ''}</div>`
+        : '';
       metrics.push(`
         <div style="display: inline-block; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px 14px; margin: 4px;">
           <div style="font-size: 22px; font-weight: 700; color: #2563eb;">${user.tasksMovedToInProgress}</div>
           <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Started / In Progress</div>
+          ${revisionNote}
         </div>
       `);
     }
 
     if (user.tasksMovedToReadyForQC > 0) {
+      const revisionNote = user.tasksMovedToReadyForQCRevision > 0
+        ? `<div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${user.tasksMovedToReadyForQCRevision} revision${user.tasksMovedToReadyForQCRevision !== 1 ? 's' : ''}</div>`
+        : '';
       metrics.push(`
         <div style="display: inline-block; background: #fefce8; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 14px; margin: 4px;">
           <div style="font-size: 22px; font-weight: 700; color: #ca8a04;">${user.tasksMovedToReadyForQC}</div>
           <div style="font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Sent to QC</div>
+          ${revisionNote}
         </div>
       `);
     }

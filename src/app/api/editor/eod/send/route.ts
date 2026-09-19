@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDbPool } from "@/lib/db";
-import { task, editorEodReport, editorEodReportItem } from "@/lib/db/schema";
+import { task, editorEodReport, editorEodReportItem, taskFeedback } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, inArray } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
@@ -81,6 +81,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Revision signal: task has ever received QC/client feedback.
+    const revisionTaskIds = new Set<string>();
+    if (tasks.length > 0) {
+      const feedbackRows = await db
+        .selectDistinct({ taskId: taskFeedback.taskId })
+        .from(taskFeedback)
+        .where(inArray(taskFeedback.taskId, tasks.map((t) => t.id)));
+      feedbackRows.forEach((r) => revisionTaskIds.add(r.taskId));
+    }
+
     // Server-side validation
     const errors: string[] = [];
 
@@ -132,6 +142,7 @@ export async function POST(req: NextRequest) {
         taskTitle: task.title || "Untitled Task",
         proofLinks: proofLinks,
         statusAtSend: task.status || null,
+        isRevision: revisionTaskIds.has(task.id),
       };
     });
 
@@ -159,9 +170,9 @@ export async function POST(req: NextRequest) {
         }).returning();
       }
 
-      // Create report items
+      // Create report items — isRevision is Slack-message-only, not a DB column
       await tx.insert(editorEodReportItem).values(
-        reportItems.map((item) => ({
+        reportItems.map(({ isRevision, ...item }) => ({
           id: createId(),
           reportId: reportRecord.id,
           ...item,
@@ -178,6 +189,7 @@ export async function POST(req: NextRequest) {
       tasks: reportItems.map((item) => ({
         title: item.taskTitle,
         proofLinks: item.proofLinks as any,
+        isRevision: item.isRevision,
       })),
       notes: notes,
     });
