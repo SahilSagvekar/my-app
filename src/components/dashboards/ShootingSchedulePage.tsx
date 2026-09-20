@@ -168,9 +168,9 @@ export function ShootingSchedulePage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const fetchAll = useCallback(async (opts: { silent?: boolean } = {}) => {
+  const fetchAll = useCallback(async () => {
     try {
-      if (!opts.silent) setLoading(true);
+      setLoading(true);
       const [shootsRes, equipmentRes, videographersRes, clientsRes] = await Promise.all([
         fetch('/api/shoots'),
         fetch('/api/equipment'),
@@ -189,7 +189,7 @@ export function ShootingSchedulePage() {
       console.error('Failed to load shooting schedule:', err);
       toast.error('Failed to load shooting schedule');
     } finally {
-      if (!opts.silent) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
@@ -1013,13 +1013,6 @@ export function ShootingSchedulePage() {
               );
             })()}
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Input placeholder="Camera" value={form.camera} onChange={(e) => setForm(f => ({ ...f, camera: e.target.value }))} />
-              <Input placeholder="Quality" value={form.quality} onChange={(e) => setForm(f => ({ ...f, quality: e.target.value }))} />
-              <Input placeholder="Frame rate" value={form.frameRate} onChange={(e) => setForm(f => ({ ...f, frameRate: e.target.value }))} />
-              <Input placeholder="Lighting" value={form.lighting} onChange={(e) => setForm(f => ({ ...f, lighting: e.target.value }))} />
-            </div>
-
             {/* Mileage & Vehicle Verification */}
             <div className="space-y-4">
               <div>
@@ -1231,7 +1224,7 @@ export function ShootingSchedulePage() {
         shoot={scriptDialogShoot}
         open={!!scriptDialogShoot}
         onOpenChange={(open) => { if (!open) setScriptDialogShoot(null); }}
-        onChanged={() => fetchAll({ silent: true })}
+        onChanged={fetchAll}
       />
 
       {/* Cancel Shoot confirmation */}
