@@ -48,10 +48,18 @@ async function getClientLink(user: AuthMeUser) {
     };
   }
 
-  const [client] = await db.select({ id: clientTable.id, hasPostingServices: clientTable.hasPostingServices, scriptsRequired: clientTable.scriptsRequired })
-    .from(clientTable)
-    .where(or(eq(clientTable.email, user.email), arrayContains(clientTable.emails, [user.email])))
-    .limit(1);
+  // Same resolution order as resolveClientIdForUser: Client.userId first (the
+  // legacy 1:1 link), then email match. Email-only lookup missed clients whose
+  // login email differs from the Client record, so scriptsRequired fell back
+  // to false and the Scripts sidebar item was hidden for them.
+  const columns = { id: clientTable.id, hasPostingServices: clientTable.hasPostingServices, scriptsRequired: clientTable.scriptsRequired };
+  const [byUserId] = await db.select(columns).from(clientTable).where(eq(clientTable.userId, user.id)).limit(1);
+  const [client] = byUserId
+    ? [byUserId]
+    : await db.select(columns)
+        .from(clientTable)
+        .where(or(eq(clientTable.email, user.email), arrayContains(clientTable.emails, [user.email])))
+        .limit(1);
 
   return {
     linkedClientId: client?.id || null,

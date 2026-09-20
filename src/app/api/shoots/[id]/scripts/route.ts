@@ -72,10 +72,30 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   if (!document || document.version !== 1 || !Array.isArray(document.scripts)) {
     return NextResponse.json({ error: 'A valid script document is required' }, { status: 400 });
   }
+  // Status / review-task / versions / client feedback are owned by the submit
+  // and client-action routes. The editor autosaves a whole document that can
+  // be stale (e.g. a debounced save firing right after "Submit"), and used to
+  // overwrite a just-sent script back to 'draft' — flipping scriptStatus to
+  // 'draft' too, so the client's Scripts page showed nothing. Keep the stored
+  // values for scripts that already exist; the PATCH only owns content/title/etc.
+  const [stored] = await getDbHttp().select({ scriptContent: shootDetailTable.scriptContent })
+    .from(shootDetailTable).where(eq(shootDetailTable.taskId, id)).limit(1);
+  if (!stored) return NextResponse.json({ error: 'Shoot not found' }, { status: 404 });
+  const storedById = new Map(readShootScriptDocument(stored.scriptContent).scripts.map((s) => [s.id, s]));
   const normalised = {
     version: 1 as const,
     videosPlanned: Math.max(1, Math.min(99, Number(document.videosPlanned) || 1)),
-    scripts: document.scripts.slice(0, 99),
+    scripts: document.scripts.slice(0, 99).map((script) => {
+      const current = storedById.get(script.id);
+      if (!current) return script;
+      return {
+        ...script,
+        status: current.status,
+        reviewTaskId: current.reviewTaskId,
+        versions: current.versions,
+        clientFeedback: current.clientFeedback,
+      };
+    }),
   };
   const [updated] = await getDbHttp().update(shootDetailTable).set({
     scriptContent: writeShootScriptDocument(normalised),

@@ -199,6 +199,10 @@ export function ShootScriptsDialog({ shoot, open, onOpenChange, onChanged }: { s
     if (!selected || !shoot?.client) { toast.error('Assign a client to this shoot before submitting'); return; }
     setSaveStatus('saving');
     try {
+      // Flush pending edits first and cancel the debounced autosave so a stale
+      // save can't land after the submit.
+      if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+      if (!(await persist(document, true))) return;
       const response = await fetch(`/api/shoots/${shoot.id}/scripts/${selected.id}/submit`, { method: 'POST' });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Could not submit script');
       const { script } = await response.json();
