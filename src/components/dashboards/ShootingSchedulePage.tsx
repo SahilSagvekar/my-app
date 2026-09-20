@@ -300,6 +300,7 @@ export function ShootingSchedulePage() {
     setEditingShootId(shoot.id);
     setStatusBlockedMessage(null);
     setReturnPhotoFiles({});
+    setAutoFilledVideos(null);
     setForm({
       title: shoot.title || '',
       clientId: shoot.client?.id || '',
@@ -333,6 +334,13 @@ export function ShootingSchedulePage() {
     setMileagePhotosAfter(null);
     setEquipOpen(false);
     setIsFormOpen(true);
+    // Re-pull the client's current monthly deliverable total every time the
+    // edit form opens, so "Videos Planned" reflects deliverables as they
+    // stand today — not just what was true when the shoot was first created.
+    // Still just a pre-fill: editing the field manually overrides it.
+    if (shoot.client?.id) {
+      fetchClientVideosPlanned(shoot.client.id);
+    }
   };
 
   const toggleEquipment = (id: string) => {
