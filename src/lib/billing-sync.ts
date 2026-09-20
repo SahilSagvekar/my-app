@@ -211,10 +211,12 @@ export async function syncStripeCustomers(
           await db.update(clientPortalAccess).set({
             status: 'LOCKED',
             lockedAt: now.toISOString(),
+            adminUnlockedById: null,
             updatedAt: now.toISOString(),
           }).where(eq(clientPortalAccess.clientId, customer.clientId));
           console.log(`[Stripe Sync] Locked portal for client: ${customer.client?.name}`);
-        } else if (!shouldLock && portalAccess.status === 'LOCKED') {
+        } else if (!shouldLock && portalAccess.status === 'LOCKED' && !portalAccess.adminUnlockedById) {
+          // adminUnlockedById on a LOCKED row = manual admin lock; never auto-unlock.
           const unlockData: Record<string, unknown> = {
             status: 'ACTIVE',
             lockedAt: null,

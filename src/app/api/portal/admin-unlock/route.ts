@@ -55,7 +55,9 @@ export async function DELETE(req: NextRequest) {
     const [portalAccess] = await db.update(clientPortalAccessTable).set({
       status: 'LOCKED',
       lockedAt: new Date().toISOString(),
-      adminUnlockedById: null,
+      // Marker: LOCKED + adminUnlockedById set = manual admin lock. Auto-unlock
+      // paths (billing-sync, verify-payment) must not clear it.
+      adminUnlockedById: user!.id,
       adminUnlockedAt: null,
       updatedAt: new Date().toISOString(),
     }).where(eq(clientPortalAccessTable.clientId, clientId)).returning();

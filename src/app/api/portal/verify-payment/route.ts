@@ -38,6 +38,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, status: 'ACTIVE', message: 'Already active' });
     }
 
+    // Manual admin lock (LOCKED + adminUnlockedById) — only an admin can lift it.
+    if (portalAccess.status === 'LOCKED' && portalAccess.adminUnlockedById) {
+      return NextResponse.json({ success: false, status: 'LOCKED', message: 'Portal manually locked by admin' });
+    }
+
     const [stripeCustomer] = await db
       .select()
       .from(stripeCustomerTable)
@@ -135,6 +140,7 @@ export async function GET(req: NextRequest) {
         autoInvoiceActive: !!portalAccess.autoInvoiceActive,
         existingNextBillingDate: portalAccess.nextBillingDate,
         billingAnchorDate: portalAccess.billingAnchorDate,
+        manuallyLocked: false,
       });
 
       await db.update(clientPortalAccessTable).set(updateData).where(eq(clientPortalAccessTable.clientId, client.id));

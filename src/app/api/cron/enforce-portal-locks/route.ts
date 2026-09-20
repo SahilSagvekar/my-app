@@ -138,6 +138,7 @@ export async function POST(req: NextRequest) {
       await db.update(clientPortalAccessTable).set({
         status: 'LOCKED',
         lockedAt: now.toISOString(),
+        adminUnlockedById: null,
         updatedAt: new Date().toISOString(),
       }).where(eq(clientPortalAccessTable.clientId, customer.clientId));
 

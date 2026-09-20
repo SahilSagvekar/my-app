@@ -50,6 +50,8 @@ export function portalUnlockUpdate(opts: {
   existingNextBillingDate: string | null | undefined;
   billingAnchorDate: string | null | undefined;
   now?: Date;
+  /** LOCKED + adminUnlockedById = manual admin lock. Payment must not lift it. */
+  manuallyLocked?: boolean;
 }): Record<string, unknown> {
   const now = opts.now ?? new Date();
   const update: Record<string, unknown> = {
@@ -59,6 +61,13 @@ export function portalUnlockUpdate(opts: {
     adminUnlockedAt: null,
     updatedAt: now.toISOString(),
   };
+
+  if (opts.manuallyLocked) {
+    delete update.status;
+    delete update.lockedAt;
+    delete update.adminUnlockedById;
+    delete update.adminUnlockedAt;
+  }
 
   if (!opts.billingAnchorDate) {
     update.billingAnchorDate = now.toISOString();

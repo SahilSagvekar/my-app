@@ -201,6 +201,7 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
         autoInvoiceActive: !!portalAccess.autoInvoiceActive,
         existingNextBillingDate: portalAccess.nextBillingDate,
         billingAnchorDate: portalAccess.billingAnchorDate,
+        manuallyLocked: portalAccess.status === 'LOCKED' && !!portalAccess.adminUnlockedById,
       });
       await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, clientId));
     }
@@ -274,6 +275,7 @@ async function handlePaymentIntentProcessing(paymentIntent: Stripe.PaymentIntent
       autoInvoiceActive: !!portalAccess.autoInvoiceActive,
       existingNextBillingDate: portalAccess.nextBillingDate,
       billingAnchorDate: portalAccess.billingAnchorDate,
+        manuallyLocked: portalAccess.status === 'LOCKED' && !!portalAccess.adminUnlockedById,
     });
     await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, clientId));
     console.log(`🔓 [Portal] Unlocked early for client ${clientId} — payment ${paymentIntent.id} initiated (processing, not yet settled)`);
@@ -381,6 +383,7 @@ async function handleInvoicePaid(stripeInvoice: Stripe.Invoice) {
         autoInvoiceActive: !!portalAccess.autoInvoiceActive,
         existingNextBillingDate: portalAccess.nextBillingDate,
         billingAnchorDate: portalAccess.billingAnchorDate,
+        manuallyLocked: portalAccess.status === 'LOCKED' && !!portalAccess.adminUnlockedById,
       });
 
       await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, client.id));
@@ -673,6 +676,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         autoInvoiceActive: !!portalAccess.autoInvoiceActive,
         existingNextBillingDate: portalAccess.nextBillingDate,
         billingAnchorDate: portalAccess.billingAnchorDate,
+        manuallyLocked: portalAccess.status === 'LOCKED' && !!portalAccess.adminUnlockedById,
       });
       await db.update(clientPortalAccess).set(updateData).where(eq(clientPortalAccess.clientId, clientId));
       console.log(`🔓 [Portal] Unlocked via Checkout for invoice ${invoiceId}`);
@@ -853,6 +857,7 @@ async function handleFirstCheckoutPayment(stripeInvoice: Stripe.Invoice) {
     autoInvoiceActive: !!client.portalAccess.autoInvoiceActive,
     existingNextBillingDate: client.portalAccess.nextBillingDate,
     billingAnchorDate: client.portalAccess.billingAnchorDate,
+        manuallyLocked: client.portalAccess.status === 'LOCKED' && !!client.portalAccess.adminUnlockedById,
     now,
   });
   // First-time onboarding without auto-invoice still needs a nextBillingDate
