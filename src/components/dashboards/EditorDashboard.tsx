@@ -548,6 +548,14 @@ function FileViewerDialog({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="font-medium text-sm truncate" title={file.name}>{file.name}</p>
+                      {(!file.folderType || file.folderType === "main") && file.version != null && (
+                        <Badge
+                          variant={file.isActive === false ? "outline" : "default"}
+                          className="text-[10px] px-1.5 py-0 h-4"
+                        >
+                          V{file.version}{file.isActive === false ? " · previous" : " · current"}
+                        </Badge>
+                      )}
                       {file.folderType && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 capitalize">
                           {file.folderType === "main" ? "📁 Main" :
@@ -1391,6 +1399,26 @@ function TaskCard({
                         );
                       })}
                     </div>
+                  )}
+
+                  {/* All main-file versions (current + previous) — previously
+                      there was no way to open these from the expanded panel,
+                      so editors couldn't replay earlier versions on a rejected task. */}
+                  {!isHardPostTask && mainFiles.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveFileViewer({
+                          title: "Task Files",
+                          files: [...mainFiles].sort((a, b) => (b.version || 1) - (a.version || 1)),
+                        });
+                      }}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-semibold text-gray-900 rounded-xl border border-gray-300 bg-white hover:bg-gray-50/80 transition-colors"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View files &amp; previous versions
+                    </button>
                   )}
 
                   {/* Main Task File Upload Box — only the video editor assigned to this task */}
