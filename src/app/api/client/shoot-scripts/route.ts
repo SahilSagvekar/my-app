@@ -87,9 +87,8 @@ export async function GET(req: NextRequest) {
         .filter((script) => ['sent', 'approved', 'changes_requested'].includes(script.status))
         .map((script) => ({
           ...script,
-          // Fold the retired changes_requested state into "sent" (Pending)
-          // for display — see comment above.
-          status: script.status === 'changes_requested' ? 'sent' as const : script.status,
+          // changes_requested is passed through so the client sees their
+          // rejection reflected (UI groups it under Pending).
           taskId: row.taskId,
           taskTitle: row.taskTitle,
           shootDate: row.shootDate,

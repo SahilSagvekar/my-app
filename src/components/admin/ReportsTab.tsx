@@ -332,7 +332,6 @@ export function ReportsTab() {
               className="w-64"
               options={employees.map((employee) => ({ value: employee.id, label: employee.name }))}
             />
-            </div>
 
             <div className="space-y-2">
               <label className="text-sm">Date Range</label>

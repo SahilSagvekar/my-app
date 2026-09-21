@@ -340,7 +340,7 @@ export function ClientShootScriptsPage() {
                   <span className={`flex-shrink-0 inline-flex items-center h-6 px-2.5 rounded-md text-[11px] font-extrabold tracking-wide uppercase ${
                     pending ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
                   }`}>
-                    {pending ? 'Pending' : 'Approved'}
+                    {!pending ? 'Approved' : script.status === 'changes_requested' ? 'Changes requested' : 'Pending'}
                   </span>
                 </div>
 

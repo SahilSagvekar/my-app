@@ -40,11 +40,27 @@ async function getClientLink(user: AuthMeUser) {
     };
   }
 
-  if (user.linkedClientId || user.client?.id) {
+  if (user.client?.id) {
     return {
-      linkedClientId: user.linkedClientId || user.client?.id,
-      hasPostingServices: user.client?.hasPostingServices ?? true,
-      scriptsRequired: user.client?.scriptsRequired ?? false,
+      linkedClientId: user.linkedClientId || user.client.id,
+      hasPostingServices: user.client.hasPostingServices ?? true,
+      scriptsRequired: user.client.scriptsRequired ?? false,
+    };
+  }
+
+  // linkedClientId set but no Client.userId relation: read flags from the
+  // linked Client itself. Defaulting scriptsRequired to false here made the
+  // Scripts sidebar item vanish after the /api/auth/me refetch.
+  if (user.linkedClientId) {
+    const [linked] = await db
+      .select({ id: clientTable.id, hasPostingServices: clientTable.hasPostingServices, scriptsRequired: clientTable.scriptsRequired })
+      .from(clientTable)
+      .where(eq(clientTable.id, user.linkedClientId))
+      .limit(1);
+    return {
+      linkedClientId: user.linkedClientId,
+      hasPostingServices: linked?.hasPostingServices ?? true,
+      scriptsRequired: linked?.scriptsRequired ?? false,
     };
   }
 
