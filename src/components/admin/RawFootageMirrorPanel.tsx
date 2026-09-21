@@ -10,7 +10,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { ChevronRight, Folder, UploadCloud, RefreshCw, Home } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -195,16 +195,13 @@ export default function RawFootageMirrorPanel({
       </p>
 
       <div className="flex items-center gap-3 mb-3">
-        <Select value={clientName} onValueChange={setClientName}>
-          <SelectTrigger className="w-56 h-8 text-xs">
-            <SelectValue placeholder="Select client…" />
-          </SelectTrigger>
-          <SelectContent>
-            {clients.map(c => (
-              <SelectItem key={c.id} value={c.companyName || c.name}>{c.companyName || c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FilterSelect
+          value={clientName}
+          onValueChange={setClientName}
+          placeholder="Select client…"
+          className="w-56 h-8 text-xs"
+          options={clients.map(c => ({ value: c.companyName || c.name, label: c.companyName || c.name }))}
+        />
         {loading && <RefreshCw className="h-3.5 w-3.5 text-gray-400 animate-spin" />}
       </div>
 

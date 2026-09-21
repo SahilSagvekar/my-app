@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import {
   Package,
   Users,
@@ -282,20 +282,17 @@ export function MonthlyDeliverablesTab() {
             </div>
 
             <div className="flex gap-3 items-center">
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[180px]">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Select month" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Last 6 Months</SelectItem>
-                  {monthsList.map((month) => (
-                    <SelectItem key={month.key} value={month.key}>
-                      {month.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={selectedMonth}
+                onValueChange={setSelectedMonth}
+                placeholder="Select month"
+                className="w-[180px]"
+                icon={<Calendar className="h-4 w-4 mr-2" />}
+                options={[
+                  { value: "all", label: "Last 6 Months" },
+                  ...monthsList.map((month) => ({ value: month.key, label: month.label })),
+                ]}
+              />
 
               <Button
                 variant="outline"

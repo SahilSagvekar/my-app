@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { DatePickerWithRange } from '../ui/date-picker-with-range';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { TrendingUp, TrendingDown, Eye, Heart, MessageCircle, Share, Users, MousePointer, DollarSign, Calendar, Download, Filter, RefreshCw, Youtube, Instagram } from 'lucide-react';
@@ -114,36 +114,32 @@ export function AnalyticsTab() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap items-end gap-4">
-              <div className="space-y-2">
-                <label className="text-sm">Client</label>
-                <Select value={selectedClient} onValueChange={setSelectedClient}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Select client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Clients</SelectItem>
-                    {data?.clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterSelect
+                label="Client"
+                wrapperClassName="space-y-2"
+                value={selectedClient}
+                onValueChange={setSelectedClient}
+                placeholder="Select client"
+                className="w-48"
+                options={[
+                  { value: "all", label: "All Clients" },
+                  ...(data?.clients.map((client) => ({ value: client.id, label: client.name })) ?? []),
+                ]}
+              />
 
-              <div className="space-y-2">
-                <label className="text-sm">Range</label>
-                <Select value={selectedRange} onValueChange={setSelectedRange}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Select range" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7d">Last 7 Days</SelectItem>
-                    <SelectItem value="28d">Last 28 Days</SelectItem>
-                    <SelectItem value="90d">Last 90 Days</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <FilterSelect
+                label="Range"
+                wrapperClassName="space-y-2"
+                value={selectedRange}
+                onValueChange={setSelectedRange}
+                placeholder="Select range"
+                className="w-48"
+                options={[
+                  { value: "7d", label: "Last 7 Days" },
+                  { value: "28d", label: "Last 28 Days" },
+                  { value: "90d", label: "Last 90 Days" },
+                ]}
+              />
 
               <Button onClick={fetchData} variant="outline" className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />

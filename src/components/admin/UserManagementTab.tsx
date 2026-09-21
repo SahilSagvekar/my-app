@@ -7,6 +7,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -375,28 +376,26 @@ export function UserManagementTab() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All roles" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All roles</SelectItem>
-                {roles.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {statusOptions.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={roleFilter}
+              onValueChange={setRoleFilter}
+              placeholder="All roles"
+              className="w-40"
+              options={[
+                { value: "all", label: "All roles" },
+                ...roles.map((r) => ({ value: r.id, label: r.name })),
+              ]}
+            />
+            <FilterSelect
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+              placeholder="All statuses"
+              className="w-40"
+              options={[
+                { value: "all", label: "All statuses" },
+                ...statusOptions.map((s) => ({ value: s.id, label: s.name })),
+              ]}
+            />
           </div>
         </CardHeader>
         <CardContent>

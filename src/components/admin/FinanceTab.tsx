@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import {
   Dialog,
   DialogContent,
@@ -681,19 +682,20 @@ export function FinanceTab() {
                     className="pl-10 w-64 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
                   />
                 </div>
-                <Select value={invoiceStatusFilter} onValueChange={setInvoiceStatusFilter}>
-                  <SelectTrigger className="w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="DRAFT">Draft</SelectItem>
-                    <SelectItem value="SENT">Sent</SelectItem>
-                    <SelectItem value="PAID">Paid</SelectItem>
-                    <SelectItem value="OVERDUE">Overdue</SelectItem>
-                    <SelectItem value="VOID">Void</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FilterSelect
+                  value={invoiceStatusFilter}
+                  onValueChange={setInvoiceStatusFilter}
+                  placeholder="Status"
+                  className="w-36"
+                  options={[
+                    { value: "all", label: "All Status" },
+                    { value: "DRAFT", label: "Draft" },
+                    { value: "SENT", label: "Sent" },
+                    { value: "PAID", label: "Paid" },
+                    { value: "OVERDUE", label: "Overdue" },
+                    { value: "VOID", label: "Void" },
+                  ]}
+                />
                 <Button variant="outline" size="sm" onClick={loadInvoices} disabled={loadingInvoices}>
                   <RefreshCw className={`h-4 w-4 ${loadingInvoices ? "animate-spin" : ""}`} />
                 </Button>
@@ -1043,28 +1045,26 @@ export function FinanceTab() {
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                <Select value={payrollYearFilter} onValueChange={setPayrollYearFilter}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Years</SelectItem>
-                    {availableYears.map(y => (
-                      <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={payrollMonthFilter} onValueChange={setPayrollMonthFilter}>
-                  <SelectTrigger className="w-36">
-                    <SelectValue placeholder="Month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Months</SelectItem>
-                    {monthNames.map((m, i) => (
-                      <SelectItem key={m} value={(i + 1).toString()}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FilterSelect
+                  value={payrollYearFilter}
+                  onValueChange={setPayrollYearFilter}
+                  placeholder="Year"
+                  className="w-32"
+                  options={[
+                    { value: "all", label: "All Years" },
+                    ...availableYears.map((y) => ({ value: y.toString(), label: y })),
+                  ]}
+                />
+                <FilterSelect
+                  value={payrollMonthFilter}
+                  onValueChange={setPayrollMonthFilter}
+                  placeholder="Month"
+                  className="w-36"
+                  options={[
+                    { value: "all", label: "All Months" },
+                    ...monthNames.map((m, i) => ({ value: (i + 1).toString(), label: m })),
+                  ]}
+                />
                 <Dialog open={showPayrollDialog} onOpenChange={setShowPayrollDialog}>
                   <DialogTrigger asChild>
                     <Button>

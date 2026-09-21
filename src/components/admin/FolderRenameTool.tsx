@@ -5,13 +5,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Checkbox } from '../ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import {
   FolderSearch, RefreshCw, CheckCircle2, XCircle,
   AlertTriangle, Folder, ArrowRight, Play, Eye,
@@ -307,8 +301,10 @@ export function FolderRenameTool() {
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             <div className="flex-1">
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Client</label>
-              <Select
+              <FilterSelect
+                label="Client"
+                wrapperClassName="mb-0"
+                labelClassName="mb-1.5 block font-medium text-gray-700"
                 value={selectedClientId}
                 onValueChange={v => {
                   setSelectedClientId(v);
@@ -318,19 +314,14 @@ export function FolderRenameTool() {
                   setFolders([]);
                 }}
                 onOpenChange={open => { if (open) loadClients(); }}
-              >
-                <SelectTrigger className="w-full sm:w-64">
-                  <SelectValue placeholder="Select a client…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.length === 0 && (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">Loading…</div>
-                  )}
-                  {clients.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select a client…"
+                className="w-full sm:w-64"
+                options={
+                  clients.length === 0
+                    ? []
+                    : clients.map(c => ({ value: c.id, label: c.name }))
+                }
+              />
             </div>
 
             <div className="flex items-end gap-2 mt-auto">

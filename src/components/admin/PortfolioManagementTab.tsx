@@ -17,6 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import {
     Dialog,
     DialogContent,
@@ -356,25 +357,19 @@ function LeadManagement() {
                                     }}
                                 />
                             </div>
-                            <Select
+                            <FilterSelect
                                 value={serviceFilter}
                                 onValueChange={(v) => {
                                     setServiceFilter(v);
                                     setCurrentPage(1);
                                 }}
-                            >
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Filter by service" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Services</SelectItem>
-                                    {SERVICE_OPTIONS.map((s) => (
-                                        <SelectItem key={s} value={s}>
-                                            {s}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                placeholder="Filter by service"
+                                className="w-[180px]"
+                                options={[
+                                    { value: "all", label: "All Services" },
+                                    ...SERVICE_OPTIONS.map((s) => ({ value: s, label: s })),
+                                ]}
+                            />
                             <Button variant="outline" size="sm" onClick={fetchLeads}>
                                 <RefreshCw className="h-4 w-4 mr-1" />
                                 Refresh
@@ -846,19 +841,16 @@ function ContentControl({ sections }: { sections: Category[] }) {
                             Portfolio Videos
                         </CardTitle>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Filter category" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Categories</SelectItem>
-                                    {allSubcategories.map((c) => (
-                                        <SelectItem key={c.key} value={c.key}>
-                                            {c.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <FilterSelect
+                                value={categoryFilter}
+                                onValueChange={setCategoryFilter}
+                                placeholder="Filter category"
+                                className="w-[180px]"
+                                options={[
+                                    { value: "all", label: "All Categories" },
+                                    ...allSubcategories.map((c) => ({ value: c.key, label: c.label })),
+                                ]}
+                            />
                             <Button variant="outline" size="sm" onClick={fetchVideos}>
                                 <RefreshCw className="h-4 w-4 mr-1" />
                                 Refresh

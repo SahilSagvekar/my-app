@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { DatePickerWithRange } from '../ui/date-picker-with-range';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, AreaChart, Area, Tooltip } from 'recharts';
 import { FileText, CheckCircle, Clock, Calendar, Download, TrendingUp, TrendingDown, BarChart3, RefreshCw } from 'lucide-react';
@@ -323,20 +323,15 @@ export function ReportsTab() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-end gap-4">
-            <div className="space-y-2">
-              <label className="text-sm">Employee</label>
-              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((employee) => (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      {employee.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <FilterSelect
+              label="Employee"
+              wrapperClassName="space-y-2"
+              value={selectedEmployee}
+              onValueChange={setSelectedEmployee}
+              placeholder="Select employee"
+              className="w-64"
+              options={employees.map((employee) => ({ value: employee.id, label: employee.name }))}
+            />
             </div>
 
             <div className="space-y-2">

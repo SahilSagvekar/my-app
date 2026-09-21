@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FilterSelect } from '@/components/ui/filter-select';
 import { RefreshCw, Trash2, CheckCircle2, Film, FolderOutput, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -201,16 +201,13 @@ export default function NasCleanupPanel() {
         </p>
       </div>
 
-      <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-        <SelectTrigger className="w-72">
-          <SelectValue placeholder="Select a client" />
-        </SelectTrigger>
-        <SelectContent>
-          {clients.map((c) => (
-            <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <FilterSelect
+        value={selectedClientId}
+        onValueChange={setSelectedClientId}
+        placeholder="Select a client"
+        className="w-72"
+        options={clients.map((c) => ({ value: c.id, label: c.companyName || c.name }))}
+      />
 
       {selectedClientId && (
         <div className="space-y-4">

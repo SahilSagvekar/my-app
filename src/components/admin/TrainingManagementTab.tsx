@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import {
   Dialog,
   DialogContent,
@@ -411,17 +412,16 @@ export function TrainingManagementTab() {
               Training Videos
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Filter by role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All roles</SelectItem>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={roleFilter}
+                onValueChange={setRoleFilter}
+                placeholder="Filter by role"
+                className="w-[160px]"
+                options={[
+                  { value: "all", label: "All roles" },
+                  ...ROLES.map((r) => ({ value: r.id, label: r.name })),
+                ]}
+              />
               <Dialog
                 open={showAddDialog}
                 onOpenChange={(open) => {
@@ -610,17 +610,16 @@ export function TrainingManagementTab() {
               Training Documents
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Select value={docRoleFilter} onValueChange={setDocRoleFilter}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Filter by role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All roles</SelectItem>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={docRoleFilter}
+                onValueChange={setDocRoleFilter}
+                placeholder="Filter by role"
+                className="w-[160px]"
+                options={[
+                  { value: "all", label: "All roles" },
+                  ...ROLES.map((r) => ({ value: r.id, label: r.name })),
+                ]}
+              />
               <Dialog
                 open={showAddDocDialog}
                 onOpenChange={(open) => {

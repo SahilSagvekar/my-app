@@ -4,13 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import { DatePickerWithRange } from "../ui/date-picker-with-range";
 import { ScrollArea } from "../ui/scroll-area";
 import {
@@ -401,56 +395,35 @@ export function AuditLogTab() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm">Action Type</label>
-              <Select
-                value={actionTypeFilter}
-                onValueChange={setActionTypeFilter}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by action" />
-                </SelectTrigger>
-                <SelectContent>
-                  {actionTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterSelect
+              label="Action Type"
+              wrapperClassName="space-y-2"
+              value={actionTypeFilter}
+              onValueChange={setActionTypeFilter}
+              placeholder="Filter by action"
+              className="w-48"
+              options={actionTypes.map((type) => ({ value: type.id, label: type.name }))}
+            />
 
-            <div className="space-y-2">
-              <label className="text-sm">Severity</label>
-              <Select value={severityFilter} onValueChange={setSeverityFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by severity" />
-                </SelectTrigger>
-                <SelectContent>
-                  {severityLevels.map((level) => (
-                    <SelectItem key={level.id} value={level.id}>
-                      {level.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterSelect
+              label="Severity"
+              wrapperClassName="space-y-2"
+              value={severityFilter}
+              onValueChange={setSeverityFilter}
+              placeholder="Filter by severity"
+              className="w-48"
+              options={severityLevels.map((level) => ({ value: level.id, label: level.name }))}
+            />
 
-            <div className="space-y-2">
-              <label className="text-sm">User</label>
-              <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by user" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterSelect
+              label="User"
+              wrapperClassName="space-y-2"
+              value={userFilter}
+              onValueChange={setUserFilter}
+              placeholder="Filter by user"
+              className="w-48"
+              options={users.map((user) => ({ value: user.id, label: user.name }))}
+            />
 
             <div className="space-y-2">
               <label className="text-sm">Date Range</label>

@@ -2,13 +2,7 @@ import React from 'react';
 import { Search, Calendar, Users, Package, Tag as TagIcon, UserCog } from 'lucide-react';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "../../ui/select";
+import { FilterSelect } from "../../ui/filter-select";
 import { Badge } from '../../ui/badge';
 import { Loader2, ChevronUp, ChevronDown } from 'lucide-react';
 
@@ -76,17 +70,18 @@ export function FilterBar({
                     <Calendar className="h-3.5 w-3.5" />
                     Window:
                 </span>
-                <Select value={dateRange} onValueChange={setDateRange}>
-                    <SelectTrigger className="h-9 w-[120px] text-xs">
-                        <SelectValue placeholder="Range" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="7d">Last 7 Days</SelectItem>
-                        <SelectItem value="30d">Last 30 Days</SelectItem>
-                        <SelectItem value="90d">Last 90 Days</SelectItem>
-                        <SelectItem value="all">All Time</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterSelect
+                    value={dateRange}
+                    onValueChange={setDateRange}
+                    placeholder="Range"
+                    className="h-9 w-[120px] text-xs"
+                    options={[
+                        { value: "7d", label: "Last 7 Days" },
+                        { value: "30d", label: "Last 30 Days" },
+                        { value: "90d", label: "Last 90 Days" },
+                        { value: "all", label: "All Time" },
+                    ]}
+                />
             </div>
 
             {/* Status Toggle */}
@@ -123,17 +118,17 @@ export function FilterBar({
                     <Users className="h-3.5 w-3.5" />
                     Client:
                 </span>
-                <Select value={clientFilter} onValueChange={handleClientFilterChange}>
-                    <SelectTrigger className="h-9 w-[150px] text-xs">
-                        <SelectValue placeholder="All Clients" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                        <SelectItem value="all">All Clients</SelectItem>
-                        {uniqueClients.map(([id, name]) => (
-                            <SelectItem key={id} value={id}>{name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterSelect
+                    value={clientFilter}
+                    onValueChange={handleClientFilterChange}
+                    placeholder="All Clients"
+                    className="h-9 w-[150px] text-xs"
+                    contentClassName="max-h-[300px]"
+                    options={[
+                        { value: "all", label: "All Clients" },
+                        ...uniqueClients.map(([id, name]) => ({ value: id, label: name })),
+                    ]}
+                />
             </div>
 
             {/* Deliverable Type Filter */}
@@ -142,17 +137,16 @@ export function FilterBar({
                     <Package className="h-3.5 w-3.5" />
                     Type:
                 </span>
-                <Select value={deliverableFilter} onValueChange={handleDeliverableFilterChange}>
-                    <SelectTrigger className="h-9 w-[130px] text-xs">
-                        <SelectValue placeholder="All Types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        {uniqueDeliverables.map((type) => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterSelect
+                    value={deliverableFilter}
+                    onValueChange={handleDeliverableFilterChange}
+                    placeholder="All Types"
+                    className="h-9 w-[130px] text-xs"
+                    options={[
+                        { value: "all", label: "All Types" },
+                        ...uniqueDeliverables.map((type) => ({ value: type, label: type })),
+                    ]}
+                />
             </div>
 
             {/* Editor Filter */}
@@ -161,17 +155,17 @@ export function FilterBar({
                     <UserCog className="h-3.5 w-3.5" />
                     Editor:
                 </span>
-                <Select value={editorFilter} onValueChange={handleEditorFilterChange}>
-                    <SelectTrigger className="h-9 w-[150px] text-xs">
-                        <SelectValue placeholder="All Editors" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                        <SelectItem value="all">All Editors</SelectItem>
-                        {uniqueEditors.map(([id, name]) => (
-                            <SelectItem key={id} value={id}>{name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterSelect
+                    value={editorFilter}
+                    onValueChange={handleEditorFilterChange}
+                    placeholder="All Editors"
+                    className="h-9 w-[150px] text-xs"
+                    contentClassName="max-h-[300px]"
+                    options={[
+                        { value: "all", label: "All Editors" },
+                        ...uniqueEditors.map(([id, name]) => ({ value: id, label: name })),
+                    ]}
+                />
             </div>
 
             {/* Tag Filter */}
@@ -180,17 +174,16 @@ export function FilterBar({
                     <TagIcon className="h-3.5 w-3.5" />
                     Tag:
                 </span>
-                <Select value={tagFilter} onValueChange={setTagFilter}>
-                    <SelectTrigger className="h-9 w-[130px] text-xs">
-                        <SelectValue placeholder="All Tags" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Tags</SelectItem>
-                        {availableTags.map((tag) => (
-                            <SelectItem key={tag} value={tag}>{tag}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterSelect
+                    value={tagFilter}
+                    onValueChange={setTagFilter}
+                    placeholder="All Tags"
+                    className="h-9 w-[130px] text-xs"
+                    options={[
+                        { value: "all", label: "All Tags" },
+                        ...availableTags.map((tag) => ({ value: tag, label: tag })),
+                    ]}
+                />
             </div>
 
             {/* Sponsored Filter */}

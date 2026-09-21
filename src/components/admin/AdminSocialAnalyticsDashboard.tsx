@@ -16,9 +16,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { FilterSelect } from '@/components/ui/filter-select';
 import {
   Youtube, Instagram, Facebook, Music2, Users, Eye, Heart, MessageCircle,
   AlertCircle, ArrowLeft, Building2,
@@ -110,17 +108,18 @@ export function AdminSocialAnalyticsDashboard() {
             {summary?.connectedClients || 0} of {summary?.totalClients || 0} clients have connected accounts
           </p>
         </div>
-        <Select value={dateRange} onValueChange={setDateRange}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Last 7 days</SelectItem>
-            <SelectItem value="14d">Last 14 days</SelectItem>
-            <SelectItem value="28d">Last 28 days</SelectItem>
-            <SelectItem value="90d">Last 90 days</SelectItem>
-          </SelectContent>
-        </Select>
+        <FilterSelect
+          value={dateRange}
+          onValueChange={setDateRange}
+          placeholder="Date range"
+          className="w-[140px]"
+          options={[
+            { value: "7d", label: "Last 7 days" },
+            { value: "14d", label: "Last 14 days" },
+            { value: "28d", label: "Last 28 days" },
+            { value: "90d", label: "Last 90 days" },
+          ]}
+        />
       </div>
 
       {/* Aggregate stat cards */}
