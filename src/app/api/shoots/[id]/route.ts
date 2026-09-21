@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
-import { getCurrentUser2 } from '@/lib/auth';
+import { getCurrentUser2, resolveClientIdForUser } from '@/lib/auth';
 import { getDbHttp } from '@/lib/db';
 import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
@@ -16,7 +16,13 @@ const CAN_EDIT = ['admin', 'manager', 'videographer'];
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser2(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!CAN_EDIT.includes((user.role || '').toLowerCase())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const baseRole = (user.role || '').toLowerCase();
+  // Clients get a narrow carve-out of this endpoint: they can cancel their
+  // own shoot from the Production Log, nothing else here. Everything past
+  // the isCancelling check below (location/videographer/notes/etc. edits)
+  // stays admin/manager/videographer-only.
+  const isClientCancelOnly = baseRole === 'client';
+  if (!CAN_EDIT.includes(baseRole) && !isClientCancelOnly) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { id } = await props.params;
   const body = await req.json();
   const db = getDbHttp();
@@ -29,6 +35,19 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
   const [existingShoot] = await db.select().from(shootDetailTable).where(eq(shootDetailTable.taskId, id)).limit(1);
   if (!existingShoot) return NextResponse.json({ error: 'Shoot not found' }, { status: 404 });
+
+  if (isClientCancelOnly) {
+    const ownClientId = await resolveClientIdForUser(user.id);
+    if (!ownClientId || existingTask.clientId !== ownClientId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (body.status !== 'CANCELLED') {
+      return NextResponse.json({ error: 'Clients can only cancel a shoot from this endpoint' }, { status: 403 });
+    }
+    if (existingTask.status === 'CANCELLED') {
+      return NextResponse.json({ error: 'This shoot is already cancelled' }, { status: 409 });
+    }
+  }
 
   // ── Cancellation path — status flip to CANCELLED spins up a replacement
   // shoot instead of just closing this one out, and (optionally) tells the

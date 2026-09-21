@@ -1,15 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Loader, ListChecks, X } from 'lucide-react';
+import { Loader, ListChecks, X, Ban } from 'lucide-react';
+import { toast } from 'sonner';
 import { useEffectiveClientId } from '@/lib/hooks/useEffectiveClientId';
 import { PageHeader } from '../ui/page-header';
+import { Button } from '../ui/button';
+import { Textarea } from '../ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 
 type EntryType = 'shoot' | 'call' | 'meeting' | 'analytics';
 type Filter = 'all' | EntryType;
 
 interface LogEntry {
   id: string;
+  taskId?: string;
   type: EntryType;
   date: string | null;
   title: string | null;
@@ -55,6 +60,9 @@ export function ClientProductionLogPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('all');
   const [activeNote, setActiveNote] = useState<LogEntry | null>(null);
+  const [cancelDialogEntry, setCancelDialogEntry] = useState<LogEntry | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
   const clientIdOverride = useEffectiveClientId();
 
   const fetchLog = useCallback(async () => {
@@ -75,6 +83,31 @@ export function ClientProductionLogPage() {
   }, [clientIdOverride]);
 
   useEffect(() => { fetchLog(); }, [fetchLog]);
+
+  const submitCancelShoot = async () => {
+    if (!cancelDialogEntry?.taskId) return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/shoots/${cancelDialogEntry.taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELLED', cancellationReason: cancelReason.trim() || undefined }),
+      });
+      if (res.ok) {
+        toast.success('Shoot cancelled');
+        setCancelDialogEntry(null);
+        setCancelReason('');
+        fetchLog();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || 'Failed to cancel shoot');
+      }
+    } catch {
+      toast.error('Something went wrong');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const visible = useMemo(
     () => entries.filter((e) => filter === 'all' || e.type === filter),
@@ -141,13 +174,24 @@ export function ClientProductionLogPage() {
                 <div className="text-[13px] text-zinc-600">{entry.location || '—'}</div>
                 <div className="text-[13px] text-zinc-600">{entry.attendees.length ? entry.attendees.join(', ') : '—'}</div>
                 <div className="text-[13px] text-zinc-600">{formatDuration(entry.plannedMinutes, entry.actualMinutes)}</div>
-                <span className={`inline-flex items-center h-6 px-2.5 rounded-md text-[11px] font-extrabold tracking-wide uppercase w-fit ${
-                  entry.status === 'Completed' ? 'bg-green-100 text-green-800'
-                    : entry.status === 'Cancelled' ? 'bg-rose-100 text-rose-800'
-                    : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {entry.status}
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`inline-flex items-center h-6 px-2.5 rounded-md text-[11px] font-extrabold tracking-wide uppercase w-fit ${
+                    entry.status === 'Completed' ? 'bg-green-100 text-green-800'
+                      : entry.status === 'Cancelled' ? 'bg-rose-100 text-rose-800'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {entry.status}
+                  </span>
+                  {entry.type === 'shoot' && entry.status === 'Planned' && entry.taskId && (
+                    <button
+                      onClick={() => { setCancelDialogEntry(entry); setCancelReason(''); }}
+                      title="Cancel shoot"
+                      className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-zinc-400 hover:text-rose-700 hover:bg-rose-50"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
               {(entry.note || entry.reportFile) && (
                 <div className="w-[calc(100%-40px)] mx-5 mb-4 -mt-1 flex items-stretch gap-2">
@@ -196,6 +240,33 @@ export function ClientProductionLogPage() {
           </div>
         </div>
       )}
+
+      <Dialog open={!!cancelDialogEntry} onOpenChange={(open) => { if (!open) { setCancelDialogEntry(null); setCancelReason(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-gray-900">Cancel this shoot?</DialogTitle>
+            <DialogDescription>
+              {cancelDialogEntry?.title || 'This shoot'} will be marked cancelled, and our team will follow up to help reschedule.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Let us know why (optional)"
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="h-10 px-5" onClick={() => { setCancelDialogEntry(null); setCancelReason(''); }}>
+              Never mind
+            </Button>
+            <Button variant="destructive" className="h-10 px-5" onClick={submitCancelShoot} disabled={cancelling}>
+              {cancelling ? 'Cancelling...' : 'Cancel Shoot'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

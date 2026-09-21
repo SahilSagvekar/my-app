@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
 
       return {
         id: `shoot-${row.taskId}`,
+        taskId: row.taskId,
         type: 'shoot' as const,
         date: row.shootDate,
         title: row.taskTitle,
