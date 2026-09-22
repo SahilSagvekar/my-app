@@ -27,7 +27,7 @@ export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer'
 export const signerStatus = pgEnum("SignerStatus", ['PENDING', 'VIEWED', 'SIGNED', 'DECLINED'])
 export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'TRIALING', 'PAUSED'])
 export const syncStatus = pgEnum("SyncStatus", ['PENDING', 'SYNCING', 'COMPLETED', 'FAILED'])
-export const taskStatus = pgEnum("TaskStatus", ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED', 'SCHEDULED', 'ON_HOLD', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW', 'VIDEOGRAPHER_ASSIGNED', 'POSTED', 'HIDDEN'])
+export const taskStatus = pgEnum("TaskStatus", ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED', 'SCHEDULED', 'ON_HOLD', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW', 'VIDEOGRAPHER_ASSIGNED', 'POSTED', 'HIDDEN', 'CANCELLED'])
 
 
 export const verificationToken = pgTable("VerificationToken", {
@@ -523,6 +523,9 @@ export const task = pgTable("Task", {
 	scheduler: integer(),
 	videographer: integer(),
 	createdBy: integer(),
+	// Optional second editor who owns the thumbnail deliverable, separate from
+	// `assignedTo` (the main video editor) — a task can have one editor per file type.
+	thumbnailEditor: integer(),
 	clientId: text(),
 	monthlyDeliverableId: text(),
 	driveFolderId: text(),
@@ -568,10 +571,6 @@ export const task = pgTable("Task", {
 	titleSetByQc: boolean().default(false).notNull(),
 	postingTitle: text(),
 	isSponsored: boolean().default(false).notNull(),
-	// Editor explicitly confirmed no Task Actions (tag/script/raw-footage/
-	// long-form/sponsor) are needed for this task. Auto-cleared server-side
-	// the moment any of those actions is actually taken. Required (along
-	// with at least one real action) before Submit to QC is allowed.
 	noActionRequired: boolean().default(false).notNull(),
 	titleSetByClient: boolean().default(false).notNull(),
 	postingDescriptions: jsonb(),
@@ -580,7 +579,6 @@ export const task = pgTable("Task", {
 	textContent: text(),
 	clientReviewStartedAt: timestamp({ precision: 3, mode: 'string' }),
 	lastReminderSentAt: timestamp({ precision: 3, mode: 'string' }),
-	linkedRawFootagePaths: text().array(),
 	shootScriptRef: text(),
 	linkedRawFootagePaths: text().array(),
 }, (table) => [
@@ -600,6 +598,12 @@ export const task = pgTable("Task", {
 	index("Task_scheduler_idx").using("btree", table.scheduler.asc().nullsLast().op("int4_ops")),
 	index("Task_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
 	index("Task_videographer_idx").using("btree", table.videographer.asc().nullsLast().op("int4_ops")),
+	index("Task_thumbnailEditor_idx").using("btree", table.thumbnailEditor.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.thumbnailEditor],
+			foreignColumns: [user.id],
+			name: "Task_thumbnailEditor_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
 	foreignKey({
 			columns: [table.monthlyDeliverableId],
 			foreignColumns: [monthlyDeliverable.id],
@@ -927,6 +931,17 @@ export const shootDetail = pgTable("ShootDetail", {
 	scriptSentBy: integer(),
 	scriptLastEditedAt: timestamp({ precision: 3, mode: 'string' }),
 	scriptLastEditedBy: integer(),
+	plannedStartTime: timestamp({ precision: 3, mode: 'string' }),
+	plannedEndTime: timestamp({ precision: 3, mode: 'string' }),
+	actualStartTime: timestamp({ precision: 3, mode: 'string' }),
+	actualEndTime: timestamp({ precision: 3, mode: 'string' }),
+	cancelledAt: timestamp({ precision: 3, mode: 'string' }),
+	cancelledBy: integer(),
+	cancellationReason: text(),
+	// Points to the newly-created Task that replaces this cancelled shoot.
+	replacementTaskId: text(),
+	// Set on the replacement shoot itself, pointing back at the one it replaced.
+	replacesTaskId: text(),
 }, (table) => [
 	uniqueIndex("ShootDetail_taskId_key").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -938,6 +953,21 @@ export const shootDetail = pgTable("ShootDetail", {
 			columns: [table.videographerId],
 			foreignColumns: [user.id],
 			name: "ShootDetail_videographerId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.cancelledBy],
+			foreignColumns: [user.id],
+			name: "ShootDetail_cancelledBy_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.replacementTaskId],
+			foreignColumns: [task.id],
+			name: "ShootDetail_replacementTaskId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.replacesTaskId],
+			foreignColumns: [task.id],
+			name: "ShootDetail_replacesTaskId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
@@ -1868,6 +1898,58 @@ export const editorEodReportItem = pgTable("EditorEodReportItem", {
 		}).onUpdate("cascade").onDelete("restrict"),
 ]);
 
+// Scheduler/videographer EOD reports — same shape as EditorEodReport/Item
+// but shared across both roles (via a `role` discriminator) instead of
+// duplicating a table pair per role. `detail` on the item row is a flexible
+// jsonb bag since what's worth reporting differs by role (proof links for a
+// scheduler's scheduled post vs. shoot/equipment info for a videographer),
+// unlike the editor version's fixed `proofLinks` column.
+export const roleEodReport = pgTable("RoleEodReport", {
+	id: text().primaryKey().notNull(),
+	userId: integer().notNull(),
+	role: text().notNull(),
+	reportDate: text().notNull(),
+	slackChannel: text(),
+	slackTs: text(),
+	status: text().default('DRAFT').notNull(),
+	notes: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("RoleEodReport_userId_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	uniqueIndex("RoleEodReport_userId_reportDate_key").using("btree", table.userId.asc().nullsLast().op("int4_ops"), table.reportDate.asc().nullsLast().op("text_ops")),
+	index("RoleEodReport_reportDate_idx").using("btree", table.reportDate.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "RoleEodReport_userId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const roleEodReportItem = pgTable("RoleEodReportItem", {
+	id: text().primaryKey().notNull(),
+	reportId: text().notNull(),
+	taskId: text().notNull(),
+	taskTitle: text().notNull(),
+	detail: jsonb().default({}).notNull(),
+	statusAtSend: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("RoleEodReportItem_reportId_idx").using("btree", table.reportId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("RoleEodReportItem_reportId_taskId_key").using("btree", table.reportId.asc().nullsLast().op("text_ops"), table.taskId.asc().nullsLast().op("text_ops")),
+	index("RoleEodReportItem_taskId_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.reportId],
+			foreignColumns: [roleEodReport.id],
+			name: "RoleEodReportItem_reportId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.taskId],
+			foreignColumns: [task.id],
+			name: "RoleEodReportItem_taskId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
 export const nasSyncLog = pgTable("NasSyncLog", {
 	id: text().primaryKey().notNull(),
 	status: text().notNull(),
@@ -1981,6 +2063,10 @@ export const client = pgTable("Client", {
 	name: text().notNull(),
 	email: text().notNull(),
 	companyName: text(),
+	// Optional short name used in generated task titles instead of the
+	// slugified companyName (e.g. "B&M" instead of "B&MMarineConstruction,Inc.").
+	// Falls back to the existing companyName-slug behavior when null.
+	taskNamePrefix: text(),
 	phone: text().notNull(),
 	createdBy: text(),
 	status: text().default('active').notNull(),
@@ -2775,6 +2861,70 @@ export const driveNote = pgTable("DriveNote", {
 			foreignColumns: [user.id],
 			name: "DriveNote_createdById_fkey"
 		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+// Which editor is responsible for a given raw-footage file, so multiple
+// editors working the same client folder don't have to guess or ask.
+// One row per (clientId, s3Key) — a file has at most one assigned editor at
+// a time; reassigning just overwrites the row. Colors aren't stored here —
+// they're derived deterministically from editorId on read, so every screen
+// agrees on the same color without a second source of truth to keep in sync.
+export const driveFileEditorAssignment = pgTable("DriveFileEditorAssignment", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	s3Key: text().notNull(),
+	editorId: integer().notNull(),
+	assignedById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("DriveFileEditorAssignment_clientId_s3Key_key").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.s3Key.asc().nullsLast().op("text_ops")),
+	index("DriveFileEditorAssignment_editorId_idx").using("btree", table.editorId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "DriveFileEditorAssignment_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.editorId],
+			foreignColumns: [user.id],
+			name: "DriveFileEditorAssignment_editorId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.assignedById],
+			foreignColumns: [user.id],
+			name: "DriveFileEditorAssignment_assignedById_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+// Who has downloaded a given raw-footage file, and how many times — so
+// editors sharing a client folder can see "Downloaded · Rashid" at a glance
+// and skip re-downloading something someone already pulled. One row per
+// (clientId, s3Key, userId): re-downloading just bumps downloadCount and
+// lastDownloadedAt on the same row rather than growing an event log, since
+// only "who + how recently + how often" is needed here, not a full audit
+// trail (that already exists separately via AuditLog for admin actions).
+export const driveFileDownload = pgTable("DriveFileDownload", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	s3Key: text().notNull(),
+	userId: integer().notNull(),
+	downloadCount: integer().default(1).notNull(),
+	firstDownloadedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	lastDownloadedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("DriveFileDownload_clientId_s3Key_userId_key").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.s3Key.asc().nullsLast().op("text_ops"), table.userId.asc().nullsLast().op("int4_ops")),
+	index("DriveFileDownload_clientId_s3Key_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops"), table.s3Key.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "DriveFileDownload_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "DriveFileDownload_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
 ]);
 
 export const mediaPreview = pgTable("MediaPreview", {

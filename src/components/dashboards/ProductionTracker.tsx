@@ -51,6 +51,7 @@ import { cn } from '@/lib/utils';
 import { UploadsAndPeopleTab } from './UploadsAndPeopleTab';
 import { PersonOverviewSection } from './PersonOverviewSection';
 import { UploadHistoryView } from './UploadHistoryView';
+import { ProductionTrackerNumbers } from './ProductionTrackerNumbers';
 
 // ─── Types ───
 
@@ -77,7 +78,7 @@ type TaskStatusFilter =
   | 'posted';
 
 interface StatusSummary
-  extends Pick<
+  extends Pick
     StatusCounts,
     | 'pending'
     | 'inProgress'
@@ -441,10 +442,10 @@ export function ProductionTracker() {
   const [expandedClients, setExpandedClients] = useState<Set<string>>(
     () => new Set()
   );
-  const [activeTab, setActiveTab] = useState<
-    'overview' | 'clients' | 'editors' | 'qc' | 'schedulers' | 'editor-breakdown' | 'uploads-people'
+  const [activeTab, setActiveTab] = useState
+    'overview' | 'clients' | 'editors' | 'qc' | 'schedulers' | 'editor-breakdown' | 'uploads-people' | 'numbers'
   >('overview');
-  const [healthFilter, setHealthFilter] = useState<
+  const [healthFilter, setHealthFilter] = useState
     'all' | 'critical' | 'warning' | 'healthy'
   >('all');
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
@@ -604,6 +605,7 @@ export function ProductionTracker() {
           {(
             [
               { id: 'overview', label: 'Overview', icon: Eye },
+              { id: 'numbers', label: 'Numbers', icon: BarChart3 },
               { id: 'editor-breakdown', label: 'Editor Tracker', icon: UserCheck },
               { id: 'uploads-people', label: 'Uploads & People', icon: CalendarDays },
             ] as const
@@ -699,6 +701,11 @@ export function ProductionTracker() {
               availableMonths={data.availableMonths}
             />
           </div>
+        )}
+
+        {/* ─── Numbers Tab ─── */}
+        {activeTab === 'numbers' && (
+          <ProductionTrackerNumbers month={selectedMonth} />
         )}
 
         {/* ─── Clients Tab ─── */}
