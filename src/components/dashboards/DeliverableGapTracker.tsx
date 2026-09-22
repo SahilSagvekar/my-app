@@ -34,7 +34,7 @@ export function DeliverableGapTracker() {
     async function load() {
       try {
         setLoading(true);
-        const res = await fetch('/api/scheduler/deliverable-gaps', { cache: 'no-store' });
+        const res = await fetch('/api/schedular/deliverable-gaps', { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed to load');
         const json = await res.json();
         if (!cancelled) setData(json);
