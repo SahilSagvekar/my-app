@@ -78,7 +78,7 @@ type TaskStatusFilter =
   | 'posted';
 
 interface StatusSummary
-  extends Pick
+  extends Pick<
     StatusCounts,
     | 'pending'
     | 'inProgress'
@@ -442,10 +442,10 @@ export function ProductionTracker() {
   const [expandedClients, setExpandedClients] = useState<Set<string>>(
     () => new Set()
   );
-  const [activeTab, setActiveTab] = useState
+  const [activeTab, setActiveTab] = useState<
     'overview' | 'clients' | 'editors' | 'qc' | 'schedulers' | 'editor-breakdown' | 'uploads-people' | 'numbers'
   >('overview');
-  const [healthFilter, setHealthFilter] = useState
+  const [healthFilter, setHealthFilter] = useState<
     'all' | 'critical' | 'warning' | 'healthy'
   >('all');
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
