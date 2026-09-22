@@ -95,34 +95,35 @@ export function ImageOrderModal({
 
             <div
                 ref={containerRef}
-                className="relative z-10 w-full max-w-4xl bg-[#131418] border border-white/15 rounded-2xl p-5 shadow-2xl flex flex-col gap-4 text-white overflow-hidden max-h-[85vh]"
+                className="relative z-10 w-full max-w-4xl border border-[var(--review-border)] rounded-2xl p-5 shadow-2xl flex flex-col gap-4 text-[var(--review-text-primary)] overflow-hidden max-h-[85vh]"
+                style={{ background: 'var(--review-bg-secondary)' }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center justify-between border-b border-[var(--review-border)] pb-3">
                     <div className="flex items-center gap-2.5">
-                        <span className="font-bold text-base tracking-wide text-white">
+                        <span className="font-bold text-base tracking-wide text-[var(--review-text-primary)]">
                             Image Order
                         </span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/70">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-[var(--review-text-secondary)]">
                             {items.length} {items.length === 1 ? 'image' : 'images'}
                         </span>
                         {isSaving && (
-                            <span className="text-xs text-amber-400 flex items-center gap-1">
-                                <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                            <span className="text-xs text-[var(--review-text-secondary)] flex items-center gap-1">
+                                <div className="h-2 w-2 rounded-full bg-[var(--review-text-secondary)] animate-pulse" />
                                 Saving order...
                             </span>
                         )}
                     </div>
                     <div className="flex items-center gap-2">
-                        <p className="text-xs text-white/50 hidden sm:inline">
+                        <p className="text-xs text-[var(--review-text-muted)] hidden sm:inline">
                             Drag & drop cards to reorder slides
                         </p>
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={onClose}
-                            className="h-8 w-8 text-white/70 hover:text-white hover:bg-white/10 rounded-full"
+                            className="h-8 w-8 text-[var(--review-text-secondary)] hover:text-[var(--review-text-primary)] hover:bg-white/10 rounded-full"
                         >
                             <X className="h-4 w-4" />
                         </Button>
@@ -146,22 +147,23 @@ export function ImageOrderModal({
                                     onDragOver={(e) => handleDragOver(e, index)}
                                     onDrop={(e) => handleDrop(e, index)}
                                     onClick={() => onSelectFile(file)}
-                                    className={`relative group aspect-[3/4] rounded-xl overflow-hidden cursor-grab active:cursor-grabbing select-none transition-all duration-150 bg-black/60 border ${
+                                    className={`relative group aspect-[3/4] rounded-xl overflow-hidden cursor-grab active:cursor-grabbing select-none transition-all duration-150 border ${
                                         isSelected
-                                            ? 'ring-2 ring-white border-white scale-[1.02] shadow-lg shadow-white/10'
-                                            : 'border-white/15 hover:border-white/40'
-                                    } ${isOver ? 'ring-2 ring-blue-400 border-blue-400' : ''} ${
+                                            ? 'ring-2 ring-white border-[var(--review-text-primary)] scale-[1.02] shadow-lg shadow-white/10'
+                                            : 'border-[var(--review-border)] hover:border-[var(--review-border-hover)]'
+                                    } ${isOver ? 'ring-2 ring-white/30 border-[var(--review-border-hover)]' : ''} ${
                                         isBeingDragged ? 'opacity-40 scale-95' : 'opacity-100'
                                     }`}
+                                    style={{ background: 'var(--review-bg-tertiary)' }}
                                 >
                                     {/* Sequence Number Badge */}
-                                    <div className="absolute top-2.5 left-2.5 z-10 w-7 h-7 rounded-full bg-black/85 border border-white/20 text-white font-extrabold text-xs flex items-center justify-center shadow-md">
+                                    <div className="absolute top-2.5 left-2.5 z-10 w-7 h-7 rounded-full bg-black/85 border border-[var(--review-border)] text-[var(--review-text-primary)] font-extrabold text-xs flex items-center justify-center shadow-md">
                                         {index + 1}
                                     </div>
 
                                     {/* Active Checkmark indicator */}
                                     {isSelected && (
-                                        <div className="absolute top-2.5 right-2.5 z-10 px-2 py-0.5 rounded-full bg-white text-black font-bold text-[10px] flex items-center gap-1 shadow-md">
+                                        <div className="absolute top-2.5 right-2.5 z-10 px-2 py-0.5 rounded-full bg-[var(--review-text-primary)] text-black font-bold text-[10px] flex items-center gap-1 shadow-md">
                                             <Check className="h-2.5 w-2.5" />
                                             Active
                                         </div>
@@ -198,14 +200,14 @@ export function ImageOrderModal({
                 </div>
 
                 {/* Footer Controls */}
-                <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs text-white/60">
+                <div className="flex items-center justify-between pt-2 border-t border-[var(--review-border)] text-xs text-[var(--review-text-muted)]">
                     <span>
                         The order configured here will be preserved for the scheduler.
                     </span>
                     <Button
                         size="sm"
                         onClick={onClose}
-                        className="bg-white text-black hover:bg-white/90 font-medium px-4 h-8"
+                        className="bg-[var(--review-text-primary)] text-black hover:bg-white/90 font-medium px-4 h-8"
                     >
                         Done
                     </Button>

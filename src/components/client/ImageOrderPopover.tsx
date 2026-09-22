@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ListOrdered, ChevronUp, ChevronDown, Check, GripVertical, Loader2, X } from 'lucide-react';
+// import { TaskFile } from './ThumbnailReviewModal';
 import { TaskFile } from './ThumbnailReviewModal';
 
 interface ImageOrderPopoverProps {
@@ -103,18 +104,18 @@ export function ImageOrderPopover({
             {isOpen && (
                 <div
                     ref={popoverRef}
-                    className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 p-3 rounded-2xl border border-white/20 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 p-3 rounded-2xl border border-[var(--review-border)] shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150"
                     style={{
-                        background: 'rgba(18, 19, 24, 0.96)',
-                        boxShadow: '0 20px 40px -10px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.1)',
+                        background: 'var(--review-bg-secondary)',
+                        boxShadow: '0 20px 40px -10px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06)',
                         width: 'max-content',
                         maxWidth: 'calc(100vw - 32px)',
                     }}
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between gap-4 pb-2.5 mb-2.5 border-b border-white/10 px-1">
+                    <div className="flex items-center justify-between gap-4 pb-2.5 mb-2.5 border-b border-[var(--review-border)] px-1">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-white tracking-wide">
+                            <span className="text-xs font-bold text-[var(--review-text-primary)] tracking-wide">
                                 Order Images ({items.length})
                             </span>
                             <span className="text-[10px] text-[var(--review-text-muted)]">
@@ -123,14 +124,14 @@ export function ImageOrderPopover({
                         </div>
                         <div className="flex items-center gap-2">
                             {isSaving && (
-                                <span className="flex items-center gap-1 text-[10px] text-purple-300 font-medium">
+                                <span className="flex items-center gap-1 text-[10px] text-[var(--review-text-secondary)] font-medium">
                                     <Loader2 className="h-3 w-3 animate-spin" /> Saving...
                                 </span>
                             )}
                             <button
                                 type="button"
                                 onClick={() => setIsOpen(false)}
-                                className="text-[var(--review-text-muted)] hover:text-white p-0.5 rounded-md hover:bg-white/10 transition-colors"
+                                className="text-[var(--review-text-muted)] hover:text-[var(--review-text-primary)] p-0.5 rounded-md hover:bg-white/10 transition-colors"
                             >
                                 <X className="h-3.5 w-3.5" />
                             </button>
@@ -160,13 +161,13 @@ export function ImageOrderPopover({
                                     }}
                                     className={`relative group aspect-square rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition-all select-none ${
                                         isCurrent
-                                            ? 'border-2 border-white ring-2 ring-white/40 shadow-lg shadow-white/10'
-                                            : 'border border-white/15 hover:border-white/40 opacity-85 hover:opacity-100'
+                                            ? 'border-2 border-[var(--review-text-primary)] ring-2 ring-white/40 shadow-lg shadow-white/10'
+                                            : 'border border-[var(--review-border)] hover:border-[var(--review-border-hover)] opacity-85 hover:opacity-100'
                                     } ${isBeingDragged ? 'opacity-30 scale-95' : ''} ${
-                                        isDragOver && !isBeingDragged ? 'border-purple-400 ring-2 ring-purple-400/50 scale-105' : ''
+                                        isDragOver && !isBeingDragged ? 'border-[var(--review-border-hover)] ring-2 ring-white/30 scale-105' : ''
                                     }`}
                                     style={{
-                                        background: 'rgba(0, 0, 0, 0.6)',
+                                        background: 'var(--review-bg-tertiary)',
                                         width: '80px',
                                         height: '80px',
                                     }}
@@ -200,14 +201,14 @@ export function ImageOrderPopover({
                 ref={triggerRef}
                 type="button"
                 onClick={() => setIsOpen((prev) => !prev)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer shadow-sm border ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
                     isOpen
-                        ? 'bg-white text-black border-white shadow-md font-bold'
-                        : 'bg-white/10 hover:bg-white/20 text-white border-white/20 hover:border-white/40'
+                        ? 'bg-[var(--review-text-primary)] text-black border-[var(--review-text-primary)] font-bold'
+                        : 'bg-white/5 hover:bg-white/10 text-[var(--review-text-secondary)] hover:text-[var(--review-text-primary)] border-[var(--review-border)] hover:border-[var(--review-border-hover)]'
                 }`}
                 title="Reorder images"
             >
-                <ListOrdered className={`h-3.5 w-3.5 ${isOpen ? 'text-black' : 'text-blue-400'}`} />
+                <ListOrdered className={`h-3.5 w-3.5 ${isOpen ? 'text-black' : 'text-[var(--review-text-muted)]'}`} />
                 <span>{buttonLabel}</span>
                 <ChevronUp className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>

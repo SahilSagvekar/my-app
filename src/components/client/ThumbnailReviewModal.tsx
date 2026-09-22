@@ -37,7 +37,7 @@ import { ImageOrderPopover } from './ImageOrderPopover';
 import { sortTaskImages } from '@/lib/task-image-order';
 
 /* ─── Types ────────────────────────────────────────────────────── */
-interface TaskFile {
+export interface TaskFile {
     id: string;
     name: string;
     url: string;
