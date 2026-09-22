@@ -28,6 +28,7 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { TagPicker } from '../workflow/TagPicker';
 import { formatInEST, utcToESTWallClock, estWallClockToUTC } from '@/lib/timezone';
 import { sortTaskImages } from '@/lib/task-image-order';
+import { DeliverableGapTracker } from './DeliverableGapTracker';
 
 const TikTokIcon = ({ className }: { className?: string }) => (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -554,6 +555,9 @@ export function SchedulerSpreadsheetView() {
 
     return (
         <div className="space-y-4">
+            {/* Daily deliverable gap — banner + per-client breakdown */}
+            <DeliverableGapTracker />
+
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div><h1 className="text-2xl font-bold">Scheduling Queue</h1></div>
