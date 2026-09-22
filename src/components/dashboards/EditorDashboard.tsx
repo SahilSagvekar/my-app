@@ -1309,7 +1309,7 @@ function TaskCard({
                       e.stopPropagation();
                       setTaskFilesExpanded(true);
                     }}
-                    className="w-full flex items-center justify-between px-4 py-2.5 text-[14px] font-bold text-gray-900 hover:bg-gray-50/80 transition-colors"
+                    className="w-full relative flex items-center justify-center px-4 py-2.5 text-[14px] font-bold text-gray-900 hover:bg-gray-50/80 transition-colors"
                   >
                     <div className="flex items-center gap-1.5">
                       <Video className="h-4 w-4 text-gray-800 shrink-0" />
@@ -1320,7 +1320,7 @@ function TaskCard({
                         ({mainFiles.length} file{mainFiles.length !== 1 ? "s" : ""})
                       </span>
                     </div>
-                    <ChevronDown className="h-4 w-4 text-gray-400 ml-0.5" />
+                    <ChevronDown className="h-4 w-4 text-gray-400 absolute right-4" />
                   </button>
                 </div>
               ) : (

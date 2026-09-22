@@ -517,19 +517,45 @@ export async function deliverSlackNotification(
       // review but THIS task's deliverable type is exempt from it: QC
       // alone completes those, yet the flag alone said "Approved by Client".
       let approvedBy: string;
-      const approvedByRole = notification.payload?.approvedByRole;
-      if (approvedByRole) {
-        approvedBy = approvedByRole === "client" ? "Client" : "QC";
+      let approvedByRole = notification.payload?.approvedByRole as string | undefined;
+      let taskForQc: { qcSpecialist: number | null; client: { requiresClientReview: boolean } | null } | null = null;
+
+      if (!approvedByRole && notification.payload?.taskId) {
+        try {
+          const t = await db.query.task.findFirst({
+            where: eq(taskTable.id, notification.payload.taskId),
+            with: { client: true },
+          });
+          taskForQc = t ? { qcSpecialist: t.qcSpecialist ?? null, client: t.client ? { requiresClientReview: t.client.requiresClientReview } : null } : null;
+          approvedByRole = taskForQc?.client?.requiresClientReview ? "client" : "qc";
+        } catch (e) {}
+      }
+      approvedByRole = approvedByRole || "qc";
+
+      if (approvedByRole === "client") {
+        approvedBy = "Client";
       } else {
+        // Was just the literal word "QC" — resolve the actual QC specialist
+        // who approved it and name them instead.
         approvedBy = "QC";
-        if (notification.payload?.taskId) {
-          try {
+        try {
+          if (!taskForQc && notification.payload?.taskId) {
             const t = await db.query.task.findFirst({
               where: eq(taskTable.id, notification.payload.taskId),
-              with: { client: true },
+              columns: { qcSpecialist: true },
             });
-            if (t?.client?.requiresClientReview) approvedBy = "Client";
-          } catch (e) {}
+            taskForQc = t ? { qcSpecialist: t.qcSpecialist ?? null, client: null } : null;
+          }
+          if (taskForQc?.qcSpecialist) {
+            const [qcUser] = await db
+              .select({ name: userTable.name })
+              .from(userTable)
+              .where(eq(userTable.id, taskForQc.qcSpecialist))
+              .limit(1);
+            if (qcUser?.name) approvedBy = qcUser.name;
+          }
+        } catch (e) {
+          console.error("[Slack Dispatch] Failed to resolve QC specialist name:", e);
         }
       }
       scheduledNotification.message = `:mag: :eyes: ${schedulerMention}✅ Content Approved by ${approvedBy}: Task "${taskTitle}" has been approved.`;

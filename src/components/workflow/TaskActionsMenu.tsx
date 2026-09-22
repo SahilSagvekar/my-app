@@ -162,7 +162,7 @@ export function TaskActionsMenu({
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-[14px] font-bold text-gray-900 rounded-xl border border-gray-900 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
+        className="w-full relative flex items-center justify-center px-4 py-2.5 text-[14px] font-bold text-gray-900 rounded-xl border border-gray-900 bg-white hover:bg-gray-50/80 transition-colors shadow-2xs"
       >
         <div className="flex items-center gap-1.5">
           <span>
@@ -172,7 +172,7 @@ export function TaskActionsMenu({
             ({actionCount} action{actionCount !== 1 ? 's' : ''})
           </span>
         </div>
-        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ml-0.5 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform absolute right-4 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Floating Popover Overlay */}
