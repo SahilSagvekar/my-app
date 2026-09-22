@@ -717,7 +717,7 @@ export function TaskManagementTab() {
 
         {showFilters && (
           <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 gap-y-2">
               {[
                 { label: 'Editor', key: 'editor', items: editors },
                 { label: 'QC Specialist', key: 'qc', items: qcMembers },

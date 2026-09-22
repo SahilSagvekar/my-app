@@ -504,14 +504,19 @@ export function FullScreenReviewModalFrameIO({
             const data = await res.json();
             if (data.feedback && Array.isArray(data.feedback)) {
                 const targetFolder = currentFileSection?.folderType || 'main';
-                const targetFileId = currentFileSection?.fileId || null;
                 const mappedComments: ReviewComment[] = data.feedback
                     .filter((fb: any) => (fb.folderType || 'main') === targetFolder)
-                    // Scope to the file version currently being reviewed —
-                    // otherwise unresolved comments from an earlier rejected
-                    // round (tied to a since-replaced fileId) resurface here
-                    // and get bundled into the next rejection's Slack message.
-                    .filter((fb: any) => !targetFileId || !fb.fileId || fb.fileId === targetFileId)
+                    // Keep every version's comments here — the version
+                    // picker below (sortedComments) is what scopes them to
+                    // whichever version is currently playing. Dropping
+                    // anything not tied to the current fileId used to mean
+                    // past-version comments never loaded at all, so
+                    // switching versions had nothing to show. The "don't
+                    // bundle stale comments into the next rejection's Slack
+                    // message" concern that this filter was for is handled
+                    // at the point that message gets built (see
+                    // handleStatusChange / handleRejectWithComment, which
+                    // use sortedComments, not this raw list).
                     .map((fb: any) => {
                         const ts = fb.timestamp || '0:00';
                         const parts = ts.split(':');
@@ -972,9 +977,13 @@ export function FullScreenReviewModalFrameIO({
             const ver = currentFileSection?.version || 1;
             const revisionData: RevisionRequest = {
                 reason: 'other',
-                notes: comments.filter(c => !c.resolved).map(c => `[${label} v${ver} @ ${c.timestamp}] ${c.content}`).join('\n\n'),
+                // sortedComments, not comments — scoped to the version
+                // currently being reviewed, so an old rejected round's
+                // comments (now visible again above) don't bleed into
+                // this new rejection's message.
+                notes: sortedComments.filter(c => !c.resolved).map(c => `[${label} v${ver} @ ${c.timestamp}] ${c.content}`).join('\n\n'),
                 assignTo: 'editor',
-                entries: comments.filter(c => !c.resolved).map(c => ({
+                entries: sortedComments.filter(c => !c.resolved).map(c => ({
                     id: c.id,
                     timestamp: new Date().toLocaleTimeString(),
                     reason: (Array.isArray(c.category) ? c.category.join(', ') : c.category) as any,
