@@ -732,8 +732,14 @@ export function ThumbnailReviewModal({
                                             </div>
                                         </div>
 
-                                        {/* Bottom thumbnail picker */}
-                                        <div className="shrink-0 z-20 bg-[var(--review-bg-secondary)]/90 backdrop-blur-md border border-[var(--review-border)] rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl">
+                                        {/* Bottom thumbnail picker — matches ReviewModePills' segmented-pill styling */}
+                                        <div
+                                            className="shrink-0 z-20 rounded-md px-4 py-2 flex items-center gap-2"
+                                            style={{
+                                                background: 'var(--review-v2-gray-950)',
+                                                border: '1px solid var(--review-v2-gray-600)',
+                                            }}
+                                        >
                                             <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-2">
                                                 {imageLabel}
                                             </span>
@@ -741,26 +747,25 @@ export function ThumbnailReviewModal({
                                                 <button
                                                     key={t.id}
                                                     onClick={() => setCurrentFile(t)}
-                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${
-                                                        currentFile.id === t.id
-                                                            ? 'bg-purple-600 text-white'
-                                                            : 'text-[var(--review-text-muted)] hover:bg-white/10 hover:text-white'
-                                                    }`}
+                                                    className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
+                                                    style={currentFile.id === t.id
+                                                        ? { background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }
+                                                        : { background: 'transparent', color: 'var(--review-v2-gray-100)' }}
                                                 >
                                                     {idx + 1}
                                                 </button>
                                             ))}
-                                            <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
+                                            <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
                                             <button
                                                 onClick={() => setViewMode('gallery')}
-                                                className="p-1.5 rounded-lg text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                                                className="p-1.5 rounded-md text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
                                                 title="Gallery view"
                                             >
-                                                <LayoutGrid className="h-4 w-4" />
+                                                <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
                                             </button>
                                             {orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
                                                 <>
-                                                    <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
+                                                    <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
                                                     <ImageOrderPopover
                                                         files={orderedThumbnails}
                                                         currentFileId={currentFile?.id}
@@ -777,13 +782,19 @@ export function ThumbnailReviewModal({
                                     </div>
                                 )}
 
-                                {/* Floating Order button in gallery view */}
+                                {/* Floating Order button in gallery view — matches ReviewModePills' segmented-pill styling */}
                                 {viewMode === 'gallery' && orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
-                                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-[var(--review-bg-secondary)]/90 backdrop-blur-md border border-[var(--review-border)] rounded-full px-4 py-2 flex items-center gap-2 shadow-2xl z-20">
+                                    <div
+                                        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-md px-4 py-2 flex items-center gap-2 z-20"
+                                        style={{
+                                            background: 'var(--review-v2-gray-950)',
+                                            border: '1px solid var(--review-v2-gray-600)',
+                                        }}
+                                    >
                                         <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-1">
                                             {imageLabel} ({orderedThumbnails.length})
                                         </span>
-                                        <div className="h-4 w-px bg-[var(--review-border)] mx-1" />
+                                        <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
                                         <ImageOrderPopover
                                             files={orderedThumbnails}
                                             currentFileId={currentFile?.id}
