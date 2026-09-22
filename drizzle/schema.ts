@@ -2832,6 +2832,7 @@ export const equipment = pgTable("Equipment", {
 	createdById: integer(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	referenceImageUrls: text().array(),
 }, (table) => [
 	foreignKey({
 			columns: [table.createdById],

@@ -334,14 +334,23 @@ export function LayoutShell({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 px-1.5 py-1 rounded-full hover:bg-muted/50 transition-colors">
-                  <div className="h-8 w-8 rounded-full bg-[#EA580C] text-white font-bold text-xs flex items-center justify-center shadow-xs">
-                    {(authUser?.name || 'Eric Davis')
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase()}
-                  </div>
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage
+                      src={authUser?.image}
+                      alt={authUser?.name || ''}
+                      onError={(e) => {
+                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(authUser?.name || getUserDisplayName(currentRole as UserRole))}&background=random`;
+                      }}
+                    />
+                    <AvatarFallback className="bg-[#EA580C] text-white font-bold text-xs">
+                      {(authUser?.name || 'Eric Davis')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="hidden sm:block text-left">
                     <div className="text-[14px] font-semibold text-gray-900 leading-tight">
                       {authUser?.name || 'Eric Davis'}
