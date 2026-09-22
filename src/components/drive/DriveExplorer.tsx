@@ -39,8 +39,6 @@ import {
   Smartphone,
   KeyRound,
   FolderInput,
-  ChevronDown,
-  UserRound,
 } from "lucide-react";
 import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
@@ -118,32 +116,6 @@ interface DriveItem {
   /** Virtual read-only script injected when a folder has a linked script */
   isLinkedScript?: boolean;
   scriptContent?: string;
-}
-
-interface EditorColor {
-  name: string;
-  bg: string;
-  border: string;
-  chip: string;
-}
-
-interface EditorRosterEntry {
-  id: number;
-  name: string;
-  color: EditorColor;
-}
-
-interface FileAssignmentEntry {
-  editorId: number;
-  editorName: string;
-  color: EditorColor;
-}
-
-interface FileDownloadEntry {
-  userId: number;
-  name: string;
-  count: number;
-  lastDownloadedAt: string;
 }
 
 interface SearchResult {
@@ -553,161 +525,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       else next[s3Key] = notes;
       return next;
     });
-  };
-
-  // ─── Editor Assignment ──────────────────────────────────────────────────
-  // Tags files with which editor is responsible for them, color-coded, so
-  // multiple editors working the same client folder don't have to guess.
-  // Same view/manage split and "fetch the whole map once" shape as drive
-  // notes above — colors come back from the server so every screen agrees.
-  const canSeeEditorAssignments = ['admin', 'manager', 'scheduler', 'videographer', 'editor'].includes(role);
-  const canManageEditorAssignments = ['admin', 'manager', 'videographer'].includes(role);
-  const [editorRoster, setEditorRoster] = useState<EditorRosterEntry[]>([]);
-  const [fileAssignments, setFileAssignments] = useState<Record<string, FileAssignmentEntry>>({});
-  const [activeAssignEditorId, setActiveAssignEditorId] = useState<number | null>(null);
-  const [isAssigning, setIsAssigning] = useState(false);
-
-  const loadEditorAssignments = useCallback(() => {
-    if (!effectiveClientId || !canSeeEditorAssignments) {
-      setEditorRoster([]);
-      setFileAssignments({});
-      return;
-    }
-    fetch(`/api/drive/editor-assignments?clientId=${effectiveClientId}`)
-      .then(res => res.ok ? res.json() : { editors: [], assignments: {} })
-      .then(data => {
-        setEditorRoster(data.editors || []);
-        setFileAssignments(data.assignments || {});
-      })
-      .catch(() => { setEditorRoster([]); setFileAssignments({}); });
-  }, [effectiveClientId, canSeeEditorAssignments]);
-
-  useEffect(() => { loadEditorAssignments(); }, [loadEditorAssignments]);
-
-  // Drop the active "assign brush" whenever it stops making sense — the
-  // client changed (different roster) or that editor lost permission here.
-  useEffect(() => {
-    if (activeAssignEditorId !== null && !editorRoster.some(e => e.id === activeAssignEditorId)) {
-      setActiveAssignEditorId(null);
-    }
-  }, [editorRoster, activeAssignEditorId]);
-
-  const activeAssignEditor = editorRoster.find(e => e.id === activeAssignEditorId) || null;
-
-  // Assign every currently-checked file to the active editor (bulk — reuses
-  // the existing Select-mode checkbox set rather than a separate click-to-
-  // paint interaction, so it composes with everything Select mode already
-  // does: shift-click ranges, Select All, the mobile count badge, etc.)
-  const assignCheckedToActiveEditor = async () => {
-    if (!effectiveClientId || !activeAssignEditorId || checkedItems.size === 0) return;
-    setIsAssigning(true);
-    try {
-      const s3Keys = Array.from(checkedItems);
-      const res = await fetch('/api/drive/editor-assignments', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: effectiveClientId, s3Keys, editorId: activeAssignEditorId }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setFileAssignments(prev => {
-          const next = { ...prev };
-          for (const key of s3Keys) {
-            next[key] = { editorId: data.editorId, editorName: data.editorName, color: data.color };
-          }
-          return next;
-        });
-        toast.success(`Assigned ${s3Keys.length} file${s3Keys.length === 1 ? '' : 's'} to ${data.editorName}`);
-        clearChecked();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || 'Failed to assign files');
-      }
-    } catch {
-      toast.error('Something went wrong');
-    } finally {
-      setIsAssigning(false);
-    }
-  };
-
-  const unassignChecked = async () => {
-    if (!effectiveClientId || checkedItems.size === 0) return;
-    setIsAssigning(true);
-    try {
-      const s3Keys = Array.from(checkedItems);
-      const res = await fetch('/api/drive/editor-assignments', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: effectiveClientId, s3Keys }),
-      });
-      if (res.ok) {
-        setFileAssignments(prev => {
-          const next = { ...prev };
-          for (const key of s3Keys) delete next[key];
-          return next;
-        });
-        toast.success('Assignment cleared');
-        clearChecked();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || 'Failed to clear assignment');
-      }
-    } catch {
-      toast.error('Something went wrong');
-    } finally {
-      setIsAssigning(false);
-    }
-  };
-
-  // ─── Download tracking ──────────────────────────────────────────────────
-  // "Downloaded · Rashid" — who has already pulled a given file, and how
-  // many times, so editors sharing a client folder can tell at a glance and
-  // skip re-downloading something someone already grabbed. Same viewer
-  // gate and "fetch the whole map once" shape as editor assignments/notes.
-  const canSeeFileDownloads = ['admin', 'manager', 'scheduler', 'videographer', 'editor'].includes(role);
-  const [fileDownloads, setFileDownloads] = useState<Record<string, FileDownloadEntry[]>>({});
-
-  const loadFileDownloads = useCallback(() => {
-    if (!effectiveClientId || !canSeeFileDownloads) {
-      setFileDownloads({});
-      return;
-    }
-    fetch(`/api/drive/downloads?clientId=${effectiveClientId}`)
-      .then(res => res.ok ? res.json() : { downloads: {} })
-      .then(data => setFileDownloads(data.downloads || {}))
-      .catch(() => setFileDownloads({}));
-  }, [effectiveClientId, canSeeFileDownloads]);
-
-  useEffect(() => { loadFileDownloads(); }, [loadFileDownloads]);
-
-  // Fire-and-forget — recorded the moment a download is kicked off, not
-  // after it finishes (a zip can take a long time server-side; "who started
-  // this" is the useful signal). Never blocks or fails the actual download:
-  // errors are swallowed, and the local map is updated optimistically so
-  // the badge appears immediately rather than waiting on a refetch.
-  const recordFileDownloads = (s3Keys: string[]) => {
-    if (!effectiveClientId || s3Keys.length === 0 || !user) return;
-    const myId = Number(user.id);
-    const displayName = user.name || user.email || 'You';
-    setFileDownloads(prev => {
-      const next = { ...prev };
-      const nowIso = new Date().toISOString();
-      for (const key of s3Keys) {
-        const existing = next[key] || [];
-        const mine = existing.find(d => d.userId === myId);
-        const updatedMine: FileDownloadEntry = mine
-          ? { ...mine, count: mine.count + 1, lastDownloadedAt: nowIso }
-          : { userId: myId, name: displayName, count: 1, lastDownloadedAt: nowIso };
-        const rest = existing.filter(d => d.userId !== myId);
-        next[key] = [updatedMine, ...rest];
-      }
-      return next;
-    });
-    fetch('/api/drive/downloads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId: effectiveClientId, s3Keys }),
-    }).catch(() => {});
   };
 
   const updateFolderStatus = async (item: DriveItem, status: "IN_PROGRESS" | "COMPLETED" | null) => {
@@ -1230,26 +1047,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     return pathParts.join("/");
   };
 
-  // Editor Assignment lookup — folders aren't assignable, only files.
-  const getAssignmentFor = (item: DriveItem): FileAssignmentEntry | undefined =>
-    item.type === 'file' ? fileAssignments[item.s3Key || getS3Key(item)] : undefined;
-
-  // Download history lookup — most-recent downloader first (see the API's
-  // sort). Returns undefined for folders and never-downloaded files alike.
-  const getDownloadsFor = (item: DriveItem): FileDownloadEntry[] | undefined =>
-    item.type === 'file' ? fileDownloads[item.s3Key || getS3Key(item)] : undefined;
-
-  const downloadBadgeLabel = (downloads: FileDownloadEntry[]): string => {
-    const [latest, ...rest] = downloads;
-    const label = `Downloaded · ${latest.name}`;
-    return rest.length > 0 ? `${label} +${rest.length}` : label;
-  };
-
-  const downloadBadgeTitle = (downloads: FileDownloadEntry[]): string =>
-    downloads
-      .map(d => `${d.name} — ${d.count} download${d.count === 1 ? '' : 's'}, last ${new Date(d.lastDownloadedAt).toLocaleString()}`)
-      .join('\n');
-
   // ─── Folder status marking is restricted to folders living inside the
   // client's "raw-footage" tree, no matter how deeply nested. We check the
   // item's ancestor path segments (not the item's own name, and not a raw
@@ -1639,10 +1436,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     }
   };
 
-  // Download file via presigned S3 URL
-  const handleDownloadClick = async (item: DriveItem) => {
-    if (item.type !== "file") return;
-
+  // Core single-file download: resolve a presigned S3 URL and trigger the
+  // browser/desktop download. Shared by the single-file click handler and
+  // the multi-select "download selected" handler below — same request,
+  // same fallback behavior either way.
+  const triggerFileDownload = async (item: DriveItem) => {
     // Virtual linked script — download as a local .txt (read-only surface).
     if (item.isLinkedScript && typeof item.scriptContent === 'string') {
       const blob = new Blob([item.scriptContent], { type: 'text/plain;charset=utf-8' });
@@ -1654,7 +1452,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      toast.success('Script downloaded');
       return;
     }
 
@@ -1675,26 +1472,32 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       }
 
       const data = await response.json();
-      if (canSeeFileDownloads) recordFileDownloads([s3Key]);
 
       const desktop = (window as any).e8;
       if (desktop?.isDesktopApp) {
         const result = await desktop.downloadToDownloadsFolder(data.downloadUrl);
         if (!result.success) {
-          toast.error(result.message || "Failed to start download");
+          toast.error(result.message || `Failed to start download for ${item.name}`);
         }
         return;
       }
 
       window.open(data.downloadUrl, '_blank');
-      toast.success('Download started');
     } catch (error: any) {
       console.error("Download error:", error);
       if (item.url) {
         window.open(item.url, '_blank');
+      } else {
+        toast.error(`Failed to start download for ${item.name}`);
       }
-      toast.error("Failed to start download");
     }
+  };
+
+  // Download file via presigned S3 URL
+  const handleDownloadClick = async (item: DriveItem) => {
+    if (item.type !== "file") return;
+    await triggerFileDownload(item);
+    toast.success(item.isLinkedScript ? 'Script downloaded' : 'Download started');
   };
 
   // ─── Download helpers ────────────────────────────────────────────────────────
@@ -1828,17 +1631,31 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     if (keys.length === 0) return;
     // Separate folders and files
     const folderKeys = keys.filter(key => filteredItems.find(i => (i.s3Key || getS3Key(i)) === key)?.type === 'folder');
-    const fileKeys = keys.filter(key => !folderKeys.includes(key));
-    // Download each selected folder's contents
+    const fileItems = keys
+      .filter(key => !folderKeys.includes(key))
+      .map(key => filteredItems.find(i => (i.s3Key || getS3Key(i)) === key))
+      .filter((i): i is DriveItem => !!i);
+
+    // Whole folders still zip — a folder's contents can be far larger than
+    // anything worth firing off as individual browser downloads.
     for (const key of folderKeys) {
       const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
       if (item) await downloadFilesFromUrls({ folderPrefix: key.endsWith('/') ? key : `${key}/` }, item.name);
     }
-    // Download selected individual files
-    if (fileKeys.length > 0) {
-      await downloadFilesFromUrls({ keys: fileKeys }, `${fileKeys.length} files`);
-      if (canSeeFileDownloads) recordFileDownloads(fileKeys);
+
+    // Selected individual files: download each one directly, same as
+    // clicking a single file, instead of bundling them into a zip.
+    // Staggered slightly since browsers (Chrome included) can silently
+    // block several downloads fired in the same tick without a per-file
+    // user gesture.
+    if (fileItems.length > 0) {
+      toast.success(`Downloading ${fileItems.length} file${fileItems.length > 1 ? 's' : ''}…`);
+      for (let i = 0; i < fileItems.length; i++) {
+        await triggerFileDownload(fileItems[i]);
+        if (i < fileItems.length - 1) await new Promise(r => setTimeout(r, 400));
+      }
     }
+
     setCheckedItems(new Set());
     setIsSelectionMode(false);
   };
@@ -2667,14 +2484,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           </div>
         )}
 
-        {/* Top Toolbar — sticky so the action row + breadcrumb stay in view
-            while the file list underneath scrolls. Stuck to top:0 of
-            whichever ancestor actually owns the scroll (this component's own
-            ScrollArea when its h-screen layout is fully in effect, or the
-            page/window when an outer shell ends up doing the scrolling) —
-            sticky positioning resolves that automatically, so this doesn't
-            depend on getting every parent's height/overflow chain right. */}
-        <div className="border-b bg-card sticky top-0 z-20">
+        {/* Top Toolbar */}
+        <div className="border-b bg-card">
           <div className="flex items-center gap-2 sm:gap-4 p-3 sm:p-4 flex-wrap">
             {/* Left: Upload Button */}
             {canUpload && !(role === 'client' && storageInfo?.isAtLimit) && (
@@ -2882,55 +2693,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </Select>
             )}
 
-            {/* ─── Editor Assignment picker ───────────────────────────────
-                Pick an editor here, then tick files (Select mode) and hit
-                "Assign" in the selection action bar — same pattern as the
-                existing bulk Move/Delete flow. The trigger itself is
-                colored once an editor is picked so it's obvious who the
-                next click will assign to. */}
-            {canManageEditorAssignments && effectiveClientId && editorRoster.length > 0 && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="gap-2 shrink-0 h-10 px-3 font-semibold"
-                    style={activeAssignEditor ? {
-                      backgroundColor: activeAssignEditor.color.bg,
-                      borderColor: activeAssignEditor.color.border,
-                      color: activeAssignEditor.color.border,
-                    } : undefined}
-                  >
-                    <UserRound className="h-4 w-4" />
-                    <span>{activeAssignEditor ? activeAssignEditor.name : 'Assign editor'}</span>
-                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-48">
-                  {editorRoster.map((editor) => (
-                    <DropdownMenuItem
-                      key={editor.id}
-                      onClick={() => { setActiveAssignEditorId(editor.id); if (!isSelectionMode) setIsSelectionMode(true); }}
-                      className="gap-2"
-                    >
-                      <span
-                        className="h-3 w-3 rounded-full shrink-0"
-                        style={{ backgroundColor: editor.color.chip }}
-                      />
-                      <span className="font-medium">{editor.name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                  {activeAssignEditorId !== null && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setActiveAssignEditorId(null)}>
-                        Clear selection
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-
             {/* ─── FEATURE 3: Global Search Bar ─── */}
             <div className="flex-1 max-w-2xl mx-auto relative">
               <div className="relative group">
@@ -3042,35 +2804,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     <span className="hidden sm:inline">Download</span>
                     <span className="sm:hidden">{checkedItems.size}</span>
                   </Button>
-                  {canManageEditorAssignments && activeAssignEditor && (
-                    <Button
-                      size="sm"
-                      className="gap-1.5 h-9 border"
-                      style={{
-                        backgroundColor: activeAssignEditor.color.bg,
-                        borderColor: activeAssignEditor.color.border,
-                        color: activeAssignEditor.color.border,
-                      }}
-                      onClick={assignCheckedToActiveEditor}
-                      disabled={isAssigning}
-                    >
-                      <UserRound className="h-3.5 w-3.5" />
-                      <span>{isAssigning ? 'Assigning…' : `Assign to ${activeAssignEditor.name}`}</span>
-                    </Button>
-                  )}
-                  {canManageEditorAssignments && !activeAssignEditor && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 h-9"
-                      onClick={unassignChecked}
-                      disabled={isAssigning}
-                      title="Clear any editor assignment on the selected files"
-                    >
-                      <UserRound className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Unassign</span>
-                    </Button>
-                  )}
                   {role !== 'client' && (
                     <Button
                       size="sm"
@@ -3370,23 +3103,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       draggedItem?.path === item.path && "opacity-40 scale-95",
                       dragOverTarget === item.path && item.type === 'folder' && "ring-2 ring-blue-400 bg-blue-50/60",
                     )}
-                    style={getAssignmentFor(item) ? {
-                      backgroundColor: getAssignmentFor(item)!.color.bg,
-                      borderColor: getAssignmentFor(item)!.color.border,
-                    } : undefined}
                     onClick={() => isSelectionMode ? toggleChecked(item, { stopPropagation: () => {} } as any) : handleItemClick(item)}
                     onDoubleClick={() => handleItemDoubleClick(item)}
                   >
-                    {/* Editor Assignment badge */}
-                    {getAssignmentFor(item) && (
-                      <div
-                        className="absolute top-2 right-2 z-10 rounded-full px-1.5 py-0.5 text-[9px] font-extrabold text-white truncate max-w-[70%]"
-                        style={{ backgroundColor: getAssignmentFor(item)!.color.chip }}
-                        title={`Assigned to ${getAssignmentFor(item)!.editorName}`}
-                      >
-                        {getAssignmentFor(item)!.editorName.split(' ')[0]}
-                      </div>
-                    )}
                     {/* Selection checkbox */}
                     {(isSelectionMode || checkedItems.has(item.s3Key || getS3Key(item))) && (
                       <div
@@ -3422,16 +3141,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       <p className="text-xs sm:text-sm font-medium truncate w-full px-1">
                         {item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}
                       </p>
-
-                      {getDownloadsFor(item) && getDownloadsFor(item)!.length > 0 && (
-                        <span
-                          className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 max-w-full truncate"
-                          title={downloadBadgeTitle(getDownloadsFor(item)!)}
-                        >
-                          <Download className="h-2.5 w-2.5 shrink-0" />
-                          <span className="truncate">{downloadBadgeLabel(getDownloadsFor(item)!)}</span>
-                        </span>
-                      )}
 
                       {item.isLinkedScript && (
                         <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700">
@@ -3626,7 +3335,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         draggedItem?.path === item.path && "opacity-40",
                         dragOverTarget === item.path && item.type === 'folder' && "ring-2 ring-blue-400 bg-blue-50/60",
                       )}
-                      style={getAssignmentFor(item) ? { backgroundColor: getAssignmentFor(item)!.color.bg } : undefined}
                       onClick={() => isSelectionMode ? toggleChecked(item, { stopPropagation: () => {} } as any) : handleItemClick(item)}
                       onDoubleClick={() => handleItemDoubleClick(item)}
                     >
@@ -3640,15 +3348,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           </div>
                         )}
                       </div>
-
-                      {/* Editor Assignment dot */}
-                      {getAssignmentFor(item) && (
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: getAssignmentFor(item)!.color.chip }}
-                          title={`Assigned to ${getAssignmentFor(item)!.editorName}`}
-                        />
-                      )}
 
                       {/* Icon */}
                       <div className="w-8 h-8 shrink-0 flex items-center justify-center">
@@ -3672,15 +3371,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       <div className="flex-1 min-w-0 flex items-center gap-2">
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}</p>
-                          {getDownloadsFor(item) && getDownloadsFor(item)!.length > 0 && (
-                            <span
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 max-w-full truncate"
-                              title={downloadBadgeTitle(getDownloadsFor(item)!)}
-                            >
-                              <Download className="h-2.5 w-2.5 shrink-0" />
-                              <span className="truncate">{downloadBadgeLabel(getDownloadsFor(item)!)}</span>
-                            </span>
-                          )}
                           {item.type === "folder" && rawFootageBadge(item.name) && (
                             <span className={cn(
                               "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",

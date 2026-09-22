@@ -47,6 +47,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { useViewAsRole } from "../auth/ViewAsRoleContext";
 import { useRouter } from "next/navigation";
 import { FilePreviewModal } from "../FileViewerModal";
 import { toast } from "sonner";
@@ -2421,6 +2422,17 @@ export function EditorDashboard() {
   }, []);
 
   const { user } = useAuth();
+  // Someone whose real/primary role isn't "editor" (e.g. a videographer
+  // granted editor as a secondary role) lands here via the switch-role
+  // portal, but every /api/tasks call below was hitting the backend with
+  // no x-viewing-as header — the backend then used their real DB role
+  // column to scope the query (e.g. "videographer"), which has nothing to
+  // do with the editor tasks this dashboard is supposed to show, so it
+  // always came back empty for them. Sending the header tells the backend
+  // to actually query as "editor" for this fetch.
+  const { viewingAsRole } = useViewAsRole();
+  const viewingAsHeaders: Record<string, string> =
+    viewingAsRole && viewingAsRole !== user?.role ? { "x-viewing-as": viewingAsRole } : {};
 
   // ── Editor task-creation permissions ──────────────────────────────
   const [permittedClients, setPermittedClients] = useState<{ id: string; name: string }[]>([]);
@@ -2457,7 +2469,10 @@ export function EditorDashboard() {
       // without reintroducing the old company-wide unscoped-query problem.
       params.set("limit", "500");
       const queryString = params.toString();
-      const res = await fetch(`/api/tasks${queryString ? `?${queryString}` : ""}`);
+      const res = await fetch(`/api/tasks${queryString ? `?${queryString}` : ""}`, {
+        credentials: "include",
+        headers: viewingAsHeaders,
+      });
       const data = await res.json();
 
       console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
@@ -2584,7 +2599,7 @@ export function EditorDashboard() {
     } catch (err) {
       console.error("Failed to load tasks:", err);
     }
-  }, [currentUser.id, monthFilter]);
+  }, [currentUser.id, monthFilter, viewingAsRole]);
 
   // 🔥 Initial load - run once on mount
   // useEffect(() => {
@@ -3083,7 +3098,7 @@ export function EditorDashboard() {
   }, []);
 
   const handleUploadComplete = useCallback(async (taskId: string, files: any[]) => {
-    const res = await fetch("/api/tasks");
+    const res = await fetch("/api/tasks", { credentials: "include", headers: viewingAsHeaders });
     const data = await res.json();
 
     const updatedTask = data.tasks.find((t: any) => t.id === taskId);
@@ -3093,7 +3108,7 @@ export function EditorDashboard() {
         t.id === taskId ? { ...t, files: updatedTask?.files || files } : t
       )
     );
-  }, []);
+  }, [viewingAsHeaders]);
 
   const handlePreview = useCallback((file: any) => {
     setPreviewFile(file);
