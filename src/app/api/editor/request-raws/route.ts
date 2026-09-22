@@ -15,9 +15,9 @@ export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser2(req);
 
-    if (!user || user.role !== "editor") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // if (!user || user.role !== "editor") {
+    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // }
 
     const body = await req.json();
     const { clientId } = body;
