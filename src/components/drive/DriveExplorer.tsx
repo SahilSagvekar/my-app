@@ -1482,11 +1482,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         return;
       }
 
-      window.open(data.downloadUrl, '_blank');
+      // A hidden <a download> click, not window.open — window.open() for
+      // every selected file is what was only downloading the first one:
+      // Chrome (and other browsers) treat each one after the first as an
+      // unrequested popup within the same loop and silently blocks it.
+      // Anchor-click downloads don't hit that popup blocker.
+      triggerSingleDownload(data.downloadUrl, item.name);
     } catch (error: any) {
       console.error("Download error:", error);
       if (item.url) {
-        window.open(item.url, '_blank');
+        triggerSingleDownload(item.url, item.name);
       } else {
         toast.error(`Failed to start download for ${item.name}`);
       }
