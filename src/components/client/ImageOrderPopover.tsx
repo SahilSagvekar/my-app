@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ListOrdered, ChevronUp, ChevronDown, Check, GripVertical, Loader2, X } from 'lucide-react';
-// import { TaskFile } from './ThumbnailReviewModal';
 import { TaskFile } from './ThumbnailReviewModal';
 
 interface ImageOrderPopoverProps {
@@ -196,21 +195,24 @@ export function ImageOrderPopover({
                 </div>
             )}
 
-            {/* Trigger Button */}
+            {/* Trigger Button — matches ReviewModePills' segmented-pill styling */}
             <button
                 ref={triggerRef}
                 type="button"
+                role="tab"
+                aria-selected={isOpen}
                 onClick={() => setIsOpen((prev) => !prev)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                    isOpen
-                        ? 'bg-[var(--review-text-primary)] text-black border-[var(--review-text-primary)] font-bold'
-                        : 'bg-white/5 hover:bg-white/10 text-[var(--review-text-secondary)] hover:text-[var(--review-text-primary)] border-[var(--review-border)] hover:border-[var(--review-border-hover)]'
-                }`}
+                className="relative flex items-center gap-2 px-3.5 py-2.5 rounded-md text-sm font-semibold transition-all duration-150 cursor-pointer"
+                style={{
+                    border: '1px solid var(--review-v2-gray-600)',
+                    background: isOpen ? 'var(--review-v2-gray-50)' : 'transparent',
+                    color: isOpen ? 'var(--review-v2-gray-950)' : 'var(--review-v2-gray-100)',
+                }}
                 title="Reorder images"
             >
-                <ListOrdered className={`h-3.5 w-3.5 ${isOpen ? 'text-black' : 'text-[var(--review-text-muted)]'}`} />
+                <ListOrdered className="h-[15px] w-[15px]" strokeWidth={1.5} />
                 <span>{buttonLabel}</span>
-                <ChevronUp className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                <ChevronUp className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} strokeWidth={1.75} />
             </button>
         </div>
     );
