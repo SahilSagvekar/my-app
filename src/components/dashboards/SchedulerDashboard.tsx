@@ -14,6 +14,7 @@ import { sortTaskImages } from '@/lib/task-image-order';
 import { TeamEodReport } from './TeamEodReport';
 import { Send } from 'lucide-react';
 import { PageHeader } from '../ui/page-header';
+import { DeliverableGapTracker } from './DeliverableGapTracker';
 
 // Mock current scheduler user
 const currentUser = {
@@ -487,6 +488,9 @@ export function SchedulerDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Daily deliverable gap — banner + per-client breakdown */}
+      <DeliverableGapTracker />
 
       {/* Workflow Info */}
       <Card>
