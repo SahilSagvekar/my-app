@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       .select({
         shoot: shootDetailTable,
         task: taskTable,
-        client: { id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName },
+        client: { id: clientTable.id, name: clientTable.name, companyName: clientTable.companyName, scriptsRequired: clientTable.scriptsRequired },
         videographer: { id: userTable.id, name: userTable.name, email: userTable.email },
       })
       .from(shootDetailTable)

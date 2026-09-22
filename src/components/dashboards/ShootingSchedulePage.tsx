@@ -35,6 +35,7 @@ interface ClientOption {
   id: string;
   name?: string | null;
   companyName?: string | null;
+  scriptsRequired?: boolean;
 }
 
 interface Shoot {
@@ -673,22 +674,24 @@ export function ShootingSchedulePage() {
                     </div>
                   </div>
 
-                  <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">{shoot.scriptsCount} of {shoot.videosPlanned} Scripts Written</span>
-                      <Badge variant="outline" className={`rounded-full border-0 text-[10px] font-semibold uppercase ${scriptSent ? 'bg-blue-100 text-blue-800' : 'bg-white/10 text-white/70'}`}>
-                        {scriptSent ? 'Sent to Client' : 'Not Sent'}
-                      </Badge>
+                  {shoot.client?.scriptsRequired !== false && (
+                    <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold">{shoot.scriptsCount} of {shoot.videosPlanned} Scripts Written</span>
+                        <Badge variant="outline" className={`rounded-full border-0 text-[10px] font-semibold uppercase ${scriptSent ? 'bg-blue-100 text-blue-800' : 'bg-white/10 text-white/70'}`}>
+                          {scriptSent ? 'Sent to Client' : 'Not Sent'}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                        onClick={() => openScriptDialog(shoot)}
+                      >
+                        Scripts
+                      </Button>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
-                      onClick={() => openScriptDialog(shoot)}
-                    >
-                      Scripts
-                    </Button>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             );
