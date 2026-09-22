@@ -1519,10 +1519,25 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // for folders far too large to ever hand-list (100GB+).
 
   // Trigger a single file download via <a> click.
+  //
+  // target="_blank" matters here, not just for a single download: these
+  // URLs are cross-origin (R2/S3), and a same-tab <a download> click on a
+  // cross-origin URL is still, technically, a same-tab navigation attempt
+  // until the response headers come back and the browser recognizes it as
+  // a file rather than a page. For a small file that recognition happens
+  // near-instantly. For a large video, it doesn't — so firing several of
+  // these in a loop (multi-select download) meant each new click was
+  // cancelling the PREVIOUS file's still-pending "navigation" before its
+  // headers ever arrived, silently dropping it. That's exactly why big
+  // files worked one-at-a-time but multi-selecting several large ones only
+  // ever finished the last click or two. target="_blank" gives each one
+  // its own throwaway context so they can't cancel each other.
   const triggerSingleDownload = (url: string, filename: string) => {
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    a.target = '_blank';
+    a.rel = 'noopener';
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
