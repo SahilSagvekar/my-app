@@ -43,9 +43,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    if (!permission) {
-      return NextResponse.json({ error: "No permission for this client" }, { status: 403 });
-    }
+    // if (!permission) {
+    //   return NextResponse.json({ error: "No permission for this client" }, { status: 403 });
+    // }
 
     const clientDisplayName = client.companyName || client.name;
     const editorName = user.name || `Editor #${user.id}`;
