@@ -243,7 +243,12 @@ export function LayoutShell({
 
             {/* 🔥 Role Switch Dropdown */}
             {canSwitchRole && (
-              <DropdownMenu>
+              // modal={false}: Radix's default (modal=true) locks page
+              // scroll while open, which hides the scrollbar and shifts the
+              // whole page a few px left/right on every open/close. This
+              // menu doesn't need the focus-trap/scroll-lock behavior a true
+              // modal needs, so turning it off removes the shift entirely.
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center gap-2 px-3 py-1.5 h-9 rounded-full border border-gray-200 hover:bg-gray-50 text-gray-800">
                     <ArrowLeftRight className="h-3.5 w-3.5 text-gray-500" />
@@ -331,7 +336,7 @@ export function LayoutShell({
             )}
 
             {/* User Menu */}
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 px-1.5 py-1 rounded-full hover:bg-muted/50 transition-colors">
                   <Avatar className="h-8 w-8">
