@@ -146,6 +146,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       monthlyDeliverables = [],
       oneOffDeliverables = [],
       shootDaysPerMonth,
+      scriptsRequired,
     } = data;
 
     if (clientReviewRequired === "yes") {
@@ -201,6 +202,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
       ...(shootDaysPerMonth !== undefined && shootDaysPerMonth !== "" && {
         shootDaysPerMonth: Math.max(0, Math.min(99, Number(shootDaysPerMonth) || 0)),
       }),
+      ...(scriptsRequired !== undefined && { scriptsRequired: !!scriptsRequired }),
       updatedAt: new Date().toISOString(),
     }).where(eq(clientTable.id, id)).returning();
 

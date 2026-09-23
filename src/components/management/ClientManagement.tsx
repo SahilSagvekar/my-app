@@ -1704,6 +1704,7 @@ export function ClientManagement() {
       hasPostingServices: client.hasPostingServices ?? true,
       templateHashtags: (client as any).templateHashtags ?? [],
       shootDaysPerMonth: (client as any).shootDaysPerMonth ?? 0,
+      scriptsRequired: (client as any).scriptsRequired ?? false,
       accountManagerId: client.accountManagerId,
       startDate: client.startDate,
       renewalDate: client.renewalDate,
