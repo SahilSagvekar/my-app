@@ -198,9 +198,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error("2FA_REQUIRED");
     }
 
-    setUser(data.user);
+    // issueLoginSession only returns the bare { id, email, role, roles, name }
+    // — it doesn't resolve linkedClientId/hasPostingServices/scriptsRequired.
+    // Using that partial object directly left scriptsRequired `undefined`
+    // right after login (rather than `false`), which made the client
+    // portal's "Scripts" nav item show up for every client until a full
+    // page reload re-fetched /api/auth/me. Refresh from /api/auth/me here
+    // instead so those derived flags are correct immediately.
     setIsAuthenticated(true);
     setPendingLoginEmail(null);
+    try {
+      await refreshUser();
+    } catch {
+      setUser(data.user);
+    }
     setLoading(false);
   };
 
@@ -247,9 +258,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.message || "Invalid verification code");
     }
 
-    setUser(data.user);
     setIsAuthenticated(true);
     setPendingLoginEmail(null);
+    try {
+      await refreshUser();
+    } catch {
+      setUser(data.user);
+    }
     setLoading(false);
   };
 
