@@ -7,9 +7,20 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
 import { cn } from "./utils";
 
 function DropdownMenu({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
+  // Radix defaults modal to true, which locks page scroll while the menu is
+  // open — that hides the scrollbar and shifts the whole page a few px
+  // left/right on every open/close (reported across several menus: the
+  // top-bar "Viewing: X" switcher, the account menu, the dashboard "Manage"
+  // menu, ...). None of this app's dropdown menus need a focus-trapping
+  // modal, so default it off here instead of passing modal={false} at every
+  // call site. Pass modal={true} explicitly on the rare menu that actually
+  // needs the trap/lock.
+  return (
+    <DropdownMenuPrimitive.Root data-slot="dropdown-menu" modal={modal} {...props} />
+  );
 }
 
 function DropdownMenuPortal({

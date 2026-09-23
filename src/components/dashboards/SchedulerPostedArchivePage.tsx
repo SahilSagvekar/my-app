@@ -96,7 +96,10 @@ export function SchedulerPostedArchivePage() {
                 setLoading(true);
                 // Fetch tasks and clients in parallel
                 const [tasksRes, clientsRes] = await Promise.all([
-                    fetch("/api/tasks?status=SCHEDULED"),
+                    // limit=500 (the API's max) — otherwise this silently
+                    // truncates to the default 100-row cap once there are
+                    // more than 100 scheduled tasks.
+                    fetch("/api/tasks?status=SCHEDULED&limit=500"),
                     fetch("/api/clients")
                 ]);
 

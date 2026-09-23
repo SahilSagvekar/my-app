@@ -487,7 +487,9 @@ useEffect(() => {
     try {
       setLoading(true);
       // 🔥 Fetch PENDING tasks (READY_FOR_QC status)
-      const res = await fetch("/api/tasks?status=READY_FOR_QC", {
+      // limit=500 (the API's max) so the QC queue isn't silently truncated
+      // by the default 100-row safety cap once it grows past that.
+      const res = await fetch("/api/tasks?status=READY_FOR_QC&limit=500", {
   method: "GET",
   credentials: "include",
   headers: viewingAsRole && viewingAsRole !== user?.role

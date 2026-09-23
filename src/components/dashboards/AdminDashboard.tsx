@@ -500,7 +500,11 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
 
   // Management Dropdown Component
   const ManagementDropdown = () => (
-    <DropdownMenu>
+    // modal={false}: same fix as LayoutShell's top-bar dropdowns — Radix's
+    // default scroll-lock hides the page scrollbar while open, shifting the
+    // whole layout a few px. This menu doesn't need the focus-trap/scroll
+    // lock a true modal needs.
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="h-10 gap-2 rounded-lg border-slate-200 bg-white font-medium text-slate-800">
           Manage <ChevronDown className="h-4 w-4" />

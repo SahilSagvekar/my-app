@@ -160,9 +160,11 @@ export function PostedContentSidebar({ clientId, className }: PostedContentSideb
     try {
       setLoading(true);
       setError(null);
+      // limit=500 (the API's max) — otherwise this silently truncates to
+      // the default 100-row cap once there are more than 100 matching tasks.
       const url = clientId
-        ? `/api/tasks?clientId=${clientId}&status=SCHEDULED,POSTED`
-        : "/api/tasks?status=SCHEDULED,POSTED";
+        ? `/api/tasks?clientId=${clientId}&status=SCHEDULED,POSTED&limit=500`
+        : "/api/tasks?status=SCHEDULED,POSTED&limit=500";
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();

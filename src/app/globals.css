@@ -222,6 +222,22 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* Belt-and-suspenders for the same shift: react-remove-scroll-bar (used
+   internally by every Radix Select/DropdownMenu/Dialog scroll lock) always
+   adds its own compensating `margin-right` to <body data-scroll-locked> —
+   sized to whatever scrollbar gap it measures at that moment — regardless
+   of scrollbar-gutter already reserving that space. That's what was still
+   shifting the FilterSelect pill filters (Editor/QC/Scheduler/... row) and
+   the "Manage" dropdown a few px even with scrollbar-gutter set. Radix's
+   Select has no `modal` prop to disable the lock outright (unlike
+   DropdownMenu), so neutralize the compensation directly. The extra `html`
+   ancestor raises specificity above the library's own `body[data-scroll-locked]`
+   rule so this wins regardless of which <style> tag was inserted later. */
+html body[data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+}
+
 /* Utility classes for search results */
 .line-clamp-2 {
   display: -webkit-box;
