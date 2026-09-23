@@ -377,8 +377,8 @@ export async function deliverSlackNotification(
   if (notificationType === "qc_ready") {
     console.log(`[Slack Dispatch] Ready for Quality Control → QC channel only`);
 
-    // Hardcoded Eric's Slack ID
-    const adminMention = `<@U047GKLSCBD> `;
+    // Hardcoded QC admin's Slack ID
+    const adminMention = `<@U0BU5CES8CX> `;
     const taskTitle = notification.payload?.taskTitle || notification.title || "Task";
 
     // Create modified notification with admin mention
