@@ -213,6 +213,13 @@ body {
 
 html {
   font-size: var(--font-size);
+  /* Radix (DropdownMenu/Select/Dialog) locks body scroll while open, which
+     hides the scrollbar. Without reserving its space, every open/close of
+     one of those (e.g. the "Viewing: X" role switcher, any filter dropdown)
+     shifts the whole page a few px left/right as the scrollbar
+     disappears/reappears. Reserving a stable gutter keeps the layout width
+     constant either way. */
+  scrollbar-gutter: stable;
 }
 
 /* Utility classes for search results */
