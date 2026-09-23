@@ -21,7 +21,7 @@
 // response rather than the whole run failing.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { and, desc, eq, gt, isNotNull } from 'drizzle-orm';
+import { and, arrayContains, desc, eq, gt, isNotNull, or } from 'drizzle-orm';
 import { getDbHttp } from '@/lib/db';
 import {
   client as clientTable,
@@ -75,10 +75,13 @@ export async function POST(req: NextRequest) {
   const month = currentMonthKey();
 
   try {
+    // Primary role OR videographer as a secondary role — otherwise a
+    // multi-role staff member (e.g. an admin who also shoots) could never
+    // be picked as the fallback videographer.
     const [fallbackVideographer] = await db
       .select({ id: userTable.id })
       .from(userTable)
-      .where(eq(userTable.role, 'videographer'))
+      .where(or(eq(userTable.role, 'videographer'), arrayContains(userTable.roles, ['videographer'])))
       .orderBy(userTable.name)
       .limit(1);
     const fallbackVideographerId = fallbackVideographer?.id ?? null;

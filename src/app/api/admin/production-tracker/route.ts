@@ -5,7 +5,7 @@ import {
   task as taskTable,
   user as userTable,
 } from "@/lib/db/schema";
-import { and, or, eq, gte, lte, isNull, isNotNull, ne } from "drizzle-orm";
+import { and, or, eq, gte, lte, isNull, isNotNull, ne, arrayContains } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 // GET /api/admin/production-tracker?month=April-2026
@@ -78,11 +78,16 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // 3. Get all editors, QC, schedulers
+    // 3. Get all editors, QC, schedulers — primary role OR any of these as a
+    // secondary role, so multi-role staff (e.g. an admin who also edits)
+    // still show up in the Production Tracker's employee picker.
     const employees = await db.select({ id: userTable.id, name: userTable.name, role: userTable.role, email: userTable.email })
       .from(userTable)
       .where(and(
-        or(eq(userTable.role, "editor" as any), eq(userTable.role, "qc" as any), eq(userTable.role, "scheduler" as any), eq(userTable.role, "admin" as any)),
+        or(
+          eq(userTable.role, "editor" as any), eq(userTable.role, "qc" as any), eq(userTable.role, "scheduler" as any), eq(userTable.role, "admin" as any),
+          arrayContains(userTable.roles, ["editor"]), arrayContains(userTable.roles, ["qc"]), arrayContains(userTable.roles, ["scheduler"]), arrayContains(userTable.roles, ["admin"]),
+        ),
         eq(userTable.employeeStatus, "ACTIVE"),
       ));
 

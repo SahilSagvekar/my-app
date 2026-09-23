@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { job, bid, user as userTable, notification } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
-import { and, eq, desc, inArray, count as countFn } from 'drizzle-orm';
+import { and, eq, or, arrayContains, desc, inArray, count as countFn } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { sendNewJobNotificationEmail } from '@/lib/email';
 
@@ -53,12 +53,17 @@ export async function POST(req: NextRequest) {
             updatedAt: new Date().toISOString(),
         }).returning();
 
-        // 2. Fetch Active Videographers
+        // 2. Fetch Active Videographers — primary role OR videographer as a
+        // secondary role, so multi-role staff (e.g. an admin who also
+        // shoots) still get notified about new job posts.
         const videographers = await db.select({
             id: userTable.id,
             email: userTable.email,
             name: userTable.name,
-        }).from(userTable).where(and(eq(userTable.role, 'videographer'), eq(userTable.employeeStatus, 'ACTIVE')));
+        }).from(userTable).where(and(
+            or(eq(userTable.role, 'videographer'), arrayContains(userTable.roles, ['videographer'])),
+            eq(userTable.employeeStatus, 'ACTIVE')
+        ));
 
         // 3. Create Notifications in DB
         await Promise.all(videographers.map(vg =>
