@@ -152,6 +152,8 @@ export interface ZipJobRequest {
   keys?: string[];
   folderPrefix?: string;
   zipName?: string;
+  /** Keys under folderPrefix to leave out — files sitting in Drive's Trash. */
+  excludeKeys?: string[];
 }
 
 export interface ZipJobResult {
@@ -422,4 +424,54 @@ export async function ackDriveMirrorJobs(env: CloudflareEnv, fileRecordIds: stri
     body: JSON.stringify({ fileRecordIds }),
   });
   if (!res.ok) throw new Error(`File server /drive-mirror/ack failed: ${res.status}`);
+}
+
+// ─── HLS previews (Drive video player) ──────────────────────────────────────
+// Transcoding runs in the background on the file server's separate
+// "transcoder" container instance (see e8-file-server/worker.js). my-app's
+// drive tick starts jobs and polls status once a minute — those polls are
+// also what keep that container awake, so nothing here holds a request open.
+
+export interface HlsStartResult {
+  accepted: boolean;
+  state: 'processing' | 'busy' | 'done' | 'failed';
+}
+
+export interface HlsJobStatus {
+  state: 'processing' | 'done' | 'failed' | 'unknown';
+  progress?: number;
+  error?: string;
+  result?: {
+    durationSeconds: number;
+    width: number;
+    height: number;
+    hasAudio: boolean;
+    segmentCount: number;
+    spriteCount: number;
+    spriteIntervalSeconds: number;
+    thumbWidth: number;
+    thumbHeight: number;
+    playlist: string;
+    spriteVtt: string;
+  };
+}
+
+export async function startHlsJob(
+  env: CloudflareEnv,
+  key: string,
+  outPrefix: string,
+  sourceEtag?: string | null,
+): Promise<HlsStartResult> {
+  const res = await fsRequest(env, 'POST', '/hls/start', 'system', 'admin', { key, outPrefix, sourceEtag: sourceEtag || undefined });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok && res.status !== 202) {
+    throw new Error((body as any)?.error || `File server error: ${res.status}`);
+  }
+  return body as HlsStartResult;
+}
+
+export async function getHlsJobStatus(env: CloudflareEnv, key: string): Promise<HlsJobStatus> {
+  const res = await fsRequest(env, 'GET', '/hls/status', 'system', 'admin', undefined, { key });
+  if (!res.ok) throw new Error(`File server error: ${res.status}`);
+  return res.json();
 }

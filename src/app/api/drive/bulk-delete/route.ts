@@ -15,6 +15,7 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { deleteItem } from '@/lib/file-server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { verifyTotpCode } from '@/lib/totp-verify';
+import { isDriveTrashEnabled, trashItem, logDriveActivity } from '@/lib/drive/index-store';
 
 interface BulkDeleteItem {
   s3Key: string;
@@ -58,6 +59,32 @@ export async function DELETE(request: NextRequest) {
           : 'Invalid verification code',
         totpReason: totpResult.reason,
       }, { status });
+    }
+
+    // Trash on: move everything to Trash (restorable for 30 days).
+    if (isDriveTrashEnabled()) {
+      const trashedRoots: string[] = [];
+      const failedTrash: { s3Key: string; error: string }[] = [];
+      for (const item of items) {
+        const isFolder = item.type === 'folder';
+        const root = isFolder ? item.s3Key.replace(/\/?$/, '/') : item.s3Key;
+        try {
+          const n = await trashItem(root, isFolder, user.id);
+          if (n > 0) trashedRoots.push(root);
+          else failedTrash.push({ s3Key: item.s3Key, error: 'Not found' });
+        } catch (err: any) {
+          failedTrash.push({ s3Key: item.s3Key, error: err?.message || 'Failed' });
+        }
+      }
+      await logDriveActivity(trashedRoots.map((k) => ({ key: k, action: 'trashed', userId: user.id })));
+      return NextResponse.json({
+        success: true,
+        trashed: true,
+        deletedCount: trashedRoots.length,
+        deleted: trashedRoots,
+        rootKeys: trashedRoots,
+        failed: failedTrash,
+      });
     }
 
     const deleted: string[] = [];

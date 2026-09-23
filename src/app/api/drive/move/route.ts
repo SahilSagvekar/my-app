@@ -11,6 +11,8 @@ import {
 import { getS3, BUCKET } from '@/lib/s3';
 import { getCurrentUser2 } from '@/lib/auth';
 import { moveItem } from '@/lib/file-server';
+import { logDriveActivity, rewriteStarsForMove } from '@/lib/drive/index-store';
+import { userCanAccessKey } from '@/lib/drive/access';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 const s3 = getS3();
@@ -77,7 +79,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'sourceKey and destinationFolderKey are required' }, { status: 400 });
     }
 
+    // 🔒 Both ends must be inside what this user can see.
+    if (!(await userCanAccessKey(user, sourceKey)) || !(await userCanAccessKey(user, destinationFolderKey))) {
+      return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    }
+
     const result = await moveItem(env, user.id, user.role, sourceKey, destinationFolderKey, type);
+
+    // Paths are keys, so a move changes the key: carry stars over and log it.
+    // (The Drive index itself follows via the R2 copy/delete events.)
+    const itemName = String(sourceKey).replace(/\/$/, '').split('/').pop();
+    const destPrefix = String(destinationFolderKey).replace(/\/?$/, '/');
+    const isFolder = type === 'folder';
+    const newKey = isFolder ? `${destPrefix}${itemName}/` : `${destPrefix}${itemName}`;
+    const oldKey = isFolder ? String(sourceKey).replace(/\/?$/, '/') : String(sourceKey);
+    await rewriteStarsForMove(oldKey, newKey, isFolder).catch(() => {});
+    await logDriveActivity([{ key: newKey, action: 'moved', userId: user.id, details: { from: oldKey } }]);
+
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Move error:', error);

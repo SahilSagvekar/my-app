@@ -6,10 +6,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { client as clientTable } from '@/lib/db/schema';
 import { or, sql } from 'drizzle-orm';
+import { getCurrentUser2 } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const db = getDbHttp();
   try {
+    // 🔒 Was callable without logging in (company name -> client id lookup).
+    const currentUser = await getCurrentUser2(request);
+    if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { searchParams } = new URL(request.url);
     const companyName = searchParams.get('companyName');
 

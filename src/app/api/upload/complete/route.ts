@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser2 } from "@/lib/auth";
 import { getFileUrl } from "@/lib/s3";
 import { completeMultipart, requestMediaPreviewGeneration } from '@/lib/file-server';
+import { applyR2Events } from '@/lib/drive/index-store';
 import { pushUploadJob } from '@/lib/upload-queue';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDbHttp } from "@/lib/db";
@@ -106,6 +107,18 @@ export async function POST(request: NextRequest) {
         fileUrl = getFileUrl(key);
         console.log("✅ S3 multipart completed:", fileUrl);
       }
+
+      // Drive index: show the file in Drive right away instead of waiting a
+      // few seconds for R2's create event to come through the queue. Same
+      // code path as the event itself (preview policy, uploader, activity).
+      await applyR2Events([{
+        action: singlePut ? 'PutObject' : 'CompleteMultipartUpload',
+        // Single PUTs don't give us an etag here; a unique placeholder marks
+        // "new bytes" (so an old preview is dropped) until the nightly
+        // reconcile fills in the real one.
+        object: { key, size: Number(fileSize) || 0, eTag: (s3Response as any)?.etag || (s3Response as any)?.ETag || `upload:${Date.now()}` },
+        eventTime: new Date().toISOString(),
+      }], env).catch((err: any) => console.warn('[upload/complete] drive index update failed:', err?.message));
 
       const isDriveUpload = taskId === "drive-upload";
 

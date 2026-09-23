@@ -1,7 +1,7 @@
 // components/workflow/UploadContext.tsx
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { uploadService } from '@/lib/upload-service';
 import { uploadStateManager, UploadState } from '@/lib/upload-state-manager';
 
@@ -10,6 +10,9 @@ interface UploadContextType {
     startUpload: (file: File, taskData: any, subfolder: string, resumeId?: string, folderType?: string) => Promise<string>;
     enqueueUpload: (file: File, taskData: any, subfolder: string, folderType?: string, relativePath?: string) => Promise<string>;
     pauseUpload: (id: string) => Promise<void>;
+    // Throws Error('NEEDS_FILE') when the File isn't in memory (e.g. after a reload)
+    // and Error('FILE_MISMATCH') when the given file isn't the original one.
+    resumeUpload: (id: string, file?: File) => Promise<void>;
     cancelUpload: (id: string) => Promise<void>;
     clearCompleted: () => void;
     getUploadState: (id: string) => UploadState | undefined;
@@ -19,15 +22,17 @@ const UploadContext = createContext<UploadContextType | undefined>(undefined);
 
 export function UploadProvider({ children }: { children: React.ReactNode }) {
     const [activeUploads, setActiveUploads] = useState<UploadState[]>([]);
+    const subscribedIds = useRef<Set<string>>(new Set());
 
     // Load active uploads on mount — mark stale "uploading" as "paused"
     useEffect(() => {
         const loadActive = async () => {
             const active = await uploadStateManager.getAllActiveUploads();
             
-            // Any upload marked "uploading" on mount is a zombie — no JS worker is running
+            // Any upload marked "uploading" (or "queued" for a resume) on mount is a
+            // zombie — no JS worker is running
             for (const upload of active) {
-                if (upload.status === 'uploading') {
+                if (upload.status === 'uploading' || upload.status === 'queued') {
                     await uploadStateManager.pauseUpload(upload.id);
                     upload.status = 'paused';
                 }
@@ -63,6 +68,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         uploadService.on(id, 'completed', listener);
         uploadService.on(id, 'failed', listener);
         uploadService.on(id, 'paused', listener);
+        uploadService.on(id, 'queued', listener);
+        subscribedIds.current.add(id);
 
         return listener;
     }, [updateUploadInState]);
@@ -80,7 +87,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         return id;
     };
 
-    // FIFO queue — enqueue files for one-at-a-time processing
+    // FIFO queue — files start in order, a few upload at once (see uploadService)
     const handleEnqueue = async (file: File, taskData: any, subfolder: string, folderType?: string, relativePath?: string) => {
         // We need to subscribe to events BEFORE the upload starts emitting them.
         // Use the onIdReady callback to subscribe as soon as the ID is available,
@@ -126,6 +133,34 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         await uploadService.pauseUpload(id);
     };
 
+    const handleResume = async (id: string, file?: File) => {
+        // Entries restored from IndexedDB after a reload aren't subscribed yet
+        if (!subscribedIds.current.has(id)) {
+            subscribeToUpload(id);
+        }
+
+        await uploadService.resumeUpload(id, file, (newId: string) => {
+            // Single-PUT (or expired session) was restarted under a new id — swap the entry
+            subscribeToUpload(newId);
+            setActiveUploads(prev => prev.filter(u => u.id !== id));
+            uploadStateManager.getUploadState(newId).then(initialState => {
+                if (initialState) {
+                    updateUploadInState(initialState);
+                }
+            });
+        });
+
+        const latest = await uploadStateManager.getUploadState(id);
+        if (latest) {
+            updateUploadInState(latest);
+        } else {
+            // Old entry was dropped for a restart — show it as queued until the new id is ready
+            setActiveUploads(prev => prev.map(u => u.id === id
+                ? { ...u, status: 'queued', error: undefined, uploadedBytes: 0, speed: 0, estimatedTimeLeft: 0 }
+                : u));
+        }
+    };
+
     const handleCancel = async (id: string) => {
         await uploadService.cancelUpload(id);
         setActiveUploads(prev => prev.filter(u => u.id !== id));
@@ -142,6 +177,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
             startUpload: handleStart,
             enqueueUpload: handleEnqueue,
             pauseUpload: handlePause,
+            resumeUpload: handleResume,
             cancelUpload: handleCancel,
             clearCompleted: handleClearCompleted,
             getUploadState: (id) => activeUploads.find(u => u.id === id)

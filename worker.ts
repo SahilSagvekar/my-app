@@ -18,6 +18,7 @@
 import { default as handler } from './.open-next/worker.js';
 import { deliverSlackJobNow, deliverEmailJobNow, NotificationJob } from './src/lib/notification-queue';
 import { deliverZipJob, ZipJobMessage } from './src/lib/zip-jobs-queue';
+import { applyR2Events, R2EventMessage } from './src/lib/drive/index-store';
 
 const APP_URL = 'https://e8productions.com';
 
@@ -53,6 +54,10 @@ export default {
       // Every minute — drains the upload-notification and NAS-sweep queues.
       case '* * * * *':
         ctx.waitUntil(triggerCronRoute('/api/cron/tick-queues', env, ctx));
+        // Files & Drive: index reconcile/backfill, trash retention, video
+        // preview jobs. Its own route so a slow step there can't delay the
+        // upload/NAS queues above.
+        ctx.waitUntil(triggerCronRoute('/api/cron/drive-tick', env, ctx));
         break;
 
       // Every Saturday — populates the weekly NAS backup sweep queue.
@@ -124,7 +129,7 @@ export default {
     }
   },
 
-  // Consumer for BOTH the `notifications` and `zip-jobs` Cloudflare Queues
+  // Consumer for the `notifications`, `zip-jobs` and `drive-events` Cloudflare Queues
   // (see wrangler.toml's [[queues.consumers]]) — Cloudflare routes a batch
   // from whichever queue triggered this invocation; `batch.queue` tells us
   // which one so a single handler can serve both.
@@ -141,7 +146,22 @@ export default {
   // for a 100GB folder — safe here specifically because Cloudflare Queue
   // consumer invocations have no wall-time limit, unlike a plain HTTP
   // fetch handler. Never call deliverZipJob() from an API route directly.
-  async queue(batch: MessageBatch<NotificationJob | ZipJobMessage>, env: any, ctx: ExecutionContext) {
+  async queue(batch: MessageBatch<NotificationJob | ZipJobMessage | R2EventMessage>, env: any, ctx: ExecutionContext) {
+    // drive-events: R2 event notifications (object-create / object-delete on
+    // e8-app-r2-prod) that keep the Files & Drive index in Postgres current.
+    // Applied as one batch — applyR2Events is idempotent and tolerates
+    // duplicates/out-of-order delivery, so a whole-batch retry is safe.
+    if (batch.queue === 'drive-events') {
+      try {
+        await applyR2Events(batch.messages.map((m: { body: unknown }) => m.body as R2EventMessage), env);
+        batch.ackAll();
+      } catch (err: any) {
+        console.error(`[worker.ts] drive-events batch failed (${batch.messages.length} msgs):`, err?.message || err);
+        batch.retryAll();
+      }
+      return;
+    }
+
     if (batch.queue === 'zip-jobs') {
       for (const message of batch.messages) {
         try {

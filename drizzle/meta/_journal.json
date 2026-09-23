@@ -43,6 +43,13 @@
       "when": 1789747200000,
       "tag": "0006_add_equipment_reference_images",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790121600000,
+      "tag": "0007_add_drive_index",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser2 } from '@/lib/auth';
 import { enqueueZipJob, deliverZipJob } from '@/lib/zip-jobs-queue';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { isDriveTrashEnabled, trashedKeysUnder } from '@/lib/drive/index-store';
+import { userCanAccessKey } from '@/lib/drive/access';
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser2(req);
@@ -30,8 +32,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Provide keys[] or folderPrefix' }, { status: 400 });
   }
 
+  // 🔒 Only zip what this user can see (previously any logged-in user could
+  // zip any prefix or key list). Checked once per client folder, not per key.
+  const topLevels = new Set<string>([
+    ...(folderPrefix ? [folderPrefix] : []),
+    ...((keys || []).map((k) => `${k.split('/')[0]}/`)),
+  ]);
+  for (const k of topLevels) {
+    if (!(await userCanAccessKey(user, k))) {
+      return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
+    }
+  }
+
+  // Trashed files still exist in R2 for 30 days — leave them out of a
+  // folder zip. (Capped so the queue message stays under its size limit;
+  // a folder with more trashed files than that is vanishingly rare.)
+  let excludeKeys: string[] | undefined;
+  if (folderPrefix && isDriveTrashEnabled()) {
+    try {
+      const trashed = await trashedKeysUnder(folderPrefix.endsWith('/') ? folderPrefix : `${folderPrefix}/`, 500);
+      if (trashed.length) excludeKeys = trashed;
+    } catch (err: any) {
+      console.warn('[download-zip] could not load trashed keys:', err?.message);
+    }
+  }
+
   const jobId = crypto.randomUUID();
-  const job = { jobId, userId: user.id, role: user.role, keys, folderPrefix, zipName };
+  const job = { jobId, userId: user.id, role: user.role, keys, folderPrefix, zipName, excludeKeys };
 
   const queued = await enqueueZipJob(job);
 

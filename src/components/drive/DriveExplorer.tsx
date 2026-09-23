@@ -39,6 +39,10 @@ import {
   Smartphone,
   KeyRound,
   FolderInput,
+  Clock,
+  HardDrive,
+  Info,
+  Archive as ArchiveIcon,
 } from "lucide-react";
 import { ShareDialog } from "../review/ShareDialog";
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
@@ -98,6 +102,10 @@ import {
 import MeetingNotesPanel from "../admin/MeetingNotesPanel";
 import { DriveNotesPopover, type DriveNoteEntry } from "./Drivenotespopover";
 import { MoveToDialog } from "./MoveToDialog";
+import { DrivePreviewModal, isPreviewable, type PreviewableItem } from "./DrivePreviewModal";
+import { DriveCollectionView, type DriveCollection, type FlatItem } from "./DriveCollectionView";
+import { DriveDetailsSheet } from "./DriveDetailsSheet";
+import { getCachedTree, setCachedTree } from "@/lib/drive/client-cache";
 import { cn } from "@/lib/utils";
 import { formatFolderDisplayName } from "@/lib/format-folder-display-name";
 import { toast } from "sonner";
@@ -116,6 +124,11 @@ interface DriveItem {
   /** Virtual read-only script injected when a folder has a linked script */
   isLinkedScript?: boolean;
   scriptContent?: string;
+  // Present when the tree comes from the Drive index (/api/drive/structure with DRIVE_INDEX_ENABLED)
+  mimeType?: string | null;
+  storageTier?: "r2" | "nas";
+  previewStatus?: string;
+  starred?: boolean;
 }
 
 interface SearchResult {
@@ -168,6 +181,9 @@ const VIDEO_FILE_EXTENSIONS = /\.(mp4|mov|m4v|webm|mkv|avi|wmv|mts|m2ts)$/i;
 // The storage tree does not include app-managed preview state. Hydrate it in
 // batches so a folder view never makes one request per video.
 async function attachGeneratedPreviews(root: DriveItem): Promise<DriveItem> {
+  // Index-backed trees already carry MediaPreview thumbnails (joined
+  // server-side), so skip the extra batched round trips.
+  if ((root as any)?._source === 'index') return root;
   const videoKeys: string[] = [];
   const collect = (item: DriveItem) => {
     if (item.type === 'file' && VIDEO_FILE_EXTENSIONS.test(item.name)) {
@@ -286,6 +302,40 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // ─── Drive index features (Recent / Starred / Trash / previews) ─────────
+  // Off until the server's Drive index is switched on (DRIVE_INDEX_ENABLED),
+  // so the UI never offers something the backend can't do yet.
+  const [driveFeatures, setDriveFeatures] = useState<{ index: boolean; trash: boolean; previews: boolean; trashRetentionDays: number }>({
+    index: false,
+    trash: false,
+    previews: false,
+    trashRetentionDays: 30,
+  });
+  useEffect(() => {
+    fetch('/api/drive/features')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setDriveFeatures(d))
+      .catch(() => {});
+  }, []);
+  const [activeView, setActiveView] = useState<'drive' | DriveCollection>('drive');
+  const [collectionRefresh, setCollectionRefresh] = useState(0);
+  const [previewItem, setPreviewItem] = useState<PreviewableItem | null>(null);
+  const [detailsItem, setDetailsItem] = useState<{ key: string; name: string } | null>(null);
+  // Background refresh (stale-while-revalidate) — the full-screen spinner is
+  // only for a first load with nothing cached to show.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const displayedTreeKeyRef = useRef<string | null>(null);
+  // Only the newest loadDriveStructure call may apply its result — a slow
+  // response for a client you've already left must never replace the one
+  // you're looking at.
+  const loadSeqRef = useRef(0);
+  // Big folders render in pages so thousands of cards don't block the main thread.
+  const RENDER_PAGE = 150;
+  const [renderLimit, setRenderLimit] = useState(RENDER_PAGE);
+  // Callback-ref state (not useRef) so the observer re-attaches whenever the
+  // sentinel element is re-created (view switches, reloads).
+  const [loadMoreEl, setLoadMoreEl] = useState<HTMLDivElement | null>(null);
 
   // Delete states
   const [itemToDelete, setItemToDelete] = useState<DriveItem | null>(null);
@@ -787,6 +837,11 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     setPathInUrl(resolvedPath || "/");
   }, []);
 
+  // Latest open path, read when a background refresh lands so it never yanks
+  // the user back to where they were when the refresh started.
+  const currentNavPathRef = useRef("");
+  currentNavPathRef.current = breadcrumb.length > 1 ? breadcrumb.slice(1).map(b => b.name).join("/") : "";
+
   const loadDriveStructure = async (clientIdOverride?: string | null) => {
     // Capture current path BEFORE reload so we can restore it after
     const currentNavPath = breadcrumb.length > 1
@@ -797,8 +852,45 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       ? currentNavPath
       : pendingPathRef.current;
 
+    // Use override (captured at call time) or current effectiveClientId.
+    // Guarded against ever becoming an actual URL param: something
+    // upstream has intermittently handed this a non-string value (seen
+    // in production as a literal clientId=[object+Object] query param,
+    // which silently breaks the file-server lookup). typeof-checking
+    // here means a bad caller now gets a loud console.warn pointing at
+    // the actual value instead of a silent broken request.
+    const resolvedClientId = clientIdOverride !== undefined ? clientIdOverride : effectiveClientId;
+    const clientIdParam = typeof resolvedClientId === 'string' ? resolvedClientId : '';
+    if (resolvedClientId && typeof resolvedClientId !== 'string') {
+      console.warn('[loadDriveStructure] resolvedClientId is not a string, dropping it:', resolvedClientId);
+    }
+
+    // ─── Stale-while-revalidate ───
+    // A tree we've already loaded this session paints immediately; the fresh
+    // one replaces it when it arrives. Only a first load with nothing cached
+    // shows the full-screen spinner.
+    const seq = ++loadSeqRef.current;
+    const isCurrent = () => seq === loadSeqRef.current;
+    const cacheKey = `${user?.id ?? ''}|${role}|${clientIdParam}`;
+    const alreadyShowing = displayedTreeKeyRef.current === cacheKey && !!driveStructure;
+    const cached = alreadyShowing ? null : getCachedTree(cacheKey);
+    if (cached) {
+      setDriveStructure(cached);
+      if (pathToRestore) {
+        navigateToPathInTree(cached, pathToRestore);
+      } else {
+        setCurrentFolder(cached);
+        setBreadcrumb([cached]);
+      }
+      hasRestoredRef.current = true;
+      displayedTreeKeyRef.current = cacheKey;
+      setLoading(false);
+    }
+    const background = alreadyShowing || !!cached;
+
     try {
-      setLoading(true);
+      if (background) setIsRefreshing(true);
+      else setLoading(true);
       setError(null);
 
       const params = new URLSearchParams();
@@ -807,22 +899,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       if (user?.id) {
         params.append("userId", user.id.toString());
       }
-
-      // Use override (captured at call time) or current effectiveClientId.
-      // Guarded against ever becoming an actual URL param: something
-      // upstream has intermittently handed this a non-string value (seen
-      // in production as a literal clientId=[object+Object] query param,
-      // which silently breaks the file-server lookup). typeof-checking
-      // here means a bad caller now gets a loud console.warn pointing at
-      // the actual value instead of a silent broken request.
-      const resolvedClientId = clientIdOverride !== undefined ? clientIdOverride : effectiveClientId;
-      if (resolvedClientId) {
-        if (typeof resolvedClientId === 'string') {
-          params.append("clientId", resolvedClientId);
-        } else {
-          console.warn('[loadDriveStructure] resolvedClientId is not a string, dropping it:', resolvedClientId);
-        }
-      }
+      if (clientIdParam) params.append("clientId", clientIdParam);
 
       const response = await fetch(`/api/drive/structure?${params.toString()}`);
 
@@ -833,11 +910,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
 
       const data = await response.json();
       const hydratedData = await attachGeneratedPreviews(data);
+      setCachedTree(cacheKey, hydratedData);
+      if (!isCurrent()) return; // superseded — cached for later, but don't show it
+      displayedTreeKeyRef.current = cacheKey;
       setDriveStructure(hydratedData);
 
       // ─── FEATURE 2: Restore navigation path after structure load ───
-      if (pathToRestore) {
-        navigateToPathInTree(hydratedData, pathToRestore);
+      const restoreTo = background ? currentNavPathRef.current : pathToRestore;
+      if (restoreTo) {
+        navigateToPathInTree(hydratedData, restoreTo);
       } else {
         setCurrentFolder(hydratedData);
         setBreadcrumb([hydratedData]);
@@ -845,21 +926,33 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       hasRestoredRef.current = true;
     } catch (error: any) {
       console.error("Failed to load drive structure:", error);
-      setError(error.message);
-      const emptyRoot = {
-        name: "Root",
-        type: "folder" as const,
-        path: "/",
-        children: [],
-      };
-      setDriveStructure(emptyRoot);
-      setCurrentFolder(emptyRoot);
-      setBreadcrumb([emptyRoot]);
-      hasRestoredRef.current = true;
+      if (!isCurrent()) return;
+      if (background) {
+        // Keep showing what we have; just say the refresh failed.
+        toast.error(`Couldn't refresh files: ${error.message}`);
+      } else {
+        setError(error.message);
+        const emptyRoot = {
+          name: "Root",
+          type: "folder" as const,
+          path: "/",
+          children: [],
+        };
+        setDriveStructure(emptyRoot);
+        setCurrentFolder(emptyRoot);
+        setBreadcrumb([emptyRoot]);
+        hasRestoredRef.current = true;
+      }
     } finally {
-      setLoading(false);
+      if (isCurrent()) {
+        setLoading(false);
+        setIsRefreshing(false);
+      }
     }
   };
+  // Always-current handle for callbacks created earlier (e.g. a toast's Undo).
+  const loadDriveStructureRef = useRef(loadDriveStructure);
+  loadDriveStructureRef.current = loadDriveStructure;
 
   const navigateToFolder = (folder: DriveItem) => {
     setCurrentFolder(folder);
@@ -914,8 +1007,94 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   };
 
   const handleItemDoubleClick = (item: DriveItem) => {
-    if (item.type === "file" && item.url) {
+    if (item.type === "file" && item.url) openFile(item);
+  };
+
+  // Videos, images and audio preview in-app; everything else opens in a tab.
+  const openFile = (item: { name: string; url?: string; s3Key?: string; size?: number; mimeType?: string | null }) => {
+    if (!item.url) return;
+    if (isPreviewable(item.name)) {
+      setPreviewItem({ name: item.name, url: item.url, s3Key: item.s3Key, size: item.size, mimeType: item.mimeType });
+    } else {
       window.open(item.url, "_blank");
+    }
+  };
+
+  // ─── Stars ───
+  const updateStarInTree = (key: string, starred: boolean) => {
+    if (!driveStructure) return;
+    const apply = (node: DriveItem): DriveItem => {
+      const updated = node.s3Key === key ? { ...node, starred } : node;
+      return updated.children ? { ...updated, children: updated.children.map(apply) } : updated;
+    };
+    const next = apply(driveStructure);
+    setDriveStructure(next);
+    // Re-resolve the open folder + breadcrumb against the new tree so going
+    // back up doesn't show stale nodes.
+    const path = currentNavPathRef.current;
+    if (path) {
+      navigateToPathInTree(next, path);
+    } else {
+      setCurrentFolder(next);
+      setBreadcrumb([next]);
+    }
+  };
+
+  const setStarred = async (key: string, starred: boolean): Promise<boolean> => {
+    updateStarInTree(key, starred);
+    try {
+      const res = await fetch('/api/drive/starred', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, starred }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      return true;
+    } catch {
+      updateStarInTree(key, !starred);
+      toast.error(starred ? "Couldn't star that item" : "Couldn't remove the star");
+      return false;
+    }
+  };
+
+  // ─── "Show in folder" from Recent / Starred ───
+  const showInFolder = (item: FlatItem) => {
+    const clientName = item.clientPrefix.replace(/\/$/, '');
+    const keyParts = item.s3Key.replace(/\/$/, '').split('/');
+    const relParts = item.type === 'folder' ? keyParts.slice(1) : keyParts.slice(1, -1);
+    const relPath = relParts.join('/');
+    setActiveView('drive');
+
+    if (driveStructure && driveStructure.name === clientName) {
+      navigateToPathInTree(driveStructure, relPath);
+      if (item.type === 'file') setSelectedItems(new Set([`/${[...relParts, item.name].join('/')}`]));
+      return;
+    }
+    // A different client — switch to it; the path is restored once its tree loads.
+    const target = adminClientList.find((c) => c.name === clientName) || editorClientList.find((c) => c.name === clientName);
+    if (!target) {
+      toast.error(`Open ${clientName}'s Drive to see this item`);
+      return;
+    }
+    pendingPathRef.current = relPath;
+    hasRestoredRef.current = false;
+    if (role === 'editor') setEditorSelectedClientId(target.id);
+    else setAdminSelectedClientId(target.id);
+  };
+
+  // ─── Undo for "moved to Trash" ───
+  const restoreFromTrash = async (rootKeys: string[]) => {
+    try {
+      const res = await fetch('/api/drive/trash/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rootKeys }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Restore failed');
+      toast.success('Restored');
+      await loadDriveStructureRef.current();
+    } catch (err: any) {
+      toast.error(err.message || 'Restore failed');
     }
   };
 
@@ -1154,7 +1333,16 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         throw new Error(errorData.error || "Delete failed");
       }
 
-      toast.success(`${itemToDelete.name} deleted successfully`);
+      const result = await response.json().catch(() => ({} as any));
+      if (result?.trashed && result.rootKey) {
+        const rootKey = result.rootKey as string;
+        toast.success(`"${itemToDelete.name}" moved to Trash`, {
+          action: { label: 'Undo', onClick: () => { void restoreFromTrash([rootKey]); } },
+          duration: 8000,
+        });
+      } else {
+        toast.success(`${itemToDelete.name} deleted successfully`);
+      }
 
       // Close dialogs first
       setShowDeleteDialog(false);
@@ -1255,7 +1443,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       }
 
       if (data.deletedCount > 0) {
-        toast.success(`Deleted ${data.deletedCount} item${data.deletedCount !== 1 ? 's' : ''}`);
+        if (data.trashed && Array.isArray(data.rootKeys)) {
+          const rootKeys = data.rootKeys as string[];
+          toast.success(`Moved ${data.deletedCount} item${data.deletedCount !== 1 ? 's' : ''} to Trash`, {
+            action: { label: 'Undo', onClick: () => { void restoreFromTrash(rootKeys); } },
+            duration: 8000,
+          });
+        } else {
+          toast.success(`Deleted ${data.deletedCount} item${data.deletedCount !== 1 ? 's' : ''}`);
+        }
       }
       if (data.failed?.length > 0) {
         toast.error(`${data.failed.length} item${data.failed.length !== 1 ? 's' : ''} failed to delete`);
@@ -1391,8 +1587,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       const isFolder = item.type === "folder";
 
       // Resolve mimeType before building the body — never fetch inside JSON.stringify
-      let mimeType: string | null = null;
-      if (!isFolder && item.url) {
+      let mimeType: string | null = item.mimeType || null;
+      if (!isFolder && !mimeType && item.url) {
         try {
           const head = await fetch(item.url, { method: 'HEAD' });
           mimeType = head.headers.get('content-type');
@@ -1407,7 +1603,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          s3Key: isFolder ? s3Key + '/' : s3Key,
+          // Folder keys from the Drive index already end in '/', so don't double it.
+          s3Key: isFolder ? s3Key.replace(/\/?$/, '/') : s3Key,
           fileName: item.name,
           fileSize: item.size,
           mimeType,
@@ -1947,6 +2144,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         q: query,
         role,
         ...(user?.id ? { userId: user.id.toString() } : {}),
+        // Search the client that's open (the old search ignored it).
+        ...(typeof effectiveClientId === 'string' && effectiveClientId ? { clientId: effectiveClientId } : {}),
       });
 
       const response = await fetch(`/api/drive/search?${params.toString()}`);
@@ -1964,7 +2163,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     } finally {
       setIsGlobalSearching(false);
     }
-  }, [role, user?.id]);
+  }, [role, user?.id, effectiveClientId]);
 
   // ─── FEATURE 3: Debounced search input ───
   const handleSearchInputChange = (value: string) => {
@@ -2097,6 +2296,23 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   };
 
   const filteredItems = getFilteredItems();
+  const visibleItems = filteredItems.length > renderLimit ? filteredItems.slice(0, renderLimit) : filteredItems;
+
+  // New folder / filter / search → start from the first page again.
+  useEffect(() => {
+    setRenderLimit(RENDER_PAGE);
+  }, [currentFolder?.path, searchQuery, selectedDeliverableFilter]);
+
+  // Render the next page when the sentinel below the list scrolls into view.
+  useEffect(() => {
+    const el = loadMoreEl;
+    if (!el || filteredItems.length <= renderLimit) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) setRenderLimit((l) => l + RENDER_PAGE);
+    }, { rootMargin: '600px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [loadMoreEl, filteredItems.length, renderLimit]);
 
   if (loading) {
     return (
@@ -2130,12 +2346,14 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   Are you sure you want to delete{" "}
                   <strong className="text-foreground">{itemToDelete?.name}</strong>?
                 </p>
-                {itemToDelete?.type === "folder" && (
+                {driveFeatures.trash ? (
+                  <p>It goes to Trash, where it can be restored for {driveFeatures.trashRetentionDays} days.</p>
+                ) : itemToDelete?.type === "folder" && (
                   <p className="text-red-600">
                     This will delete the folder and all its contents permanently.
                   </p>
                 )}
-                <p>This action cannot be undone.</p>
+                {!driveFeatures.trash && <p>This action cannot be undone.</p>}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -2200,8 +2418,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 ) : (
                   <>
                     <p>
-                      Enter the 6-digit code from Google Authenticator to permanently
-                      delete{" "}
+                      Enter the 6-digit code from Google Authenticator to{" "}
+                      {driveFeatures.trash ? "move to Trash" : "permanently delete"}{" "}
                       {deleteMode === "bulk"
                         ? `${checkedItems.size} selected item${checkedItems.size === 1 ? "" : "s"}`
                         : itemToDelete
@@ -2914,14 +3132,49 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 hover:bg-secondary/50 rounded-full"
-                onClick={loadDriveStructure}
+                // Arrow wrapper matters: passing the handler directly handed
+                // the click event to loadDriveStructure as its clientId
+                // argument (the "[object Object]" clientId seen in prod logs).
+                onClick={() => {
+                  if (activeView === 'drive') void loadDriveStructure();
+                  else setCollectionRefresh((n) => n + 1);
+                }}
+                title="Refresh"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
               </Button>
             </div>
           </div>
 
+          {/* ─── Drive views (need the Drive index) ─── */}
+          {driveFeatures.index && (
+            <div className="px-3 sm:px-4 pb-2 flex items-center gap-1 overflow-x-auto" role="tablist" aria-label="Drive views">
+              {([
+                { id: 'drive', label: 'My Drive', icon: Folder, show: true },
+                { id: 'recent', label: 'Recent', icon: Clock, show: true },
+                { id: 'starred', label: 'Starred', icon: Star, show: true },
+                { id: 'trash', label: 'Trash', icon: Trash2, show: driveFeatures.trash },
+                { id: 'storage', label: 'Storage', icon: HardDrive, show: role === 'admin' || role === 'manager' },
+              ] as const).filter((t) => t.show).map((t) => (
+                <button
+                  key={t.id}
+                  role="tab"
+                  aria-selected={activeView === t.id}
+                  onClick={() => setActiveView(t.id as typeof activeView)}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    activeView === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  )}
+                >
+                  <t.icon className="h-3.5 w-3.5" />
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Breadcrumb */}
+          {activeView === 'drive' && (
           <div className="px-3 sm:px-4 pb-2 sm:pb-3 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm overflow-x-auto">
             {breadcrumb.map((folder, index) => (
               <div key={folder.path} className="flex items-center gap-2">
@@ -2958,11 +3211,26 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Files Area */}
         <ScrollArea className="flex-1">
           <div className="p-3 sm:p-6">
+            {activeView !== 'drive' ? (
+              <DriveCollectionView
+                view={activeView}
+                role={role}
+                clientId={typeof effectiveClientId === 'string' ? effectiveClientId : null}
+                refreshToken={collectionRefresh}
+                canPreview={isPreviewable}
+                onPreview={(it) => openFile(it)}
+                onDownload={(it) => { void triggerFileDownload({ ...(it as any), type: 'file' } as DriveItem); }}
+                onToggleStar={(it, starred) => setStarred(it.s3Key, starred)}
+                onShowInFolder={showInFolder}
+              />
+            ) : (
+            <>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 mb-4">
                 <p className="font-medium">Error loading files</p>
@@ -3107,7 +3375,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               viewMode === "grid" ? (
               // Grid View
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                {filteredItems.map((item) => (
+                {visibleItems.map((item) => (
                   <div
                     key={item.path}
                     draggable={role !== 'client'}
@@ -3161,6 +3429,20 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       <p className="text-xs sm:text-sm font-medium truncate w-full px-1">
                         {item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}
                       </p>
+
+                      {(item.starred || item.storageTier === "nas") && (
+                        <div className="mt-0.5 flex items-center gap-1">
+                          {item.starred && <Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
+                          {item.storageTier === "nas" && (
+                            <span
+                              className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium text-slate-600"
+                              title="Archived to the NAS — opening or downloading may take a little longer"
+                            >
+                              <ArchiveIcon className="h-2.5 w-2.5" /> Archived
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {item.isLinkedScript && (
                         <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-50 text-violet-700">
@@ -3255,10 +3537,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                         {item.type === "file" && item.url && (
                           <>
                             <DropdownMenuItem
-                              onClick={() => window.open(item.url, "_blank")}
+                              onClick={(e) => { e.stopPropagation(); openFile(item); }}
                             >
                               <Eye className="h-4 w-4 mr-2" />
-                              Open
+                              {isPreviewable(item.name) ? "Preview" : "Open"}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={(e) => {
@@ -3270,6 +3552,22 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                               Download
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                          </>
+                        )}
+                        {driveFeatures.index && !item.isLinkedScript && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); void setStarred(item.s3Key || getS3Key(item), !item.starred); }}
+                            >
+                              <Star className={cn("h-4 w-4 mr-2", item.starred && "fill-amber-400 text-amber-400")} />
+                              {item.starred ? "Remove star" : "Add star"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(e) => { e.stopPropagation(); setDetailsItem({ key: item.s3Key || getS3Key(item), name: item.name }); }}
+                            >
+                              <Info className="h-4 w-4 mr-2" />
+                              Details
+                            </DropdownMenuItem>
                           </>
                         )}
                         <DropdownMenuItem
@@ -3339,7 +3637,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                   <div className="w-8 shrink-0" />
                 </div>
                 <div className="divide-y">
-                  {filteredItems.map((item) => (
+                  {visibleItems.map((item) => (
                     <div
                       key={item.path}
                       draggable={role !== 'client'}
@@ -3390,7 +3688,18 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       {/* Name */}
                       <div className="flex-1 min-w-0 flex items-center gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}</p>
+                          <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                            <span className="truncate">{item.type === "folder" ? formatFolderDisplayName(item.name) : item.name}</span>
+                            {item.starred && <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />}
+                            {item.storageTier === "nas" && (
+                              <span
+                                className="inline-flex shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium text-slate-600"
+                                title="Archived to the NAS — opening or downloading may take a little longer"
+                              >
+                                <ArchiveIcon className="h-2.5 w-2.5" /> Archived
+                              </span>
+                            )}
+                          </p>
                           {item.type === "folder" && rawFootageBadge(item.name) && (
                             <span className={cn(
                               "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium",
@@ -3491,9 +3800,9 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                             )}
                             {item.type === "file" && item.url && (
                               <>
-                                <DropdownMenuItem onClick={() => window.open(item.url, "_blank")}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openFile(item); }}>
                                   <Eye className="h-4 w-4 mr-2" />
-                                  Open
+                                  {isPreviewable(item.name) ? "Preview" : "Open"}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={(e) => { e.stopPropagation(); handleDownloadClick(item); }}
@@ -3502,6 +3811,22 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                                   Download
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
+                              </>
+                            )}
+                            {driveFeatures.index && !item.isLinkedScript && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); void setStarred(item.s3Key || getS3Key(item), !item.starred); }}
+                                >
+                                  <Star className={cn("h-4 w-4 mr-2", item.starred && "fill-amber-400 text-amber-400")} />
+                                  {item.starred ? "Remove star" : "Add star"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => { e.stopPropagation(); setDetailsItem({ key: item.s3Key || getS3Key(item), name: item.name }); }}
+                                >
+                                  <Info className="h-4 w-4 mr-2" />
+                                  Details
+                                </DropdownMenuItem>
                               </>
                             )}
                             <DropdownMenuItem
@@ -3557,6 +3882,15 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                 </div>
               </div>
               )
+            )}
+
+            {filteredItems.length > visibleItems.length && (
+              <div ref={setLoadMoreEl} className="flex items-center justify-center py-6 text-xs text-muted-foreground">
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                Showing {visibleItems.length} of {filteredItems.length}…
+              </div>
+            )}
+            </>
             )}
           </div>
         </ScrollArea>
@@ -3616,6 +3950,19 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DrivePreviewModal
+        item={previewItem}
+        open={!!previewItem}
+        onOpenChange={(open) => { if (!open) setPreviewItem(null); }}
+        onDownload={(it) => { void triggerFileDownload({ ...(it as any), type: 'file', path: it.s3Key || it.name } as DriveItem); }}
+      />
+      <DriveDetailsSheet
+        itemKey={detailsItem?.key || null}
+        itemName={detailsItem?.name}
+        open={!!detailsItem}
+        onOpenChange={(open) => { if (!open) setDetailsItem(null); }}
+      />
     </>
   );
 }

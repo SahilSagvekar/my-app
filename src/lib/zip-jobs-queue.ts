@@ -47,6 +47,7 @@ export async function deliverZipJob(job: ZipJobMessage, env: any): Promise<void>
     keys: job.keys,
     folderPrefix: job.folderPrefix,
     zipName: job.zipName,
+    excludeKeys: job.excludeKeys,
   });
   if (!result.success) {
     throw new Error(result.error || 'Zip job failed on file server');

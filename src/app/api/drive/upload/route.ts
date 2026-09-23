@@ -11,6 +11,8 @@ import { presignUpload } from '@/lib/file-server';
 import { sendDriveUploadNotification } from '@/lib/upload-notifications';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { keepAlive } from '@/lib/keep-alive';
+import { getCurrentUser2 } from '@/lib/auth';
+import { recordPendingUpload } from '@/lib/drive/index-store';
 
 function getCurrentMonthFolder(): string {
   const date = new Date();
@@ -23,12 +25,22 @@ export async function POST(request: NextRequest) {
   const db = getDbHttp();
   const { env } = getCloudflareContext();
   try {
+    // 🔒 This route had no login check: anyone could get a presigned PUT for
+    // ANY key in the bucket (i.e. overwrite any file). Nothing in the app
+    // calls it any more — uploads go through /api/upload/initiate — but it
+    // was still live, so it now requires a session like everything else.
+    const currentUser = await getCurrentUser2(request);
+    if (!currentUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const contentType = request.headers.get('content-type') || '';
 
     // ── Mode 1: JSON presign request (new flow) ──────────────────────────────
     if (contentType.includes('application/json')) {
       const body = await request.json();
-      const { fileName, folderPath, contentType: fileType, userId, role, fileSize } = body;
+      const { fileName, folderPath, contentType: fileType } = body;
+      // Identity comes from the session, never the request body.
+      const userId = String(currentUser.id);
+      const role = currentUser.role as string;
 
       if (!fileName || !folderPath) {
         return NextResponse.json({ error: 'fileName and folderPath are required' }, { status: 400 });
@@ -36,6 +48,7 @@ export async function POST(request: NextRequest) {
 
       const s3Key = await resolveS3Key(fileName, folderPath, userId, role);
       const { uploadUrl, fileUrl } = await presignUpload(env, userId || 0, role || 'admin', s3Key, fileType || 'application/octet-stream');
+      keepAlive(recordPendingUpload(s3Key, userId ? parseInt(userId, 10) || null : null, fileType));
 
       return NextResponse.json({ presignedUrl: uploadUrl, s3Key, fileUrl });
     }
@@ -44,14 +57,15 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const folderPath = formData.get('folderPath') as string;
-    const userId = formData.get('id') as string;
-    const role = formData.get('role') as string;
+    const userId = String(currentUser.id);
+    const role = currentUser.role as string;
 
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
     const s3Key = await resolveS3Key(file.name, folderPath, userId, role);
     const fileType = file.type || 'application/octet-stream';
     const { uploadUrl, fileUrl } = await presignUpload(env, userId || 0, role || 'admin', s3Key, fileType);
+    keepAlive(recordPendingUpload(s3Key, userId ? parseInt(userId, 10) || null : null, fileType));
 
     // Send Slack notification
     const companyName = s3Key.split('/')[0];

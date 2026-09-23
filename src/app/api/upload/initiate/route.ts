@@ -10,6 +10,8 @@ import { initiateMultipart } from '@/lib/file-server';
 import { getClientStorageInfo } from '@/lib/storage-service';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getCurrentUser2 } from '@/lib/auth';
+import { recordPendingUpload } from '@/lib/drive/index-store';
+import { keepAlive } from '@/lib/keep-alive';
 
 function normalizeUploadPathSegment(value: string): string {
   return value
@@ -193,12 +195,16 @@ export async function POST(req: NextRequest) {
         resolvedFileType,
         fileSize,
       );
+      // Drive index: remember who's uploading this key (R2's create event,
+      // which is what actually adds it to the index, doesn't carry a user).
+      keepAlive(recordPendingUpload(key || s3Key, currentUser.id, resolvedFileType));
       return NextResponse.json({ uploadId, key });
     } catch (err: any) {
       // File server returns USE_SINGLE_PUT for files < 16MB — fall back to presigned PUT
       if (err.Code === 'USE_SINGLE_PUT' || err.message?.includes('USE_SINGLE_PUT') || err.message?.includes('too small')) {
         const { presignUpload } = await import('@/lib/file-server');
         const { uploadUrl, fileUrl } = await presignUpload(env, clientId, 'uploader', s3Key, resolvedFileType);
+        keepAlive(recordPendingUpload(s3Key, currentUser.id, resolvedFileType));
         return NextResponse.json({ singlePut: true, uploadUrl, fileUrl, key: s3Key });
       }
       throw err;

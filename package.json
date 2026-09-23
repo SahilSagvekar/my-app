@@ -76,6 +76,7 @@
     "express": "^5.2.1",
     "fs": "^0.0.1-security",
     "googleapis": "^156.0.0",
+    "hls.js": "^1.7.3",
     "idb": "^8.0.3",
     "input-otp": "^1.4.2",
     "jsonwebtoken": "^9.0.2",

@@ -70,6 +70,18 @@ max_batch_size = 1
 max_batch_timeout = 5
 max_retries = 0
 
+# Files & Drive index: R2 event notifications for e8-app-r2-prod land here.
+# Create once with:
+#   npx wrangler queues create drive-events
+#   npx wrangler r2 bucket notification create e8-app-r2-prod --event-type object-create --queue drive-events
+#   npx wrangler r2 bucket notification create e8-app-r2-prod --event-type object-delete --queue drive-events
+# (No producer binding needed — R2 itself is the producer.)
+[[queues.consumers]]
+queue = "drive-events"
+max_batch_size = 100
+max_batch_timeout = 5
+max_retries = 5
+
 [[services]]
 binding = "FILE_SERVER"
 service = "e8-file-server"

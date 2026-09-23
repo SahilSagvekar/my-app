@@ -28,6 +28,23 @@ interface UploadState {
   batchId?: string;            // set when 2+ files were selected together — groups Slack notifications
   batchTotal?: number;         // total files in this batch
   replaceFileId?: string;      // explicit target file to deactivate/replace (e.g. one image in a hard-post set)
+  // Multipart part size in bytes. Absent on states saved before adaptive chunk
+  // sizing existed — readers must fall back to the 10MB default (CHUNK_SIZE).
+  chunkSize?: number;
+  fileLastModified?: number;   // File.lastModified — used to verify the re-picked file on resume
+  // Subset of the original taskData, so an upload that can't be resumed in place
+  // (single-PUT, or an expired multipart session) can be re-initiated from scratch.
+  taskSnapshot?: UploadTaskSnapshot;
+}
+
+interface UploadTaskSnapshot {
+  id?: string;
+  clientId?: string;
+  title?: string;
+  taggedEditorIds?: string[];
+  batchId?: string;
+  batchTotal?: number;
+  replaceFileId?: string;
 }
 
 interface UploadDB extends DBSchema {
@@ -73,7 +90,9 @@ class UploadStateManager {
     const db = await this.init();
     const uploads = await db.getAllFromIndex('uploads', 'by-status', 'uploading');
     const paused = await db.getAllFromIndex('uploads', 'by-status', 'paused');
-    return [...uploads, ...paused];
+    // 'queued' = a resume waiting for a free file slot (see uploadService.resumeUpload)
+    const queued = await db.getAllFromIndex('uploads', 'by-status', 'queued');
+    return [...uploads, ...paused, ...queued];
   }
 
   async getUploadsByTask(taskId: string): Promise<UploadState[]> {
@@ -86,64 +105,60 @@ class UploadStateManager {
     await db.delete('uploads', id);
   }
 
+  // Read-modify-write inside ONE readwrite transaction. Several workers (and a
+  // pause/cancel click) can touch the same record concurrently now that files
+  // and parts upload in parallel — separate get/put calls could let a late
+  // progress write resurrect a paused upload's 'uploading' status.
+  async updateUploadState(id: string, fn: (state: UploadState) => void): Promise<UploadState | undefined> {
+    const db = await this.init();
+    const tx = db.transaction('uploads', 'readwrite');
+    const state = await tx.store.get(id);
+    if (state) {
+      fn(state);
+      state.lastUpdated = Date.now();
+      await tx.store.put(state);
+    }
+    await tx.done;
+    return state;
+  }
+
   async updateProgress(
     id: string,
     uploadedBytes: number,
     completedChunks: number[],
     uploadedParts: Array<{ ETag: string; PartNumber: number }>
   ) {
-    const db = await this.init();
-    const state = await this.getUploadState(id);
-    if (state) {
+    await this.updateUploadState(id, (state) => {
       state.uploadedBytes = uploadedBytes;
       state.completedChunks = completedChunks;
       state.uploadedParts = uploadedParts;
-      state.lastUpdated = Date.now();
-      await db.put('uploads', state);
-    }
+    });
   }
 
   async markAsCompleted(id: string) {
-    const db = await this.init();
-    const state = await this.getUploadState(id);
-    if (state) {
+    await this.updateUploadState(id, (state) => {
       state.status = 'completed';
       state.uploadedBytes = state.fileSize; // Ensure 100%
-      state.lastUpdated = Date.now();
-      await db.put('uploads', state);
-    }
+    });
   }
 
   async markAsFailed(id: string, error: string) {
-    const db = await this.init();
-    const state = await this.getUploadState(id);
-    if (state) {
+    await this.updateUploadState(id, (state) => {
       state.status = 'failed';
       state.error = error;
-      state.lastUpdated = Date.now();
-      await db.put('uploads', state);
-    }
+    });
   }
 
   async pauseUpload(id: string) {
-    const db = await this.init();
-    const state = await this.getUploadState(id);
-    if (state) {
+    await this.updateUploadState(id, (state) => {
       state.status = 'paused';
-      state.lastUpdated = Date.now();
-      await db.put('uploads', state);
-    }
+    });
   }
 
   async resumeUpload(id: string) {
-    const db = await this.init();
-    const state = await this.getUploadState(id);
-    if (state) {
+    return this.updateUploadState(id, (state) => {
       state.status = 'uploading';
-      state.lastUpdated = Date.now();
-      await db.put('uploads', state);
-    }
-    return state;
+    });
   }
 
   async clearCompleted(): Promise<void> {
@@ -161,4 +176,4 @@ class UploadStateManager {
 }
 
 export const uploadStateManager = new UploadStateManager();
-export type { UploadState };
+export type { UploadState, UploadTaskSnapshot };

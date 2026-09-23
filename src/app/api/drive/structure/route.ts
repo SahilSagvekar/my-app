@@ -1,159 +1,74 @@
 export const dynamic = 'force-dynamic';
 // src/app/api/drive/structure/route.ts
+//
+// The whole folder tree for one client (the UI navigates subfolders
+// client-side against this single response).
+//
+// Served from the Postgres Drive index when DRIVE_INDEX_ENABLED=true — one
+// indexed query, no R2 listing, no per-file presigning (see
+// src/lib/drive/index-store.ts). Falls back to the file server's R2 scan
+// when the flag is off, when the index has nothing for this client yet
+// (backfill still running), or if the index query fails.
+//
+// 🔒 Previously this route had no login check and trusted `role` and
+// `userId` from the query string, so anyone could fetch any client's tree
+// with presigned links. Identity now comes from the session; see
+// resolveDriveScope() for how `role`/`clientId` are validated.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbHttp } from '@/lib/db';
-import { client as clientTable, user as userTable, editorClientPermission, task as taskTable } from '@/lib/db/schema';
-import { and, eq, isNotNull } from 'drizzle-orm';
-import { getStructure } from '@/lib/file-server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { getCurrentUser2 } from '@/lib/auth';
+import { getStructure } from '@/lib/file-server';
+import { resolveDriveScope } from '@/lib/drive/access';
+import { buildTreeFromIndex, countIndexed, isDriveIndexEnabled } from '@/lib/drive/index-store';
+
+const EMPTY_ROOT = { name: 'Root', type: 'folder', path: '/', children: [] };
 
 export async function GET(request: NextRequest) {
-  const db = getDbHttp();
   const { env } = getCloudflareContext();
-  console.log('api started')
-
-  // Hoisted above the try block so the catch handler below can log them —
-  // they were previously declared inside try, which would have thrown a
-  // ReferenceError from inside catch instead of the intended error log.
   const { searchParams } = new URL(request.url);
-  const rawClientId = searchParams.get('clientId');
-  const role = searchParams.get('role') || 'admin';
-  const userId = searchParams.get('userId') || '0';
+  const requestedRole = searchParams.get('role');
+  const clientId = searchParams.get('clientId');
   let prefix = '';
 
   try {
-    // Defense in depth: a bad caller has, at least once in production,
-    // sent a literal "[object Object]" string here (a JS object landed in
-    // a URL param upstream). Treat any clientId that doesn't look like a
-    // real ID as if none were provided, rather than querying the DB with
-    // garbage and silently falling through to an empty-prefix scan.
-    const clientId = rawClientId && !/^\[object /i.test(rawClientId) && rawClientId !== 'undefined' && rawClientId !== 'null'
-      ? rawClientId
-      : null;
-    if (rawClientId && !clientId) {
-      console.warn('⚠️  Rejected malformed clientId param:', rawClientId);
+    const user = await getCurrentUser2(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const scope = await resolveDriveScope(user, requestedRole, clientId);
+    prefix = scope.prefix;
+
+    if (scope.role === 'client' && !scope.prefix) {
+      return NextResponse.json({ error: 'Client not found', code: 'CLIENT_NOT_LINKED' }, { status: 404 });
     }
+    // No client picked yet (admin/manager/editor with several clients) — the
+    // UI shows its client selector.
+    if (!scope.prefix) return NextResponse.json(EMPTY_ROOT);
 
-    console.log('🔍 Drive structure request:', { clientId, role, userId });
-
-    if (role === 'client') {
-      let clientRecord = null;
-
-      if (clientId) {
-        const [row] = await db
-          .select({ companyName: clientTable.companyName, name: clientTable.name })
-          .from(clientTable)
-          .where(eq(clientTable.id, clientId))
-          .limit(1);
-        clientRecord = row ?? null;
-
-        console.log('📂 clientId provided, found clientRecord:', clientRecord);
-
-      } else if (userId) {
-        const foundUser = await db.query.user.findFirst({
-          where: eq(userTable.id, parseInt(userId)),
-          columns: { email: true, linkedClientId: true },
-          with: { client: { columns: { companyName: true, name: true } } },
-        });
-        console.log('📂 userId provided, found user:', foundUser);
-
-        if (foundUser?.client) {
-          clientRecord = foundUser.client;
-          console.log('📂 derived clientRecord from linked client:', clientRecord);
-
-        } else if (foundUser?.email) {
-          const [row] = await db
-            .select({ companyName: clientTable.companyName, name: clientTable.name })
-            .from(clientTable)
-            .where(eq(clientTable.email, foundUser.email))
-            .limit(1);
-          clientRecord = row ?? null;
+    if (isDriveIndexEnabled()) {
+      try {
+        const started = Date.now();
+        const tree = await buildTreeFromIndex(scope.prefix, user.id);
+        // An empty result can mean "empty client" OR "not backfilled yet" —
+        // only trust it if the index actually knows this prefix.
+        if ((tree.children?.length ?? 0) > 0 || (await countIndexed(scope.prefix)) > 0) {
+          return NextResponse.json(tree, {
+            headers: {
+              'Cache-Control': 'private, no-store',
+              'x-drive-source': 'index',
+              'Server-Timing': `index;dur=${Date.now() - started}`,
+            },
+          });
         }
-        console.log('📂 derived clientRecord:', clientRecord);
-        
-        if (!clientRecord) {
-          console.log('📂 no clientRecord found, checking userId:', userId);
-          const [row] = await db
-            .select({ companyName: clientTable.companyName, name: clientTable.name })
-            .from(clientTable)
-            .where(eq(clientTable.userId, parseInt(userId)))
-            .limit(1);
-          clientRecord = row ?? null;
-        }
-      }
-
-      if (!clientRecord) {
-        console.log('📂 no clientRecord found for userId:', userId);
-        return NextResponse.json({ error: 'Client not found', code: 'CLIENT_NOT_LINKED' }, { status: 404 });
-      }
-      const companyName = clientRecord.companyName || clientRecord.name;
-      prefix = `${companyName}/`;
-
-      console.log('📂 client role, using prefix:', prefix, companyName);
-
-    } else if (role === 'admin' || role === 'manager' || role === 'scheduler' || role === 'videographer') {
-      // Admin/manager/videographer must pass a clientId — file server blocks empty-prefix scans
-      if (clientId) {
-        const [clientRecord] = await db
-          .select({ companyName: clientTable.companyName, name: clientTable.name })
-          .from(clientTable)
-          .where(eq(clientTable.id, clientId))
-          .limit(1);
-        if (clientRecord) {
-          prefix = `${clientRecord.companyName || clientRecord.name}/`;
-          console.log('📂 admin/manager role, using prefix:', prefix);
-        }
-      }
-      // No clientId = prefix stays '' = file server returns empty root (show "select a client")
-
-    } else if (role === 'editor') {
-      const editorId = parseInt(userId);
-
-      // If a specific clientId is passed (editor selected a client), use it directly
-      if (clientId) {
-        const [clientRecord] = await db
-          .select({ companyName: clientTable.companyName, name: clientTable.name })
-          .from(clientTable)
-          .where(eq(clientTable.id, clientId))
-          .limit(1);
-        if (clientRecord) {
-          prefix = `${clientRecord.companyName || clientRecord.name}/`;
-          console.log('📂 editor role with clientId, using prefix:', prefix);
-        }
-      } else {
-        // Derive from assigned tasks/permissions
-        const permissions = await db.query.editorClientPermission.findMany({
-          where: eq(editorClientPermission.editorId, editorId),
-          with: { client: { columns: { companyName: true, name: true } } },
-        });
-        const permNames = permissions.map(p => p.client.companyName || p.client.name).filter(Boolean);
-        const taskClients = await db.query.task.findMany({
-          where: and(eq(taskTable.assignedTo, editorId), isNotNull(taskTable.clientId)),
-          with: { client: { columns: { companyName: true, name: true } } },
-        });
-        const taskNames = taskClients.map(t => t.client?.companyName || t.client?.name || '').filter(Boolean);
-        const assigned = [...new Set([...permNames, ...taskNames])];
-        // Only auto-scope if exactly one client — otherwise wait for selector
-        console.log('📂 derived assigned clients:', assigned);
-        prefix = assigned.length === 1 ? `${assigned[0]}/` : '';
+      } catch (err: any) {
+        console.error('[drive/structure] index read failed, falling back to file server:', err?.message);
       }
     }
 
-    console.log('📂 userId, role, prefix:', userId, role, prefix);
-
-    const tree = await getStructure(env, userId, role, prefix);
-
-    console.log('✅ tree:', { tree });
-    return NextResponse.json(tree);
-
+    const tree = await getStructure(env, user.id, scope.role, scope.prefix);
+    return NextResponse.json(tree, { headers: { 'Cache-Control': 'private, no-store', 'x-drive-source': 'file-server' } });
   } catch (error: any) {
-    console.error('❌ Structure error:', { clientId: rawClientId, role, userId, prefix, message: error?.message, stack: error?.stack });
-    return NextResponse.json({
-      error: 'Failed to fetch structure',
-      details: error.message,
-      stack: error.stack,
-      cause: error.cause,
-    }, { status: 500 });
+    console.error('❌ Structure error:', { clientId, requestedRole, prefix, message: error?.message });
+    return NextResponse.json({ error: 'Failed to fetch structure', details: error.message }, { status: 500 });
   }
 }

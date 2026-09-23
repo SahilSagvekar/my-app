@@ -12,6 +12,8 @@ import { getCurrentUser2 } from '@/lib/auth';
 import { deleteItem } from '@/lib/file-server';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { verifyTotpCode } from '@/lib/totp-verify';
+import { isDriveTrashEnabled, trashItem, logDriveActivity } from '@/lib/drive/index-store';
+import { canDeleteKey, resolveDriveScope } from '@/lib/drive/access';
 
 const s3Client = getS3();
 
@@ -79,6 +81,24 @@ export async function DELETE(request: NextRequest) {
       if (company && !s3Key.startsWith(company)) {
         return NextResponse.json({ error: 'You can only delete items in your own folder' }, { status: 403 });
       }
+    }
+
+    // ── Trash (Drive index on): move to Trash instead of deleting ──────────
+    // Same permission + TOTP checks as above; the bytes stay in R2 for 30
+    // days so Restore is instant. "Delete forever" and the retention purge
+    // live in /api/drive/trash/purge and the drive tick.
+    if (isDriveTrashEnabled()) {
+      // Same rules Restore uses, so anyone who can trash something can undo it
+      // (and roles with no Drive access can't trash anything).
+      const permission = canDeleteKey(await resolveDriveScope(user, user.role), s3Key);
+      if (!permission.ok) return NextResponse.json({ error: permission.error }, { status: 403 });
+      const isFolder = type === 'folder';
+      const trashed = await trashItem(isFolder ? s3Key.replace(/\/?$/, '/') : s3Key, isFolder, user.id);
+      if (trashed === 0) {
+        return NextResponse.json({ error: 'That item was not found — refresh and try again' }, { status: 404 });
+      }
+      await logDriveActivity([{ key: isFolder ? s3Key.replace(/\/?$/, '/') : s3Key, action: 'trashed', userId: user.id, details: { items: trashed } }]);
+      return NextResponse.json({ success: true, trashed: true, trashedItems: trashed, rootKey: isFolder ? s3Key.replace(/\/?$/, '/') : s3Key });
     }
 
     // NOTE: this route does NOT gate on NAS backup status — deleting a

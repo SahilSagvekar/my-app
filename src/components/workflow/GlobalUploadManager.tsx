@@ -1,8 +1,11 @@
 // components/workflow/GlobalUploadManager.tsx
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import { toast } from 'sonner';
 import { useUploads } from './UploadContext';
+import { uploadService } from '@/lib/upload-service';
+import type { UploadState } from '@/lib/upload-state-manager';
 import {
     X,
     ChevronUp,
@@ -11,6 +14,7 @@ import {
     AlertCircle,
     Pause,
     Play,
+    RotateCcw,
     Video,
     Loader2,
     Trash2,
@@ -67,9 +71,36 @@ function getFileIcon(fileName: string) {
 }
 
 export function GlobalUploadManager() {
-    const { activeUploads, pauseUpload, cancelUpload, clearCompleted } = useUploads();
+    const { activeUploads, pauseUpload, resumeUpload, cancelUpload, clearCompleted } = useUploads();
     const [isExpanded, setIsExpanded] = useState(false);
     const [prevCount, setPrevCount] = useState(0);
+
+    // Hidden picker for resuming an upload whose File is no longer in memory (e.g. after a reload)
+    const filePickerRef = useRef<HTMLInputElement>(null);
+    const pendingResumeRef = useRef<UploadState | null>(null);
+
+    const runResume = async (upload: UploadState, file?: File) => {
+        try {
+            await resumeUpload(upload.id, file);
+        } catch (err: any) {
+            if (err?.message === 'NEEDS_FILE') {
+                pendingResumeRef.current = upload;
+                filePickerRef.current?.click();
+            } else if (err?.message === 'FILE_MISMATCH') {
+                toast.error(`That's not the same file — pick “${upload.fileName}” (${formatSize(upload.fileSize)}) to continue.`);
+            } else {
+                toast.error(err?.message || 'Could not resume upload');
+            }
+        }
+    };
+
+    const handleFilePicked = (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        const upload = pendingResumeRef.current;
+        pendingResumeRef.current = null;
+        e.target.value = ''; // allow picking the same file again after a mismatch
+        if (file && upload) runResume(upload, file);
+    };
 
     // Auto-expand when a new upload starts
     useEffect(() => {
@@ -108,6 +139,12 @@ export function GlobalUploadManager() {
             "fixed bottom-4 right-4 z-[100] w-96 bg-white border shadow-2xl rounded-xl overflow-hidden transition-all duration-300",
             isExpanded ? "h-auto max-h-[450px]" : "h-14"
         )}>
+            <input
+                ref={filePickerRef}
+                type="file"
+                className="hidden"
+                onChange={handleFilePicked}
+            />
             {/* Header */}
             <div
                 className="flex items-center justify-between px-4 h-14 bg-white border-b text-gray-900 cursor-pointer select-none"
@@ -149,6 +186,8 @@ export function GlobalUploadManager() {
                         const isActive = upload.status === 'uploading';
                         const isComplete = upload.status === 'completed';
                         const isFailed = upload.status === 'failed';
+                        const isPaused = upload.status === 'paused';
+                        const needsFile = isPaused && !uploadService.hasFileInMemory(upload.id);
 
                         return (
                             <div key={upload.id} className={cn(
@@ -186,6 +225,18 @@ export function GlobalUploadManager() {
                                                 <Pause className="h-3 w-3" />
                                             </Button>
                                         )}
+                                        {(isPaused || isFailed) && (
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-6 w-6"
+                                                title={isFailed ? 'Retry' : 'Resume'}
+                                                aria-label={isFailed ? 'Retry' : 'Resume'}
+                                                onClick={() => runResume(upload)}
+                                            >
+                                                {isFailed ? <RotateCcw className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                                            </Button>
+                                        )}
                                         {!isComplete && (
                                             <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 hover:text-red-700" onClick={() => cancelUpload(upload.id)}>
                                                 <X className="h-3 w-3" />
@@ -206,7 +257,7 @@ export function GlobalUploadManager() {
                                         )}>
                                             {upload.status === 'uploading' ? 'Uploading...' :
                                                 upload.status === 'completed' ? '✓ Complete' :
-                                                upload.status === 'paused' ? 'Paused' :
+                                                upload.status === 'paused' ? (needsFile ? 'Paused — pick the file again to resume' : 'Paused') :
                                                 upload.status === 'queued' ? 'Queued' :
                                                 upload.status === 'failed' ? 'Failed' : 'Pending'}
                                         </span>

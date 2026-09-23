@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { getS3, BUCKET } from '@/lib/s3';
 import { getCurrentUser2 } from '@/lib/auth';
 import { createFolder, renameFolder } from '@/lib/file-server';
+import { logDriveActivity, rewriteStarsForMove } from '@/lib/drive/index-store';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 const s3Client = getS3();
@@ -23,7 +24,11 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { folderPath, folderName, userId, role } = await request.json();
+    const { folderPath, folderName } = await request.json();
+    // 🔒 Identity from the session — `role`/`userId` in the body used to be
+    // trusted, so a client could send role:'admin' to skip the checks below.
+    const role = user.role as string;
+    const userId = String(user.id);
     if (!folderPath || !folderName) {
       return NextResponse.json({ error: 'Folder path and name are required' }, { status: 400 });
     }
@@ -51,6 +56,9 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await createFolder(env, user.id, user.role, folderPath, folderName);
+    if (result?.folderPath) {
+      await logDriveActivity([{ key: result.folderPath, action: 'folder_created', userId: user.id }]);
+    }
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Create folder error:', error);
@@ -65,7 +73,9 @@ export async function PATCH(request: NextRequest) {
     const user = await getCurrentUser2(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { oldPath, newName, userId, role } = await request.json();
+    const { oldPath, newName } = await request.json();
+    const role = user.role as string;
+    const userId = String(user.id);
     if (!oldPath || !newName) {
       return NextResponse.json({ error: 'Old path and new name are required' }, { status: 400 });
     }
@@ -93,6 +103,10 @@ export async function PATCH(request: NextRequest) {
     }
 
     const result = await renameFolder(env, user.id, user.role, oldPath, newName);
+    if (result?.oldPath && result?.newPath) {
+      await rewriteStarsForMove(result.oldPath, result.newPath, true).catch(() => {});
+      await logDriveActivity([{ key: result.newPath, action: 'renamed', userId: user.id, details: { from: result.oldPath } }]);
+    }
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Rename folder error:', error);
