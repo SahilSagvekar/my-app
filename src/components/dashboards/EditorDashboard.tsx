@@ -5,6 +5,7 @@ import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { FilterSelect } from "../ui/filter-select";
 import { Alert, AlertDescription } from "../ui/alert";
 import {
   Select,
@@ -3188,76 +3189,56 @@ export function EditorDashboard() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-wrap items-end gap-3 flex-1 min-w-0">
             {/* Client Filter */}
-            <div className="flex flex-col gap-1.5 min-w-[135px]">
-              <label className="text-[12px] font-bold text-gray-500">Client</label>
-              <Select value={clientFilter} onValueChange={setClientFilter}>
-                <SelectTrigger className="h-10 rounded-xl border border-gray-300 bg-white px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs hover:bg-gray-50/50 focus:ring-1 focus:ring-black">
-                  <SelectValue placeholder="All Clients" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clients</SelectItem>
-                  {availableClients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterSelect
+              label="Client"
+              wrapperClassName="min-w-[135px]"
+              value={clientFilter}
+              onValueChange={setClientFilter}
+              placeholder="All Clients"
+              options={[
+                { value: "all", label: "All Clients" },
+                ...availableClients.map((client) => ({ value: client.id, label: client.name })),
+              ]}
+            />
 
             {/* Deliverables Filter */}
-            <div className="flex flex-col gap-1.5 min-w-[145px]">
-              <label className="text-[12px] font-bold text-gray-500">Deliverables</label>
-              <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
-                <SelectTrigger className="h-10 rounded-xl border border-gray-300 bg-white px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs hover:bg-gray-50/50 focus:ring-1 focus:ring-black">
-                  <SelectValue placeholder="Deliverables" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Deliverables</SelectItem>
-                  {availableDeliverableTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type.replace(/_/g, " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterSelect
+              label="Deliverables"
+              wrapperClassName="min-w-[145px]"
+              value={deliverableTypeFilter}
+              onValueChange={setDeliverableTypeFilter}
+              placeholder="Deliverables"
+              options={[
+                { value: "all", label: "Deliverables" },
+                ...availableDeliverableTypes.map((type) => ({ value: type, label: type.replace(/_/g, " ") })),
+              ]}
+            />
 
             {/* Month Filter */}
-            <div className="flex flex-col gap-1.5 min-w-[125px]">
-              <label className="text-[12px] font-bold text-gray-500">Month</label>
-              <Select value={monthFilter} onValueChange={setMonthFilter}>
-                <SelectTrigger className="h-10 rounded-xl border border-gray-300 bg-white px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs hover:bg-gray-50/50 focus:ring-1 focus:ring-black">
-                  <SelectValue placeholder="Months" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Months</SelectItem>
-                  {availableMonths.map((month) => (
-                    <SelectItem key={month} value={month}>
-                      {month}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterSelect
+              label="Month"
+              wrapperClassName="min-w-[125px]"
+              value={monthFilter}
+              onValueChange={setMonthFilter}
+              placeholder="Months"
+              options={[
+                { value: "all", label: "Months" },
+                ...availableMonths.map((month) => ({ value: month, label: month })),
+              ]}
+            />
 
             {/* Tag Filter */}
-            <div className="flex flex-col gap-1.5 min-w-[110px]">
-              <label className="text-[12px] font-bold text-gray-500">Tag</label>
-              <Select value={tagFilter} onValueChange={setTagFilter}>
-                <SelectTrigger className="h-10 rounded-xl border border-gray-300 bg-white px-3.5 text-[13.5px] font-bold text-gray-900 shadow-2xs hover:bg-gray-50/50 focus:ring-1 focus:ring-black">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  {availableTags.map((tag) => (
-                    <SelectItem key={tag} value={tag}>
-                      {tag}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterSelect
+              label="Tag"
+              wrapperClassName="min-w-[110px]"
+              value={tagFilter}
+              onValueChange={setTagFilter}
+              placeholder="All"
+              options={[
+                { value: "all", label: "All" },
+                ...availableTags.map((tag) => ({ value: tag, label: tag })),
+              ]}
+            />
 
             {/* Request Raw Footage */}
             <div className="flex flex-col gap-1.5">

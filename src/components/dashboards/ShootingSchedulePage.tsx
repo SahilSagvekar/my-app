@@ -9,6 +9,7 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Badge } from '../ui/badge';
@@ -511,25 +512,27 @@ export function ShootingSchedulePage() {
         description="All upcoming and past shoot days"
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-[150px] bg-white"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {FILTER_STATUSES.map(s => (
-                  <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+              placeholder="All statuses"
+              className="h-9 w-[150px]"
+              options={[
+                { value: "all", label: "All statuses" },
+                ...FILTER_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label })),
+              ]}
+            />
 
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="h-9 w-[170px] bg-white"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All clients</SelectItem>
-                {clients.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={clientFilter}
+              onValueChange={setClientFilter}
+              placeholder="All clients"
+              className="h-9 w-[170px]"
+              options={[
+                { value: "all", label: "All clients" },
+                ...clients.map((c) => ({ value: c.id, label: c.companyName || c.name })),
+              ]}
+            />
 
             <div className="flex items-center gap-1.5">
               <Label className="text-xs font-medium text-slate-400 whitespace-nowrap">From</Label>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { Checkbox } from '../ui/checkbox';
 import {
   Pagination,
@@ -462,22 +462,20 @@ export function QCCompletedPage() {
                 />
               </div>
             </div>
-            <Select
+            <FilterSelect
               value={completedFilter}
-              onValueChange={(value: 'all' | TaskStatus) => setCompletedFilter(value)}
-            >
-              <SelectTrigger className="w-full sm:w-48">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Reviews</SelectItem>
-                <SelectItem value="COMPLETED">Approved Only</SelectItem>
-                <SelectItem value="CLIENT_REVIEW">Client Review</SelectItem>
-                <SelectItem value="REJECTED_BY_QC">Rejected by QC</SelectItem>
-                <SelectItem value="REJECTED_BY_CLIENT">Rejected by Client</SelectItem>
-              </SelectContent>
-            </Select>
+              onValueChange={(value) => setCompletedFilter(value as 'all' | TaskStatus)}
+              placeholder="Filter by status"
+              className="w-full sm:w-48"
+              icon={<Filter className="h-4 w-4 mr-2" />}
+              options={[
+                { value: "all", label: "All Reviews" },
+                { value: "COMPLETED", label: "Approved Only" },
+                { value: "CLIENT_REVIEW", label: "Client Review" },
+                { value: "REJECTED_BY_QC", label: "Rejected by QC" },
+                { value: "REJECTED_BY_CLIENT", label: "Rejected by Client" },
+              ]}
+            />
           </div>
         </CardContent>
       </Card>

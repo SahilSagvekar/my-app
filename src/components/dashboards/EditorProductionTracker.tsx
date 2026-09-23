@@ -4,13 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { PageHeader } from '../ui/page-header';
 import { Button } from '../ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import {
   Target,
   RefreshCw,
@@ -159,17 +153,14 @@ export function EditorProductionTracker() {
         description={`Your task progress across all clients · ${data.month}`}
         actions={
           <div className="flex items-center gap-3">
-            <Select value={selectedMonth} onValueChange={(m) => { setSelectedMonth(m); fetchData(m); }}>
-              <SelectTrigger className="w-[180px] h-9 text-sm">
-                <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Select month" />
-              </SelectTrigger>
-              <SelectContent>
-                {data.availableMonths.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={selectedMonth}
+              onValueChange={(m) => { setSelectedMonth(m); fetchData(m); }}
+              placeholder="Select month"
+              className="h-9 w-[180px]"
+              icon={<Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />}
+              options={data.availableMonths.map((m) => ({ value: m, label: m }))}
+            />
             <Button variant="outline" size="sm" onClick={() => fetchData(selectedMonth)} disabled={loading} className="h-9">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>

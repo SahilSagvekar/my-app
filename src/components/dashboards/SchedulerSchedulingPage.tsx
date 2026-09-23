@@ -6,6 +6,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Calendar, Clock, Plus, Video, Image as ImageIcon, FileText, AlertCircle, Instagram, Facebook, Twitter, Youtube, CheckCircle, ExternalLink, Building } from 'lucide-react';
 import { PageHeader } from '../ui/page-header';
@@ -492,27 +493,26 @@ export function SchedulerSchedulingPage() {
               <Label htmlFor="client-select" className="text-sm text-muted-foreground whitespace-nowrap">
                 Client:
               </Label>
-              <Select value={selectedClientId || ''} onValueChange={setSelectedClientId}>
-                <SelectTrigger id="client-select" className="w-64">
-                  <SelectValue placeholder="Select client..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.length > 0 ? (
-                    clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        <div className="flex items-center gap-2">
-                          <Building className="h-4 w-4" />
-                          {client.company}
-                        </div>
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-clients" disabled>
-                      No clients available
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={selectedClientId || ''}
+                onValueChange={setSelectedClientId}
+                placeholder="Select client..."
+                className="w-64"
+                options={
+                  clients.length > 0
+                    ? clients.map((client) => ({
+                        value: client.id,
+                        label: (
+                          <div className="flex items-center gap-2">
+                            <Building className="h-4 w-4" />
+                            {client.company}
+                          </div>
+                        ),
+                      }))
+                    : [{ value: "no-clients", label: "No clients available" }]
+                }
+                disabled={clients.length === 0}
+              />
             </div>
           </div>
         </CardHeader>

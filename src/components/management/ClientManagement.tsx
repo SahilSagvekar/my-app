@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { FilterSelect } from "../ui/filter-select";
 import {
   Dialog,
   DialogContent,
@@ -2813,32 +2814,30 @@ export function ClientManagement() {
             className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px] bg-white border-gray-200 text-gray-900">
-            <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={managerFilter} onValueChange={setManagerFilter}>
-          <SelectTrigger className="w-[180px] bg-white border-gray-200 text-gray-900">
-            <User className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by manager" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Managers</SelectItem>
-            {mockAccountManagers.map((manager) => (
-              <SelectItem key={manager.id} value={manager.id}>
-                {manager.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FilterSelect
+          value={statusFilter}
+          onValueChange={setStatusFilter}
+          placeholder="Filter by status"
+          className="w-[160px]"
+          icon={<Filter className="h-4 w-4 mr-2" />}
+          options={[
+            { value: "all", label: "All Status" },
+            { value: "active", label: "Active" },
+            { value: "pending", label: "Pending" },
+            { value: "expired", label: "Expired" },
+          ]}
+        />
+        <FilterSelect
+          value={managerFilter}
+          onValueChange={setManagerFilter}
+          placeholder="Filter by manager"
+          className="w-[180px]"
+          icon={<User className="h-4 w-4 mr-2" />}
+          options={[
+            { value: "all", label: "All Managers" },
+            ...mockAccountManagers.map((manager) => ({ value: manager.id, label: manager.name })),
+          ]}
+        />
         <div className="flex-1" />
         <Button
           variant="outline"

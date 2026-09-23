@@ -27,7 +27,7 @@ import {
   Play
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { ScrollArea } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
 
@@ -312,31 +312,33 @@ export function SchedulerContentTitlingPage() {
               <span className="text-sm font-medium">Filters:</span>
             </div>
 
-            <Select value={filterTitlingStatus} onValueChange={setFilterTitlingStatus}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="Titling Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Titling Status</SelectItem>
-                <SelectItem value="COMPLETED">Titles Ready</SelectItem>
-                <SelectItem value="PROCESSING">Generating</SelectItem>
-                <SelectItem value="PENDING">Pending</SelectItem>
-                <SelectItem value="FAILED">Failed</SelectItem>
-                <SelectItem value="NONE">No Titles</SelectItem>
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={filterTitlingStatus}
+              onValueChange={setFilterTitlingStatus}
+              placeholder="Titling Status"
+              className="w-44"
+              options={[
+                { value: "all", label: "All Titling Status" },
+                { value: "COMPLETED", label: "Titles Ready" },
+                { value: "PROCESSING", label: "Generating" },
+                { value: "PENDING", label: "Pending" },
+                { value: "FAILED", label: "Failed" },
+                { value: "NONE", label: "No Titles" },
+              ]}
+            />
 
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Task Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="COMPLETED">Completed</SelectItem>
-                <SelectItem value="CLIENT_REVIEW">Client Review</SelectItem>
-                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={filterStatus}
+              onValueChange={setFilterStatus}
+              placeholder="Task Status"
+              className="w-40"
+              options={[
+                { value: "all", label: "All Status" },
+                { value: "COMPLETED", label: "Completed" },
+                { value: "CLIENT_REVIEW", label: "Client Review" },
+                { value: "SCHEDULED", label: "Scheduled" },
+              ]}
+            />
 
             <div className="flex-1" />
 

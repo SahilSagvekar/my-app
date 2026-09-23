@@ -22,7 +22,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { cn } from '@/lib/utils';
 
 type LinkFilter = 'all' | 'linked' | 'unlinked';
@@ -283,34 +283,36 @@ export function ScriptLinkingPanel({ mode }: { mode: 'videographer' | 'editor' }
       </header>
 
       <div className="grid grid-cols-1 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="space-y-1 min-w-[160px]">
-          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Client</Label>
-          <Select value={clientId} onValueChange={(v) => { setClientId(v); setSelectedKey(null); }}>
-            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>{c.companyName || c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <FilterSelect
+          label="Client"
+          labelClassName="text-[11px] uppercase tracking-wide text-slate-400"
+          wrapperClassName="space-y-1 min-w-[160px]"
+          value={clientId}
+          onValueChange={(v) => { setClientId(v); setSelectedKey(null); }}
+          placeholder="Select client"
+          className="h-9 w-full"
+          options={clients.map((c) => ({ value: c.id, label: c.companyName || c.name }))}
+        />
 
         <div className="space-y-1 min-w-[160px]">
           <Label className="text-[11px] uppercase tracking-wide text-slate-400">Month folder</Label>
           <Input value={monthFolder} onChange={(e) => setMonthFolder(e.target.value)} className="h-9" placeholder="September-2026" />
         </div>
 
-        <div className="space-y-1 min-w-[140px]">
-          <Label className="text-[11px] uppercase tracking-wide text-slate-400">Link status</Label>
-          <Select value={linkFilter} onValueChange={(v) => setLinkFilter(v as LinkFilter)}>
-            <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All slots</SelectItem>
-              <SelectItem value="linked">Linked</SelectItem>
-              <SelectItem value="unlinked">Unlinked</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <FilterSelect
+          label="Link status"
+          labelClassName="text-[11px] uppercase tracking-wide text-slate-400"
+          wrapperClassName="space-y-1 min-w-[140px]"
+          value={linkFilter}
+          onValueChange={(v) => setLinkFilter(v as LinkFilter)}
+          placeholder="All slots"
+          className="h-9 w-full"
+          options={[
+            { value: "all", label: "All slots" },
+            { value: "linked", label: "Linked" },
+            { value: "unlinked", label: "Unlinked" },
+          ]}
+        />
 
         <div className="flex items-end">
           <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => load()} disabled={loading}>

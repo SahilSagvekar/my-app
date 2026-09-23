@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { Label } from '../ui/label';
 import { Shield, FileCheck, Palette, FileText, Video, Info, ExternalLink, Download, CheckCircle, Building, Image as ImageIcon } from 'lucide-react';
 import { getClients } from '../utils/clientData';
@@ -49,21 +49,21 @@ export function QCResourcesPage() {
             <Label htmlFor="qc-client-select" className="text-sm text-muted-foreground whitespace-nowrap">
               Client:
             </Label>
-            <Select value={selectedClientId || ''} onValueChange={setSelectedClientId}>
-              <SelectTrigger id="qc-client-select" className="w-64">
-                <SelectValue placeholder="Select client..." />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    <div className="flex items-center gap-2">
-                      <Building className="h-4 w-4" />
-                      {client.company}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={selectedClientId || ''}
+              onValueChange={setSelectedClientId}
+              placeholder="Select client..."
+              className="w-64"
+              options={clients.map((client) => ({
+                value: client.id,
+                label: (
+                  <div className="flex items-center gap-2">
+                    <Building className="h-4 w-4" />
+                    {client.company}
+                  </div>
+                ),
+              }))}
+            />
           </div>
         )
         }

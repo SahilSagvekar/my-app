@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { FilterSelect } from "./ui/filter-select";
 import {
   Dialog,
   DialogContent,
@@ -1202,25 +1203,30 @@ export function SocialLogins() {
                 onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full" />
             </div>
             {!isClient && (
-              <Select value={clientFilter} onValueChange={setClientFilter}>
-                <SelectTrigger><SelectValue placeholder="Filter by client" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Clients</SelectItem>
-                  {clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={clientFilter}
+                onValueChange={setClientFilter}
+                placeholder="Filter by client"
+                className="w-full"
+                options={[
+                  { value: "all", label: "All Clients" },
+                  ...clients.map((c) => ({ value: c.id, label: c.companyName })),
+                ]}
+              />
             )}
-            <Select value={platformFilter} onValueChange={setPlatformFilter}>
-              <SelectTrigger><SelectValue placeholder="Filter by platform" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Platforms</SelectItem>
-                {PLATFORMS.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    <div className="flex items-center gap-2">{getPlatformIcon(p, "h-4 w-4")}{p}</div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={platformFilter}
+              onValueChange={setPlatformFilter}
+              placeholder="Filter by platform"
+              className="w-full"
+              options={[
+                { value: "all", label: "All Platforms" },
+                ...PLATFORMS.map((p) => ({
+                  value: p,
+                  label: <div className="flex items-center gap-2">{getPlatformIcon(p, "h-4 w-4")}{p}</div>,
+                })),
+              ]}
+            />
           </div>
         </CardContent>
       </Card>

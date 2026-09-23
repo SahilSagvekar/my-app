@@ -1,13 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { EmployeeSummaryPanel } from './EmployeeSummaryPanel';
 
@@ -36,32 +30,23 @@ export function PersonOverviewSection({
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-sm font-bold">Person Overview</CardTitle>
           <div className="flex items-center gap-2">
-            <Select
+            <FilterSelect
               value={selectedEmployeeId ? String(selectedEmployeeId) : ''}
               onValueChange={(v) => setSelectedEmployeeId(Number(v))}
-            >
-              <SelectTrigger className="h-8 text-xs w-48">
-                <SelectValue placeholder="Pick a person…" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((e) => (
-                  <SelectItem key={e.id} value={String(e.id)}>
-                    {e.name} — {e.role}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="h-8 text-xs w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All time</SelectItem>
-                {availableMonths.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Pick a person…"
+              className="h-8 w-48 text-xs"
+              options={employees.map((e) => ({ value: String(e.id), label: `${e.name} — ${e.role}` }))}
+            />
+            <FilterSelect
+              value={selectedMonth}
+              onValueChange={setSelectedMonth}
+              placeholder="All time"
+              className="h-8 w-40 text-xs"
+              options={[
+                { value: "all", label: "All time" },
+                ...availableMonths.map((m) => ({ value: m, label: m })),
+              ]}
+            />
           </div>
         </div>
       </CardHeader>

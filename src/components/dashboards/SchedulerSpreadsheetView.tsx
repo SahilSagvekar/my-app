@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { FilterSelect } from '../ui/filter-select';
 import { Checkbox } from '../ui/checkbox';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
@@ -612,37 +613,47 @@ export function SchedulerSpreadsheetView() {
                     <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
                         <Users className="h-3.5 w-3.5" />Client:
                     </span>
-                    <Select value={clientFilter} onValueChange={handleClientFilterChange}>
-                        <SelectTrigger className="h-9 w-[150px] text-xs"><SelectValue placeholder="All Clients" /></SelectTrigger>
-                        <SelectContent className="max-h-[300px]">
-                            <SelectItem value="all">All Clients</SelectItem>
-                            {uniqueClients.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                    <FilterSelect
+                        value={clientFilter}
+                        onValueChange={handleClientFilterChange}
+                        placeholder="All Clients"
+                        className="h-9 w-[150px] text-xs"
+                        contentClassName="max-h-[300px]"
+                        options={[
+                            { value: "all", label: "All Clients" },
+                            ...uniqueClients.map(([id, name]) => ({ value: id, label: name })),
+                        ]}
+                    />
                 </div>
                 <div className="flex items-center gap-2 border-l pl-4">
                     <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
                         <Package className="h-3.5 w-3.5" />Type:
                     </span>
-                    <Select value={deliverableFilter} onValueChange={setDeliverableFilter}>
-                        <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="All Types" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Types</SelectItem>
-                            {uniqueDeliverables.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                    <FilterSelect
+                        value={deliverableFilter}
+                        onValueChange={setDeliverableFilter}
+                        placeholder="All Types"
+                        className="h-9 w-[130px] text-xs"
+                        options={[
+                            { value: "all", label: "All Types" },
+                            ...uniqueDeliverables.map((type) => ({ value: type, label: type })),
+                        ]}
+                    />
                 </div>
                 <div className="flex items-center gap-2 border-l pl-4">
                     <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
                         Tag:
                     </span>
-                    <Select value={tagFilter} onValueChange={setTagFilter}>
-                        <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="All Tags" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Tags</SelectItem>
-                            {availableTags.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                    <FilterSelect
+                        value={tagFilter}
+                        onValueChange={setTagFilter}
+                        placeholder="All Tags"
+                        className="h-9 w-[130px] text-xs"
+                        options={[
+                            { value: "all", label: "All Tags" },
+                            ...availableTags.map((tag) => ({ value: tag, label: tag })),
+                        ]}
+                    />
                 </div>
             </div>
 

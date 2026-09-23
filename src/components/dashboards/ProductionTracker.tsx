@@ -7,13 +7,7 @@ import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import {
   Tooltip,
   TooltipContent,
@@ -567,17 +561,14 @@ export function ProductionTracker() {
           description="Monthly deliverable progress & employee performance"
           actions={
             <div className="flex items-center gap-3">
-              <Select value={selectedMonth} onValueChange={handleMonthChange}>
-                <SelectTrigger className="w-[180px] h-9 text-sm">
-                  <Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Select month" />
-                </SelectTrigger>
-                <SelectContent>
-                  {data.availableMonths.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={selectedMonth}
+                onValueChange={handleMonthChange}
+                placeholder="Select month"
+                className="h-9 w-[180px]"
+                icon={<Calendar className="h-3.5 w-3.5 mr-2 text-muted-foreground" />}
+                options={data.availableMonths.map((m) => ({ value: m, label: m }))}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -716,15 +707,18 @@ export function ProductionTracker() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input placeholder="Search clients..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-9 text-sm" />
               </div>
-              <Select value={healthFilter} onValueChange={(v: any) => setHealthFilter(v)}>
-                <SelectTrigger className="w-[140px] h-9 text-xs"><SelectValue placeholder="Health" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="critical">At Risk</SelectItem>
-                  <SelectItem value="warning">Behind</SelectItem>
-                  <SelectItem value="healthy">On Track</SelectItem>
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={healthFilter}
+                onValueChange={(v: any) => setHealthFilter(v)}
+                placeholder="Health"
+                className="h-9 w-[140px] text-xs"
+                options={[
+                  { value: "all", label: "All Status" },
+                  { value: "critical", label: "At Risk" },
+                  { value: "warning", label: "Behind" },
+                  { value: "healthy", label: "On Track" },
+                ]}
+              />
             </div>
 
             <div className="space-y-2">

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { Calendar, List, ChevronLeft, ChevronRight, Building, CheckCircle, Clock, AlertTriangle, Filter, FileText, Play, Image } from 'lucide-react';
 
 interface ClientDeliverable {
@@ -476,31 +476,33 @@ export function DeliverablesOverview() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2024-09">September 2024</SelectItem>
-              <SelectItem value="2024-08">August 2024</SelectItem>
-              <SelectItem value="2024-07">July 2024</SelectItem>
-              <SelectItem value="2024-06">June 2024</SelectItem>
-            </SelectContent>
-          </Select>
+          <FilterSelect
+            value={selectedMonth}
+            onValueChange={setSelectedMonth}
+            placeholder="Select month"
+            className="w-48"
+            options={[
+              { value: "2024-09", label: "September 2024" },
+              { value: "2024-08", label: "August 2024" },
+              { value: "2024-07", label: "July 2024" },
+              { value: "2024-06", label: "June 2024" },
+            ]}
+          />
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="on-track">On Track</SelectItem>
-              <SelectItem value="at-risk">At Risk</SelectItem>
-              <SelectItem value="overdue">Overdue</SelectItem>
-            </SelectContent>
-          </Select>
+          <FilterSelect
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+            placeholder="Filter by status"
+            className="w-48"
+            icon={<Filter className="h-4 w-4 mr-2" />}
+            options={[
+              { value: "all", label: "All Statuses" },
+              { value: "completed", label: "Completed" },
+              { value: "on-track", label: "On Track" },
+              { value: "at-risk", label: "At Risk" },
+              { value: "overdue", label: "Overdue" },
+            ]}
+          />
 
           <div className="flex gap-1 border rounded-md">
             <Button

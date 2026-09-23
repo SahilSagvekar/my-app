@@ -256,7 +256,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Badge } from '../ui/badge';
 import { Progress } from '../ui/progress';
 import { Separator } from '../ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import { BarChart3, TrendingUp, Video, Palette, FileText, AlertTriangle, Award, Zap, Loader } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageHeader } from '../ui/page-header';
@@ -391,16 +391,17 @@ export function QCReportsPage() {
         title="QC Reports"
         description="Analytics and metrics for quality control operations"
         actions={
-        <Select value={period} onValueChange={(value: any) => setPeriod(value)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Select period" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="week">This Week</SelectItem>
-            <SelectItem value="month">This Month</SelectItem>
-            <SelectItem value="year">This Year</SelectItem>
-          </SelectContent>
-        </Select>
+        <FilterSelect
+          value={period}
+          onValueChange={(value: any) => setPeriod(value)}
+          placeholder="Select period"
+          className="w-40"
+          options={[
+            { value: "week", label: "This Week" },
+            { value: "month", label: "This Month" },
+            { value: "year", label: "This Year" },
+          ]}
+        />
         }
       />
 

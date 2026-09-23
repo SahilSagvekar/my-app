@@ -3,13 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar } from '../ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { FilterSelect } from '../ui/filter-select';
 import {
   Loader2, Upload, Video, Image as ImageIcon, FileText, File,
   ChevronDown, FolderOpen, CheckCircle, XCircle,
@@ -267,19 +261,16 @@ export function UploadCalendarTab({ employees, currentMonth }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Select value={calendarEmployeeFilter} onValueChange={setCalendarEmployeeFilter}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="All employees" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All employees</SelectItem>
-              {employees.map((e) => (
-                <SelectItem key={e.id} value={String(e.id)}>
-                  {e.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <FilterSelect
+            value={calendarEmployeeFilter}
+            onValueChange={setCalendarEmployeeFilter}
+            placeholder="All employees"
+            className="h-8 w-full text-xs"
+            options={[
+              { value: "all", label: "All employees" },
+              ...employees.map((e) => ({ value: String(e.id), label: e.name })),
+            ]}
+          />
 
           <Calendar
             mode="range"
@@ -312,19 +303,16 @@ export function UploadCalendarTab({ employees, currentMonth }: Props) {
               {loadingDetail && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             </CardTitle>
             {range?.from && (
-              <Select value={detailEmployeeFilter} onValueChange={setDetailEmployeeFilter}>
-                <SelectTrigger className="h-8 text-xs w-44">
-                  <SelectValue placeholder="All employees" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All employees</SelectItem>
-                  {employees.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>
-                      {e.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FilterSelect
+                value={detailEmployeeFilter}
+                onValueChange={setDetailEmployeeFilter}
+                placeholder="All employees"
+                className="h-8 w-44 text-xs"
+                options={[
+                  { value: "all", label: "All employees" },
+                  ...employees.map((e) => ({ value: String(e.id), label: e.name })),
+                ]}
+              />
             )}
           </div>
         </CardHeader>
