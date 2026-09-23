@@ -2,8 +2,13 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from "next/server";
 import { getDbHttp } from "@/lib/db";
 import { user } from "@/lib/db/schema";
-import { and, or, eq, ne, isNull, notInArray, desc } from "drizzle-orm";
+import { and, or, eq, ne, isNull, notInArray, arrayContains, desc } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth";
+
+// Real staff-type roles — used below so a multi-role account (admin as
+// primary role, but also editor/videographer/etc as a secondary role)
+// still counts as staff instead of being dropped outright.
+const STAFF_ROLES = ['manager', 'editor', 'videographer', 'scheduler', 'qc', 'sales', 'sales_manager'] as const;
 
 export async function GET(req: Request) {
   const db = getDbHttp();
@@ -17,7 +22,21 @@ export async function GET(req: Request) {
     // 🔥 OPTIMIZED: Only select fields needed for the list view
     const employees = await db.query.user.findMany({
       where: and(
-        or(isNull(user.role), notInArray(user.role, ["admin", "client"] as any)),
+        // Clients are never staff — always excluded.
+        or(isNull(user.role), ne(user.role, "client" as any)),
+        // Admins ARE excluded by default (this feeds every staff
+        // dropdown/list app-wide, and a bare admin isn't assignable staff)
+        // — UNLESS they also hold a real staff role as a secondary role
+        // (e.g. an admin who also edits/shoots/QCs). Previously this was a
+        // flat notInArray(role, ["admin","client"]), so anyone whose
+        // *primary* role was admin was dropped entirely, even when their
+        // roles[] included editor/videographer/qc/scheduler — they never
+        // showed up in those role-filtered pickers no matter what.
+        or(
+          isNull(user.role),
+          ne(user.role, "admin" as any),
+          ...STAFF_ROLES.map((r) => arrayContains(user.roles, [r])),
+        ),
         // Filter by a specific status if the caller asked for one; otherwise
         // default to excluding TERMINATED so terminated people disappear
         // from every dropdown/list app-wide without needing every caller to
