@@ -4,8 +4,9 @@ import {
   client as clientTable,
   task as taskTable,
   user as userTable,
+  auditLog as auditLogTable,
 } from "@/lib/db/schema";
-import { and, or, eq, gte, lte, isNull, isNotNull } from "drizzle-orm";
+import { and, or, eq, gte, lte, isNull, isNotNull, inArray } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
 
 // GET /api/admin/production-tracker-numbers?month=April-2026
@@ -97,7 +98,28 @@ export async function GET(req: NextRequest) {
       );
 
     const DONE_STATUSES = ["COMPLETED", "SCHEDULED", "POSTED"];
-    const REJECTED_STATUSES = ["REJECTED_BY_QC", "REJECTED_BY_CLIENT"];
+
+    // ─── Rejection EVENTS this month, from the audit log ───
+    // Every task status change writes an AuditLog row with
+    // metadata.{previousStatus,newStatus} (see /api/tasks/[id]/status).
+    // Counting from here — instead of "is this task currently rejected" —
+    // means a task rejected twice and later fixed still counts as 2
+    // rejections against its editor, not 0.
+    const taskIds = tasks.map((t) => t.id);
+    const statusChangeLogs = taskIds.length
+      ? await db
+          .select({ entityId: auditLogTable.entityId, metadata: auditLogTable.metadata })
+          .from(auditLogTable)
+          .where(and(eq(auditLogTable.entity, "Task"), inArray(auditLogTable.entityId, taskIds)))
+      : [];
+
+    const rejectionEventsByTaskId = new Map<string, number>();
+    for (const log of statusChangeLogs) {
+      const newStatus = (log.metadata as any)?.newStatus;
+      if (newStatus === "REJECTED_BY_QC" || newStatus === "REJECTED_BY_CLIENT") {
+        rejectionEventsByTaskId.set(log.entityId!, (rejectionEventsByTaskId.get(log.entityId!) || 0) + 1);
+      }
+    }
 
     // ─── (1) Editor task load — raw count of tasks this month ───
     const editorTaskLoad = employees
@@ -127,13 +149,16 @@ export async function GET(req: NextRequest) {
       .filter((e) => e.total > 0)
       .sort((a, b) => b.remaining - a.remaining);
 
-    // ─── (3) Editor rejection rank — raw reject count, highest first ───
+    // ─── (3) Editor rejection rank — count of rejection EVENTS this month,
+    // not just tasks currently sitting in a rejected status. A task rejected
+    // twice and later fixed still contributes 2 to its editor's count.
     const editorRejectionRank = employees
       .map((e) => {
         const editorTasks = tasks.filter((t) => t.assignedTo === e.id);
-        const rejectCount = editorTasks.filter((t) =>
-          REJECTED_STATUSES.includes(t.status as string)
-        ).length;
+        const rejectCount = editorTasks.reduce(
+          (sum, t) => sum + (rejectionEventsByTaskId.get(t.id) || 0),
+          0
+        );
         return {
           editorId: e.id,
           editorName: e.name || e.email,
@@ -144,13 +169,15 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.rejectCount - a.rejectCount);
 
     // ─── (4) Repeat rejection reason per editor ───
-    // Group every taskFeedback entry on a rejected task by editor + reason
-    // (category if set, else the feedback text itself). Count occurrences,
-    // keep the top reason per editor.
+    // Group every taskFeedback entry on a task that was rejected at least
+    // once this month (regardless of its CURRENT status — a fixed-and-
+    // completed task still counted) by editor + reason (category if set,
+    // else the feedback text itself). Count occurrences, keep the top
+    // reason per editor.
     const reasonCountByEditor = new Map<number, Map<string, number>>();
     for (const t of tasks) {
       if (!t.assignedTo) continue;
-      if (!REJECTED_STATUSES.includes(t.status as string)) continue;
+      if (!rejectionEventsByTaskId.has(t.id)) continue;
       for (const fb of t.taskFeedbacks || []) {
         const reason = (fb.category || fb.feedback || "uncategorized")
           .trim()
@@ -241,6 +268,26 @@ export async function GET(req: NextRequest) {
       if (!statusOrder.includes(s)) statusCounts.push({ status: s, count });
     }
 
+    // ─── (7) Monthly posting tracker ───
+    // "Needs to be posted" = COMPLETED this month but not yet SCHEDULED or
+    // POSTED. "Already posted" = hit POSTED this month. Both grouped by
+    // client so it reads like the Client Remaining Deliverables table above.
+    const clientNameById = new Map(clients.map((c) => [c.id, c.companyName || c.name]));
+    const toPostingRow = (t: (typeof tasks)[number]) => ({
+      taskId: t.id,
+      title: t.title,
+      clientName: (t.clientId && clientNameById.get(t.clientId)) || "Unknown Client",
+      deliverableType: t.deliverableType || t.monthlyDeliverable?.type || "—",
+    });
+    const needsToBePosted = tasks
+      .filter((t) => t.status === "COMPLETED")
+      .map(toPostingRow)
+      .sort((a, b) => a.clientName.localeCompare(b.clientName));
+    const alreadyPosted = tasks
+      .filter((t) => t.status === "POSTED")
+      .map(toPostingRow)
+      .sort((a, b) => a.clientName.localeCompare(b.clientName));
+
     // ─── Available months for the picker ───
     const monthFolders = await db
       .selectDistinct({ monthFolder: taskTable.monthFolder })
@@ -269,6 +316,8 @@ export async function GET(req: NextRequest) {
       editorTopRejectionReasons,
       clientRemainingDeliverables,
       statusCounts,
+      needsToBePosted,
+      alreadyPosted,
     });
   } catch (err: any) {
     console.error("Production tracker numbers error:", err);

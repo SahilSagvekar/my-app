@@ -53,6 +53,13 @@ interface StatusCount {
   count: number;
 }
 
+interface PostingRow {
+  taskId: string;
+  title: string;
+  clientName: string;
+  deliverableType: string;
+}
+
 interface NumbersData {
   month: string;
   totalTasks: number;
@@ -62,6 +69,8 @@ interface NumbersData {
   editorTopRejectionReasons: EditorTopRejectionReason[];
   clientRemainingDeliverables: ClientRemaining[];
   statusCounts: StatusCount[];
+  needsToBePosted: PostingRow[];
+  alreadyPosted: PostingRow[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -228,14 +237,17 @@ export function ProductionTrackerNumbers({ month }: { month?: string }) {
         {/* ─── 3. Editor rejection rank ─── */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold">Editor Rejection Count</CardTitle>
+            <CardTitle className="text-sm font-bold">Editor Rejections</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Every time QC or a client sent a task back this month — counts a task rejected twice even if it's since been fixed.
+            </p>
           </CardHeader>
           <CardContent className="pt-0">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground uppercase tracking-wider">
                   <th className="py-2 font-medium">Editor</th>
-                  <th className="py-2 font-medium text-right">Rejected Tasks</th>
+                  <th className="py-2 font-medium text-right">Rejections</th>
                 </tr>
               </thead>
               <tbody>
@@ -354,6 +366,77 @@ export function ProductionTrackerNumbers({ month }: { month?: string }) {
           </table>
         </CardContent>
       </Card>
+
+      {/* ─── 7. Monthly posting tracker ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold">Needs to Be Posted ({data.needsToBePosted.length})</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">Completed this month but not yet scheduled or posted.</p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground uppercase tracking-wider">
+                  <th className="py-2 font-medium">Client</th>
+                  <th className="py-2 font-medium">Task</th>
+                  <th className="py-2 font-medium">Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.needsToBePosted.map((row) => (
+                  <tr key={row.taskId} className="border-b last:border-0">
+                    <td className="py-2">{row.clientName}</td>
+                    <td className="py-2">{row.title}</td>
+                    <td className="py-2">{row.deliverableType}</td>
+                  </tr>
+                ))}
+                {data.needsToBePosted.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="py-4 text-center text-muted-foreground">
+                      Nothing waiting to be posted.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold">Already Posted ({data.alreadyPosted.length})</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">Posted this month.</p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground uppercase tracking-wider">
+                  <th className="py-2 font-medium">Client</th>
+                  <th className="py-2 font-medium">Task</th>
+                  <th className="py-2 font-medium">Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.alreadyPosted.map((row) => (
+                  <tr key={row.taskId} className="border-b last:border-0">
+                    <td className="py-2">{row.clientName}</td>
+                    <td className="py-2">{row.title}</td>
+                    <td className="py-2">{row.deliverableType}</td>
+                  </tr>
+                ))}
+                {data.alreadyPosted.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="py-4 text-center text-muted-foreground">
+                      Nothing posted yet this month.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
