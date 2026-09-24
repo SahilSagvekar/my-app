@@ -148,11 +148,6 @@ const roles = [
     name: "Sales Manager",
     color: "bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-200",
   },
-  {
-    id: "host",
-    name: "Host",
-    color: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
-  },
 ];
 
 const statusOptions = [
@@ -2096,7 +2091,6 @@ export default function LeavesComponent() {
                     <SelectItem value="client">Client</SelectItem>
                     <SelectItem value="sales">Sales</SelectItem>
                     <SelectItem value="sales_manager">Sales Manager</SelectItem>
-                    <SelectItem value="host">Host</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

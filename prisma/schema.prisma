@@ -83,11 +83,6 @@ model User {
   schedulerActivityEvents         SchedulerActivityEvent[]
   sessions                        Session[]
   shootDetails                    ShootDetail[]                   @relation("VideographerShootDetails")
-  hostShootDetails                ShootDetail[]                   @relation("HostShootDetails")
-  hostPayoutProfile               HostPayoutProfile?
-  hostPayments                    HostPayment[]
-  hostDocuments                   HostDocument[]                  @relation("HostDocumentOwner")
-  hostDocumentsReviewed           HostDocument[]                  @relation("HostDocumentReviewer")
   updatedSocialLogins             SocialLogin[]                   @relation("LoginUpdatedBy")
   assignedTasks                   Task[]                          @relation("AssignedTasks")
   clientTasks                     Task[]                          @relation("ClientUserTasks")
@@ -271,14 +266,8 @@ model ShootDetail {
   scriptSentBy               Int?
   scriptLastEditedAt         DateTime?
   scriptLastEditedBy         Int?
-  hostId                     Int?
-  hostRole                   String?
-  hostWardrobe               String?
-  hostRate                   Decimal?  @db.Decimal(10, 2)
-  hostPayments               HostPayment[]
   task                       Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   videographer               User?     @relation("VideographerShootDetails", fields: [videographerId], references: [id])
-  host                       User?     @relation("HostShootDetails", fields: [hostId], references: [id])
 }
 
 model TitlingJob {
@@ -1504,66 +1493,6 @@ model CommissionPayout {
   @@index([batchId])
 }
 
-// ─── Host Portal ────────────────────────────────────────────────────────────
-
-model HostPayoutProfile {
-  id                   String    @id @default(cuid())
-  userId               Int       @unique
-  fullLegalName        String?
-  phone                String?
-  email                String?
-  mailingAddress       String?
-  payoutMethod         String?
-  payoutAccount        String?
-  standardRate         Decimal?  @db.Decimal(10, 2)
-  verificationStatus   String    @default("verified")
-  pendingPayoutMethod  String?
-  pendingPayoutAccount String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  user                 User      @relation(fields: [userId], references: [id])
-}
-
-model HostPayment {
-  id            String       @id @default(cuid())
-  hostUserId    Int
-  shootDetailId String?
-  label         String
-  amount        Decimal      @db.Decimal(12, 2)
-  currency      String       @default("usd")
-  status        String       @default("pending")
-  method        String?
-  scheduledDate DateTime?
-  sentAt        DateTime?
-  source        String       @default("manual")
-  externalRef   String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  user          User         @relation(fields: [hostUserId], references: [id])
-  shootDetail   ShootDetail? @relation(fields: [shootDetailId], references: [id])
-
-  @@index([hostUserId])
-  @@index([status])
-}
-
-model HostDocument {
-  id           String    @id @default(cuid())
-  hostUserId   Int
-  formType     String
-  taxYear      Int       @default(0)
-  status       String    @default("missing")
-  fileS3Key    String?
-  fileName     String?
-  submittedAt  DateTime?
-  reviewedAt   DateTime?
-  reviewedBy   Int?
-  updatedAt    DateTime  @default(now())
-  user         User      @relation("HostDocumentOwner", fields: [hostUserId], references: [id])
-  reviewer     User?     @relation("HostDocumentReviewer", fields: [reviewedBy], references: [id])
-
-  @@unique([hostUserId, formType, taxYear])
-}
-
 model PayoutBatchRun {
   id           String             @id @default(cuid())
   runDate      DateTime           @default(now())
@@ -2496,7 +2425,6 @@ enum Role {
   qc
   sales
   sales_manager
-  host
 }
 
 enum EmployeeStatus {

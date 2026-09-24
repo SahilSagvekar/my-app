@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, roleEodReport, roleEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask, hostPayoutProfile, hostPayment, hostDocument } from "./schema";
+import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, roleEodReport, roleEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask } from "./schema";
 
 export const monthlyDeliverableRelations = relations(monthlyDeliverable, ({one, many}) => ({
 	client: one(client, {
@@ -137,14 +137,6 @@ export const userRelations = relations(user, ({one, many}) => ({
 	salesActivityLogs: many(salesActivityLog),
 	salesRepPayoutProfiles: many(salesRepPayoutProfile),
 	commissionPayouts: many(commissionPayout),
-	hostPayoutProfiles: many(hostPayoutProfile),
-	hostPayments: many(hostPayment),
-	hostDocuments_hostUserId: many(hostDocument, {
-		relationName: "hostDocument_hostUserId_user_id"
-	}),
-	hostDocuments_reviewedBy: many(hostDocument, {
-		relationName: "hostDocument_reviewedBy_user_id"
-	}),
 	folderStatuses: many(folderStatus),
 	hiringCandidates_createdById: many(hiringCandidate, {
 		relationName: "hiringCandidate_createdById_user_id"
@@ -460,15 +452,6 @@ export const shootDetailRelations = relations(shootDetail, ({one, many}) => ({
 		fields: [shootDetail.videographerId],
 		references: [user.id]
 	}),
-	// hostId is deliberately NOT modeled as a relation here: shootDetail
-	// already has an unnamed one(user) relation for videographerId, and
-	// Drizzle's relations() API requires matching relationName pairs on
-	// both the "one" and "many" side to disambiguate multiple relations
-	// to the same target table. Renaming the existing one risks every
-	// existing `with: { user: true }` call site across the app (this table
-	// is queried in ~300+ routes). Host Portal API routes fetch the host
-	// user row with a plain separate query/join instead.
-	hostPayments: many(hostPayment),
 }));
 
 export const metaAccountRelations = relations(metaAccount, ({one, many}) => ({
@@ -850,37 +833,6 @@ export const salesRepPayoutProfileRelations = relations(salesRepPayoutProfile, (
 	user: one(user, {
 		fields: [salesRepPayoutProfile.userId],
 		references: [user.id]
-	}),
-}));
-
-export const hostPayoutProfileRelations = relations(hostPayoutProfile, ({one}) => ({
-	user: one(user, {
-		fields: [hostPayoutProfile.userId],
-		references: [user.id]
-	}),
-}));
-
-export const hostPaymentRelations = relations(hostPayment, ({one}) => ({
-	user: one(user, {
-		fields: [hostPayment.hostUserId],
-		references: [user.id]
-	}),
-	shootDetail: one(shootDetail, {
-		fields: [hostPayment.shootDetailId],
-		references: [shootDetail.id]
-	}),
-}));
-
-export const hostDocumentRelations = relations(hostDocument, ({one}) => ({
-	user_hostUserId: one(user, {
-		fields: [hostDocument.hostUserId],
-		references: [user.id],
-		relationName: "hostDocument_hostUserId_user_id"
-	}),
-	user_reviewedBy: one(user, {
-		fields: [hostDocument.reviewedBy],
-		references: [user.id],
-		relationName: "hostDocument_reviewedBy_user_id"
 	}),
 }));
 

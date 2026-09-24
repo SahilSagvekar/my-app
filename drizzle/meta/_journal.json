@@ -55,7 +55,7 @@
       "idx": 7,
       "version": "7",
       "when": 1790380800000,
-      "tag": "0008_add_host_portal",
+      "tag": "0008_remove_host_portal",
       "breakpoints": true
     }
   ]

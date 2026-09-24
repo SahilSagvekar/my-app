@@ -61,9 +61,6 @@ import { ClientProductionLogPage } from "../dashboards/ClientProductionLogPage";
 import { VideographerProductionLogPage } from "../dashboards/VideographerProductionLogPage";
 import { ClientPortfolioPage } from "../dashboards/ClientPortfolioPage";
 import { AdminAIAgentPage } from "../admin/AdminAIAgentPage";
-import { HostShootsPage } from "../dashboards/HostShootsPage";
-import { HostPaymentsPage } from "../dashboards/HostPaymentsPage";
-import { HostEmploymentInfo } from "../dashboards/HostEmploymentInfo";
 import dynamic from "next/dynamic";
 
 const ContractsDashboard = dynamic(() => import("../contracts/ContractsDashboard").then(mod => mod.ContractsDashboard), {
@@ -496,19 +493,6 @@ export function renderPage(
         return <SocialLogins />;
       default:
         return <SalesManagementTab />;
-    }
-  }
-
-  if (role === "host") {
-    switch (page) {
-      case "host-shoots":
-        return <HostShootsPage />;
-      case "host-payments":
-        return <HostPaymentsPage onNavigate={onPageChange} />;
-      case "employment-info":
-        return <HostEmploymentInfo />;
-      default:
-        return <HostShootsPage />;
     }
   }
 

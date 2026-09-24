@@ -7,8 +7,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 // Kept as-is for backward compatibility — don't add new people here.
 const ROLE_SWITCH_MAP: Record<string, string[]> = {
     // Specific Users - ALWAYS allowed to switch to these
-    "eric@e8productions.com": ["qc", "sales", "sales_manager", "scheduler", "videographer", "host"],
-    "sahilsagvekar230@gmail.com": ["qc", "sales", "sales_manager", "scheduler", "videographer", "host"],
+    "eric@e8productions.com": ["qc", "sales", "sales_manager", "scheduler", "videographer"],
+    "sahilsagvekar230@gmail.com": ["qc", "sales", "sales_manager", "scheduler", "videographer"],
 };
 
 const DEFAULT_ADMIN_SWITCH_ROLES = ["qc", "sales", "sales_manager", "scheduler", "videographer"];
