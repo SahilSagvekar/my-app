@@ -31,6 +31,7 @@ import {
     AlertCircle, ArrowLeft,
     Info, Copy, Check, Plus, Smartphone,
     PenLine, ImageIcon, Maximize, Minimize, Send, CheckSquare,
+    Volume2, VolumeX,
 } from 'lucide-react';
 import {
     ReviewCommentCard,
@@ -1013,6 +1014,20 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             showGrid={isShortFormTask}
                                         />
                                         <div className="flex items-center justify-start gap-1">
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={p.toggleMute}
+                                                        className="h-8 w-8 rounded-md p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
+                                                        aria-label={p.isMuted ? 'Unmute' : 'Mute'}
+                                                    >
+                                                        {p.isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>{p.isMuted ? 'Unmute' : 'Mute'}</TooltipContent>
+                                            </Tooltip>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <Button
