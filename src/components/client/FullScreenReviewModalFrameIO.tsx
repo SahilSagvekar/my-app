@@ -216,6 +216,7 @@ export function FullScreenReviewModalFrameIO({
     /* ── Video state ── */
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
+    const [volume, setVolume] = useState(100);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [measuredResolution, setMeasuredResolution] = useState('');
@@ -694,6 +695,22 @@ export function FullScreenReviewModalFrameIO({
         setIsMuted(!isMuted);
     }, [isMuted, videoSource.type]);
 
+    // Dragging the slider above 0 while muted un-mutes (matches every other
+    // media player); dragging it to 0 mutes instead of just silently
+    // playing at 0 volume, so the icon stays in sync with reality.
+    const handleVolumeChange = useCallback((next: number) => {
+        setVolume(next);
+        const shouldMute = next === 0;
+        if (videoSource.type === 'youtube') {
+            youtubePlayerRef.current?.setVolume(next);
+            youtubePlayerRef.current?.setMuted(shouldMute);
+        } else if (videoRef.current) {
+            videoRef.current.volume = next / 100;
+            videoRef.current.muted = shouldMute;
+        }
+        setIsMuted(shouldMute);
+    }, [videoSource.type]);
+
     const seekBackward = useCallback(() => {
         const target = Math.max(0, currentTime - 10);
         if (videoSource.type === 'youtube') {
@@ -747,9 +764,11 @@ export function FullScreenReviewModalFrameIO({
     };
 
     const handleYoutubeReady = useCallback(() => {
-        // Apply whatever playback speed/mute state was already selected
-        // (e.g. from a previous version's source) to the newly mounted player.
+        // Apply whatever playback speed/volume/mute state was already
+        // selected (e.g. from a previous version's source) to the newly
+        // mounted player.
         youtubePlayerRef.current?.setPlaybackRate(playbackSpeed);
+        youtubePlayerRef.current?.setVolume(volume);
         youtubePlayerRef.current?.setMuted(isMuted);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -1150,6 +1169,7 @@ export function FullScreenReviewModalFrameIO({
         videoSource,
         isPlaying,
         isMuted,
+        volume,
         currentTime,
         duration,
         playbackSpeed,
@@ -1178,6 +1198,7 @@ export function FullScreenReviewModalFrameIO({
         isClientViewer,
         togglePlay,
         toggleMute,
+        onVolumeChange: handleVolumeChange,
         seekBackward,
         seekForward,
         handleSeek,

@@ -44,6 +44,7 @@ export interface YoutubePlayerHandle {
   getCurrentTime: () => number;
   getDuration: () => number;
   setMuted: (muted: boolean) => void;
+  setVolume: (volume: number) => void;
   setPlaybackRate: (rate: number) => void;
 }
 
@@ -79,6 +80,7 @@ export const YoutubePlayer = forwardRef<YoutubePlayerHandle, YoutubePlayerProps>
         if (muted) playerRef.current?.mute?.();
         else playerRef.current?.unMute?.();
       },
+      setVolume: (volume: number) => playerRef.current?.setVolume?.(volume),
       setPlaybackRate: (rate: number) => playerRef.current?.setPlaybackRate?.(rate),
     }), []);
 

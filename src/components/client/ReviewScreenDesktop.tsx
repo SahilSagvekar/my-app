@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
+import { Slider } from '../ui/slider';
 import {
     DropdownMenu,
     DropdownMenuTrigger,
@@ -89,6 +90,7 @@ export interface ReviewScreenProps {
     videoSource: { type: 'video' | 'iframe' | 'youtube'; src: string };
     isPlaying: boolean;
     isMuted: boolean;
+    volume: number;
     currentTime: number;
     duration: number;
     playbackSpeed: number;
@@ -121,6 +123,7 @@ export interface ReviewScreenProps {
 
     togglePlay: () => void;
     toggleMute: () => void;
+    onVolumeChange: (volume: number) => void;
     seekBackward: () => void;
     seekForward: () => void;
     handleSeek: (t: number) => void;
@@ -1014,20 +1017,33 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             showGrid={isShortFormTask}
                                         />
                                         <div className="flex items-center justify-start gap-1">
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={p.toggleMute}
-                                                        className="h-8 w-8 rounded-md p-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
-                                                        aria-label={p.isMuted ? 'Unmute' : 'Mute'}
-                                                    >
-                                                        {p.isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>{p.isMuted ? 'Unmute' : 'Mute'}</TooltipContent>
-                                            </Tooltip>
+                                            <div className="group flex items-center">
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={p.toggleMute}
+                                                            className="h-8 w-8 rounded-md p-0 shrink-0 text-[var(--review-text-secondary)] hover:bg-white/10 hover:text-white"
+                                                            aria-label={p.isMuted ? 'Unmute' : 'Mute'}
+                                                        >
+                                                            {p.isMuted || p.volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>{p.isMuted ? 'Unmute' : 'Mute'}</TooltipContent>
+                                                </Tooltip>
+                                                <div className="w-0 opacity-0 overflow-hidden transition-all duration-150 group-hover:w-20 group-hover:opacity-100 group-hover:ml-1">
+                                                    <Slider
+                                                        value={[p.isMuted ? 0 : p.volume]}
+                                                        min={0}
+                                                        max={100}
+                                                        step={1}
+                                                        onValueChange={([v]) => p.onVolumeChange(v)}
+                                                        aria-label="Volume"
+                                                        className="w-20"
+                                                    />
+                                                </div>
+                                            </div>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <Button
