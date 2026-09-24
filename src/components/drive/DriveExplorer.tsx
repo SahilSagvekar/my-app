@@ -1837,12 +1837,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     await downloadFilesFromUrls({ folderPrefix, zipName: item.name }, item.name);
   };
 
-  const handleDownloadAll = async () => {
-    const currentPrefix = getCurrentFolderS3Path();
-    const folderName = breadcrumb[breadcrumb.length - 1]?.name || 'download';
-    await downloadFilesFromUrls({ folderPrefix: currentPrefix, zipName: folderName }, folderName);
-  };
-
   const handleDownloadSelected = async () => {
     const keys = Array.from(checkedItems);
     if (keys.length === 0) return;
@@ -3072,20 +3066,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-              )}
-
-              {/* Download All button */}
-              {filteredItems.some(i => i.type === 'file') && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 h-9 shrink-0"
-                  onClick={handleDownloadAll}
-                  disabled={isZipping}
-                >
-                  <FolderDown className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Download All</span>
-                </Button>
               )}
 
               {/* Select mode toggle */}
