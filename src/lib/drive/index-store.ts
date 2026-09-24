@@ -1013,6 +1013,16 @@ async function markThumbnails(db: Db, sources: string[]) {
  * lives in DriveSyncRun.cursor, so the every-minute drive tick just keeps
  * calling this until it reports done.
  */
+// Hard ceiling on objects listed in a single invocation, independent of
+// budgetMs. R2 list() latency varies a lot (cold vs. warm, prefix size), so
+// a wall-clock budget alone doesn't bound memory: a fast run can accumulate
+// far more per-page arrays / SQL text than a slow one in the same window.
+// This is what actually caps this tick's contribution to the Worker
+// isolate's shared memory ceiling — the isolate serves other concurrent
+// requests (uploads, page loads, video streaming) on the same heap, so an
+// unbounded tick here can OOM-kill all of them, not just itself.
+const MAX_OBJECTS_PER_TICK = 4_000;
+
 export async function continueIndexSync(env: any, budgetMs = 40_000): Promise<SyncRun | null> {
   const db = getDbHttp();
   const found = await rows<SyncRun>(db, sql`SELECT * FROM "DriveSyncRun" WHERE "status" = 'running' ORDER BY "startedAt" DESC LIMIT 1`);
@@ -1023,11 +1033,12 @@ export async function continueIndexSync(env: any, budgetMs = 40_000): Promise<Sy
   const bucket = getR2Bucket(env);
   let state: SyncCursor = run.cursor ? JSON.parse(run.cursor) : { phase: 'objects' };
   let listed = run.listedCount;
+  let listedThisTick = 0;
   const prefix = run.prefix || '';
   const pattern = `${escapeLike(prefix)}%`;
 
   try {
-    while (Date.now() < deadline) {
+    while (Date.now() < deadline && listedThisTick < MAX_OBJECTS_PER_TICK) {
       if (state.phase === 'objects' || state.phase === 'thumbs') {
         const listPrefix = state.phase === 'objects' ? prefix : `.thumbnails/${prefix}`;
         if (state.phase === 'thumbs' && !prefix) {
@@ -1047,6 +1058,7 @@ export async function continueIndexSync(env: any, budgetMs = 40_000): Promise<Sy
         await upsertListedPage(db, run.id, live, listedAt);
         await markThumbnails(db, thumbs);
         listed += page.objects.length;
+        listedThisTick += page.objects.length;
         if (page.truncated && page.cursor) {
           state = { phase: state.phase, cursor: page.cursor };
         } else {

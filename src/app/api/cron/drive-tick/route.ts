@@ -25,7 +25,14 @@ import {
 import { purgeTrashRoot } from '@/lib/drive/permanent-delete';
 import { runPreviewTick } from '@/lib/drive/preview-jobs';
 
-const SYNC_BUDGET_MS = 35_000;
+// Kept well under the 1-minute tick interval and, more importantly, small
+// enough that this tick's memory footprint can't accumulate to where it
+// risks OOM-killing the whole Worker isolate — which also serves live
+// uploads, downloads and video streaming for every other concurrent
+// request. See continueIndexSync's MAX_OBJECTS_PER_TICK for the other half
+// of this cap: wall-clock time alone doesn't bound memory when R2 list()
+// latency varies.
+const SYNC_BUDGET_MS = 8_000;
 const DAILY_MS = 24 * 60 * 60 * 1000;
 
 function isAuthorized(req: NextRequest): boolean {
