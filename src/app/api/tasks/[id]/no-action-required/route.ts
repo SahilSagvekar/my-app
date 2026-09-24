@@ -35,7 +35,7 @@ export async function PATCH(
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
     const { role } = decoded;
 
-    if (!["editor", "admin", "manager"].includes(role.toLowerCase())) {
+    if (!["editor", "admin", "manager", "scheduler", "videographer"].includes(role.toLowerCase())) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
