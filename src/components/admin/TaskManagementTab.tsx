@@ -1368,7 +1368,7 @@ export function TaskManagementTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {isAdmin && file.url && (
+                  {canManageVideos && file.url && (
                     <Button
                       variant="ghost"
                       size="sm"
