@@ -48,51 +48,22 @@ export async function GET(
             return NextResponse.redirect(new URL(`/api/drive/nas-stream?${params.toString()}`, request.url));
         }
 
-        // 3. Handle Range Requests (Crucial for video scrubbing/streaming)
-        const range = request.headers.get('range');
-
-        // Presign, then plain fetch() — do NOT let the AWS SDK sign-and-send
-        // the request from inside the Worker. Cloudflare Workers' fetch()
-        // runtime can normalize/alter outgoing headers (especially Range),
-        // which invalidates a SigV4 signature computed just beforehand and
-        // produces SignatureDoesNotMatch even with correct credentials.
-        // Presigned URLs avoid this because signing happens once, up front,
-        // and the header set that gets signed is fixed in the query string —
-        // the same pattern already used successfully for uploads.
+        // 3. Redirect straight to a presigned R2 URL instead of proxying the
+        // video bytes through the Worker. This route used to fetch() the
+        // signed URL itself and pipe the response body through — meaning
+        // every concurrent QC viewer's video stream (Range requests included,
+        // for scrubbing) ran through this Worker's shared isolate memory
+        // alongside uploads and everyone else's requests. R2 presigned GET
+        // URLs don't sign the Range header (confirmed by the old code above
+        // successfully adding one after signing), so the browser's <video>
+        // element can issue its own Range requests directly against this URL
+        // — same as it always could for uploads via presigned PUT URLs.
+        // Browsers resolve a 302 on a media src and reuse the resolved URL
+        // for subsequent Range requests during that playback session, so the
+        // signed URL's lifetime needs to outlast a normal viewing session,
+        // not just this one redirect.
         const signedUrl = await generateSignedUrl(fileRow.s3Key, 3600);
-
-        const upstream = await fetch(signedUrl, {
-            headers: range ? { Range: range } : {},
-        });
-
-        if (!upstream.ok && upstream.status !== 206) {
-            console.error('Streaming error: upstream fetch failed', upstream.status, await upstream.text().catch(() => ''));
-            return new NextResponse('Could not fetch file from storage', { status: 502 });
-        }
-
-        // 4. Build Response Headers
-        const headers = new Headers();
-        headers.set('Content-Type', fileRow.mimeType || upstream.headers.get('content-type') || 'video/mp4');
-        headers.set('Accept-Ranges', 'bytes');
-
-        const contentLength = upstream.headers.get('content-length');
-        if (contentLength) {
-            headers.set('Content-Length', contentLength);
-        }
-
-        const contentRange = upstream.headers.get('content-range');
-        if (contentRange) {
-            headers.set('Content-Range', contentRange);
-        }
-
-        headers.set('Cache-Control', 'public, max-age=3600');
-
-        // 5. Return stream
-        const status = range ? 206 : 200;
-        return new NextResponse(upstream.body, {
-            status,
-            headers,
-        });
+        return NextResponse.redirect(signedUrl, 302);
 
     } catch (error: any) {
         console.error('Streaming error:', error);
