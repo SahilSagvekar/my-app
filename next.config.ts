@@ -6,6 +6,21 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // No Cloudflare Images binding is configured (wrangler.toml has no
+  // [[images]] / IMAGES binding), so @opennextjs/cloudflare falls back to
+  // resizing images for /_next/image *inside this Worker* — decoding a
+  // full-resolution source image, resizing, and re-encoding, all inside a
+  // 128MB-capped isolate shared with every other concurrent request. A
+  // single large image request (seen in production logs requesting
+  // w=3840) was enough to OOM-kill the whole isolate, taking down every
+  // unrelated request being served alongside it at that moment. Until a
+  // real Cloudflare Images binding is set up, unoptimized:true skips
+  // /_next/image entirely and serves original files directly — bigger
+  // downloads, no responsive resize/webp conversion, but no more
+  // in-Worker image processing to blow the memory ceiling.
+  images: {
+    unoptimized: true,
+  },
   // Add these configurations
   experimental: {
     serverActions: {
