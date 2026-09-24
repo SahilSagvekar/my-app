@@ -23,7 +23,7 @@ export const portalAccessStatus = pgEnum("PortalAccessStatus", ['ONBOARDING', 'C
 export const preClientStatus = pgEnum("PreClientStatus", ['QUALIFIED', 'QUOTED', 'QUOTE_ACCEPTED', 'PROVISIONING', 'CONVERTED'])
 export const quoteStatus = pgEnum("QuoteStatus", ['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED'])
 export const rawFootageFolderCode = pgEnum("RawFootageFolderCode", ['SF', 'LF'])
-export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager'])
+export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager', 'host'])
 export const signerStatus = pgEnum("SignerStatus", ['PENDING', 'VIEWED', 'SIGNED', 'DECLINED'])
 export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'TRIALING', 'PAUSED'])
 export const syncStatus = pgEnum("SyncStatus", ['PENDING', 'SYNCING', 'COMPLETED', 'FAILED'])
@@ -942,6 +942,14 @@ export const shootDetail = pgTable("ShootDetail", {
 	replacementTaskId: text(),
 	// Set on the replacement shoot itself, pointing back at the one it replaced.
 	replacesTaskId: text(),
+	// Host Portal: the booked host/talent for this shoot. hostName (above) stays
+	// as the free-text legacy field for shoots booked before hosts were real
+	// user accounts; hostId is the real link once a host logs into their own
+	// portal. One host per shoot.
+	hostId: integer(),
+	hostRole: text(),
+	hostWardrobe: text(),
+	hostRate: numeric({ precision: 10, scale: 2 }),
 }, (table) => [
 	uniqueIndex("ShootDetail_taskId_key").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -969,6 +977,12 @@ export const shootDetail = pgTable("ShootDetail", {
 			foreignColumns: [task.id],
 			name: "ShootDetail_replacesTaskId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.hostId],
+			foreignColumns: [user.id],
+			name: "ShootDetail_hostId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	index("ShootDetail_hostId_idx").using("btree", table.hostId.asc().nullsLast().op("int4_ops")),
 ]);
 
 export const metaAccount = pgTable("MetaAccount", {
@@ -2419,6 +2433,106 @@ export const commissionPayout = pgTable("CommissionPayout", {
 			foreignColumns: [user.id],
 			name: "CommissionPayout_salesUserId_fkey"
 		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+// ─── Host Portal ────────────────────────────────────────────────────────────
+// Talent/host-facing portal (sibling to the Videographer Portal). Hosts are
+// booked per-shoot (ShootDetail.hostId, one host per shoot) and see only
+// their own bookings, payments, and paperwork.
+
+export const hostPayoutProfile = pgTable("HostPayoutProfile", {
+	id: text().primaryKey().notNull(),
+	userId: integer().notNull(),
+	fullLegalName: text(),
+	phone: text(),
+	email: text(),
+	mailingAddress: text(),
+	// 'ZELLE' | 'ACH' | 'CHECK' | 'CASH_APP'
+	payoutMethod: text(),
+	payoutAccount: text(),
+	standardRate: numeric({ precision: 10, scale: 2 }),
+	// Payout method/account changes never apply immediately — no self-service
+	// re-verification (product decision). A save stages pendingPayoutMethod/
+	// pendingPayoutAccount and flips this to 'pending_review'; an admin
+	// approves or rejects, which applies or discards the staged values.
+	verificationStatus: text().default('verified').notNull(),
+	pendingPayoutMethod: text(),
+	pendingPayoutAccount: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("HostPayoutProfile_userId_key").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "HostPayoutProfile_userId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const hostPayment = pgTable("HostPayment", {
+	id: text().primaryKey().notNull(),
+	hostUserId: integer().notNull(),
+	shootDetailId: text(),
+	label: text().notNull(),
+	amount: numeric({ precision: 12, scale: 2 }).notNull(),
+	currency: text().default('usd').notNull(),
+	// 'pending' | 'scheduled' | 'paid'
+	status: text().default('pending').notNull(),
+	method: text(),
+	scheduledDate: timestamp({ precision: 3, mode: 'string' }),
+	sentAt: timestamp({ precision: 3, mode: 'string' }),
+	// Where this row's status came from — 'manual' today; a future processor
+	// sync (e.g. a webhook) can write 'stripe' etc. without a schema change.
+	source: text().default('manual').notNull(),
+	externalRef: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("HostPayment_hostUserId_idx").using("btree", table.hostUserId.asc().nullsLast().op("int4_ops")),
+	index("HostPayment_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.hostUserId],
+			foreignColumns: [user.id],
+			name: "HostPayment_hostUserId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.shootDetailId],
+			foreignColumns: [shootDetail.id],
+			name: "HostPayment_shootDetailId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+export const hostDocument = pgTable("HostDocument", {
+	id: text().primaryKey().notNull(),
+	hostUserId: integer().notNull(),
+	// 'W9' | 'DIRECT_DEPOSIT' | 'PHOTO_ID' | 'TALENT_RELEASE' | 'FORM_1099'
+	formType: text().notNull(),
+	// Only meaningful for FORM_1099 rows (one per tax year). Defaults to 0
+	// ("not year-scoped") for the four evergreen paperwork forms — kept
+	// non-null so the (hostUserId, formType, taxYear) unique index below
+	// actually enforces one evergreen row per form (Postgres unique indexes
+	// treat NULL as distinct from NULL, which a nullable column would defeat).
+	taxYear: integer().default(0).notNull(),
+	// 'on-file' | 'missing' | 'expired' | 'submitted'
+	status: text().default('missing').notNull(),
+	fileS3Key: text(),
+	fileName: text(),
+	submittedAt: timestamp({ precision: 3, mode: 'string' }),
+	reviewedAt: timestamp({ precision: 3, mode: 'string' }),
+	reviewedBy: integer(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("HostDocument_hostUserId_formType_taxYear_key").using("btree", table.hostUserId.asc().nullsLast().op("int4_ops"), table.formType.asc().nullsLast().op("text_ops"), table.taxYear.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.hostUserId],
+			foreignColumns: [user.id],
+			name: "HostDocument_hostUserId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.reviewedBy],
+			foreignColumns: [user.id],
+			name: "HostDocument_reviewedBy_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
 export const tag = pgTable("Tag", {

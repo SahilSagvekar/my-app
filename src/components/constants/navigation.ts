@@ -141,6 +141,11 @@ export const NAVIGATION_ITEMS = {
     { id: 'dashboard', label: 'Sales Team', icon: Users },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
   ],
+  host: [
+    { id: 'host-shoots', label: 'My Shoots', icon: Calendar },
+    { id: 'host-payments', label: 'Payments', icon: DollarSign },
+    { id: 'employment-info', label: 'Employment Information', icon: CheckSquare },
+  ],
 } as const;
 
 export type NavigationRole = keyof typeof NAVIGATION_ITEMS;
@@ -156,6 +161,7 @@ export const getDefaultPage = (role: string): string => {
     case 'videographer': return 'shoots';
     case 'sales': return 'dashboard';
     case 'sales_manager': return 'dashboard';
+    case 'host': return 'host-shoots';
     default: return 'dashboard';
   }
 };

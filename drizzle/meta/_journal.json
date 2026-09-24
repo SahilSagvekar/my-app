@@ -50,6 +50,13 @@
       "when": 1790121600000,
       "tag": "0007_add_drive_index",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790380800000,
+      "tag": "0008_add_host_portal",
+      "breakpoints": true
     }
   ]
 }
