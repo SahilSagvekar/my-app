@@ -143,7 +143,8 @@ export function TaskActionsMenu({
       });
       if (!res.ok) {
         onTaskFieldsChange(task.id, { noActionRequired: previous });
-        toast.error('Failed to update');
+        const body = await res.json().catch(() => null);
+        toast.error(body?.message ? `Failed to update: ${body.message}` : `Failed to update (${res.status})`);
       }
     } catch {
       onTaskFieldsChange(task.id, { noActionRequired: previous });

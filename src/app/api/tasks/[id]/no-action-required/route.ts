@@ -52,6 +52,6 @@ export async function PATCH(
     return NextResponse.json(updatedTask);
   } catch (err: any) {
     console.error("Error updating noActionRequired:", err);
-    return NextResponse.json({ message: "Server error" }, { status: 500 });
+    return NextResponse.json({ message: err?.message || "Server error" }, { status: 500 });
   }
 }
