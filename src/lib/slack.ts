@@ -535,27 +535,43 @@ export async function deliverSlackNotification(
       if (approvedByRole === "client") {
         approvedBy = "Client";
       } else {
-        // Was just the literal word "QC" — resolve the actual QC specialist
-        // who approved it and name them instead.
         approvedBy = "QC";
+        // 🔥 Prefer the actual user who clicked Approve (captured at
+        // approval time in status/route.ts as approvedByUserId) over the
+        // task's assigned QC specialist — those aren't the same person
+        // whenever someone else approves on a task they weren't assigned
+        // to (coverage, an admin override, etc.), which is why this always
+        // named the same person regardless of who actually approved.
+        // approvedByUserId is only absent for notifications queued before
+        // this field existed — those still fall back to qcSpecialist.
+        const approverUserId = notification.payload?.approvedByUserId as number | undefined;
         try {
-          if (!taskForQc && notification.payload?.taskId) {
-            const t = await db.query.task.findFirst({
-              where: eq(taskTable.id, notification.payload.taskId),
-              columns: { qcSpecialist: true },
-            });
-            taskForQc = t ? { qcSpecialist: t.qcSpecialist ?? null, client: null } : null;
-          }
-          if (taskForQc?.qcSpecialist) {
-            const [qcUser] = await db
+          if (approverUserId) {
+            const [approver] = await db
               .select({ name: userTable.name })
               .from(userTable)
-              .where(eq(userTable.id, taskForQc.qcSpecialist))
+              .where(eq(userTable.id, approverUserId))
               .limit(1);
-            if (qcUser?.name) approvedBy = qcUser.name;
+            if (approver?.name) approvedBy = approver.name;
+          } else {
+            if (!taskForQc && notification.payload?.taskId) {
+              const t = await db.query.task.findFirst({
+                where: eq(taskTable.id, notification.payload.taskId),
+                columns: { qcSpecialist: true },
+              });
+              taskForQc = t ? { qcSpecialist: t.qcSpecialist ?? null, client: null } : null;
+            }
+            if (taskForQc?.qcSpecialist) {
+              const [qcUser] = await db
+                .select({ name: userTable.name })
+                .from(userTable)
+                .where(eq(userTable.id, taskForQc.qcSpecialist))
+                .limit(1);
+              if (qcUser?.name) approvedBy = qcUser.name;
+            }
           }
         } catch (e) {
-          console.error("[Slack Dispatch] Failed to resolve QC specialist name:", e);
+          console.error("[Slack Dispatch] Failed to resolve approver name:", e);
         }
       }
       scheduledNotification.message = `:mag: :eyes: ${schedulerMention}✅ Content Approved by ${approvedBy}: Task "${taskTitle}" has been approved.`;

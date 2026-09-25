@@ -646,6 +646,13 @@ export async function PATCH(
               // even when this specific task/deliverable type skipped
               // client review and a QC approval alone completed it.
               approvedByRole: role,
+              // 🔥 The actual person who clicked Approve, not the task's
+              // assigned QC specialist — slack.ts previously fell back to
+              // task.qcSpecialist for the "QC" case, which named whoever
+              // the task happened to be assigned to rather than whoever
+              // actually approved it (e.g. another QC covering, or an
+              // admin approving on someone else's behalf).
+              approvedByUserId: userId,
             },
           });
         }
