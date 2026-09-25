@@ -33,6 +33,7 @@ model User {
   slackUserId                     String?
   loginOTP                        String?
   loginOTPExpiry                  DateTime?
+  timeClockEntries                TimeClockEntry[]
   roles                           Role[]                          @default([])
   accounts                        Account[]
   affiliateCommissions            AffiliateCommission[]
@@ -131,6 +132,32 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
+
+model TimeClockEntry {
+  id            String    @id @default(cuid())
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // EST calendar date this entry belongs to, e.g. "2026-09-25".
+  // Computed server-side via getESTDateString() — never trust a client-sent date.
+  workDate      String
+
+  clockInAt     DateTime
+  clockOutAt    DateTime?
+
+  // true if a nightly cron closed this out because the user forgot to
+  // click Stop — lets the admin UI show "auto-closed" instead of a fake
+  // precise stop time.
+  autoClosedOut Boolean   @default(false)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([userId, workDate])
+  @@index([userId])
+  @@index([workDate])
+}
+
 
 model Task {
   id                    String                @id @default(cuid())
