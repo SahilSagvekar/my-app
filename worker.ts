@@ -123,6 +123,12 @@ export default {
         ctx.waitUntil(triggerCronRoute('/api/cron/tech-fee-retry', env, ctx));
         break;
 
+      // Windsor.ai social analytics — daily, pulls the previous day's
+      // Instagram/Facebook/TikTok/YouTube stats for every active
+      // SocialAccount into SocialAnalytics.
+      case '5 5 * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/windsor-sync', env, ctx));
+        break;
 
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);
