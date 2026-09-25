@@ -277,6 +277,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
         if (mode === 'draw') {
             if (p.isPlaying) p.togglePlay();
             const source = p.videoRef.current;
+            // videoRef is only attached to the native <video> element — it's
+            // null for youtube-sourced videos (YoutubePlayer renders an
+            // iframe instead), which can't be captured to canvas anyway.
+            // The Draw pill is already hidden for those (showDraw prop
+            // below), this is just the defensive fallback.
             if (!source) {
                 setActiveMode('comment');
                 p.setShowCommentInput(true);
@@ -1015,6 +1020,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             showInstagram={isShortFormTask}
                                             gridActive={showGridOverlay}
                                             showGrid={isShortFormTask}
+                                            showDraw={p.videoSource.type !== 'youtube'}
                                         />
                                         <div className="flex items-center justify-start gap-1">
                                             <div className="group flex items-center">

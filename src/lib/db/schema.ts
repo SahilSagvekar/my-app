@@ -1212,6 +1212,13 @@ export const file = pgTable("File", {
 	deletedFromCloudAt: timestamp({ precision: 3, mode: 'string' }),
 	youtubeUploadedAt: timestamp({ precision: 3, mode: 'string' }),
 	youtubeVideoId: text(),
+	// Set only when an editor pasted an existing YouTube link themselves
+	// (via /api/tasks/[id]/files/[fileId]/youtube-link) rather than the
+	// review-mirror auto-upload setting youtubeVideoId. review-mirror.ts's
+	// selection query already skips any file with youtubeVideoId set, so a
+	// manual link is left alone automatically — this column exists purely
+	// so the UI/audit trail can tell the two apart.
+	youtubeLinkedBy: integer(),
 }, (table) => [
 	index("File_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
 	index("File_taskId_isActive_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.isActive.asc().nullsLast().op("text_ops")),

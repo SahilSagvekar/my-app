@@ -29,16 +29,24 @@ interface ReviewModePillsProps {
     /** Only short-form tasks get the Grid dropdown — hidden otherwise. */
     showInstagram?: boolean;
     showGrid?: boolean;
+    /**
+     * Draw captures a real pixel frame from the video element to annotate
+     * over — impossible against a YouTube IFrame (cross-origin, no pixel
+     * access). Pass false when videoSource.type === 'youtube' to hide it;
+     * defaults to true everywhere else.
+     */
+    showDraw?: boolean;
 }
 
-const BASE_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
+const ALL_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
     { id: 'draw', label: 'Draw', Icon: Pencil },
     { id: 'voice', label: 'Voice', Icon: Mic },
     { id: 'range', label: 'Range', Icon: Clock },
     { id: 'attach', label: 'Attach', Icon: Paperclip },
 ];
 
-export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, gridActive, showInstagram, showGrid }: ReviewModePillsProps) {
+export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, gridActive, showInstagram, showGrid, showDraw = true }: ReviewModePillsProps) {
+    const BASE_MODES = showDraw ? ALL_MODES : ALL_MODES.filter(m => m.id !== 'draw');
     const showGridDropdown = showInstagram || showGrid;
     const gridDropdownActive = !!instagramActive || !!gridActive;
     const pillCount = BASE_MODES.length + (showGridDropdown ? 1 : 0);

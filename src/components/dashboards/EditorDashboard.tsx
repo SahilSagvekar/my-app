@@ -4,7 +4,9 @@ import { useState, useEffect, useMemo, useCallback, useRef, DragEvent } from "re
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 import { FilterSelect } from "../ui/filter-select";
 import { Alert, AlertDescription } from "../ui/alert";
 import {
@@ -46,6 +48,9 @@ import {
   Check,
   Square,
   ChevronRight,
+  Youtube,
+  Link2,
+  X,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useViewAsRole } from "../auth/ViewAsRoleContext";
@@ -350,6 +355,10 @@ interface TaskFile {
   isActive?: boolean;
   optimizationStatus?: string;
   optimizationError?: string | null;
+  // Editor-supplied or auto-mirrored YouTube video ID — when set, QC/client
+  // review plays this file from YouTube instead of our own stream.
+  youtubeVideoId?: string | null;
+  youtubeLinkedBy?: number | null;
 }
 
 // 🔥 Task Feedback interface for version-tracked comments
@@ -410,6 +419,10 @@ interface WorkflowTask {
   linkedRawFootagePaths?: string[] | null;
   relatedTaskId?: string | null;
   noActionRequired?: boolean;
+  // Recomputed per-task by GET /api/tasks (accounts for the client's
+  // deliverable-type allow-list, not just the blanket client setting) —
+  // true only when this task is actually headed to client review.
+  requiresClientReview?: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -956,6 +969,13 @@ function TaskCard({
     () => (task.files || []).filter(f => !f.folderType || f.folderType === "main"),
     [task.files]
   );
+  // The version QC/client review will actually see — prefer the active
+  // one, else fall back to the newest by version number.
+  const currentMainFile = useMemo(() => {
+    const active = mainFiles.find(f => f.isActive !== false);
+    if (active) return active;
+    return [...mainFiles].sort((a, b) => (b.version || 1) - (a.version || 1))[0] || null;
+  }, [mainFiles]);
   const musicFiles = useMemo(
     () => (task.files || []).filter(f => f.folderType === "music-license"),
     [task.files]
@@ -1005,6 +1025,10 @@ function TaskCard({
     return counts;
   }, [task.taskFeedback, locallyAcknowledgedIds]);
   const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
+  const [showYoutubeLinkDialog, setShowYoutubeLinkDialog] = useState(false);
+  const [youtubeLinkInput, setYoutubeLinkInput] = useState("");
+  const [savingYoutubeLink, setSavingYoutubeLink] = useState(false);
+  const [youtubeLinkError, setYoutubeLinkError] = useState<string | null>(null);
   const handleReplaceImage = async (imageId: string, file: File) => {
     if (!file.type.startsWith('image/')) {
       toast.error('Please select an image file');
@@ -1019,6 +1043,51 @@ function TaskCard({
       toast.error(err?.message || 'Failed to replace image');
     } finally {
       setReplacingImageId(null);
+    }
+  };
+
+  const handleSaveYoutubeLink = async () => {
+    if (!currentMainFile) return;
+    setSavingYoutubeLink(true);
+    setYoutubeLinkError(null);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/files/${currentMainFile.id}/youtube-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: youtubeLinkInput.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to link YouTube video");
+      toast.success("YouTube video linked — review screens will play from YouTube");
+      setShowYoutubeLinkDialog(false);
+      setYoutubeLinkInput("");
+      onUploadComplete(task.id, []);
+    } catch (err: any) {
+      setYoutubeLinkError(err?.message || "Failed to link YouTube video");
+    } finally {
+      setSavingYoutubeLink(false);
+    }
+  };
+
+  const handleRemoveYoutubeLink = async () => {
+    if (!currentMainFile) return;
+    setSavingYoutubeLink(true);
+    setYoutubeLinkError(null);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/files/${currentMainFile.id}/youtube-link`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to remove YouTube link");
+      }
+      toast.success("YouTube link removed");
+      setShowYoutubeLinkDialog(false);
+      onUploadComplete(task.id, []);
+    } catch (err: any) {
+      setYoutubeLinkError(err?.message || "Failed to remove YouTube link");
+    } finally {
+      setSavingYoutubeLink(false);
     }
   };
 
@@ -1421,6 +1490,98 @@ function TaskCard({
                       <Eye className="h-3.5 w-3.5" />
                       View files &amp; previous versions
                     </button>
+                  )}
+
+                  {/* Editor-supplied YouTube link — plays this file from
+                      YouTube in QC/client review instead of our own stream.
+                      Only offered on tasks actually headed to client review;
+                      requiresClientReview is the same recomputed per-task
+                      value GET /api/tasks and the QC screen use, not the
+                      client's blanket setting. */}
+                  {!isHardPostTask && canUploadMain && task.requiresClientReview && currentMainFile && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setYoutubeLinkInput(
+                          currentMainFile.youtubeVideoId
+                            ? `https://www.youtube.com/watch?v=${currentMainFile.youtubeVideoId}`
+                            : ""
+                        );
+                        setYoutubeLinkError(null);
+                        setShowYoutubeLinkDialog(true);
+                      }}
+                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-semibold rounded-xl border transition-colors ${
+                        currentMainFile.youtubeVideoId
+                          ? "text-red-700 border-red-200 bg-red-50 hover:bg-red-100"
+                          : "text-gray-900 border-gray-300 bg-white hover:bg-gray-50/80"
+                      }`}
+                    >
+                      <Youtube className="h-3.5 w-3.5" />
+                      {currentMainFile.youtubeVideoId ? "YouTube video linked" : "Link YouTube video"}
+                    </button>
+                  )}
+
+                  {!isHardPostTask && canUploadMain && task.requiresClientReview && currentMainFile && (
+                    <Dialog open={showYoutubeLinkDialog} onOpenChange={setShowYoutubeLinkDialog}>
+                      <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Youtube className="h-4 w-4 text-red-600" />
+                            Link YouTube video
+                          </DialogTitle>
+                          <DialogDescription>
+                            QC and client review will play this file from YouTube instead of our own
+                            player. The video must be public or unlisted with embedding allowed — private
+                            videos won&apos;t play. Note: the draw/annotate tool isn&apos;t available on
+                            YouTube-sourced videos (comments, voice notes, and everything else still work).
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-2 py-2">
+                          <Label htmlFor="youtube-link-input">YouTube link</Label>
+                          <Input
+                            id="youtube-link-input"
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            value={youtubeLinkInput}
+                            onChange={(e) => setYoutubeLinkInput(e.target.value)}
+                            disabled={savingYoutubeLink}
+                          />
+                          {youtubeLinkError && (
+                            <p className="text-xs text-red-600">{youtubeLinkError}</p>
+                          )}
+                        </div>
+                        <DialogFooter className="flex-row items-center sm:justify-between">
+                          {currentMainFile.youtubeVideoId ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleRemoveYoutubeLink}
+                              disabled={savingYoutubeLink}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" />
+                              Remove link
+                            </Button>
+                          ) : (
+                            <span />
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleSaveYoutubeLink}
+                            disabled={savingYoutubeLink || !youtubeLinkInput.trim()}
+                          >
+                            {savingYoutubeLink ? (
+                              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            ) : (
+                              <Link2 className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            Save link
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   )}
 
                   {/* Main Task File Upload Box — only the video editor assigned to this task */}

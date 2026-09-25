@@ -505,6 +505,7 @@ model File {
   deletedFromCloudAt DateTime?
   youtubeUploadedAt  DateTime?
   youtubeVideoId     String?
+  youtubeLinkedBy    Int?
   task               Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   feedback           TaskFeedback[]
 
