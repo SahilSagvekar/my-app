@@ -1219,15 +1219,29 @@ export const file = pgTable("File", {
 	// manual link is left alone automatically — this column exists purely
 	// so the UI/audit trail can tell the two apart.
 	youtubeLinkedBy: integer(),
+	storageBackend: text().default('r2').notNull(),
 }, (table) => [
 	index("File_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
 	index("File_taskId_isActive_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.isActive.asc().nullsLast().op("text_ops")),
+	index("File_storageBackend_idx").using("btree", table.storageBackend.asc().nullsLast().op("text_ops")),
 	foreignKey({
 			columns: [table.taskId],
 			foreignColumns: [task.id],
 			name: "File_taskId_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 ]);
+
+export const uploadBackendConfig = pgTable("UploadBackendConfig", {
+	id: text().primaryKey().notNull(),
+	activeBackend: text().default('r2').notNull(), // 'r2' | 'backup'
+	switchedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	switchedBy: integer(),
+	migrationInProgress: boolean().default(false).notNull(),
+	lastCanaryAt: timestamp({ precision: 3, mode: 'string' }),
+	lastCanaryOk: boolean(),
+	lastCanaryError: text(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
 
 export const trainingCourse = pgTable("TrainingCourse", {
 	id: text().primaryKey().notNull(),
