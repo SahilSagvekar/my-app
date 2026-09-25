@@ -9,11 +9,11 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 export async function POST(request: NextRequest) {
   const { env } = getCloudflareContext();
   try {
-    const { key, uploadId } = await request.json();
+    const { key, uploadId, backend } = await request.json();
     if (!key || !uploadId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    await abortMultipart(env, 'system', 'uploader', key, uploadId);
+    await abortMultipart(env, 'system', 'uploader', key, uploadId, backend === 'backup' ? 'backup' : 'r2');
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error aborting upload:', error);

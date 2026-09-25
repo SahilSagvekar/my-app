@@ -3,6 +3,7 @@ import React from "react";
 import { EditorDashboard } from "../dashboards/EditorDashboard";
 import { EditorUploadHistory } from "../dashboards/EditorUploadHistory";
 import { NasBackupAdmin } from "../admin/NasBackupAdmin";
+import { UploadBackupAdmin } from "../admin/UploadBackupAdmin";
 import { SchedulerActivityTab } from "../admin/SchedulerActivityTab";
 import { HiringTab } from "../admin/HiringTab";
 import { QCDashboard } from "../dashboards/QCDashboard";
@@ -253,6 +254,12 @@ export function renderPage(
         return (
           <div className="p-6">
             <NasBackupAdmin />
+          </div>
+        );
+      case "upload-backup":
+        return (
+          <div className="p-6">
+            <UploadBackupAdmin />
           </div>
         );
       case "scheduler-activity":

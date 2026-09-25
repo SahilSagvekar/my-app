@@ -400,6 +400,27 @@ cron.schedule('0 */2 * * *', () => {
     triggerJob('Commission Payout Reconcile', '/api/cron/commission-payouts-reconcile', 'POST');
 }, { timezone: 'America/New_York' });
 
+// ==========================================
+// 11. Backup Upload System — Backup Bucket Canary (Every 15 minutes)
+// Real end-to-end exercise of the backup R2 bucket (write, verify, delete a
+// test object). Posts to Slack immediately on failure. See
+// /api/cron/upload-backend-canary and /areas/cloudflare-migration.md.
+// ==========================================
+cron.schedule('*/15 * * * *', () => {
+    triggerJob('Upload Backend Canary', '/api/cron/upload-backend-canary', 'POST');
+});
+
+// ==========================================
+// 12. Backup Upload System — Migration Sweep (Every 5 minutes)
+// Copies any File rows still in the backup bucket back to primary,
+// verifies, flips storageBackend. No-ops quickly when nothing is pending.
+// Also fired immediately when the admin flips the switch back to 'r2'
+// (see /api/admin/upload-backend), so this is mostly a safety net.
+// ==========================================
+cron.schedule('*/5 * * * *', () => {
+    triggerJob('Upload Backend Migration Sweep', '/api/cron/upload-backend-migrate', 'POST');
+});
+
 // Log initialized jobs
 console.log('📦 Jobs Scheduled:');
 console.log(' - Monthly Tasks: Daily at 1 AM');

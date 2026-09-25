@@ -1146,6 +1146,23 @@ export const slackConfig = pgTable("SlackConfig", {
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 });
 
+// Single-row table backing the admin "Primary/Backup" upload switch. Always
+// query/upsert the row with id = 'singleton' — see lib/upload-backend.ts,
+// the only place that's meant to read or write this table.
+export const uploadBackendConfig = pgTable("UploadBackendConfig", {
+	id: text().primaryKey().notNull(),
+	activeBackend: text().default('r2').notNull(), // 'r2' | 'backup'
+	switchedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	switchedBy: integer(),
+	// Set when a migration sweep (backup -> r2) is running so the admin
+	// panel and the migration cron itself can avoid starting a second one.
+	migrationInProgress: boolean().default(false).notNull(),
+	lastCanaryAt: timestamp({ precision: 3, mode: 'string' }),
+	lastCanaryOk: boolean(),
+	lastCanaryError: text(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const guideline = pgTable("Guideline", {
 	id: text().primaryKey().notNull(),
 	category: text().notNull(),
@@ -1212,7 +1229,21 @@ export const file = pgTable("File", {
 	deletedFromCloudAt: timestamp({ precision: 3, mode: 'string' }),
 	youtubeUploadedAt: timestamp({ precision: 3, mode: 'string' }),
 	youtubeVideoId: text(),
+	// Set only when an editor pasted an existing YouTube link themselves
+	// (via /api/tasks/[id]/files/[fileId]/youtube-link) rather than the
+	// review-mirror auto-upload setting youtubeVideoId. review-mirror.ts's
+	// selection query already skips any file with youtubeVideoId set, so a
+	// manual link is left alone automatically — this column exists purely
+	// so the UI/audit trail can tell the two apart.
+	youtubeLinkedBy: integer(),
+	// Which R2 bucket this file's bytes actually live in. Set once at upload
+	// time from the active backend at that moment (see lib/upload-backend.ts)
+	// and never auto-changed — only the migration job flips 'backup' -> 'r2'
+	// after it has verified the copy landed in the primary bucket. Files
+	// uploaded before this column existed are implicitly 'r2' (the default).
+	storageBackend: text().default('r2').notNull(),
 }, (table) => [
+	index("File_storageBackend_idx").using("btree", table.storageBackend.asc().nullsLast().op("text_ops")),
 	index("File_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
 	index("File_taskId_isActive_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.isActive.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -3093,3 +3124,90 @@ export const tagToTask = pgTable("_TagToTask", {
 		}).onUpdate("cascade").onDelete("cascade"),
 	primaryKey({ columns: [table.a, table.b], name: "_TagToTask_AB_pkey"}),
 ]);
+
+
+// ─── Files & Drive metadata index ───────────────────────────────────────────
+// Postgres mirror of what's in the R2 bucket, so Drive listing/search/recent
+// never has to list R2. Kept in sync by R2 event notifications (see
+// src/lib/drive/index-store.ts + worker.ts's `drive-events` queue consumer),
+// with a nightly full reconcile as the safety net. `key` is the real R2 key
+// (paths still equal keys — moves/renames still copy bytes).
+export const driveItem = pgTable("DriveItem", {
+	key: text().primaryKey().notNull(),
+	parentKey: text().notNull(),
+	clientPrefix: text().notNull(),
+	name: text().notNull(),
+	isFolder: boolean().default(false).notNull(),
+	size: bigint({ mode: "number" }).default(0).notNull(),
+	etag: text(),
+	mimeType: text(),
+	// 'r2' = live in the bucket; 'nas' = archived to the NAS and removed from
+	// R2 (still listed, downloads/streams fall back to the NAS proxy).
+	storageTier: text().default('r2').notNull(),
+	lastModified: timestamp({ precision: 3, mode: 'string' }),
+	uploadedBy: integer(),
+	// Presigned but no R2 create event seen yet — hidden from listings.
+	pending: boolean().default(false).notNull(),
+	// Tombstone: gone from R2 (and not on the NAS). Kept briefly so a late,
+	// out-of-order create event can't resurrect it.
+	removedAt: timestamp({ precision: 3, mode: 'string' }),
+	trashedAt: timestamp({ precision: 3, mode: 'string' }),
+	trashedBy: integer(),
+	trashRootKey: text(),
+	hasThumbnail: boolean().default(false).notNull(),
+	previewStatus: text().default('none').notNull(),
+	previewPrefix: text(),
+	previewPriority: integer().default(0).notNull(),
+	previewAttempts: integer().default(0).notNull(),
+	previewError: text(),
+	previewRequestedAt: timestamp({ precision: 3, mode: 'string' }),
+	previewStartedAt: timestamp({ precision: 3, mode: 'string' }),
+	durationSeconds: doublePrecision(),
+	width: integer(),
+	height: integer(),
+	lastEventAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	lastSeenRunId: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("DriveItem_clientPrefix_idx").using("btree", table.clientPrefix.asc().nullsLast().op("text_ops")),
+	index("DriveItem_parentKey_idx").using("btree", table.parentKey.asc().nullsLast().op("text_ops")),
+	index("DriveItem_lastModified_idx").using("btree", table.lastModified.desc().nullsLast().op("timestamp_ops")),
+	index("DriveItem_trashedAt_idx").using("btree", table.trashedAt.asc().nullsLast().op("timestamp_ops")),
+	index("DriveItem_previewStatus_idx").using("btree", table.previewStatus.asc().nullsLast().op("text_ops")),
+]);
+
+export const driveStar = pgTable("DriveStar", {
+	userId: integer().notNull(),
+	key: text().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	primaryKey({ columns: [table.userId, table.key], name: "DriveStar_pkey" }),
+	index("DriveStar_key_idx").using("btree", table.key.asc().nullsLast().op("text_ops")),
+]);
+
+export const driveActivity = pgTable("DriveActivity", {
+	id: text().primaryKey().notNull(),
+	key: text().notNull(),
+	clientPrefix: text().notNull(),
+	action: text().notNull(),
+	userId: integer(),
+	details: jsonb(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("DriveActivity_key_createdAt_idx").using("btree", table.key.asc().nullsLast().op("text_ops"), table.createdAt.desc().nullsLast().op("timestamp_ops")),
+	index("DriveActivity_clientPrefix_createdAt_idx").using("btree", table.clientPrefix.asc().nullsLast().op("text_ops"), table.createdAt.desc().nullsLast().op("timestamp_ops")),
+]);
+
+export const driveSyncRun = pgTable("DriveSyncRun", {
+	id: text().primaryKey().notNull(),
+	prefix: text().default('').notNull(),
+	status: text().default('running').notNull(),
+	cursor: text(),
+	startedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	finishedAt: timestamp({ precision: 3, mode: 'string' }),
+	listedCount: integer().default(0).notNull(),
+	tombstonedCount: integer().default(0).notNull(),
+	triggeredBy: text(),
+	error: text(),
+});

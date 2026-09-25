@@ -35,6 +35,11 @@ interface UploadState {
   // Subset of the original taskData, so an upload that can't be resumed in place
   // (single-PUT, or an expired multipart session) can be re-initiated from scratch.
   taskSnapshot?: UploadTaskSnapshot;
+  // Backup upload system: which bucket /api/upload/initiate presigned this
+  // upload against ('r2' | 'backup'), set once and carried through every
+  // part-url/complete call for this upload, including on resume. Absent on
+  // states saved before this existed — readers must fall back to 'r2'.
+  backend?: 'r2' | 'backup';
 }
 
 interface UploadTaskSnapshot {

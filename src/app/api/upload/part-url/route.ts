@@ -31,14 +31,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body', details: e.message }, { status: 400 });
   }
 
-  const { key, uploadId, partNumber } = body;
+  const { key, uploadId, partNumber, backend } = body;
 
   if (!key || !uploadId || !partNumber) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
   try {
-    const { presignedUrl } = await getPartUrl(env, 'system', 'uploader', key, uploadId, partNumber);
+    const { presignedUrl } = await getPartUrl(env, 'system', 'uploader', key, uploadId, partNumber, backend === 'backup' ? 'backup' : 'r2');
     return NextResponse.json({ presignedUrl });
   } catch (error: any) {
     console.error('❌ Part-URL proxy error:', error);

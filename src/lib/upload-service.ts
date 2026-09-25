@@ -114,6 +114,7 @@ interface PartRunContext {
     totalChunks: number;
     completedChunks: number[];
     signal: AbortSignal;
+    backend?: 'r2' | 'backup'; // which bucket this upload's parts go to
 }
 
 interface PreparedUpload {
@@ -198,7 +199,7 @@ class UploadService {
     // ─── Part URLs: batched + cached per upload ───
 
     private async fetchSinglePartUrl(run: PartRunContext, partNumber: number): Promise<string> {
-        const payload = JSON.stringify({ key: run.key, uploadId: run.uploadId, partNumber });
+        const payload = JSON.stringify({ key: run.key, uploadId: run.uploadId, partNumber, backend: run.backend });
         const partUrlResponse = await fetch(`/api/upload/part-url?t=${Date.now()}`, {
             method: "POST",
             headers: {
@@ -226,7 +227,7 @@ class UploadService {
                     "Content-Type": "application/json",
                     "Accept": "application/json"
                 },
-                body: JSON.stringify({ key: run.key, uploadId: run.uploadId, partNumbers }),
+                body: JSON.stringify({ key: run.key, uploadId: run.uploadId, partNumbers, backend: run.backend }),
             });
             if (!res.ok) {
                 const errorText = await res.text().catch(() => res.statusText);
@@ -621,6 +622,7 @@ class UploadService {
                     replaceFileId: taskData?.replaceFileId,
                     fileLastModified: file.lastModified,
                     taskSnapshot: snapshotTask(taskData),
+                    backend: initData.backend === 'backup' ? 'backup' : 'r2',
                 };
                 await uploadStateManager.saveUploadState(singleState);
                 this.activeUploads.set(id, true);
@@ -663,6 +665,7 @@ class UploadService {
                 chunkSize,
                 fileLastModified: file.lastModified,
                 taskSnapshot: snapshotTask(taskData),
+                backend: initData.backend === 'backup' ? 'backup' : 'r2',
             };
 
             await uploadStateManager.saveUploadState(state);
@@ -731,6 +734,7 @@ class UploadService {
                     batchId: singleState.batchId,
                     batchTotal: singleState.batchTotal,
                     replaceFileId: singleState.replaceFileId,
+                    backend: singleState.backend,
                 }),
                 signal: AbortSignal.timeout(30_000),
             });
@@ -789,6 +793,7 @@ class UploadService {
             totalChunks: currentState.totalChunks,
             completedChunks: currentState.completedChunks,
             signal: controller.signal,
+            backend: currentState.backend,
         };
 
         try {
@@ -911,6 +916,7 @@ class UploadService {
                             batchId: currentState.batchId,
                             batchTotal: currentState.batchTotal,
                             replaceFileId: currentState.replaceFileId,
+                            backend: currentState.backend,
                         }),
                         signal: AbortSignal.timeout(90_000), // 90s — R2 complete can be slow for large files
                     });
@@ -1084,7 +1090,7 @@ class UploadService {
                 await fetch("/api/upload/abort", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ key: state.key, uploadId: state.uploadId }),
+                    body: JSON.stringify({ key: state.key, uploadId: state.uploadId, backend: state.backend }),
                 });
             } catch (err: any) {
                 console.warn(`⚠️ Abort request failed for ${state.fileName}: ${err?.message}`);

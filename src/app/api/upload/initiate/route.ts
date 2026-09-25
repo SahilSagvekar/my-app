@@ -12,6 +12,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getCurrentUser2 } from '@/lib/auth';
 import { recordPendingUpload } from '@/lib/drive/index-store';
 import { keepAlive } from '@/lib/keep-alive';
+import { getActiveUploadBackend } from '@/lib/upload-backend';
 
 function normalizeUploadPathSegment(value: string): string {
   return value
@@ -183,7 +184,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Invalid folder type' }, { status: 400 });
     }
 
-    console.log('🎯 Initiating multipart via file server for key:', s3Key);
+    // ── Backup upload system ──────────────────────────────────────────────
+    // Read the admin's Primary/Backup switch ONCE per upload, here at
+    // initiate time — not re-checked per part or on complete — so a single
+    // upload never gets split across both buckets mid-flight even if
+    // someone flips the switch while it's in progress. The client is
+    // handed `backend` back and must echo it on every subsequent
+    // /api/upload/part-urls and /api/upload/complete call for this upload.
+    // In scope for now: raw footage and editor output uploads only — see
+    // /areas/cloudflare-migration.md for why (Files & Drive browser
+    // uploads, thumbnails/previews and QC/client streaming are unaffected
+    // by this switch and keep depending on the primary bucket).
+    const isBackupEligible = folderType === 'outputs' || folderType === 'rawFootage';
+    const uploadBackend = isBackupEligible ? await getActiveUploadBackend() : 'r2';
+
+    console.log(`🎯 Initiating multipart via file server for key: ${s3Key} (backend: ${uploadBackend})`);
 
     // ── Delegate CreateMultipartUpload to file server ────────────────────────
     try {
@@ -194,18 +209,26 @@ export async function POST(req: NextRequest) {
         s3Key,
         resolvedFileType,
         fileSize,
+        uploadBackend,
       );
       // Drive index: remember who's uploading this key (R2's create event,
       // which is what actually adds it to the index, doesn't carry a user).
-      keepAlive(recordPendingUpload(key || s3Key, currentUser.id, resolvedFileType));
-      return NextResponse.json({ uploadId, key });
+      // Only meaningful for the primary bucket — the Drive index tracks
+      // what's browsable in Files & Drive, which backup-bucket files aren't
+      // until migration copies them over.
+      if (uploadBackend !== 'backup') {
+        keepAlive(recordPendingUpload(key || s3Key, currentUser.id, resolvedFileType));
+      }
+      return NextResponse.json({ uploadId, key, backend: uploadBackend });
     } catch (err: any) {
       // File server returns USE_SINGLE_PUT for files < 16MB — fall back to presigned PUT
       if (err.Code === 'USE_SINGLE_PUT' || err.message?.includes('USE_SINGLE_PUT') || err.message?.includes('too small')) {
         const { presignUpload } = await import('@/lib/file-server');
-        const { uploadUrl, fileUrl } = await presignUpload(env, clientId, 'uploader', s3Key, resolvedFileType);
-        keepAlive(recordPendingUpload(s3Key, currentUser.id, resolvedFileType));
-        return NextResponse.json({ singlePut: true, uploadUrl, fileUrl, key: s3Key });
+        const { uploadUrl, fileUrl } = await presignUpload(env, clientId, 'uploader', s3Key, resolvedFileType, uploadBackend);
+        if (uploadBackend !== 'backup') {
+          keepAlive(recordPendingUpload(s3Key, currentUser.id, resolvedFileType));
+        }
+        return NextResponse.json({ singlePut: true, uploadUrl, fileUrl, key: s3Key, backend: uploadBackend });
       }
       throw err;
     }

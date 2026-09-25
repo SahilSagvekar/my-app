@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body', details: e.message }, { status: 400 });
   }
 
-  const { key, uploadId, partNumbers } = body || {};
+  const { key, uploadId, partNumbers, backend } = body || {};
 
   if (!key || typeof key !== 'string' || !uploadId || typeof uploadId !== 'string' || !Array.isArray(partNumbers)) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -54,7 +54,10 @@ export async function POST(request: NextRequest) {
   try {
     const results = await Promise.all(
       uniqueParts.map(async (partNumber) => {
-        const { presignedUrl } = await getPartUrl(env, 'system', 'uploader', key, uploadId, partNumber);
+        // `backend` is whatever /api/upload/initiate returned for this
+        // upload — echoed back by the client on every batch so all parts
+        // of one upload land in the same bucket it started in.
+        const { presignedUrl } = await getPartUrl(env, 'system', 'uploader', key, uploadId, partNumber, backend === 'backup' ? 'backup' : 'r2');
         return [partNumber, presignedUrl] as const;
       })
     );

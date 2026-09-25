@@ -80,8 +80,8 @@ export async function searchFiles(env: CloudflareEnv, userId: number | string, r
   return res.json();
 }
 
-export async function presignUpload(env: CloudflareEnv, userId: number | string, role: string, key: string, contentType: string) {
-  const res = await fsRequest(env, 'POST', '/presign-upload', userId, role, { key, contentType });
+export async function presignUpload(env: CloudflareEnv, userId: number | string, role: string, key: string, contentType: string, backend?: 'r2' | 'backup') {
+  const res = await fsRequest(env, 'POST', '/presign-upload', userId, role, { key, contentType, backend });
   if (!res.ok) throw new Error(`File server error: ${res.status}`);
   return res.json() as Promise<{ uploadUrl: string; fileUrl: string; key: string }>;
 }
@@ -298,6 +298,7 @@ export async function initiateMultipart(
   key: string,
   fileType: string,
   fileSize?: number,
+  backend?: 'r2' | 'backup',
 ): Promise<{ uploadId: string; key: string }> {
   const token = makeToken(userId, role);
   const res = await fetchWithRetry(env, '/multipart/initiate', {
@@ -306,7 +307,7 @@ export async function initiateMultipart(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ key, fileType, fileSize }),
+    body: JSON.stringify({ key, fileType, fileSize, backend }),
   }, 3);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -323,7 +324,8 @@ export async function getPartUrl(
   role: string,
   key: string,
   uploadId: string,
-  partNumber: number
+  partNumber: number,
+  backend?: 'r2' | 'backup',
 ): Promise<{ presignedUrl: string }> {
   const token = makeToken(userId, role);
   const res = await fetchWithRetry(env, '/multipart/part-url', {
@@ -332,7 +334,7 @@ export async function getPartUrl(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ key, uploadId, partNumber }),
+    body: JSON.stringify({ key, uploadId, partNumber, backend }),
   }, 3);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -347,7 +349,8 @@ export async function completeMultipart(
   role: string,
   key: string,
   uploadId: string,
-  parts: Array<{ ETag: string; PartNumber: number }>
+  parts: Array<{ ETag: string; PartNumber: number }>,
+  backend?: 'r2' | 'backup',
 ): Promise<{ success: boolean; etag?: string; location?: string }> {
   const token = makeToken(userId, role);
   // completeMultipart is the most critical step — more retries than the rest
@@ -357,7 +360,7 @@ export async function completeMultipart(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ key, uploadId, parts }),
+    body: JSON.stringify({ key, uploadId, parts, backend }),
   }, 5); // losing this step after full upload is worst case
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -375,7 +378,8 @@ export async function abortMultipart(
   userId: number | string,
   role: string,
   key: string,
-  uploadId: string
+  uploadId: string,
+  backend?: 'r2' | 'backup',
 ): Promise<void> {
   const token = makeToken(userId, role);
   const res = await env.FILE_SERVER.fetch(`${FILE_SERVER_ORIGIN}/multipart/abort`, {
@@ -384,7 +388,7 @@ export async function abortMultipart(
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ key, uploadId }),
+    body: JSON.stringify({ key, uploadId, backend }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

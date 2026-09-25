@@ -58,6 +58,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'script-links', label: 'Script Links', icon: FileText },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
+    { id: 'upload-backup', label: 'Upload Backup System', icon: ShieldCheck },
     // { id: 'scheduler-activity', label: 'Scheduler Activity', icon: Activity },
     // { id: 'hiring', label: 'Editor Hiring', icon: UserPlus },
   ],

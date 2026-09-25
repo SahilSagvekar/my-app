@@ -72,7 +72,13 @@ export async function POST(request: NextRequest) {
       batchId,
       batchTotal,
       replaceFileId,
+      backend,
     } = await request.json();
+
+    // Whatever /api/upload/initiate returned for this upload, echoed back
+    // by the client. Defaults to 'r2' for older clients/in-flight uploads
+    // that don't send it yet.
+    const uploadBackend: 'r2' | 'backup' = backend === 'backup' ? 'backup' : 'r2';
 
     console.log("📥 Complete request:", {
       fileName,
@@ -103,22 +109,33 @@ export async function POST(request: NextRequest) {
         if (!parts) {
           return NextResponse.json({ error: "Missing parts for multipart complete" }, { status: 400 });
         }
-        s3Response = await completeMultipart(env, userId, user.role || 'admin', key, uploadId, parts);
+        s3Response = await completeMultipart(env, userId, user.role || 'admin', key, uploadId, parts, uploadBackend);
+        // Note: getFileUrl(key) always builds a primary-bucket URL. For a
+        // backup-bucket upload this URL doesn't resolve yet — that's
+        // expected and matches the agreed scope (review/streaming for
+        // backup-bucket files starts working once the migration job copies
+        // the object to the primary bucket under this same key, at which
+        // point this exact URL becomes correct with no DB update needed).
         fileUrl = getFileUrl(key);
-        console.log("✅ S3 multipart completed:", fileUrl);
+        console.log("✅ S3 multipart completed:", fileUrl, `(backend: ${uploadBackend})`);
       }
 
       // Drive index: show the file in Drive right away instead of waiting a
       // few seconds for R2's create event to come through the queue. Same
       // code path as the event itself (preview policy, uploader, activity).
-      await applyR2Events([{
-        action: singlePut ? 'PutObject' : 'CompleteMultipartUpload',
-        // Single PUTs don't give us an etag here; a unique placeholder marks
-        // "new bytes" (so an old preview is dropped) until the nightly
-        // reconcile fills in the real one.
-        object: { key, size: Number(fileSize) || 0, eTag: (s3Response as any)?.etag || (s3Response as any)?.ETag || `upload:${Date.now()}` },
-        eventTime: new Date().toISOString(),
-      }], env).catch((err: any) => console.warn('[upload/complete] drive index update failed:', err?.message));
+      // Skipped for backup-bucket uploads — the Drive index/preview policy
+      // machinery watches the primary bucket, and this object isn't there
+      // yet (see /areas/cloudflare-migration.md, backup upload system).
+      if (uploadBackend !== 'backup') {
+        await applyR2Events([{
+          action: singlePut ? 'PutObject' : 'CompleteMultipartUpload',
+          // Single PUTs don't give us an etag here; a unique placeholder marks
+          // "new bytes" (so an old preview is dropped) until the nightly
+          // reconcile fills in the real one.
+          object: { key, size: Number(fileSize) || 0, eTag: (s3Response as any)?.etag || (s3Response as any)?.ETag || `upload:${Date.now()}` },
+          eventTime: new Date().toISOString(),
+        }], env).catch((err: any) => console.warn('[upload/complete] drive index update failed:', err?.message));
+      }
 
       const isDriveUpload = taskId === "drive-upload";
 
@@ -244,6 +261,10 @@ export async function POST(request: NextRequest) {
               : null,
             uploadedAt: new Date().toISOString(),
             createdAt: new Date().toISOString(),
+            // Backup upload system: which bucket these bytes actually live
+            // in, set once here and never auto-changed except by the
+            // migration job after it verifies the copy back to primary.
+            storageBackend: uploadBackend,
           })
           .returning({ id: fileTable.id, version: fileTable.version });
         fileRecord = insertedFile;
@@ -320,7 +341,12 @@ export async function POST(request: NextRequest) {
       // ffmpeg can run), never by this Worker. A queue failure must not turn a
       // successfully uploaded video into a failed upload; the processor can
       // backfill it later.
-      if (fileType?.startsWith('video/')) {
+      // Skipped for backup-bucket uploads: the preview/thumbnail processor
+      // only reads from the primary bucket, so this would just fail (and
+      // retry, and fail again) until the migration job copies the object
+      // over after failback. Same reasoning as the thumbnail-enqueue skip
+      // in e8-file-server's /multipart/complete.
+      if (fileType?.startsWith('video/') && uploadBackend !== 'backup') {
         const now = new Date().toISOString();
         await db.insert(mediaPreview).values({
           id: createId(),

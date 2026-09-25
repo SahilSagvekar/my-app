@@ -506,11 +506,25 @@ model File {
   youtubeUploadedAt  DateTime?
   youtubeVideoId     String?
   youtubeLinkedBy    Int?
+  storageBackend     String         @default("r2")
   task               Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
   feedback           TaskFeedback[]
 
   @@index([taskId, folderType])
   @@index([taskId, isActive])
+  @@index([storageBackend])
+}
+
+model UploadBackendConfig {
+  id                  String    @id
+  activeBackend       String    @default("r2")
+  switchedAt          DateTime  @default(now())
+  switchedBy          Int?
+  migrationInProgress Boolean   @default(false)
+  lastCanaryAt        DateTime?
+  lastCanaryOk        Boolean?
+  lastCanaryError     String?
+  updatedAt           DateTime  @default(now())
 }
 
 model MediaPreview {
