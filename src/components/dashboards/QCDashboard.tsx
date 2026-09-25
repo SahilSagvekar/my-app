@@ -57,6 +57,9 @@ interface TaskFile {
   codec?: string;
   optimizationStatus?: string;
   optimizationError?: string | null;
+  proxyUrl?: string | null;
+  reviewDriveUrl?: string | null;
+  youtubeVideoId?: string | null;
 }
 
 interface EnhancedWorkflowTask {
@@ -756,6 +759,7 @@ useEffect(() => {
         url: f.url,
         proxyUrl: f.proxyUrl || null,
         reviewDriveUrl: f.reviewDriveUrl || null,
+        youtubeVideoId: f.youtubeVideoId || null,
         sizeBytes: f.size,
       }));
 
@@ -766,6 +770,7 @@ useEffect(() => {
       videoUrl: file.url,
       proxyUrl: file.proxyUrl || null,
       reviewDriveUrl: file.reviewDriveUrl || null,
+      youtubeVideoId: file.youtubeVideoId || null,
       thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
       runtime: '2:30',
       status: 'in_qc' as const,
