@@ -2691,6 +2691,12 @@ export function EditorDashboard() {
             linkedRawFootagePaths: t.linkedRawFootagePaths || null,
             relatedTaskId: t.relatedTaskId || null,
             noActionRequired: t.noActionRequired || false,
+            // 🔥 Recomputed per-task by GET /api/tasks (accounts for the
+            // client's deliverable-type allow-list) — was missing from this
+            // explicit field list entirely, so it silently came through as
+            // undefined for every task regardless of client settings. Drives
+            // the "Link YouTube video" control's visibility.
+            requiresClientReview: !!t.requiresClientReview,
             // 🔥 Map taskFeedback with file version info from nested file data
             taskFeedback: (() => {
               const mapped = (t.taskFeedback || []).map((fb: any) => {
