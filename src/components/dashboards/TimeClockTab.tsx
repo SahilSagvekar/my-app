@@ -12,6 +12,8 @@ import { Input } from '../ui/input';
 import { Loader2, Clock, LogIn, LogOut, AlertTriangle, ChevronDown, ChevronRight, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { formatEasternTime } from '@/lib/est-date';
+
 interface TimelineEvent {
   at: string;
   type: 'clock_in' | 'clock_out' | 'clock_out_auto' | 'task_event';
@@ -29,8 +31,8 @@ interface PersonDay {
   timeline: TimelineEvent[];
 }
 
-function todayEST(): string {
-  // Matches getESTDateString() on the server — just for the date input's default value.
+function todayEastern(): string {
+  // Matches getESTDateString() on the server — South Carolina calendar date.
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/New_York',
     year: 'numeric',
@@ -39,16 +41,6 @@ function todayEST(): string {
   }).formatToParts(new Date());
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
-}
-
-function formatTimeEST(iso: string): string {
-  return (
-    new Date(iso).toLocaleTimeString('en-US', {
-      timeZone: 'America/New_York',
-      hour: 'numeric',
-      minute: '2-digit',
-    }) + ' EST'
-  );
 }
 
 function eventIcon(type: TimelineEvent['type']) {
@@ -90,11 +82,11 @@ function PersonCard({ person }: { person: PersonDay }) {
           <div className="flex items-center gap-2 text-xs">
             {person.stillClockedIn ? (
               <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">
-                Clocked in — {formatTimeEST(person.clockInAt)}
+                Clocked in — {formatEasternTime(person.clockInAt)}
               </Badge>
             ) : (
               <span className="text-gray-500">
-                {formatTimeEST(person.clockInAt)} – {person.clockOutAt ? formatTimeEST(person.clockOutAt) : '—'}
+                {formatEasternTime(person.clockInAt)} – {person.clockOutAt ? formatEasternTime(person.clockOutAt) : '—'}
                 {person.autoClosedOut && (
                   <span className="ml-1.5 text-amber-600 font-medium">(auto-closed)</span>
                 )}
@@ -111,7 +103,7 @@ function PersonCard({ person }: { person: PersonDay }) {
                 <div className="mt-0.5">{eventIcon(event.type)}</div>
                 <div className="flex-1">
                   <span className="text-gray-700">{event.label}</span>
-                  <span className="text-gray-400 ml-2">{formatTimeEST(event.at)}</span>
+                  <span className="text-gray-400 ml-2">{formatEasternTime(event.at)}</span>
                 </div>
               </div>
             ))}
@@ -123,7 +115,7 @@ function PersonCard({ person }: { person: PersonDay }) {
 }
 
 export function TimeClockTab() {
-  const [date, setDate] = useState(todayEST());
+  const [date, setDate] = useState(todayEastern());
   const [people, setPeople] = useState<PersonDay[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +155,7 @@ export function TimeClockTab() {
           onChange={(e) => setDate(e.target.value)}
           className="w-auto"
         />
-        <span className="text-xs text-gray-400">Times shown in EST</span>
+        <span className="text-xs text-gray-400">Times shown in Eastern Time (South Carolina)</span>
       </div>
 
       {loading && (

@@ -7,7 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { getDbHttp } from "@/lib/db";
 import { timeClockEntry } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
-import { getESTDateString } from "@/lib/est-date";
+import { dbTimestampToIso, getESTDateString } from "@/lib/est-date";
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     if (existing.clockOutAt) {
       return NextResponse.json(
-        { error: "You've already clocked out today", clockOutAt: existing.clockOutAt },
+        { error: "You've already clocked out today", clockOutAt: dbTimestampToIso(existing.clockOutAt) },
         { status: 409 }
       );
     }
@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       status: "clocked_out",
-      clockInAt: entry.clockInAt,
-      clockOutAt: entry.clockOutAt,
+      clockInAt: dbTimestampToIso(entry.clockInAt),
+      clockOutAt: dbTimestampToIso(entry.clockOutAt!),
     });
   } catch (err: any) {
     console.error("❌ /api/time-clock/stop error:", err.message);

@@ -1,5 +1,6 @@
 // FILE: src/components/TimeClockButton.tsx
-// New file. The header Start/Stop toggle. Renders nothing for admins.
+// The header Start/Stop toggle. Renders nothing for admins.
+// All times are Eastern Time (South Carolina / America/New_York).
 
 'use client';
 
@@ -7,20 +8,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Clock, Square, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from './auth/AuthContext';
+import { formatEasternTime } from '@/lib/est-date';
 
 type ClockStatus =
   | { state: 'loading' }
   | { state: 'not_started' }
   | { state: 'clocked_in'; clockInAt: string }
   | { state: 'clocked_out'; clockInAt: string; clockOutAt: string; autoClosedOut?: boolean };
-
-function formatEST(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', {
-    timeZone: 'America/New_York',
-    hour: 'numeric',
-    minute: '2-digit',
-  }) + ' EST';
-}
 
 export function TimeClockButton() {
   const { user } = useAuth();
@@ -121,12 +115,12 @@ export function TimeClockButton() {
         size="sm"
         onClick={handleStop}
         disabled={busy}
-        title={`Started at ${formatEST(status.clockInAt)}`}
+        title={`Started at ${formatEasternTime(status.clockInAt)} (South Carolina)`}
         className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-3.5 w-3.5 fill-current" />}
         <span className="hidden sm:inline">
-          Stop <span className="opacity-70 font-normal">· since {formatEST(status.clockInAt)}</span>
+          Stop <span className="opacity-70 font-normal">· since {formatEasternTime(status.clockInAt)}</span>
         </span>
       </Button>
     );
@@ -139,12 +133,12 @@ export function TimeClockButton() {
       title={
         status.autoClosedOut
           ? 'Auto-clocked out — you forgot to click Stop'
-          : `${formatEST(status.clockInAt)} – ${formatEST(status.clockOutAt)}`
+          : `${formatEasternTime(status.clockInAt)} – ${formatEasternTime(status.clockOutAt)} (South Carolina)`
       }
     >
       <CheckCircle2 className="h-3.5 w-3.5" />
       <span className="hidden sm:inline">
-        {formatEST(status.clockInAt)}–{formatEST(status.clockOutAt)}
+        {formatEasternTime(status.clockInAt)}–{formatEasternTime(status.clockOutAt)}
         {status.autoClosedOut ? ' (auto)' : ''}
       </span>
     </div>

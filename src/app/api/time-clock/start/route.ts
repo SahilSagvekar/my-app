@@ -10,7 +10,7 @@ import { getDbHttp } from "@/lib/db";
 import { timeClockEntry } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { getCurrentUser2 } from "@/lib/auth";
-import { getESTDateString } from "@/lib/est-date";
+import { dbTimestampToIso, getESTDateString } from "@/lib/est-date";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       return NextResponse.json(
-        { error: "You've already clocked in today", clockInAt: existing.clockInAt },
+        { error: "You've already clocked in today", clockInAt: dbTimestampToIso(existing.clockInAt) },
         { status: 409 }
       );
     }
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    return NextResponse.json({ status: "clocked_in", clockInAt: entry.clockInAt });
+    return NextResponse.json({ status: "clocked_in", clockInAt: dbTimestampToIso(entry.clockInAt) });
   } catch (err: any) {
     // Race condition: two rapid clicks both pass the find check.
     // The unique constraint on [userId, workDate] catches it here (Postgres 23505).

@@ -104,3 +104,37 @@ export function getESTWeekBounds(date?: string): { start: Date; end: Date } {
     end: estCalendarToUTC(sunday.getFullYear(), sunday.getMonth(), sunday.getDate(), true),
   };
 }
+
+/**
+ * Postgres `timestamp` (no tz) often comes back as "2026-09-26 08:16:00.000"
+ * or "2026-09-26T08:16:00.000" with no Z. We always write UTC via toISOString(),
+ * so treat bare values as UTC — otherwise browsers in other zones mis-parse them
+ * as local time and Eastern (South Carolina) display is wrong.
+ */
+export function dbTimestampToDate(value: string | Date): Date {
+  if (value instanceof Date) return value;
+  const s = String(value).trim();
+  if (!s) return new Date(NaN);
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
+  // "2026-09-26 08:16:00.000" / "2026-09-26T08:16:00.000" → force UTC
+  return new Date(s.replace(' ', 'T') + 'Z');
+}
+
+/** Normalize a DB/API timestamp to a UTC ISO string (always ends with Z). */
+export function dbTimestampToIso(value: string | Date): string {
+  return dbTimestampToDate(value).toISOString();
+}
+
+/**
+ * Wall-clock time in Eastern Time (South Carolina / America/New_York),
+ * with the correct EST or EDT abbreviation for that instant.
+ */
+export function formatEasternTime(value: string | Date): string {
+  const d = dbTimestampToDate(value);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: EST_TZ,
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(d);
+}
