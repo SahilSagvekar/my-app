@@ -390,7 +390,7 @@ function StatCard({
   return (
     <Card className="border shadow-sm">
       <CardContent className="p-4">
-        <div className="flex items-start justify-between">
+        <div className="flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               {title}
