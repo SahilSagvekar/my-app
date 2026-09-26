@@ -7,11 +7,13 @@ import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { cn } from '@/lib/utils';
 import { useDailyTargetsProgress } from './useDailyTargetsProgress';
+import { DeliverableBlock } from './DeliverableRow';
 import {
   DELIVERABLE_COLORS,
+  PLATFORM_LABEL,
   formatDateEST,
+  formatShortDate,
   formatTimeEST,
-  getPlatformConfig,
   getProgressColor,
   getProgressHexColor,
 } from './constants';
@@ -40,7 +42,16 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
   }, [open, clientId]);
 
   const client = data?.clients?.[0] ?? null;
-  const borderColor = client ? getProgressHexColor(client.progress) : '#579BFC';
+  const borderColor = client
+    ? client.noInventoryCount > 0 || client.status === 'critical'
+      ? '#f43f5e'
+      : client.status === 'behind'
+        ? '#f59e0b'
+        : getProgressHexColor(client.progress)
+    : '#579BFC';
+
+  const todayLinks = client?.deliverables.flatMap((d) => d.todayLinks.map((l) => ({ ...l, type: d.type }))) ?? [];
+  todayLinks.sort((a, b) => a.postedAt.localeCompare(b.postedAt));
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -59,7 +70,7 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
                 "px-3 py-1 rounded-lg text-white font-bold text-sm",
                 `bg-gradient-to-r ${getProgressColor(client.progress)}`
               )}>
-                {client.totalCompleted}/{client.totalRequired}
+                {client.totalCompleted}/{client.totalRequired} today
               </div>
             )}
           </div>
@@ -86,105 +97,68 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
           )}
 
           {data && !client && (
-            <p className="text-sm text-muted-foreground italic">No active posting targets for this client on this date.</p>
+            <p className="text-sm text-muted-foreground italic">No trackable deliverables for this client.</p>
           )}
 
-          {client?.platforms.map((platform) => {
-            const pConfig = getPlatformConfig(platform.platform);
-            const Icon = pConfig.icon;
+          {client?.deliverables.map((d) => (
+            <DeliverableBlock key={d.deliverableId} d={d} />
+          ))}
 
-            return (
-              <div key={platform.platform} className="rounded-xl border bg-white p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className={cn(
-                    "inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium",
-                    pConfig.bgColor, pConfig.color
+          {client && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Posted on this day
+              </p>
+              {todayLinks.length === 0 && (
+                <p className="text-sm text-muted-foreground italic">No links posted</p>
+              )}
+              {todayLinks.map((link) => (
+                <div key={link.id} className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-gray-50 text-sm">
+                  <Badge className={cn(
+                    DELIVERABLE_COLORS[link.type]?.bg || 'bg-gray-100',
+                    DELIVERABLE_COLORS[link.type]?.text || 'text-gray-700',
+                    'text-[10px]'
                   )}>
-                    {Icon && <Icon className="h-4 w-4" />}
-                    {platform.platform}
-                  </div>
-                  <span className="text-sm font-bold text-gray-900">
-                    {platform.totalCompleted}/{platform.totalRequired}
+                    {link.type}
+                  </Badge>
+                  <span className="text-[11px] font-semibold text-muted-foreground w-6">
+                    {PLATFORM_LABEL[link.platform] ?? link.platform}
                   </span>
+                  <span className="text-gray-600 truncate flex-1">{link.title || link.url}</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatTimeEST(link.postedAt)} EST
+                  </span>
+                  <a
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-500 hover:text-indigo-700"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
                 </div>
+              ))}
+            </div>
+          )}
 
-                <div className="flex flex-wrap gap-1.5">
-                  {platform.deliverables.map((d) => {
-                    const dColor = DELIVERABLE_COLORS[d.deliverableType] || { bg: 'bg-gray-100', text: 'text-gray-700' };
-                    const freqLabel = d.frequency === 'daily' ? '' : `/${d.frequency}`;
-                    if (d.monthlyAccomplished) {
-                      return (
-                        <div key={d.deliverableType} className="inline-flex items-center gap-1">
-                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                            🎉 {d.deliverableType} monthly target accomplished ({d.monthlyCompleted}/{d.monthlyRequired})
-                          </Badge>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div key={d.deliverableType} className="inline-flex items-center gap-1">
-                        <Badge className={cn(dColor.bg, dColor.text, `hover:${dColor.bg}`, !d.isActive && 'opacity-40')}>
-                          {d.completed}/{d.required} {d.deliverableType}{freqLabel}
-                          {d.remaining > 0 && ` · ${d.remaining} left`}
-                        </Badge>
-                        {d.monthlyRequired != null && (
-                          <span className="text-[10px] text-muted-foreground">
-                            ({d.monthlyCompleted}/{d.monthlyRequired} this month)
-                          </span>
-                        )}
-                        {d.extras?.tiles && (
-                          <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 text-[10px]">+Tiles</Badge>
-                        )}
-                        {d.extras?.thumb && (
-                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-[10px]">+Thumb</Badge>
-                        )}
-                        {!d.isActive && <span className="text-[11px] text-amber-500">not active today</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="space-y-1.5">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Posted Links
-                  </p>
-                  {platform.deliverables.every(d => d.links.length === 0) && (
-                    <p className="text-sm text-muted-foreground italic">No links posted yet</p>
-                  )}
-                  {platform.deliverables.map(d =>
-                    d.links.map((link) => (
-                      <div
-                        key={link.id}
-                        className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-gray-50 text-sm"
-                      >
-                        <Badge className={cn(
-                          DELIVERABLE_COLORS[d.deliverableType]?.bg || 'bg-gray-100',
-                          DELIVERABLE_COLORS[d.deliverableType]?.text || 'text-gray-700',
-                          'text-[10px]'
-                        )}>
-                          {d.deliverableType}
-                        </Badge>
-                        <span className="text-gray-600 truncate flex-1">
-                          {link.title || link.url}
-                        </span>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {formatTimeEST(link.postedAt)} EST
-                        </span>
-                        <a
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-500 hover:text-indigo-700"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      </div>
-                    ))
-                  )}
-                </div>
+          {client?.log && client.log.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Posting log this month
+              </p>
+              <div className="rounded-lg border divide-y text-sm">
+                {[...client.log].reverse().map((day) => (
+                  <div key={day.date} className="flex items-center justify-between px-3 py-1.5">
+                    <span className="text-gray-700">{formatShortDate(day.date)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {day.types.join(', ')} · {day.pieces} piece{day.pieces === 1 ? '' : 's'} · {day.posts} post
+                      {day.posts === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>

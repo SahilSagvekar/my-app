@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from 'lucide-react';
+import { Target, Calendar, ChevronLeft, ChevronRight, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { PageHeader } from '../../ui/page-header';
 import { cn } from '@/lib/utils';
 import { useDailyTargetsProgress } from './useDailyTargetsProgress';
 import { ClientProgressDrawer } from './ClientProgressDrawer';
 import { formatDateEST, getProgressColor, getProgressHexColor, getProgressIcon } from './constants';
+import { DeliverableSummaryLine } from './DeliverableRow';
 import type { DailyTargetsRole } from './types';
 
 interface DailyTargetsBoardProps {
@@ -17,10 +18,9 @@ interface DailyTargetsBoardProps {
 const RING_RADIUS = 20;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-function ProgressRing({ progress }: { progress: number }) {
+function ProgressRing({ progress, color }: { progress: number; color: string }) {
   const pct = Math.min(progress, 100);
   const offset = RING_CIRCUMFERENCE - (pct / 100) * RING_CIRCUMFERENCE;
-  const color = getProgressHexColor(progress);
 
   return (
     <svg width="48" height="48" viewBox="0 0 48 48" className="shrink-0 -rotate-90">
@@ -55,10 +55,10 @@ export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
             {/* <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg"> */}
               {/* <Target className="h-6 w-6 text-white" /> */}
             {/* </div> */}
-            Daily Posting Tracker
+            Posting Tracker
           </span>
         }
-        description="Track scheduler posting compliance per platform per client (EST)"
+        description="What each client owes today and month-to-date, from their monthly deliverables (EST)"
         actions={
           <div className="flex flex-wrap items-center gap-3">
             {data && (
@@ -97,42 +97,43 @@ export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
         </div>
       )}
 
-      {data?.isSunday && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-          <Calendar className="h-4 w-4 text-amber-600" />
-          <span className="text-sm font-medium text-amber-800">
-            Sunday — weekly LF targets are active today
-          </span>
-        </div>
-      )}
-
       {data && data.clients.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {data.clients.map((client) => {
-            const isDone = client.progress >= 100;
+            const isDone = client.progress >= 100 && client.status !== 'behind' && client.status !== 'critical' && client.noInventoryCount === 0;
+
+            // Ring shows today's posts; colour also reflects month pace and missing inventory.
+            const ringColor =
+              client.noInventoryCount > 0 || client.status === 'critical'
+                ? '#f43f5e'
+                : client.status === 'behind'
+                  ? '#f59e0b'
+                  : getProgressHexColor(client.progress);
 
             return (
               <button
                 key={client.clientId}
                 onClick={() => setDrawerClientId(client.clientId)}
                 className={cn(
-                  "text-left bg-white rounded-2xl border shadow-sm p-5 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200",
+                  "text-left bg-white rounded-2xl border shadow-sm p-5 flex items-start gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200",
                   isDone && "opacity-75"
                 )}
               >
                 <div className="relative flex items-center justify-center">
-                  <ProgressRing progress={client.progress} />
+                  <ProgressRing progress={client.progress} color={ringColor} />
                   <span className="absolute text-xs font-bold text-gray-700">{client.progress}%</span>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-gray-900 text-base truncate">{client.clientName}</h3>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {getProgressIcon(client.progress)}
-                    <p className="text-sm text-muted-foreground">
-                      {client.totalCompleted}/{client.totalRequired} done today
-                    </p>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-900 text-base truncate">{client.clientName}</h3>
+                    {client.noInventoryCount > 0 && (
+                      <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0" />
+                    )}
                   </div>
+                  {client.deliverables.map((d) => (
+                    <DeliverableSummaryLine key={d.deliverableId} d={d} />
+                  ))}
                 </div>
               </button>
             );
@@ -144,9 +145,9 @@ export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center p-8">
             <Target className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Posting Targets</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Nothing to Track</h3>
             <p className="text-muted-foreground">
-              No daily posting targets configured. Run the seed script to populate targets.
+              No active clients have monthly deliverables with trackable platforms.
             </p>
           </div>
         </div>

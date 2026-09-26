@@ -104,3 +104,43 @@ export function getProgressIcon(progress: number) {
   if (progress >= 50) return <Clock className="h-4 w-4 text-amber-500" />;
   return <AlertCircle className="h-4 w-4 text-rose-500" />;
 }
+
+export const STATUS_STYLE: Record<string, { label: string; badge: string; bar: string }> = {
+  done: { label: "Quota met", badge: "bg-emerald-100 text-emerald-700", bar: "#10b981" },
+  on_track: { label: "On pace", badge: "bg-emerald-100 text-emerald-700", bar: "#10b981" },
+  not_due: { label: "On pace", badge: "bg-emerald-100 text-emerald-700", bar: "#10b981" },
+  behind: { label: "Behind", badge: "bg-amber-100 text-amber-700", bar: "#f59e0b" },
+  critical: { label: "Critical", badge: "bg-rose-100 text-rose-700", bar: "#f43f5e" },
+};
+
+export const PLATFORM_LABEL: Record<string, string> = {
+  instagram: "IG",
+  facebook: "FB",
+  tiktok: "TT",
+  youtube: "YT",
+  linkedin: "LI",
+  twitter: "X",
+};
+
+export const TYPE_NAME: Record<string, string> = {
+  SF: "Short Form",
+  LF: "Long Form",
+  SQF: "Square Form",
+  BSF: "Beta Short Form",
+  HP: "Hard Posts",
+  T: "Tiles",
+  THUMB: "Thumbnails",
+  ST: "Stories",
+  TP: "Text Posts",
+};
+
+export function formatPostingDays(days: string[]): string {
+  if (!days || days.length === 0 || days.length === 7) return "Daily";
+  return days.map((d) => d.slice(0, 3)).join("/");
+}
+
+/** "2026-09-26" -> "Sep 26" without any timezone shifting. */
+export function formatShortDate(dateKey: string): string {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+}

@@ -1,15 +1,31 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
-import { postingTarget, postedContent, client } from '@/lib/db/schema';
-import { and, not, eq, ilike, inArray, gte, lte, desc } from 'drizzle-orm';
+import { client, postedContent, task } from '@/lib/db/schema';
+import { and, asc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { getUserFromToken } from '@/lib/auth-helpers';
-import { getESTDate, getESTDayOfWeek, getESTWeekBounds, getESTMonthBounds } from '@/lib/est-date';
+import { getESTDateString, getESTDayOfWeek, getESTMonthBounds, getESTDate } from '@/lib/est-date';
+import { normalizeDeliverableType } from '@/lib/posting-match';
 import {
-  normalizeDeliverableType,
-  normalizePlatformForMatch,
-  targetPlatformToPostedPlatform,
-} from '@/lib/posting-match';
+  buildPostingLog,
+  computeDeliverableProgress,
+  type DeliverableProgress,
+  type DeliverableStatus,
+} from '@/lib/posting-tracker';
+
+// GET /api/schedular/daily-targets/progress?date=YYYY-MM-DD&clientId=...
+//
+// Posting Tracker data. Everything is derived from each client's Monthly
+// Deliverables (quantity, posting days, videos/day, platforms) — see
+// src/lib/posting-tracker.ts for the model. PostingTarget rows are no longer read.
+
+const STATUS_RANK: Record<DeliverableStatus, number> = {
+  critical: 4,
+  behind: 3,
+  on_track: 2,
+  not_due: 1,
+  done: 0,
+};
 
 export async function GET(req: NextRequest) {
   const db = getDbHttp();
@@ -20,215 +36,190 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const dateParam = searchParams.get('date') || undefined;
+    const rawDate = searchParams.get('date') || undefined;
     const clientIdFilter = searchParams.get('clientId') || undefined;
 
-    const { start: dayStart, end: dayEnd } = getESTDate(dateParam);
-    const { start: weekStart, end: weekEnd } = getESTWeekBounds(dateParam);
+    // A bare YYYY-MM-DD parses as UTC midnight, which is the PREVIOUS day in EST.
+    // Pin it to noon UTC so it always lands on the intended EST calendar day.
+    const dateParam = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? `${rawDate}T12:00:00Z` : rawDate;
+
+    const { start: dayStart } = getESTDate(dateParam);
     const { start: monthStart, end: monthEnd } = getESTMonthBounds(dateParam);
     const dayOfWeek = getESTDayOfWeek(dateParam);
-    const isSunday = dayOfWeek === 0;
+    const dateKey = getESTDateString(dateParam);
 
-    // Fetch all posting targets — Snapchat is no longer tracked, exclude it entirely
-    const targetConditions = [not(ilike(postingTarget.platform, 'snapchat'))];
-    if (clientIdFilter) targetConditions.push(eq(postingTarget.clientId, clientIdFilter));
-
-    const allTargets = await db.query.postingTarget.findMany({
-      where: and(...targetConditions),
+    const clients = await db.query.client.findMany({
+      where: clientIdFilter
+        ? and(eq(client.status, 'active'), eq(client.id, clientIdFilter))
+        : eq(client.status, 'active'),
+      columns: { id: true, name: true, companyName: true },
       with: {
-        client: { columns: { id: true, name: true, companyName: true } },
+        monthlyDeliverables: {
+          columns: {
+            id: true,
+            type: true,
+            quantity: true,
+            videosPerDay: true,
+            postingDays: true,
+            platforms: true,
+            isTrial: true,
+          },
+        },
       },
+      orderBy: asc(client.name),
     });
 
-    if (allTargets.length === 0) {
+    const trackedClients = clients.filter((c) => c.monthlyDeliverables.length > 0);
+    const clientIds = trackedClients.map((c) => c.id);
+
+    if (clientIds.length === 0) {
       return NextResponse.json({
         ok: true,
         date: dayStart.toISOString(),
+        dateKey,
         dayOfWeek,
-        isSunday,
+        isSunday: dayOfWeek === 0,
+        grandTotal: 0,
+        grandCompleted: 0,
+        grandProgress: 100,
+        noInventoryCount: 0,
         clients: [],
       });
     }
 
-    // Get unique client IDs from targets
-    const clientIds = [...new Set(allTargets.map(t => t.clientId))];
-
-    // Fetch today's posted content for these clients
-    const todayPosts = await db.select().from(postedContent).where(and(
-      inArray(postedContent.clientId, clientIds),
-      gte(postedContent.postedAt, dayStart.toISOString()),
-      lte(postedContent.postedAt, dayEnd.toISOString()),
-    )).orderBy(desc(postedContent.postedAt));
-
-    // Fetch this week's posted content (for weekly targets)
-    const weekPosts = await db.select().from(postedContent).where(and(
-      inArray(postedContent.clientId, clientIds),
-      gte(postedContent.postedAt, weekStart.toISOString()),
-      lte(postedContent.postedAt, weekEnd.toISOString()),
-    )).orderBy(desc(postedContent.postedAt));
-
-    // Monthly quotas (from MonthlyDeliverable.quantity) + this month's distinct posted videos,
-    // so a deliverable can be marked "monthly target accomplished" and stop demanding more daily posts.
-    const [clientsWithDeliverables, monthPosts] = await Promise.all([
-      db.query.client.findMany({
-        where: inArray(client.id, clientIds),
-        columns: { id: true },
-        with: { monthlyDeliverables: { columns: { type: true, quantity: true } } },
+    const [monthPosts, readyTasks] = await Promise.all([
+      db
+        .select({
+          id: postedContent.id,
+          clientId: postedContent.clientId,
+          taskId: postedContent.taskId,
+          platform: postedContent.platform,
+          deliverableType: postedContent.deliverableType,
+          url: postedContent.url,
+          title: postedContent.title,
+          postedAt: postedContent.postedAt,
+        })
+        .from(postedContent)
+        .where(
+          and(
+            inArray(postedContent.clientId, clientIds),
+            gte(postedContent.postedAt, monthStart.toISOString()),
+            lte(postedContent.postedAt, monthEnd.toISOString())
+          )
+        ),
+      // "Ready to post" = COMPLETED with no social link yet (what the scheduler pulls from).
+      db.query.task.findMany({
+        where: and(
+          inArray(task.clientId, clientIds),
+          eq(task.status, 'COMPLETED'),
+          sql`${task.socialMediaLinks} = '[]'::jsonb`
+        ),
+        columns: { id: true, clientId: true, deliverableType: true },
+        with: { monthlyDeliverable: { columns: { type: true } } },
       }),
-      db.select({
-        clientId: postedContent.clientId,
-        deliverableType: postedContent.deliverableType,
-        taskId: postedContent.taskId,
-        id: postedContent.id,
-      }).from(postedContent).where(and(
-        inArray(postedContent.clientId, clientIds),
-        gte(postedContent.postedAt, monthStart.toISOString()),
-        lte(postedContent.postedAt, monthEnd.toISOString()),
-      )),
     ]);
 
-    const monthlyQuotaMap = new Map<string, Map<string, number>>();
-    for (const c of clientsWithDeliverables) {
-      const typeMap = new Map<string, number>();
-      for (const d of c.monthlyDeliverables) {
-        const key = normalizeDeliverableType(d.type);
-        typeMap.set(key, (typeMap.get(key) ?? 0) + d.quantity);
-      }
-      monthlyQuotaMap.set(c.id, typeMap);
-    }
-
-    const monthlyCompletedMap = new Map<string, Set<string>>();
+    const postsByClient = new Map<string, typeof monthPosts>();
     for (const p of monthPosts) {
-      const key = `${p.clientId}::${normalizeDeliverableType(p.deliverableType)}`;
-      if (!monthlyCompletedMap.has(key)) monthlyCompletedMap.set(key, new Set());
-      monthlyCompletedMap.get(key)!.add(p.taskId ?? p.id);
+      if (!postsByClient.has(p.clientId)) postsByClient.set(p.clientId, []);
+      postsByClient.get(p.clientId)!.push(p);
     }
 
-    // Group targets by client
-    const clientTargetMap = new Map<string, typeof allTargets>();
-    for (const t of allTargets) {
-      if (!clientTargetMap.has(t.clientId)) clientTargetMap.set(t.clientId, []);
-      clientTargetMap.get(t.clientId)!.push(t);
+    const readyByClient = new Map<string, Map<string, number>>();
+    for (const t of readyTasks) {
+      if (!t.clientId) continue;
+      const type = normalizeDeliverableType(t.deliverableType ?? t.monthlyDeliverable?.type);
+      if (!type) continue;
+      if (!readyByClient.has(t.clientId)) readyByClient.set(t.clientId, new Map());
+      const m = readyByClient.get(t.clientId)!;
+      m.set(type, (m.get(type) ?? 0) + 1);
     }
 
-    // Build response per client
-    const clients = Array.from(clientTargetMap.entries()).map(([clientId, targets]) => {
-      const client = targets[0].client;
+    const result = trackedClients
+      .map((c) => {
+        const posts = (postsByClient.get(c.id) ?? []).map((p) => ({
+          ...p,
+          postedAt: p.postedAt as string,
+        }));
+        const readyByType = readyByClient.get(c.id) ?? new Map<string, number>();
 
-      // Group targets by platform
-      const platformMap = new Map<string, any[]>();
-      for (const t of targets) {
-        if (!platformMap.has(t.platform)) platformMap.set(t.platform, []);
-        platformMap.get(t.platform)!.push(t);
-      }
-
-      let clientDailyTarget = 0;
-      let clientDailyCompleted = 0;
-
-      const platforms = Array.from(platformMap.entries()).map(([platformName, platformTargets]) => {
-        const postedPlatform = targetPlatformToPostedPlatform(platformName);
-
-        const deliverables = platformTargets.map(target => {
-          const isWeekly = target.frequency === 'weekly';
-          const isSundayOnly = target.frequency === 'sunday';
-
-          // For daily: count today's posts matching this platform + deliverableType
-          // For weekly: count this week's posts
-          // For sunday: only count if today is Sunday, use today's posts
-          const postsToSearch = isWeekly ? weekPosts : todayPosts;
-          const isActive = isSundayOnly ? isSunday : true;
-
-          const matchingPosts = postsToSearch.filter(p => {
-            const pPlatform = p.platform.toLowerCase();
-            const matchesPlatform = pPlatform === postedPlatform ||
-              normalizePlatformForMatch(pPlatform).some(
-                np => np.toLowerCase() === platformName.toLowerCase()
-              );
-            const normalizedPostType = normalizeDeliverableType(p.deliverableType);
-            const normalizedTargetType = normalizeDeliverableType(target.deliverableType);
-            const matchesType = normalizedPostType === normalizedTargetType;
-            return matchesPlatform && matchesType && p.clientId === clientId;
-          });
-
-          const completed = matchingPosts.length;
-
-          const targetTypeNormalized = normalizeDeliverableType(target.deliverableType);
-          const monthlyRequired = monthlyQuotaMap.get(clientId)?.get(targetTypeNormalized) ?? null;
-          const monthlyCompleted = monthlyCompletedMap.get(`${clientId}::${targetTypeNormalized}`)?.size ?? 0;
-          const monthlyAccomplished = monthlyRequired != null && monthlyCompleted >= monthlyRequired;
-
-          const required = (isActive && !monthlyAccomplished) ? target.count : 0;
-
-          if (isActive && !monthlyAccomplished) {
-            clientDailyTarget += required;
-            clientDailyCompleted += Math.min(completed, required);
+        // Two deliverables of the same type (e.g. a trial + regular SF) would double-count the
+        // same posts, so merge same-type rows into one before computing.
+        const merged = new Map<string, (typeof c.monthlyDeliverables)[number]>();
+        for (const d of c.monthlyDeliverables) {
+          const key = normalizeDeliverableType(d.type);
+          const existing = merged.get(key);
+          if (!existing) {
+            merged.set(key, { ...d });
+          } else {
+            existing.quantity += d.quantity;
+            existing.platforms = [...new Set([...(existing.platforms ?? []), ...(d.platforms ?? [])])];
+            existing.isTrial = existing.isTrial && d.isTrial;
           }
+        }
 
-          return {
-            deliverableType: target.deliverableType,
-            required: monthlyAccomplished ? 0 : target.count,
-            frequency: target.frequency,
-            isActive,
-            completed,
-            remaining: monthlyAccomplished ? 0 : Math.max(0, required - completed),
-            monthlyAccomplished,
-            monthlyRequired,
-            monthlyCompleted,
-            extras: target.extras,
-            links: matchingPosts.map(p => ({
-              id: p.id,
-              url: p.url,
-              title: p.title,
-              postedAt: p.postedAt,
-              taskId: p.taskId,
-            })),
-          };
-        });
+        const deliverables: DeliverableProgress[] = [];
+        for (const d of merged.values()) {
+          const p = computeDeliverableProgress(d, { date: dateParam, readyByType, posts });
+          if (p) deliverables.push(p);
+        }
+        if (deliverables.length === 0) return null;
 
-        const platformTotal = deliverables.reduce((sum, d) => sum + (d.isActive ? d.required : 0), 0);
-        const platformCompleted = deliverables.reduce((sum, d) => sum + Math.min(d.completed, d.isActive ? d.required : 0), 0);
+        deliverables.sort(
+          (a, b) =>
+            Number(b.noInventory) - Number(a.noInventory) ||
+            STATUS_RANK[b.status] - STATUS_RANK[a.status] ||
+            b.dueToday - a.dueToday
+        );
+
+        const totalRequired = deliverables.reduce((s, d) => s + d.todayPostsRequired, 0);
+        const totalCompleted = deliverables.reduce((s, d) => s + d.todayPostsDone, 0);
+        const worst = deliverables.reduce<DeliverableStatus>(
+          (w, d) => (STATUS_RANK[d.status] > STATUS_RANK[w] ? d.status : w),
+          'done'
+        );
 
         return {
-          platform: platformName,
+          clientId: c.id,
+          clientName: c.companyName || c.name,
           deliverables,
-          totalRequired: platformTotal,
-          totalCompleted: platformCompleted,
-          progress: platformTotal > 0 ? Math.round((platformCompleted / platformTotal) * 100) : 100,
+          totalRequired,
+          totalCompleted,
+          progress: totalRequired > 0 ? Math.round((totalCompleted / totalRequired) * 100) : 100,
+          status: worst,
+          noInventoryCount: deliverables.filter((d) => d.noInventory).length,
+          behindCount: deliverables.filter((d) => d.status === 'behind' || d.status === 'critical').length,
+          // Only the drawer (single-client request) needs the day-by-day log.
+          log: clientIdFilter ? buildPostingLog(posts) : undefined,
         };
-      });
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
 
-      return {
-        clientId,
-        clientName: client.companyName || client.name,
-        platforms,
-        totalRequired: clientDailyTarget,
-        totalCompleted: clientDailyCompleted,
-        progress: clientDailyTarget > 0 ? Math.round((clientDailyCompleted / clientDailyTarget) * 100) : 100,
-      };
-    });
+    // Needs attention first: no-inventory, then worst status, then most owed today.
+    result.sort(
+      (a, b) =>
+        Number(b.noInventoryCount > 0) - Number(a.noInventoryCount > 0) ||
+        STATUS_RANK[b.status] - STATUS_RANK[a.status] ||
+        b.totalRequired - b.totalCompleted - (a.totalRequired - a.totalCompleted)
+    );
 
-    // Sort: incomplete first, then by total required desc
-    clients.sort((a, b) => {
-      if (a.progress === 100 && b.progress !== 100) return 1;
-      if (a.progress !== 100 && b.progress === 100) return -1;
-      return b.totalRequired - a.totalRequired;
-    });
-
-    const grandTotal = clients.reduce((s, c) => s + c.totalRequired, 0);
-    const grandCompleted = clients.reduce((s, c) => s + c.totalCompleted, 0);
+    const grandTotal = result.reduce((s, c) => s + c.totalRequired, 0);
+    const grandCompleted = result.reduce((s, c) => s + c.totalCompleted, 0);
 
     return NextResponse.json({
       ok: true,
       date: dayStart.toISOString(),
+      dateKey,
       dayOfWeek,
-      isSunday,
+      isSunday: dayOfWeek === 0,
       grandTotal,
       grandCompleted,
       grandProgress: grandTotal > 0 ? Math.round((grandCompleted / grandTotal) * 100) : 100,
-      clients,
+      noInventoryCount: result.reduce((s, c) => s + c.noInventoryCount, 0),
+      clients: result,
     });
   } catch (error) {
-    console.error('Error fetching daily target progress:', error);
+    console.error('Error fetching posting tracker progress:', error);
     return NextResponse.json({ ok: false, message: 'Internal server error' }, { status: 500 });
   }
 }
