@@ -3201,3 +3201,25 @@ export const driveSyncRun = pgTable("DriveSyncRun", {
 	triggeredBy: text(),
 	error: text(),
 });
+
+// Clock-in / clock-out for the daily Start/Stop header button.
+// workDate is the EST calendar date ("YYYY-MM-DD") — one entry per user per day.
+export const timeClockEntry = pgTable("TimeClockEntry", {
+	id: text().primaryKey().notNull(),
+	userId: integer().notNull(),
+	workDate: text().notNull(),
+	clockInAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	clockOutAt: timestamp({ precision: 3, mode: 'string' }),
+	autoClosedOut: boolean().default(false).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("TimeClockEntry_userId_workDate_key").using("btree", table.userId.asc().nullsLast().op("int4_ops"), table.workDate.asc().nullsLast().op("text_ops")),
+	index("TimeClockEntry_userId_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	index("TimeClockEntry_workDate_idx").using("btree", table.workDate.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "TimeClockEntry_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);

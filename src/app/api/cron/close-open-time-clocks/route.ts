@@ -1,14 +1,16 @@
 // FILE: src/app/api/cron/close-open-time-clocks/route.ts
-// New file. Nightly job — closes out anyone who forgot to click Stop.
-// Called by cron-master.ts at 11:55 PM America/New_York, or manually by an admin.
-// Auth pattern copied from your existing
-// src/app/api/cron/scheduler-activity-rollup/route.ts for consistency.
+// Nightly job — closes out anyone who forgot to click Stop.
+// Called by Cloudflare Cron Triggers (worker.ts) ≈ 11:55 PM America/New_York,
+// or manually by an admin.
+// Uses Drizzle/Neon HTTP — Prisma's native query engine does not run on Cloudflare Workers.
 
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
-import { prisma } from "@/lib/prisma";
+import { and, eq, isNull } from "drizzle-orm";
+import { getDbHttp } from "@/lib/db";
+import { timeClockEntry } from "@/lib/db/schema";
 import { getESTDateString } from "@/lib/est-date";
 
 function isAuthorized(req: NextRequest): boolean {
@@ -37,14 +39,16 @@ export async function POST(req: NextRequest) {
 
   try {
     const workDate = getESTDateString();
-    const now = new Date();
+    const now = new Date().toISOString();
+    const db = getDbHttp();
 
-    const result = await prisma.timeClockEntry.updateMany({
-      where: { workDate, clockOutAt: null },
-      data: { clockOutAt: now, autoClosedOut: true },
-    });
+    const closed = await db
+      .update(timeClockEntry)
+      .set({ clockOutAt: now, autoClosedOut: true, updatedAt: now })
+      .where(and(eq(timeClockEntry.workDate, workDate), isNull(timeClockEntry.clockOutAt)))
+      .returning({ id: timeClockEntry.id });
 
-    return NextResponse.json({ ok: true, closed: result.count });
+    return NextResponse.json({ ok: true, closed: closed.length });
   } catch (err: any) {
     console.error("❌ /api/cron/close-open-time-clocks error:", err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });

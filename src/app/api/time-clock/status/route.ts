@@ -1,9 +1,12 @@
 // FILE: src/app/api/time-clock/status/route.ts
-// New file. Returns today's (EST) clock entry for the logged-in user, if any.
+// Returns today's (EST) clock entry for the logged-in user, if any.
 // Drives the header button's state on load/refresh.
+// Uses Drizzle/Neon HTTP — Prisma's native query engine does not run on Cloudflare Workers.
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, eq } from "drizzle-orm";
+import { getDbHttp } from "@/lib/db";
+import { timeClockEntry } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
 import { getESTDateString } from "@/lib/est-date";
 
@@ -15,10 +18,13 @@ export async function GET(req: NextRequest) {
     }
 
     const workDate = getESTDateString();
+    const db = getDbHttp();
 
-    const entry = await prisma.timeClockEntry.findUnique({
-      where: { userId_workDate: { userId: user.id, workDate } },
-    });
+    const [entry] = await db
+      .select()
+      .from(timeClockEntry)
+      .where(and(eq(timeClockEntry.userId, user.id), eq(timeClockEntry.workDate, workDate)))
+      .limit(1);
 
     if (!entry) {
       return NextResponse.json({ status: "not_started" });
