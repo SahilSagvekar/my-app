@@ -1,12 +1,19 @@
 // FILE: src/app/api/admin/production-tracker/time-clock/route.ts
 // Feeds the "Time Clock" tab in Production Tracker.
 //
-// For a given EST calendar date, returns every user who clocked in that day,
-// each with a merged, chronologically-sorted timeline of:
+// mode=day (default) — for a given EST calendar date, returns every user who
+// clocked in that day, each with a merged, chronologically-sorted timeline of:
 //   - clock in / clock out events
 //   - their TASK_STATUS_CHANGED (and related) AuditLog events that day
 //
+// mode=week / mode=month — returns each user's total minutes worked and a
+// per-day breakdown across the EST week/month containing `date` (no task
+// AuditLog merge at this granularity — that stays a per-day drill-down,
+// available by re-querying mode=day with one of the returned dates).
+//
 // GET /api/admin/production-tracker/time-clock?date=2026-09-25
+// GET /api/admin/production-tracker/time-clock?mode=week&date=2026-09-25
+// GET /api/admin/production-tracker/time-clock?mode=month&date=2026-09-25
 // Uses Drizzle/Neon HTTP — Prisma's native query engine does not run on Cloudflare Workers.
 
 import { NextRequest, NextResponse } from "next/server";
@@ -14,7 +21,14 @@ import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { getDbHttp } from "@/lib/db";
 import { auditLog, timeClockEntry, user as userTable } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
-import { dbTimestampToIso, getESTDate, getESTDateString } from "@/lib/est-date";
+import {
+  dbTimestampToDate,
+  dbTimestampToIso,
+  getESTDate,
+  getESTDateString,
+  getESTMonthBounds,
+  getESTWeekBounds,
+} from "@/lib/est-date";
 
 // Same audit actions daily-summary-report.ts already treats as "task activity".
 const TASK_ACTIVITY_ACTIONS = [
@@ -69,9 +83,79 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const dateParam = searchParams.get("date"); // "YYYY-MM-DD" in EST, optional
+    const mode = searchParams.get("mode") === "week" || searchParams.get("mode") === "month"
+      ? (searchParams.get("mode") as "week" | "month")
+      : "day";
+    const db = getDbHttp();
+
+    if (mode === "week" || mode === "month") {
+      const anchor = dateParam ? `${dateParam}T12:00:00` : undefined;
+      const bounds = mode === "week" ? getESTWeekBounds(anchor) : getESTMonthBounds(anchor);
+      const rangeStart = getESTDateString(bounds.start.toISOString());
+      const rangeEnd = getESTDateString(bounds.end.toISOString());
+
+      const entries = await db
+        .select({
+          userId: timeClockEntry.userId,
+          workDate: timeClockEntry.workDate,
+          clockInAt: timeClockEntry.clockInAt,
+          clockOutAt: timeClockEntry.clockOutAt,
+          autoClosedOut: timeClockEntry.autoClosedOut,
+          userName: userTable.name,
+          userEmail: userTable.email,
+          userRole: userTable.role,
+        })
+        .from(timeClockEntry)
+        .innerJoin(userTable, eq(timeClockEntry.userId, userTable.id))
+        .where(and(gte(timeClockEntry.workDate, rangeStart), lte(timeClockEntry.workDate, rangeEnd)))
+        .orderBy(asc(timeClockEntry.userId), asc(timeClockEntry.workDate));
+
+      const now = new Date();
+      const byUser = new Map<
+        number,
+        { name: string; role: string | null; days: Array<{
+          date: string;
+          minutes: number;
+          clockInAt: string;
+          clockOutAt: string | null;
+          autoClosedOut: boolean;
+          stillClockedIn: boolean;
+        }> }
+      >();
+
+      for (const e of entries) {
+        if (!byUser.has(e.userId)) {
+          byUser.set(e.userId, { name: e.userName || e.userEmail, role: e.userRole, days: [] });
+        }
+        const clockIn = dbTimestampToDate(e.clockInAt);
+        const clockOut = e.clockOutAt ? dbTimestampToDate(e.clockOutAt) : now;
+        const minutes = Math.max(0, Math.round((clockOut.getTime() - clockIn.getTime()) / 60000));
+        byUser.get(e.userId)!.days.push({
+          date: e.workDate,
+          minutes,
+          clockInAt: dbTimestampToIso(e.clockInAt),
+          clockOutAt: e.clockOutAt ? dbTimestampToIso(e.clockOutAt) : null,
+          autoClosedOut: e.autoClosedOut,
+          stillClockedIn: !e.clockOutAt,
+        });
+      }
+
+      const people = Array.from(byUser.entries())
+        .map(([userId, v]) => ({
+          userId,
+          name: v.name,
+          role: v.role,
+          totalMinutes: v.days.reduce((sum, d) => sum + d.minutes, 0),
+          daysWorked: v.days.length,
+          days: v.days.sort((a, b) => (a.date < b.date ? -1 : 1)),
+        }))
+        .sort((a, b) => b.totalMinutes - a.totalMinutes);
+
+      return NextResponse.json({ mode, rangeStart, rangeEnd, people });
+    }
+
     const workDate = dateParam || getESTDateString();
     const { start, end } = getESTDate(dateParam ? `${dateParam}T12:00:00` : undefined);
-    const db = getDbHttp();
 
     // 1. Everyone who clocked in that day.
     const entries = await db
