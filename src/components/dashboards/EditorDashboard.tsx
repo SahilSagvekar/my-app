@@ -1524,15 +1524,17 @@ function TaskCard({
 
                   {/* Editor-supplied YouTube link — plays this file from
                       YouTube in QC/client review instead of our own stream.
-                      Only offered on tasks actually headed to client review;
-                      requiresClientReview is the same recomputed per-task
-                      value GET /api/tasks and the QC screen use, not the
-                      client's blanket setting. */}
-                  {!isHardPostTask && canUploadMain && task.requiresClientReview && currentMainFile && (
+                      Always shown to the assigned editor on video tasks (no
+                      client-review requirement); disabled until a video has
+                      been uploaded to attach the link to. */}
+                  {!isHardPostTask && canUploadMain && (
                     <button
                       type="button"
+                      disabled={!currentMainFile}
+                      title={currentMainFile ? undefined : "Upload a video first, then link its YouTube version"}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (!currentMainFile) return;
                         setYoutubeLinkInput(
                           currentMainFile.youtubeVideoId
                             ? `https://www.youtube.com/watch?v=${currentMainFile.youtubeVideoId}`
@@ -1541,18 +1543,18 @@ function TaskCard({
                         setYoutubeLinkError(null);
                         setShowYoutubeLinkDialog(true);
                       }}
-                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-semibold rounded-xl border transition-colors ${
-                        currentMainFile.youtubeVideoId
+                      className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[12px] font-semibold rounded-xl border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        currentMainFile?.youtubeVideoId
                           ? "text-red-700 border-red-200 bg-red-50 hover:bg-red-100"
                           : "text-gray-900 border-gray-300 bg-white hover:bg-gray-50/80"
                       }`}
                     >
                       <Youtube className="h-3.5 w-3.5" />
-                      {currentMainFile.youtubeVideoId ? "YouTube video linked" : "Link YouTube video"}
+                      {currentMainFile?.youtubeVideoId ? "YouTube video linked" : currentMainFile ? "Link YouTube video" : "Link YouTube video (upload a video first)"}
                     </button>
                   )}
 
-                  {!isHardPostTask && canUploadMain && task.requiresClientReview && currentMainFile && (
+                  {!isHardPostTask && canUploadMain && currentMainFile && (
                     <Dialog open={showYoutubeLinkDialog} onOpenChange={setShowYoutubeLinkDialog}>
                       <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
                         <DialogHeader>

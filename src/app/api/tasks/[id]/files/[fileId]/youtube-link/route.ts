@@ -14,39 +14,9 @@ import { extractYoutubeVideoId, assertYoutubeEmbeddable, YoutubeLinkInvalidError
 // automatic review-mirror upload (see review-mirror.ts / youtube-mirror.ts),
 // just skipping our own upload since the video already exists on YouTube.
 //
-// Gated the same way the editor-dashboard UI is: only the assigned editor,
-// and only on tasks actually headed to client review. requiresClientReview
-// is recomputed here rather than trusted off the Task row for the same
-// reason GET /api/tasks and /api/tasks/[id]/status do — see the comment
-// in app/api/tasks/route.ts ("Recompute requiresClientReview per-task").
-const DELIVERABLE_SHORT_CODES: Record<string, string> = {
-  "short form videos": "SF",
-  "long form videos": "LF",
-  "square form videos": "SQF",
-  "thumbnails": "THUMB",
-  "tiles": "T",
-  "hard posts / graphic images": "HP",
-  "snapchat episodes": "SEP",
-  "beta short form": "BSF",
-  "stories": "ST",
-  "text post": "TP",
-};
-
-function computeRequiresClientReview(task: {
-  deliverableType?: string | null;
-  monthlyDeliverable?: { type?: string | null } | null;
-  oneOffDeliverable?: { type?: string | null } | null;
-  client?: { requiresClientReview?: boolean | null; clientReviewDeliverableTypes?: string[] | null } | null;
-}): boolean {
-  if (!task.client?.requiresClientReview) return false;
-  const allowedTypes = task.client.clientReviewDeliverableTypes ?? [];
-  if (allowedTypes.length === 0) return true;
-  const rawDeliverableType = task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "";
-  const fallbackShortCode = DELIVERABLE_SHORT_CODES[rawDeliverableType.toLowerCase().trim()] || rawDeliverableType;
-  const taskType = task.deliverableType || fallbackShortCode || "";
-  return allowedTypes.includes(taskType);
-}
-
+// Gated the same way the editor-dashboard UI is: only the assigned editor
+// (or an admin/manager). Available on every task with a video file — it is
+// no longer limited to tasks headed to client review.
 async function loadAndAuthorize(req: NextRequest, taskId: string, fileId: string) {
   const db = getDbHttp();
   const user = await getCurrentUser2(req);
@@ -56,12 +26,7 @@ async function loadAndAuthorize(req: NextRequest, taskId: string, fileId: string
 
   const task = await db.query.task.findFirst({
     where: eq(taskTable.id, taskId),
-    columns: { id: true, assignedTo: true, deliverableType: true },
-    with: {
-      client: { columns: { requiresClientReview: true, clientReviewDeliverableTypes: true } },
-      monthlyDeliverable: { columns: { type: true } },
-      oneOffDeliverable: { columns: { type: true } },
-    },
+    columns: { id: true, assignedTo: true },
   });
   if (!task) {
     return { error: NextResponse.json({ error: "Task not found" }, { status: 404 }) };
@@ -71,10 +36,6 @@ async function loadAndAuthorize(req: NextRequest, taskId: string, fileId: string
   const isAdmin = ["admin", "manager"].includes((user.role || "").toLowerCase());
   if (!isAssignedEditor && !isAdmin) {
     return { error: NextResponse.json({ error: "Only the assigned editor can link a YouTube video for this task" }, { status: 403 }) };
-  }
-
-  if (!computeRequiresClientReview(task)) {
-    return { error: NextResponse.json({ error: "This task isn't going to client review — YouTube linking isn't available" }, { status: 403 }) };
   }
 
   const file = await db.query.file.findFirst({
