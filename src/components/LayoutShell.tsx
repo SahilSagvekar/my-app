@@ -41,6 +41,7 @@ import Image from 'next/image';
 import { useAuth } from './auth/AuthContext';
 import { useViewAsRole } from './auth/ViewAsRoleContext';
 import { TimeClockButton } from './TimeClockButton';
+import { SCAnalogClock } from './SCAnalogClock';
 
 function MenuToggleIcon({ isCollapsed, className }: { isCollapsed?: boolean; className?: string }) {
   return (
@@ -337,6 +338,7 @@ export function LayoutShell({
             )}
 
             <TimeClockButton />
+            <SCAnalogClock />
             {/* User Menu */}
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
