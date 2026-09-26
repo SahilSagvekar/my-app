@@ -20,6 +20,7 @@ import { TaskUploadSections, classifyDeliverableType } from "../workflow/TaskUpl
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
 import { uploadService } from "@/lib/upload-service";
 import { sortTaskImages } from "@/lib/task-image-order";
+import { ImageOrderPopover } from "../client/ImageOrderPopover";
 import { TaskActionsMenu, computeTaskActionCount } from "../workflow/TaskActionsMenu";
 import {
   Calendar,
@@ -1010,10 +1011,35 @@ function TaskCard({
   // must replace exactly that image, not pile on a 6th one. isActive filters
   // out whatever a prior replace already deactivated.
   const isHardPostTask = category === 'HARD_POST';
+  // Overrides task.attachments.imageOrder as soon as the editor drags a
+  // reorder, so the grid updates immediately instead of waiting on a
+  // parent refetch to pass the new `task` prop back down.
+  const [localImageOrder, setLocalImageOrder] = useState<string[] | null>(null);
+  const [savingImageOrder, setSavingImageOrder] = useState(false);
   const hardPostImages = useMemo(
-    () => (isHardPostTask ? sortTaskImages(mainFiles.filter(f => f.isActive !== false)) : []),
-    [isHardPostTask, mainFiles]
+    () => (isHardPostTask
+      ? sortTaskImages(mainFiles.filter(f => f.isActive !== false), localImageOrder ?? (task as any).attachments?.imageOrder)
+      : []),
+    [isHardPostTask, mainFiles, localImageOrder, task]
   );
+  const handleReorderImages = async (reordered: { id: string }[]) => {
+    const newOrder = reordered.map((f) => f.id);
+    setLocalImageOrder(newOrder);
+    try {
+      setSavingImageOrder(true);
+      const res = await fetch(`/api/tasks/${task.id}/image-order`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageOrder: newOrder }),
+      });
+      if (!res.ok) throw new Error("Failed to save image order");
+      toast.success("Image order saved");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save image order");
+    } finally {
+      setSavingImageOrder(false);
+    }
+  };
   const imageFeedbackCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     (task.taskFeedback || []).forEach((fb) => {
@@ -1396,15 +1422,15 @@ function TaskCard({
               ) : (
                 <div className="rounded-2xl border border-gray-900 bg-white p-3.5 space-y-3 shadow-2xs transition-all">
                   {/* Container Header Toggle */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setTaskFilesExpanded(false);
-                    }}
-                    className="w-full flex items-center justify-between text-[14px] font-bold text-gray-900 hover:opacity-80 transition-opacity"
-                  >
-                    <div className="flex items-center gap-1.5">
+                  <div className="w-full flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTaskFilesExpanded(false);
+                      }}
+                      className="flex-1 min-w-0 flex items-center gap-1.5 text-[14px] font-bold text-gray-900 hover:opacity-80 transition-opacity"
+                    >
                       <Video className="h-4 w-4 text-gray-800 shrink-0" />
                       <span>
                         Task Files<span className="text-red-500">*</span>
@@ -1412,9 +1438,20 @@ function TaskCard({
                       <span className="text-gray-500 font-normal text-xs">
                         ({mainFiles.length} file{mainFiles.length !== 1 ? "s" : ""})
                       </span>
-                    </div>
-                    <ChevronUp className="h-4 w-4 text-gray-400 ml-0.5" />
-                  </button>
+                      <ChevronUp className="h-4 w-4 text-gray-400 ml-0.5" />
+                    </button>
+                    {isHardPostTask && hardPostImages.length > 1 && (
+                      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <ImageOrderPopover
+                          files={hardPostImages as any}
+                          onSelectFile={() => {}}
+                          onReorder={handleReorderImages}
+                          isSaving={savingImageOrder}
+                          buttonLabel="Reorder"
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   {/* Hard-post images — one tile per active image, each with
                       its own Replace control + unresolved-comment badge, so

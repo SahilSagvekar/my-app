@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { toast } from "sonner";
 import { uploadService } from "@/lib/upload-service";
 import { sortTaskImages } from "@/lib/task-image-order";
+import { ImageOrderPopover } from "../client/ImageOrderPopover";
 import {
   CheckCircle,
   AlertCircle,
@@ -139,6 +140,31 @@ export function TaskUploadSections({
   // so the editor can see which image among the set needs a replacement.
   const [imageFeedbackCounts, setImageFeedbackCounts] = useState<Record<string, number>>({});
   const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
+
+  // 🔀 Hard-post image order — overrides task.attachments.imageOrder as soon
+  // as the editor drags a reorder, so the grid updates immediately instead
+  // of waiting on a parent refetch to pass the new `task` prop back down.
+  const [localImageOrder, setLocalImageOrder] = useState<string[] | null>(null);
+  const [savingImageOrder, setSavingImageOrder] = useState(false);
+
+  const handleReorderImages = async (reordered: { id: string }[]) => {
+    const newOrder = reordered.map((f) => f.id);
+    setLocalImageOrder(newOrder);
+    try {
+      setSavingImageOrder(true);
+      const res = await fetch(`/api/tasks/${task.id}/image-order`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageOrder: newOrder }),
+      });
+      if (!res.ok) throw new Error("Failed to save image order");
+      toast.success("Image order saved");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save image order");
+    } finally {
+      setSavingImageOrder(false);
+    }
+  };
 
   useEffect(() => {
     if (classifyDeliverableType(task.deliverableType, task.title) !== 'HARD_POST') return;
@@ -555,6 +581,13 @@ export function TaskUploadSections({
         const isOpen = openSections[section.folderType] || false;
         const fileCount = getSectionFileCount(section.folderType);
         const sectionFiles = uploadedFiles[section.folderType] || [];
+        const isHardPostSection = section.folderType === "main" && isHardPostDeliverable(task.deliverableType);
+        const orderedHardPostImages = isHardPostSection
+          ? sortTaskImages(
+              sectionFiles.filter((f: any) => f.isActive !== false),
+              localImageOrder ?? (task as any).attachments?.imageOrder
+            )
+          : [];
 
         return (
           <div
@@ -563,33 +596,46 @@ export function TaskUploadSections({
           >
             <div className="p-0">
               {/* Header formatted like Task Files* in mockup */}
-              <button 
-                type="button"
-                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 hover:bg-gray-50/80 transition-colors"
-                onClick={() => toggleSection(section.folderType)}
-              >
-                {section.folderType === "music-license" ? (
-                  <Music className="h-3.5 w-3.5 text-orange-600 shrink-0 mr-0.5" />
-                ) : section.folderType === "thumbnails" ? (
-                  <ImageIcon className="h-3.5 w-3.5 text-purple-600 shrink-0 mr-0.5" />
-                ) : section.folderType === "tiles" ? (
-                  <LayoutGrid className="h-3.5 w-3.5 text-blue-600 shrink-0 mr-0.5" />
-                ) : section.folderType === "covers" ? (
-                  <BookOpen className="h-3.5 w-3.5 text-emerald-600 shrink-0 mr-0.5" />
-                ) : (
-                  <Video className="h-3.5 w-3.5 text-gray-700 shrink-0 mr-0.5" />
+              <div className="w-full flex items-center">
+                <button
+                  type="button"
+                  className={`flex items-center justify-center gap-1.5 px-3 py-2 text-[13px] font-semibold text-gray-900 hover:bg-gray-50/80 transition-colors ${isHardPostSection ? "flex-1 min-w-0" : "w-full"}`}
+                  onClick={() => toggleSection(section.folderType)}
+                >
+                  {section.folderType === "music-license" ? (
+                    <Music className="h-3.5 w-3.5 text-orange-600 shrink-0 mr-0.5" />
+                  ) : section.folderType === "thumbnails" ? (
+                    <ImageIcon className="h-3.5 w-3.5 text-purple-600 shrink-0 mr-0.5" />
+                  ) : section.folderType === "tiles" ? (
+                    <LayoutGrid className="h-3.5 w-3.5 text-blue-600 shrink-0 mr-0.5" />
+                  ) : section.folderType === "covers" ? (
+                    <BookOpen className="h-3.5 w-3.5 text-emerald-600 shrink-0 mr-0.5" />
+                  ) : (
+                    <Video className="h-3.5 w-3.5 text-gray-700 shrink-0 mr-0.5" />
+                  )}
+                  <span>
+                    {section.folderType === "main" ? "Task Files" : section.label}
+                    {section.required && <span className="text-red-500">*</span>}
+                  </span>
+                  <span className="text-gray-500 font-normal text-xs">
+                    ({fileCount} file{fileCount !== 1 ? "s" : ""})
+                  </span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 text-gray-400 transition-transform ml-0.5 ${isOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {isHardPostSection && isOpen && orderedHardPostImages.length > 1 && (
+                  <div className="pr-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <ImageOrderPopover
+                      files={orderedHardPostImages as any}
+                      onSelectFile={() => {}}
+                      onReorder={handleReorderImages}
+                      isSaving={savingImageOrder}
+                      buttonLabel="Reorder"
+                    />
+                  </div>
                 )}
-                <span>
-                  {section.folderType === "main" ? "Task Files" : section.label}
-                  {section.required && <span className="text-red-500">*</span>}
-                </span>
-                <span className="text-gray-500 font-normal text-xs">
-                  ({fileCount} file{fileCount !== 1 ? "s" : ""})
-                </span>
-                <ChevronDown
-                  className={`h-3.5 w-3.5 text-gray-400 transition-transform ml-0.5 ${isOpen ? "rotate-180" : ""}`}
-                />
-              </button>
+              </div>
 
               {/* Expanded Content */}
               {isOpen && (
@@ -598,16 +644,10 @@ export function TaskUploadSections({
                       own Replace control + unresolved-comment badge, so a
                       revision on image 3 replaces just that image instead of
                       piling on a 6th one. */}
-                  {section.folderType === "main" && isHardPostDeliverable(task.deliverableType) ? (
-                    sortTaskImages(
-                      sectionFiles.filter((f: any) => f.isActive !== false),
-                      (task as any).attachments?.imageOrder
-                    ).length > 0 && (
+                  {isHardPostSection ? (
+                    orderedHardPostImages.length > 0 && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1.5">
-                        {sortTaskImages(
-                          sectionFiles.filter((f: any) => f.isActive !== false),
-                          (task as any).attachments?.imageOrder
-                        ).map((img: any, idx: number) => {
+                        {orderedHardPostImages.map((img: any, idx: number) => {
                           const commentCount = imageFeedbackCounts[img.id] || 0;
                           const isReplacing = replacingImageId === img.id;
                           return (
