@@ -1,76 +1,116 @@
 "use client";
 
-import { useState } from 'react';
-import { Target, Calendar, ChevronLeft, ChevronRight, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  Calendar,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  RefreshCw,
+  Send,
+  Target,
+  TrendingDown,
+} from 'lucide-react';
 import { Button } from '../../ui/button';
+import { Card, CardContent } from '../../ui/card';
 import { PageHeader } from '../../ui/page-header';
 import { cn } from '@/lib/utils';
 import { useDailyTargetsProgress } from './useDailyTargetsProgress';
 import { ClientProgressDrawer } from './ClientProgressDrawer';
-import { formatDateEST, getProgressColor, getProgressHexColor, getProgressIcon } from './constants';
 import { DeliverableSummaryLine } from './DeliverableRow';
-import type { DailyTargetsRole } from './types';
+import { STATUS_STYLE, formatDateEST } from './constants';
+import type { ClientProgress, DailyTargetsRole } from './types';
 
 interface DailyTargetsBoardProps {
   role: DailyTargetsRole;
 }
 
-const RING_RADIUS = 20;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-function ProgressRing({ progress, color }: { progress: number; color: string }) {
-  const pct = Math.min(progress, 100);
-  const offset = RING_CIRCUMFERENCE - (pct / 100) * RING_CIRCUMFERENCE;
-
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  color,
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ReactNode;
+  color: string;
+}) {
   return (
-    <svg width="48" height="48" viewBox="0 0 48 48" className="shrink-0 -rotate-90">
-      <circle cx="24" cy="24" r={RING_RADIUS} fill="none" stroke="currentColor" strokeWidth="4" className="text-gray-100" />
-      <circle
-        cx="24" cy="24" r={RING_RADIUS} fill="none" stroke={color} strokeWidth="4" strokeLinecap="round"
-        strokeDasharray={RING_CIRCUMFERENCE} strokeDashoffset={offset}
-        style={{ transition: 'stroke-dashoffset 500ms ease' }}
-      />
-    </svg>
+    <Card className="border shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+            <p className="text-2xl font-bold tracking-tight">{value}</p>
+            {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
+          </div>
+          <div className={cn('p-2.5 rounded-xl', color)}>{icon}</div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
+/** Pulsing "Live" dot + "updated Ns ago". Turns amber if the last poll failed. */
+function LiveIndicator({ lastUpdated, error, fetching }: { lastUpdated: number | null; error: boolean; fetching: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const secs = lastUpdated ? Math.max(0, Math.round((now - lastUpdated) / 1000)) : null;
+  const label = error ? 'Reconnecting…' : secs === null ? 'Connecting…' : secs < 5 ? 'Live' : `Updated ${secs}s ago`;
+
+  return (
+    <div
+      className="flex items-center gap-2 text-xs text-muted-foreground"
+      title="Refreshes automatically every 15 seconds while this tab is open"
+    >
+      <span className="relative flex h-2 w-2">
+        {!error && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
+        <span className={cn('relative inline-flex h-2 w-2 rounded-full', error ? 'bg-amber-500' : 'bg-emerald-500')} />
+      </span>
+      <span className={cn(fetching && 'opacity-60')}>{label}</span>
+    </div>
+  );
+}
+
+function clientBorder(c: ClientProgress): string {
+  if (c.noInventoryCount > 0 || c.status === 'critical') return 'border-red-200 dark:border-red-500/30';
+  if (c.status === 'behind') return 'border-amber-200 dark:border-amber-500/30';
+  return '';
+}
+
 export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
-  const {
-    data,
-    loading,
-    isFetching,
-    selectedDate,
-    navigateDate,
-    goToToday,
-    refetch,
-  } = useDailyTargetsProgress();
+  const { data, loading, isFetching, lastUpdated, error, selectedDate, navigateDate, goToToday, refetch } =
+    useDailyTargetsProgress();
 
   const [drawerClientId, setDrawerClientId] = useState<string | null>(null);
+
+  const summary = useMemo(() => {
+    const clients = data?.clients ?? [];
+    return {
+      behind: clients.filter((c) => c.status === 'behind' || c.status === 'critical').length,
+      onPace: clients.filter((c) => c.status !== 'behind' && c.status !== 'critical').length,
+    };
+  }, [data]);
 
   return (
     <div className="flex flex-col h-full space-y-6" data-role={role}>
       <PageHeader
-        title={
-          <span className="flex items-center gap-3">
-            {/* <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg"> */}
-              {/* <Target className="h-6 w-6 text-white" /> */}
-            {/* </div> */}
-            Posting Tracker
-          </span>
-        }
+        title="Posting Tracker"
         description="What each client owes today and month-to-date, from their monthly deliverables (EST)"
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            {data && (
-              <div className={cn(
-                "px-4 py-2 rounded-xl text-white font-bold text-lg",
-                `bg-gradient-to-r ${getProgressColor(data.grandProgress)}`
-              )}>
-                {data.grandCompleted}/{data.grandTotal} today
-              </div>
-            )}
+            <LiveIndicator lastUpdated={lastUpdated} error={error} fetching={isFetching} />
 
-            <div className="flex items-center gap-1 border rounded-lg px-1 py-1">
+            <div className="flex items-center gap-1 border rounded-lg px-1 py-1 bg-card">
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateDate(-1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -84,7 +124,7 @@ export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
             </div>
 
             <Button variant="outline" size="sm" onClick={refetch} disabled={isFetching}>
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isFetching && "animate-spin")} />
+              <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', isFetching && 'animate-spin')} />
               Refresh
             </Button>
           </div>
@@ -98,54 +138,92 @@ export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
       )}
 
       {data && data.clients.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {data.clients.map((client) => {
-            const isDone = client.progress >= 100 && client.status !== 'behind' && client.status !== 'critical' && client.noInventoryCount === 0;
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              title="Posts Today"
+              value={`${data.grandCompleted}/${data.grandTotal}`}
+              subtitle={`${data.grandProgress}% of today's posts`}
+              icon={<Send className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />}
+              color="bg-indigo-50 dark:bg-indigo-500/15"
+            />
+            <StatCard
+              title="No Completed Task"
+              value={data.noInventoryCount}
+              subtitle="due today, nothing ready to post"
+              icon={<AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />}
+              color="bg-red-50 dark:bg-red-500/15"
+            />
+            <StatCard
+              title="Behind Pace"
+              value={summary.behind}
+              subtitle="clients behind this month"
+              icon={<TrendingDown className="h-5 w-5 text-amber-600 dark:text-amber-400" />}
+              color="bg-amber-50 dark:bg-amber-500/15"
+            />
+            <StatCard
+              title="On Pace"
+              value={summary.onPace}
+              subtitle={`of ${data.clients.length} clients`}
+              icon={<CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
+              color="bg-emerald-50 dark:bg-emerald-500/15"
+            />
+          </div>
 
-            // Ring shows today's posts; colour also reflects month pace and missing inventory.
-            const ringColor =
-              client.noInventoryCount > 0 || client.status === 'critical'
-                ? '#f43f5e'
-                : client.status === 'behind'
-                  ? '#f59e0b'
-                  : getProgressHexColor(client.progress);
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4">
+            {data.clients.map((client) => {
+              const style = STATUS_STYLE[client.status];
+              const health = client.noInventoryCount > 0 ? 'No task ready' : style.label;
+              const healthBadge = client.noInventoryCount > 0 ? STATUS_STYLE.critical.badge : style.badge;
 
-            return (
-              <button
-                key={client.clientId}
-                onClick={() => setDrawerClientId(client.clientId)}
-                className={cn(
-                  "text-left bg-white rounded-2xl border shadow-sm p-5 flex items-start gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200",
-                  isDone && "opacity-75"
-                )}
-              >
-                <div className="relative flex items-center justify-center">
-                  <ProgressRing progress={client.progress} color={ringColor} />
-                  <span className="absolute text-xs font-bold text-gray-700">{client.progress}%</span>
-                </div>
+              return (
+                <Card
+                  key={client.clientId}
+                  className={cn('transition-all hover:shadow-md cursor-pointer gap-0', clientBorder(client))}
+                >
+                  <button onClick={() => setDrawerClientId(client.clientId)} className="w-full text-left p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm truncate">{client.clientName}</h3>
+                        <p className="text-[11px] text-muted-foreground">
+                          {client.totalRequired > 0
+                            ? `${client.totalCompleted}/${client.totalRequired} posts today`
+                            : 'nothing due today'}
+                        </p>
+                      </div>
+                      <span className={cn('shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full', healthBadge)}>
+                        {health}
+                      </span>
+                    </div>
 
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-gray-900 text-base truncate">{client.clientName}</h3>
-                    {client.noInventoryCount > 0 && (
-                      <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0" />
-                    )}
-                  </div>
-                  {client.deliverables.map((d) => (
-                    <DeliverableSummaryLine key={d.deliverableId} d={d} />
-                  ))}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, client.progress)}%`,
+                          backgroundColor: client.noInventoryCount > 0 ? STATUS_STYLE.critical.bar : style.bar,
+                        }}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      {client.deliverables.map((d) => (
+                        <DeliverableSummaryLine key={d.deliverableId} d={d} />
+                      ))}
+                    </div>
+                  </button>
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {data && data.clients.length === 0 && !loading && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center p-8">
-            <Target className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Nothing to Track</h3>
+            <Target className="h-16 w-16 mx-auto mb-4 text-muted-foreground/40" />
+            <h3 className="text-lg font-semibold mb-2">Nothing to Track</h3>
             <p className="text-muted-foreground">
               No active clients have monthly deliverables with trackable platforms.
             </p>
@@ -157,7 +235,9 @@ export function DailyTargetsBoard({ role }: DailyTargetsBoardProps) {
         clientId={drawerClientId}
         initialDate={selectedDate}
         open={!!drawerClientId}
-        onOpenChange={(open) => { if (!open) setDrawerClientId(null); }}
+        onOpenChange={(open) => {
+          if (!open) setDrawerClientId(null);
+        }}
       />
     </div>
   );

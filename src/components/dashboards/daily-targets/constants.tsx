@@ -53,11 +53,11 @@ export const PLATFORM_CONFIG: Record<string, { icon: PlatformIcon | null; color:
 };
 
 export const DELIVERABLE_COLORS: Record<string, { bg: string; text: string }> = {
-  'SF': { bg: 'bg-violet-100', text: 'text-violet-700' },
-  'BSF': { bg: 'bg-slate-100', text: 'text-slate-700' },
-  'SQF': { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  'HP': { bg: 'bg-indigo-100', text: 'text-indigo-700' },
-  'LF': { bg: 'bg-blue-100', text: 'text-blue-700' },
+  'SF': { bg: 'bg-violet-100 dark:bg-violet-500/15', text: 'text-violet-700 dark:text-violet-300' },
+  'BSF': { bg: 'bg-slate-100 dark:bg-slate-500/15', text: 'text-slate-700 dark:text-slate-300' },
+  'SQF': { bg: 'bg-emerald-100 dark:bg-emerald-500/15', text: 'text-emerald-700 dark:text-emerald-300' },
+  'HP': { bg: 'bg-indigo-100 dark:bg-indigo-500/15', text: 'text-indigo-700 dark:text-indigo-300' },
+  'LF': { bg: 'bg-blue-100 dark:bg-blue-500/15', text: 'text-blue-700 dark:text-blue-300' },
 };
 
 export const getPlatformConfig = (platformName: string) => {
@@ -106,11 +106,11 @@ export function getProgressIcon(progress: number) {
 }
 
 export const STATUS_STYLE: Record<string, { label: string; badge: string; bar: string }> = {
-  done: { label: "Quota met", badge: "bg-emerald-100 text-emerald-700", bar: "#10b981" },
-  on_track: { label: "On pace", badge: "bg-emerald-100 text-emerald-700", bar: "#10b981" },
-  not_due: { label: "On pace", badge: "bg-emerald-100 text-emerald-700", bar: "#10b981" },
-  behind: { label: "Behind", badge: "bg-amber-100 text-amber-700", bar: "#f59e0b" },
-  critical: { label: "Critical", badge: "bg-rose-100 text-rose-700", bar: "#f43f5e" },
+  done: { label: "Quota met", badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", bar: "#10b981" },
+  on_track: { label: "On pace", badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", bar: "#10b981" },
+  not_due: { label: "On pace", badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", bar: "#10b981" },
+  behind: { label: "Behind", badge: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300", bar: "#f59e0b" },
+  critical: { label: "Critical", badge: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300", bar: "#f43f5e" },
 };
 
 export const PLATFORM_LABEL: Record<string, string> = {

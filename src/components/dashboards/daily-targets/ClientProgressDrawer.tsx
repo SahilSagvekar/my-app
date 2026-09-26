@@ -14,7 +14,6 @@ import {
   formatDateEST,
   formatShortDate,
   formatTimeEST,
-  getProgressColor,
   getProgressHexColor,
 } from './constants';
 
@@ -33,7 +32,7 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
     setSelectedDate,
     navigateDate,
     goToToday,
-  } = useDailyTargetsProgress({ clientId: clientId ?? undefined, initialDate });
+  } = useDailyTargetsProgress({ clientId: clientId ?? undefined, initialDate, enabled: open && !!clientId });
 
   // Reseed the drawer's date to match the board whenever it's opened for a (possibly new) client.
   useEffect(() => {
@@ -41,7 +40,9 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, clientId]);
 
-  const client = data?.clients?.[0] ?? null;
+  // Ignore leftover data from a previously opened client until this one loads.
+  const first = data?.clients?.[0] ?? null;
+  const client = first && first.clientId === clientId ? first : null;
   const borderColor = client
     ? client.noInventoryCount > 0 || client.status === 'critical'
       ? '#f43f5e'
@@ -59,17 +60,14 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
         className="w-full sm:w-[560px] sm:max-w-[560px] overflow-y-auto p-0 border-l-4"
         style={{ borderLeftColor: borderColor }}
       >
-        <SheetHeader className="sticky top-0 z-10 p-6 pb-4 border-b bg-gray-50/95 backdrop-blur">
+        <SheetHeader className="sticky top-0 z-10 p-6 pb-4 border-b bg-background/95 backdrop-blur">
           <div className="flex items-center justify-between pr-8">
-            <SheetTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <SheetTitle className="text-xl font-bold text-foreground flex items-center gap-2">
               <div className="w-2 h-8 rounded-full" style={{ backgroundColor: borderColor }} />
               {client?.clientName ?? 'Loading…'}
             </SheetTitle>
             {client && (
-              <div className={cn(
-                "px-3 py-1 rounded-lg text-white font-bold text-sm",
-                `bg-gradient-to-r ${getProgressColor(client.progress)}`
-              )}>
+              <div className="px-3 py-1 rounded-lg text-xs font-semibold border bg-card">
                 {client.totalCompleted}/{client.totalRequired} today
               </div>
             )}
@@ -96,7 +94,7 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
             </div>
           )}
 
-          {data && !client && (
+          {data && data.clients.length === 0 && (
             <p className="text-sm text-muted-foreground italic">No trackable deliverables for this client.</p>
           )}
 
@@ -113,10 +111,10 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
                 <p className="text-sm text-muted-foreground italic">No links posted</p>
               )}
               {todayLinks.map((link) => (
-                <div key={link.id} className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-gray-50 text-sm">
+                <div key={link.id} className="flex items-center gap-3 py-1.5 px-2 rounded-md hover:bg-muted/50 text-sm">
                   <Badge className={cn(
-                    DELIVERABLE_COLORS[link.type]?.bg || 'bg-gray-100',
-                    DELIVERABLE_COLORS[link.type]?.text || 'text-gray-700',
+                    DELIVERABLE_COLORS[link.type]?.bg || 'bg-muted',
+                    DELIVERABLE_COLORS[link.type]?.text || 'text-muted-foreground',
                     'text-[10px]'
                   )}>
                     {link.type}
@@ -124,7 +122,7 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
                   <span className="text-[11px] font-semibold text-muted-foreground w-6">
                     {PLATFORM_LABEL[link.platform] ?? link.platform}
                   </span>
-                  <span className="text-gray-600 truncate flex-1">{link.title || link.url}</span>
+                  <span className="text-muted-foreground truncate flex-1">{link.title || link.url}</span>
                   <span className="text-xs text-muted-foreground whitespace-nowrap">
                     {formatTimeEST(link.postedAt)} EST
                   </span>
@@ -149,7 +147,7 @@ export function ClientProgressDrawer({ clientId, initialDate, open, onOpenChange
               <div className="rounded-lg border divide-y text-sm">
                 {[...client.log].reverse().map((day) => (
                   <div key={day.date} className="flex items-center justify-between px-3 py-1.5">
-                    <span className="text-gray-700">{formatShortDate(day.date)}</span>
+                    <span className="text-foreground">{formatShortDate(day.date)}</span>
                     <span className="text-xs text-muted-foreground">
                       {day.types.join(', ')} · {day.pieces} piece{day.pieces === 1 ? '' : 's'} · {day.posts} post
                       {day.posts === 1 ? '' : 's'}
