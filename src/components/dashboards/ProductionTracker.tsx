@@ -37,12 +37,11 @@ import {
   Minus,
   Shield,
   Calendar,
-  CalendarDays,
   Eye,
   UserCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { UploadsAndPeopleTab } from './UploadsAndPeopleTab';
+import { TimeClockTab } from './TimeClockTab';
 import { PersonOverviewSection } from './PersonOverviewSection';
 import { UploadHistoryView } from './UploadHistoryView';
 import { ProductionTrackerNumbers } from './ProductionTrackerNumbers';
@@ -437,7 +436,7 @@ export function ProductionTracker() {
     () => new Set()
   );
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'clients' | 'editors' | 'qc' | 'schedulers' | 'editor-breakdown' | 'uploads-people' | 'numbers'
+    'overview' | 'clients' | 'editors' | 'qc' | 'schedulers' | 'editor-breakdown' | 'time' | 'numbers'
   >('overview');
   const [healthFilter, setHealthFilter] = useState<
     'all' | 'critical' | 'warning' | 'healthy'
@@ -598,7 +597,7 @@ export function ProductionTracker() {
               { id: 'overview', label: 'Overview', icon: Eye },
               { id: 'numbers', label: 'Numbers', icon: BarChart3 },
               { id: 'editor-breakdown', label: 'Editor Tracker', icon: UserCheck },
-              { id: 'uploads-people', label: 'Uploads & People', icon: CalendarDays },
+              { id: 'time', label: 'Time', icon: Clock },
             ] as const
           ).map((tab) => (
             <button
@@ -1080,17 +1079,8 @@ export function ProductionTracker() {
           </div>
         )}
 
-        {/* ─── Uploads & People Tab ─── */}
-        {activeTab === 'uploads-people' && (
-          <UploadsAndPeopleTab
-            employees={[
-              ...data.editorPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
-              ...data.qcPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
-              ...data.schedulerPerformance.map((e) => ({ id: e.id, name: e.name, role: e.role })),
-            ]}
-            currentMonth={selectedMonth || data.month}
-          />
-        )}
+        {/* ─── Time Tab ─── */}
+        {activeTab === 'time' && <TimeClockTab />}
       </div>
     </TooltipProvider>
   );
