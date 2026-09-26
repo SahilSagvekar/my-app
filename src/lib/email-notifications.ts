@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 // Routes through the notifications queue — see src/lib/mail-transport.ts
 // and src/lib/email.ts for the full explanation.
 import { createTransporter } from '@/lib/mail-transport';
+import { getOrCreateReviewShareUrl } from '@/lib/share-review-link';
 
 // 🔥 Global BCC - All emails will be copied to these addresses for monitoring
 const GLOBAL_BCC_EMAILS = ['sahilsagvekar230@gmail.com', 'eric@e8productions.com'];
@@ -108,8 +109,11 @@ export async function getAllClientEmails(clientId: string): Promise<string[]> {
 
 /**
  * Send email when a task is ready for client review
+ * @param triggeredByUserId the staff member whose action put it in review
+ *   (QC/admin/scheduler) — purely an attribution field on the generated
+ *   share link, no functional effect if omitted.
  */
-export async function sendTaskReadyForReviewEmail(taskId: string) {
+export async function sendTaskReadyForReviewEmail(taskId: string, triggeredByUserId?: number) {
   const db = getDbHttp();
     try {
         const task = await db.query.task.findFirst({
@@ -142,7 +146,11 @@ export async function sendTaskReadyForReviewEmail(taskId: string) {
         // site's domain (e8productions.com) instead of the app's
         // (app.e8productions.com), which is why the logo 404'd in this email.
         const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://app.e8productions.com';
-        const dashboardUrl = BASE_URL;
+
+        // A direct, no-login review link — clicking it in the email lands
+        // the client straight on the review screen (just typing their name)
+        // instead of forcing a sign-in first. See /shared/review/[shareToken].
+        const dashboardUrl = await getOrCreateReviewShareUrl(taskId, triggeredByUserId);
 
         const LOGO_URL = `${BASE_URL}/assets/e8-logo-black.png`;
 

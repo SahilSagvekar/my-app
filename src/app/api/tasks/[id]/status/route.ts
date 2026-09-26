@@ -12,6 +12,7 @@ import {
   taskFeedback,
   user as userTable,
   shootDetail as shootDetailTable,
+  shareableReview as shareableReviewTable,
 } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, ne, isNotNull, sql as drizzleSql } from "drizzle-orm";
@@ -51,23 +52,86 @@ export async function PATCH(
   try {
     const { id } = await params;
 
+    // Body is parsed up front (rather than after auth, as before) because
+    // the share-link fallback below needs `shareToken`/`reviewerName` out
+    // of it before it can decide whether this request is authenticated.
+    const body = await req.json();
+    const {
+      status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle,
+      postingTitle, titleSetByQC, titleSetByClient, postingTitles,
+      postingDescriptions, postingTags, forceClientReview, imageOrder,
+      folderType, shareToken, reviewerName,
+    } = body;
+
     // Resolve the user from DB (authToken JWT *or* NextAuth session).
     // Previously this route only trusted JWT payload.role — new editors who
     // signed in via Google/Slack (NextAuth only) or who got their role
     // assigned after login (stale JWT with role:null) could list tasks but
     // got 401 on every status change.
-    const currentUser = await getCurrentUser2(req);
+    let currentUser: any = await getCurrentUser2(req);
+    let viaShareLink = false;
+    const reviewerNameTrimmed =
+      typeof reviewerName === "string" && reviewerName.trim() ? reviewerName.trim().slice(0, 80) : null;
+
+    // No logged-in session, but a valid, still-active ShareableReview token
+    // for THIS task — the passwordless "click the email link, review it"
+    // flow for clients (see /shared/review/[shareToken]). Everything below
+    // this point (audit log, notifications, client-only status branches)
+    // already expects a "client" actor, so we hand it a synthetic one
+    // rather than special-casing every call site.
+    if (!currentUser && typeof shareToken === "string" && shareToken) {
+      const [shareRow] = await db
+        .select({
+          id: shareableReviewTable.id,
+          expiresAt: shareableReviewTable.expiresAt,
+        })
+        .from(shareableReviewTable)
+        .where(
+          and(
+            eq(shareableReviewTable.shareToken, shareToken),
+            eq(shareableReviewTable.taskId, id),
+            eq(shareableReviewTable.isActive, true),
+          )
+        )
+        .limit(1);
+
+      const notExpired = shareRow && (!shareRow.expiresAt || new Date(shareRow.expiresAt) > new Date());
+      if (notExpired) {
+        viaShareLink = true;
+        // The task's linked client-portal user, if one exists, purely so
+        // the notification/audit plumbing further down (which expects a
+        // numeric userId) has something to point at — many clients using
+        // this link have no portal login at all, so this is commonly null,
+        // which notifyUser/createAuditLog already treat as "no user".
+        const [linkedClient] = await db
+          .select({ clientUserId: taskTable.clientUserId })
+          .from(taskTable)
+          .where(eq(taskTable.id, id))
+          .limit(1);
+
+        currentUser = {
+          id: linkedClient?.clientUserId ?? null,
+          role: "client",
+          roles: ["client"],
+          employeeStatus: "ACTIVE",
+          email: null,
+          name: reviewerNameTrimmed || "Client (share link)",
+        };
+      }
+    }
+
     if (!currentUser) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
     if (
+      !viaShareLink &&
       currentUser.employeeStatus !== 'ACTIVE' &&
       currentUser.email !== 'sahilsagvekar230@gmail.com'
     ) {
       return NextResponse.json({ message: "Account deactivated" }, { status: 403 });
     }
 
-    const userId = Number(currentUser.id);
+    const userId: number | null = currentUser.id == null ? null : Number(currentUser.id);
     const role: string = (
       currentUser.role ||
       (Array.isArray(currentUser.roles) && currentUser.roles[0]) ||
@@ -109,9 +173,6 @@ export async function PATCH(
       viewingAs && viewingAs !== role && authorizedSwitchRoles.has(viewingAs)
         ? (viewingAs === 'qc' ? 'admin' : viewingAs)
         : role;
-
-    const body = await req.json();
-    const { status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle, postingTitle, titleSetByQC, titleSetByClient, postingTitles, postingDescriptions, postingTags, forceClientReview, imageOrder, folderType } = body;
 
     if (!status)
       return NextResponse.json({ message: "Status is required" }, { status: 400 });
@@ -450,7 +511,9 @@ export async function PATCH(
     // ============================================
 
     // Audit log
-    const [user] = await db.select().from(userTable).where(eq(userTable.id, userId)).limit(1);
+    const [user] = userId != null
+      ? await db.select().from(userTable).where(eq(userTable.id, userId)).limit(1)
+      : [];
 
     // ============================================
     // NEW: In-app & Email Notifications
@@ -516,6 +579,8 @@ export async function PATCH(
             // Only carry the comment text through for client rejections —
             // QC-rejection Slack messages stay exactly as they are today.
             revisionComment: role === "client" ? (feedback || null) : null,
+            // The typed name from a passwordless share-link review, if any.
+            reviewerName: viaShareLink ? reviewerNameTrimmed : null,
             // Lets slack.ts label the message "Video" vs "Thumbnail".
             folderType: isThumbnailRejection ? "thumbnails" : "main",
           },
@@ -529,7 +594,7 @@ export async function PATCH(
         const { sendTaskReadyForReviewEmail } =
           await import("@/lib/email-notifications");
         keepAlive(
-          sendTaskReadyForReviewEmail(id).catch((err) =>
+          sendTaskReadyForReviewEmail(id, userId ?? undefined).catch((err) =>
             console.error("[TaskReadyForReview] email send failed:", err)
           )
         );
@@ -707,13 +772,16 @@ export async function PATCH(
       action: AuditAction.TASK_UPDATED,
       entity: "Task",
       entityId: id,
-      details: `Task status updated to: ${finalStatus}`,
+      details: viaShareLink
+        ? `Task status updated to: ${finalStatus} by ${reviewerNameTrimmed || 'client'} (via email review link)`
+        : `Task status updated to: ${finalStatus}`,
       metadata: {
         taskId: id,
         previousStatus: task.status,
         newStatus: finalStatus,
-        updatedBy: user?.name,
+        updatedBy: viaShareLink ? (reviewerNameTrimmed || 'Client (share link)') : user?.name,
         role: role,
+        viaShareLink: viaShareLink || undefined,
       },
     });
 

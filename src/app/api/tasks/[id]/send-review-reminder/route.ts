@@ -5,6 +5,7 @@ import { getDbHttp } from '@/lib/db';
 import { task as taskTable, client as clientTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { sendReviewReminder, TaskInReview } from '@/lib/client-review-reminders';
+import { getOrCreateReviewShareUrl } from '@/lib/share-review-link';
 
 function getTokenFromCookies(req: Request) {
     const cookieHeader = req.headers.get('cookie');
@@ -31,8 +32,9 @@ export async function POST(
         const token = getTokenFromCookies(req);
         if (!token) return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
 
+        let decodedToken: any;
         try {
-            jwt.verify(token, process.env.JWT_SECRET!);
+            decodedToken = jwt.verify(token, process.env.JWT_SECRET!);
         } catch {
             return NextResponse.json({ ok: false, message: 'Unauthorized' }, { status: 401 });
         }
@@ -60,7 +62,9 @@ export async function POST(
             return NextResponse.json({ ok: false, message: 'Task is not currently in client review' }, { status: 400 });
         }
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.BASE_URL || 'https://e8productions.com';
+        // A direct, no-login review link — clicking it lands the client
+        // straight on the review screen (just typing their name) instead
+        // of forcing a sign-in. See /shared/review/[shareToken].
         const taskForEmail: TaskInReview = {
             id: row.id,
             title: row.title,
@@ -69,7 +73,7 @@ export async function POST(
             daysInReview: daysSince(row.clientReviewStartedAt),
             clientReviewStartedAt: row.clientReviewStartedAt,
             lastReminderSentAt: row.lastReminderSentAt,
-            reviewUrl: `${baseUrl}/dashboard`,
+            reviewUrl: await getOrCreateReviewShareUrl(row.id, Number(decodedToken?.userId) || 0),
             dueDate: row.dueDate,
         };
 

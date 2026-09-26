@@ -14,6 +14,7 @@ import { task as taskTable, client as clientTable } from '@/lib/db/schema';
 import { and, eq, isNull, lte, or, asc } from 'drizzle-orm';
 import { createTransporter } from '@/lib/mail-transport';
 import { getAllClientEmails } from '@/lib/email-notifications';
+import { getOrCreateReviewShareUrl } from '@/lib/share-review-link';
 
 const GLOBAL_BCC_EMAILS = ['sahilsagvekar230@gmail.com', 'eric@e8productions.com'];
 const AUTO_REMINDER_THRESHOLD_DAYS = 5;
@@ -83,18 +84,22 @@ export async function getTasksInReview(): Promise<TaskInReview[]> {
     .where(eq(taskTable.status, 'CLIENT_REVIEW'))
     .orderBy(asc(taskTable.clientReviewStartedAt));
 
-  const url = baseUrl();
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    clientId: r.clientId,
-    clientName: r.clientName || 'Unknown Client',
-    daysInReview: daysSince(r.clientReviewStartedAt),
-    clientReviewStartedAt: r.clientReviewStartedAt,
-    lastReminderSentAt: r.lastReminderSentAt,
-    reviewUrl: `${url}/dashboard`,
-    dueDate: r.dueDate,
-  }));
+  // A direct, no-login review link per task — clicking it lands the client
+  // straight on the review screen (just typing their name) instead of
+  // forcing a sign-in. See /shared/review/[shareToken].
+  return Promise.all(
+    rows.map(async (r) => ({
+      id: r.id,
+      title: r.title,
+      clientId: r.clientId,
+      clientName: r.clientName || 'Unknown Client',
+      daysInReview: daysSince(r.clientReviewStartedAt),
+      clientReviewStartedAt: r.clientReviewStartedAt,
+      lastReminderSentAt: r.lastReminderSentAt,
+      reviewUrl: await getOrCreateReviewShareUrl(r.id),
+      dueDate: r.dueDate,
+    }))
+  );
 }
 
 /**
@@ -129,7 +134,6 @@ export async function getTasksNeedingAutoReminder(): Promise<Map<string, TaskInR
       )
     );
 
-  const url = baseUrl();
   const byClient = new Map<string, TaskInReview[]>();
   for (const r of rows) {
     if (!r.clientId) continue; // can't email a reminder with no client to resolve emails from
@@ -141,7 +145,8 @@ export async function getTasksNeedingAutoReminder(): Promise<Map<string, TaskInR
       daysInReview: daysSince(r.clientReviewStartedAt),
       clientReviewStartedAt: r.clientReviewStartedAt,
       lastReminderSentAt: r.lastReminderSentAt,
-      reviewUrl: `${url}/dashboard`,
+      // A direct, no-login review link — see getTasksInReview() above.
+      reviewUrl: await getOrCreateReviewShareUrl(r.id),
       dueDate: r.dueDate,
     };
     const list = byClient.get(r.clientId) || [];
@@ -164,7 +169,9 @@ function buildReminderEmailHtml(clientName: string, tasks: TaskInReview[]): { su
         : '—';
       return `
           <tr>
-            <td style="padding:10px 14px;border-top:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;font-weight:bold;">${t.title || 'Untitled Task'}</td>
+            <td style="padding:10px 14px;border-top:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;font-weight:bold;">
+              <a href="${t.reviewUrl}" style="color:#0a0a0b;text-decoration:none;">${t.title || 'Untitled Task'} &rarr;</a>
+            </td>
             <td style="padding:10px 14px;border-top:1px solid #e7e7e9;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#222225;">${t.daysInReview} day${t.daysInReview === 1 ? '' : 's'}</td>
             <td style="padding:10px 14px;border-top:1px solid #e7e7e9;text-align:center;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#6b6b72;">${deadlineText}</td>
           </tr>`;
@@ -216,7 +223,7 @@ body { margin: 0; padding: 0; }
       </td></tr>` : ''}
       <tr><td class="px" style="padding:24px 40px 0 40px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
-          <a href="${tasks[0].reviewUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">${isSingle ? 'Review Now' : 'Go to Dashboard'}</a>
+          <a href="${tasks[0].reviewUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">${isSingle ? 'Review Now' : `Review "${tasks[0].title || 'Untitled Task'}"`}</a>
         </td></tr></table>
       </td></tr>
       <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#6b6b72;">If you've already submitted feedback, please disregard this message.</td></tr>

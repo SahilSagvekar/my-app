@@ -34,6 +34,30 @@ export default function SharedReviewPage() {
     const [reviewData, setReviewData] = useState<SharedReviewData | null>(null);
     const [showReview, setShowReview] = useState(false);
 
+    // No account, no password — just a name, so the activity log (and any
+    // team member reading the feedback) knows who actually reviewed it.
+    // Remembered across links/visits in this browser so returning clients
+    // aren't asked again.
+    const [reviewerName, setReviewerName] = useState('');
+    useEffect(() => {
+        try {
+            const saved = window.localStorage.getItem('e8_reviewer_name');
+            if (saved) setReviewerName(saved);
+        } catch {
+            // localStorage can throw in private/blocked-storage browsers — fine, just re-ask.
+        }
+    }, []);
+
+    const confirmReviewerName = (name: string) => {
+        const trimmed = name.trim();
+        setReviewerName(trimmed);
+        try {
+            window.localStorage.setItem('e8_reviewer_name', trimmed);
+        } catch {
+            // Best-effort only — not having it persist just means re-asking next visit.
+        }
+    };
+
     useEffect(() => {
         if (shareToken) {
             loadSharedReview();
@@ -248,7 +272,8 @@ export default function SharedReviewPage() {
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
                                     status: 'COMPLETED',
-                                    shareToken: shareToken
+                                    shareToken: shareToken,
+                                    reviewerName
                                 }),
                             });
                             if (res.ok) {
@@ -271,7 +296,8 @@ export default function SharedReviewPage() {
                                 body: JSON.stringify({
                                     status: 'REJECTED_BY_CLIENT',
                                     feedback: revisionData.notes,
-                                    shareToken: shareToken
+                                    shareToken: shareToken,
+                                    reviewerName
                                 }),
                             });
                             if (res.ok) {
@@ -311,13 +337,34 @@ export default function SharedReviewPage() {
                                 </p>
                             </div>
 
+                            <div className="mb-5 max-w-xs mx-auto text-left">
+                                <label htmlFor="reviewer-name" className="block text-xs font-medium text-gray-400 mb-1.5">
+                                    Your name
+                                </label>
+                                <input
+                                    id="reviewer-name"
+                                    type="text"
+                                    value={reviewerName}
+                                    onChange={(e) => setReviewerName(e.target.value)}
+                                    placeholder="e.g. Jane Smith"
+                                    className="w-full rounded-lg bg-gray-900/60 border border-gray-700 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                            </div>
+
                             <Button
                                 size="lg"
-                                onClick={() => setShowReview(true)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-8"
+                                disabled={!reviewerName.trim()}
+                                onClick={() => {
+                                    confirmReviewerName(reviewerName);
+                                    setShowReview(true);
+                                }}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-8 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 Open Visual Review
                             </Button>
+                            {!reviewerName.trim() && (
+                                <p className="text-xs text-gray-500 mt-2">Enter your name to continue</p>
+                            )}
 
                             {reviewData && reviewData.task.driveLinks && reviewData.task.driveLinks.length > 0 && (
                                 <div className="mt-12 text-left">
