@@ -23,7 +23,7 @@ export const portalAccessStatus = pgEnum("PortalAccessStatus", ['ONBOARDING', 'C
 export const preClientStatus = pgEnum("PreClientStatus", ['QUALIFIED', 'QUOTED', 'QUOTE_ACCEPTED', 'PROVISIONING', 'CONVERTED'])
 export const quoteStatus = pgEnum("QuoteStatus", ['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED'])
 export const rawFootageFolderCode = pgEnum("RawFootageFolderCode", ['SF', 'LF'])
-export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager'])
+export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager', 'host'])
 export const signerStatus = pgEnum("SignerStatus", ['PENDING', 'VIEWED', 'SIGNED', 'DECLINED'])
 export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'TRIALING', 'PAUSED'])
 export const syncStatus = pgEnum("SyncStatus", ['PENDING', 'SYNCING', 'COMPLETED', 'FAILED'])
@@ -920,6 +920,16 @@ export const shootDetail = pgTable("ShootDetail", {
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 	hostName: text(),
+	// Host Portal: the booked host/talent for this shoot. hostName stays as the
+	// free-text legacy field for shoots booked before hosts had accounts; hostId is
+	// the real link to a User with role `host`. One host per shoot.
+	hostId: integer(),
+	hostRole: text(),
+	hostWardrobe: text(),
+	hostRate: numeric({ precision: 10, scale: 2 }),
+	// Notes shown to the host in their portal. Separate from videographerNotes, which are
+	// internal production notes and must never be exposed to talent.
+	hostNotes: text(),
 	equipmentIds: text().array(),
 	equipmentReturnedAt: timestamp({ precision: 3, mode: 'string' }),
 	equipmentReturnedPhotoUrl: text(),
@@ -943,6 +953,7 @@ export const shootDetail = pgTable("ShootDetail", {
 	// Set on the replacement shoot itself, pointing back at the one it replaced.
 	replacesTaskId: text(),
 }, (table) => [
+	index("ShootDetail_hostId_idx").using("btree", table.hostId.asc().nullsLast().op("int4_ops")),
 	uniqueIndex("ShootDetail_taskId_key").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
 	foreignKey({
 			columns: [table.taskId],
@@ -953,6 +964,11 @@ export const shootDetail = pgTable("ShootDetail", {
 			columns: [table.videographerId],
 			foreignColumns: [user.id],
 			name: "ShootDetail_videographerId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.hostId],
+			foreignColumns: [user.id],
+			name: "ShootDetail_hostId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
 	foreignKey({
 			columns: [table.cancelledBy],

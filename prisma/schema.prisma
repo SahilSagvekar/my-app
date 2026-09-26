@@ -282,6 +282,11 @@ model ShootDetail {
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
   hostName                   String?
+  hostId                     Int?
+  hostRole                   String?
+  hostWardrobe               String?
+  hostRate                   Decimal?                @db.Decimal(10, 2)
+  hostNotes                  String?
   equipmentIds               String[]
   equipmentReturnedAt        DateTime?
   equipmentReturnedPhotoUrl  String?
@@ -2467,6 +2472,7 @@ enum Role {
   qc
   sales
   sales_manager
+  host
 }
 
 enum EmployeeStatus {

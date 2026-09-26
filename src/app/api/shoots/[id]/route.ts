@@ -8,7 +8,8 @@ import { shootDetail as shootDetailTable, task as taskTable } from '@/lib/db/sch
 import { createId } from '@/lib/db/id';
 import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
 import { resolveShootWindow } from '@/lib/calendar-invite';
-import { notifyClientShootScheduled, notifyClientShootCancelled } from '@/lib/shoot-notify';
+import { notifyClientShootScheduled, notifyClientShootCancelled, notifyHostShoot } from '@/lib/shoot-notify';
+import { canManageHostRate, getHostUser, parseHostRate } from '@/lib/host-portal';
 import { createAuditLog, AuditAction } from '@/lib/audit-logger';
 
 const CAN_EDIT = ['admin', 'manager', 'videographer'];
@@ -78,6 +79,11 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       taskId: replacementTaskId,
       location: existingShoot.location,
       hostName: existingShoot.hostName,
+      hostId: existingShoot.hostId,
+      hostRole: existingShoot.hostRole,
+      hostWardrobe: existingShoot.hostWardrobe,
+      hostRate: existingShoot.hostRate,
+      hostNotes: existingShoot.hostNotes,
       equipmentIds: existingShoot.equipmentIds || [],
       camera: existingShoot.camera,
       quality: existingShoot.quality,
@@ -126,10 +132,54 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       }
     }
 
+    if (existingShoot.hostId) {
+      const hostWindow = resolveShootWindow({
+        shootDate: existingShoot.shootDate,
+        plannedStartTime: existingShoot.plannedStartTime,
+        plannedEndTime: existingShoot.plannedEndTime,
+      });
+      if (hostWindow) {
+        await notifyHostShoot({
+          kind: 'cancelled',
+          hostId: existingShoot.hostId,
+          taskId: id,
+          clientId: existingTask.clientId,
+          taskTitle: existingTask.title || 'Shoot',
+          location: existingShoot.location,
+          start: hostWindow.start,
+          end: hostWindow.end,
+        });
+      }
+    }
+
     return NextResponse.json({ ok: true, cancelled: true, replacementTaskId });
   }
 
   // ── Normal edit path ──
+  // Host Portal: hostId undefined = leave unchanged; null/'' = remove the host; otherwise it
+  // must be a real host account. Validated before any write so a bad id changes nothing.
+  let nextHostId: number | null = existingShoot.hostId ?? null;
+  let nextHost: Awaited<ReturnType<typeof getHostUser>> = null;
+  if (body.hostId !== undefined) {
+    if (body.hostId === null || body.hostId === '') {
+      nextHostId = null;
+    } else {
+      nextHost = await getHostUser(Number(body.hostId));
+      if (!nextHost) {
+        return NextResponse.json({ error: 'Selected host was not found or is not a host account' }, { status: 400 });
+      }
+      nextHostId = nextHost.id;
+    }
+  }
+  // Only admin/manager may set the rate. For everyone else the field is ignored, and if they swap
+  // the host the old host's rate is cleared (it belonged to the previous person) for an admin to set.
+  const canSetRate = canManageHostRate(user);
+  const parsedHostRate = canSetRate ? parseHostRate(body.hostRate) : undefined;
+  if (canSetRate && body.hostRate !== undefined && parsedHostRate === undefined) {
+    return NextResponse.json({ error: 'Host rate must be a positive number' }, { status: 400 });
+  }
+  const hostRemoved = body.hostId !== undefined && nextHostId === null;
+
   const [updatedTask] = await db.update(taskTable).set({
     ...(body.title !== undefined ? { title: String(body.title).trim() || null } : {}),
     ...(body.status !== undefined ? { status: body.status } : {}),
@@ -143,7 +193,22 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   await db.update(shootDetailTable).set({
     ...(body.location !== undefined ? { location: body.location || null } : {}),
     ...(body.shootDate ? { shootDate: new Date(body.shootDate).toISOString() } : {}),
-    ...(body.hostName !== undefined ? { hostName: body.hostName || null } : {}),
+    ...(body.hostName !== undefined
+      ? { hostName: body.hostName || nextHost?.name || null }
+      : nextHost && nextHost.id !== existingShoot.hostId && !existingShoot.hostName
+        ? { hostName: nextHost.name } // first time a real host is linked: fill the display name
+        : {}),
+    ...(body.hostId !== undefined ? { hostId: nextHostId } : {}),
+    // Booking details belong to the host: clearing the host clears them too.
+    ...(hostRemoved
+      ? { hostRole: null, hostWardrobe: null, hostRate: null, hostNotes: null }
+      : {
+          ...(body.hostRole !== undefined ? { hostRole: body.hostRole || null } : {}),
+          ...(body.hostWardrobe !== undefined ? { hostWardrobe: body.hostWardrobe || null } : {}),
+          ...(canSetRate && body.hostRate !== undefined ? { hostRate: parsedHostRate ?? null } : {}),
+          ...(!canSetRate && nextHostId !== (existingShoot.hostId ?? null) ? { hostRate: null } : {}),
+          ...(body.hostNotes !== undefined ? { hostNotes: body.hostNotes || null } : {}),
+        }),
     ...(Array.isArray(body.equipmentIds) ? { equipmentIds: body.equipmentIds } : {}),
     ...(body.camera !== undefined ? { camera: body.camera || null } : {}),
     ...(body.quality !== undefined ? { quality: body.quality || null } : {}),
@@ -197,6 +262,39 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         end: window.end,
       });
     }
+  }
+
+  // Host notifications: a newly assigned host gets the booking, a host taken off the shoot
+  // gets a cancellation, and an unchanged host is told only if the date/time moved.
+  const hostWindow = resolveShootWindow({
+    shootDate: nextShootDate,
+    plannedStartTime: nextPlannedStart,
+    plannedEndTime: nextPlannedEnd,
+  });
+  const oldHostWindow = resolveShootWindow({
+    shootDate: existingShoot.shootDate,
+    plannedStartTime: existingShoot.plannedStartTime,
+    plannedEndTime: existingShoot.plannedEndTime,
+  });
+  const nextTitle = (body.title !== undefined ? String(body.title).trim() : existingTask.title) || 'Shoot';
+  const nextLocation = body.location !== undefined ? (body.location || null) : existingShoot.location;
+  const nextRole = hostRemoved ? null : (body.hostRole !== undefined ? (body.hostRole || null) : existingShoot.hostRole);
+  const nextWardrobe = hostRemoved ? null : (body.hostWardrobe !== undefined ? (body.hostWardrobe || null) : existingShoot.hostWardrobe);
+  const hostChanged = nextHostId !== (existingShoot.hostId ?? null);
+
+  if (hostChanged && existingShoot.hostId && oldHostWindow) {
+    await notifyHostShoot({
+      kind: 'cancelled', hostId: existingShoot.hostId, taskId: id, clientId: existingTask.clientId,
+      taskTitle: existingTask.title || 'Shoot', location: existingShoot.location,
+      start: oldHostWindow.start, end: oldHostWindow.end,
+    });
+  }
+  if (nextHostId && hostWindow && (hostChanged || dateTimeChanged)) {
+    await notifyHostShoot({
+      kind: hostChanged ? 'assigned' : 'updated', hostId: nextHostId, taskId: id, clientId: existingTask.clientId,
+      taskTitle: nextTitle, location: nextLocation, role: nextRole, wardrobe: nextWardrobe,
+      start: hostWindow.start, end: hostWindow.end,
+    });
   }
 
   return NextResponse.json({ ok: true });

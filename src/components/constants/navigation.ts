@@ -132,6 +132,10 @@ export const NAVIGATION_ITEMS = {
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     
   ],
+  // Host Portal (talent-facing). Payments and Employment Information join in later phases.
+  host: [
+    { id: 'host-shoots', label: 'My Shoots', icon: Calendar },
+  ],
   sales: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'affiliate', label: 'Affiliate Earnings', icon: DollarSign },
@@ -155,6 +159,7 @@ export const getDefaultPage = (role: string): string => {
     case 'manager': return 'dashboard';
     case 'client': return 'approvals';
     case 'videographer': return 'shoots';
+    case 'host': return 'host-shoots';
     case 'sales': return 'dashboard';
     case 'sales_manager': return 'dashboard';
     default: return 'dashboard';

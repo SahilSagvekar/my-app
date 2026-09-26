@@ -31,6 +31,7 @@ const roles = [
   { id: "videographer", name: "Videographer", color: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200" },
   { id: "sales", name: "Sales", color: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200" },
   { id: "sales_manager", name: "Sales Manager", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200" },
+  { id: "host", name: "Host", color: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200" },
 ];
 
 const statusOptions = [

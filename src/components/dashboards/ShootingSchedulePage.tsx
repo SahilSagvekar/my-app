@@ -17,6 +17,7 @@ import {
   Camera, Plus, Loader, PackageCheck, ChevronDown, X, ExternalLink, Ban, ArrowRightCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '../auth/AuthContext';
 import { ShootScriptsDialog } from './ShootScriptsDialog';
 
 interface EquipmentItem {
@@ -48,6 +49,11 @@ interface Shoot {
   location: string | null;
   shootDate: string | null;
   hostName: string | null;
+  hostId?: number | null;
+  hostRole?: string | null;
+  hostWardrobe?: string | null;
+  hostRate?: string | null;
+  hostNotes?: string | null;
   equipmentIds: string[];
   camera?: string | null;
   quality?: string | null;
@@ -101,6 +107,11 @@ const EMPTY_FORM = {
   location: '',
   shootDate: '',
   hostName: '',
+  hostId: '', // '' = no host account linked
+  hostRole: '',
+  hostWardrobe: '',
+  hostRate: '',
+  hostNotes: '',
   equipmentIds: [] as string[],
   camera: '',
   quality: '',
@@ -128,9 +139,13 @@ function toDatetimeLocal(iso: string | null): string {
 }
 
 export function ShootingSchedulePage() {
+  const { user: authUser } = useAuth();
+  // Only admin/manager may see or set what a host is paid (enforced on the server too).
+  const canSetHostRate = ['admin', 'manager'].includes((authUser?.role || '').toLowerCase());
   const [shoots, setShoots] = useState<Shoot[]>([]);
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [videographers, setVideographers] = useState<Person[]>([]);
+  const [hosts, setHosts] = useState<Person[]>([]);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -173,15 +188,18 @@ export function ShootingSchedulePage() {
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      const [shootsRes, equipmentRes, videographersRes, clientsRes] = await Promise.all([
+      const [shootsRes, equipmentRes, videographersRes, clientsRes, hostsRes] = await Promise.all([
         fetch('/api/shoots'),
         fetch('/api/equipment'),
         fetch('/api/users/videographers'),
         fetch('/api/clients'),
+        fetch('/api/users/hosts'),
       ]);
       if (shootsRes.ok) setShoots((await shootsRes.json()).shoots || []);
       if (equipmentRes.ok) setEquipment((await equipmentRes.json()).equipment || []);
       if (videographersRes.ok) setVideographers((await videographersRes.json()).videographers || []);
+      // Host accounts are optional — if this list fails to load the form still works with the free-text host name.
+      if (hostsRes.ok) setHosts((await hostsRes.json()).hosts || []);
       if (clientsRes.ok) {
         const data = await clientsRes.json();
         const raw = Array.isArray(data) ? data : (data.clients || []);
@@ -310,6 +328,11 @@ export function ShootingSchedulePage() {
       location: shoot.location || '',
       shootDate: toDatetimeLocal(shoot.shootDate),
       hostName: shoot.hostName || '',
+      hostId: shoot.hostId ? String(shoot.hostId) : '',
+      hostRole: shoot.hostRole || '',
+      hostWardrobe: shoot.hostWardrobe || '',
+      hostRate: shoot.hostRate ? String(Number(shoot.hostRate)) : '',
+      hostNotes: shoot.hostNotes || '',
       equipmentIds: shoot.equipmentIds || [],
       camera: shoot.camera || '',
       quality: shoot.quality || '',
@@ -427,6 +450,12 @@ export function ShootingSchedulePage() {
           location: form.location,
           shootDate: form.shootDate,
           hostName: form.hostName,
+          // '' -> null tells the API to remove the linked host (and clear the booking details).
+          hostId: form.hostId ? Number(form.hostId) : editingShootId ? null : undefined,
+          hostRole: form.hostId ? form.hostRole : undefined,
+          hostWardrobe: form.hostId ? form.hostWardrobe : undefined,
+          hostRate: form.hostId && canSetHostRate ? form.hostRate : undefined,
+          hostNotes: form.hostId ? form.hostNotes : undefined,
           equipmentIds: form.equipmentIds,
           camera: form.camera,
           quality: form.quality,
@@ -873,6 +902,74 @@ export function ShootingSchedulePage() {
                   placeholder="Who's on camera"
                 />
               </div>
+            </div>
+
+            {/* Host Portal: link a real host account so the shoot appears in their portal */}
+            <div className="space-y-3 rounded-lg border p-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Host account (Host Portal)</Label>
+                <Select
+                  value={form.hostId || 'none'}
+                  onValueChange={(v) => setForm(f => ({ ...f, hostId: v === 'none' ? '' : v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="No host account" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No host account</SelectItem>
+                    {hosts.map(h => (
+                      <SelectItem key={h.id} value={String(h.id)}>{h.name || h.email}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  {form.hostId
+                    ? 'The host is emailed a calendar invite and sees this shoot in their portal.'
+                    : hosts.length === 0
+                      ? 'No host accounts yet — create one in Employee Management with the Host role.'
+                      : 'Pick a host to add this shoot to their portal.'}
+                </p>
+              </div>
+              {form.hostId && (
+                <>
+                  <div className={`grid grid-cols-1 gap-3 ${canSetHostRate ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Host role</Label>
+                      <Input
+                        value={form.hostRole}
+                        onChange={(e) => setForm(f => ({ ...f, hostRole: e.target.value }))}
+                        placeholder="e.g. Lead host"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Wardrobe</Label>
+                      <Input
+                        value={form.hostWardrobe}
+                        onChange={(e) => setForm(f => ({ ...f, hostWardrobe: e.target.value }))}
+                        placeholder="e.g. Navy blazer"
+                      />
+                    </div>
+                    {canSetHostRate && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Host rate ($)</Label>
+                        <Input
+                          type="number" min="0" step="0.01"
+                          value={form.hostRate}
+                          onChange={(e) => setForm(f => ({ ...f, hostRate: e.target.value }))}
+                          placeholder="450"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Notes for the host</Label>
+                    <Textarea
+                      value={form.hostNotes}
+                      onChange={(e) => setForm(f => ({ ...f, hostNotes: e.target.value }))}
+                      placeholder="Shown to the host in their portal. Not the internal videographer notes."
+                      rows={2}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Equipment */}

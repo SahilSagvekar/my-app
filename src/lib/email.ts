@@ -2241,3 +2241,92 @@ export async function sendShootCancelledEmail(data: {
     return { success: false, error: (error as any).message };
   }
 }
+
+
+// ─── Host Portal: booking emails to the host/talent ────────────────────────
+// kind: assigned (new booking), updated (date/time changed) or cancelled
+// (shoot cancelled, or the host was taken off it). Deliberately omits the
+// host's rate.
+export async function sendHostShootEmail(data: {
+  kind: "assigned" | "updated" | "cancelled";
+  hostEmail: string;
+  hostName: string;
+  clientName: string;
+  start: Date;
+  end: Date;
+  location?: string | null;
+  role?: string | null;
+  wardrobe?: string | null;
+  portalUrl: string;
+  icsContent: string;
+}) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log(`📧 [DEV] Host shoot ${data.kind} for ${data.hostName}: ${data.clientName} @ ${data.start.toISOString()}`);
+    return { success: true, debug: true };
+  }
+
+  const dateLabel = data.start.toLocaleString("en-US", {
+    weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York",
+  });
+  const timeLabel = data.start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+
+  const headline =
+    data.kind === "cancelled" ? "Your booking was cancelled"
+    : data.kind === "updated" ? "Your booking was updated"
+    : "You're booked for a shoot";
+  const intro =
+    data.kind === "cancelled"
+      ? `Hi ${data.hostName}, your shoot for <strong>${data.clientName}</strong> on ${dateLabel} is no longer happening. The calendar invite attached will remove it from your calendar.`
+      : `Hi ${data.hostName}, you're booked for a shoot for <strong>${data.clientName}</strong>. The details are below and in your Host Portal.`;
+
+  const row = (label: string, value: string, last = false) =>
+    `<tr><td style="padding:12px 16px;${last ? "" : "border-bottom:1px solid #e7e7e9;"}font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">${label}</td><td style="padding:12px 16px;${last ? "" : "border-bottom:1px solid #e7e7e9;"}text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${value}</td></tr>`;
+  const rows: string[] = [];
+  if (data.kind !== "cancelled") {
+    const items: [string, string][] = [["Date", dateLabel], ["Call time (ET)", timeLabel]];
+    if (data.location) items.push(["Location", data.location]);
+    if (data.role) items.push(["Your role", data.role]);
+    if (data.wardrobe) items.push(["Wardrobe", data.wardrobe]);
+    items.forEach(([l, v], i) => rows.push(row(l, v, i === items.length - 1)));
+  }
+
+  const contentHtml = `
+      <tr><td class="px" style="padding:32px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-weight:bold;font-size:22px;line-height:1.35;color:#0a0a0b;">${headline}</td></tr>
+      <tr><td class="px" style="padding:20px 40px 0 40px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#222225;">${intro}</td></tr>
+      ${rows.length ? `<tr><td class="px" style="padding:20px 40px 0 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">${rows.join("")}</table></td></tr>` : ""}
+      <tr><td class="px" align="center" style="padding:28px 40px 0 40px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+          <td style="background-color:#0a0a0b;text-align:center;border-radius:8px;" bgcolor="#0a0a0b">
+            <a href="${data.portalUrl}" style="display:block;padding:12px 24px;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;letter-spacing:0.2px;border-radius:8px;">Open Host Portal</a>
+          </td>
+        </tr></table>
+      </td></tr>`;
+
+  const mailOptions = {
+    from: `"E8 Productions" <${process.env.SMTP_USER}>`,
+    to: data.hostEmail,
+    subject:
+      data.kind === "cancelled"
+        ? `Cancelled: ${data.clientName} shoot — ${dateLabel}`
+        : `${data.kind === "updated" ? "Updated" : "Booked"}: ${data.clientName} shoot — ${dateLabel}`,
+    html: renderEmailShell({
+      previewText: `${headline} — ${data.clientName}, ${dateLabel}.`,
+      contentHtml,
+    }),
+    icalEvent: {
+      filename: "shoot-invite.ics",
+      method: data.kind === "cancelled" ? "CANCEL" : "REQUEST",
+      content: data.icsContent,
+    },
+  };
+
+  try {
+    await transporter.sendMail(addGlobalBcc(mailOptions));
+    console.log(`✅ Host shoot ${data.kind} email sent to ${data.hostEmail}`);
+    return { success: true };
+  } catch (error) {
+    console.error("❌ Failed to send host shoot email:", error);
+    return { success: false, error: (error as any).message };
+  }
+}

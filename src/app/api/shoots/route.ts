@@ -7,7 +7,8 @@ import { eq, isNotNull, desc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { readShootScriptDocument, writeShootScriptDocument } from '@/lib/shoot-scripts';
 import { resolveShootWindow } from '@/lib/calendar-invite';
-import { notifyClientShootScheduled } from '@/lib/shoot-notify';
+import { notifyClientShootScheduled, notifyHostShoot } from '@/lib/shoot-notify';
+import { canManageHostRate, getHostUser, parseHostRate } from '@/lib/host-portal';
 
 // Shoot-day status is a focused subset of the broader TaskStatus enum —
 // all three values are valid TaskStatus members already, so no schema
@@ -59,6 +60,11 @@ export async function GET(req: NextRequest) {
       location: r.shoot.location,
       shootDate: r.shoot.shootDate,
       hostName: r.shoot.hostName,
+      hostId: r.shoot.hostId,
+      hostRole: r.shoot.hostRole,
+      hostWardrobe: r.shoot.hostWardrobe,
+      hostRate: canManageHostRate(user) ? r.shoot.hostRate : undefined,
+      hostNotes: r.shoot.hostNotes,
       equipmentIds: r.shoot.equipmentIds || [],
       camera: r.shoot.camera,
       quality: r.shoot.quality,
@@ -112,6 +118,11 @@ export async function POST(req: NextRequest) {
       location,
       shootDate,
       hostName,
+      hostId,
+      hostRole,
+      hostWardrobe,
+      hostRate,
+      hostNotes,
       equipmentIds,
       camera,
       quality,
@@ -129,6 +140,21 @@ export async function POST(req: NextRequest) {
 
     if (!shootDate) {
       return NextResponse.json({ error: 'Shoot date/time is required' }, { status: 400 });
+    }
+
+    // Host Portal: optional real host (a User with role `host`). Validated up front so a
+    // bad id can't leave a half-created shoot behind.
+    let host: Awaited<ReturnType<typeof getHostUser>> = null;
+    if (hostId !== undefined && hostId !== null && hostId !== '') {
+      host = await getHostUser(Number(hostId));
+      if (!host) {
+        return NextResponse.json({ error: 'Selected host was not found or is not a host account' }, { status: 400 });
+      }
+    }
+    // Videographers can pick the host but never set the rate — silently ignored for them.
+    const parsedHostRate = canManageHostRate(user) ? parseHostRate(hostRate) : null;
+    if (parsedHostRate === undefined && hostRate !== undefined) {
+      return NextResponse.json({ error: 'Host rate must be a positive number' }, { status: 400 });
     }
 
     const shootStatus: ShootStatus = SHOOT_STATUSES.includes(status) ? status : 'PENDING';
@@ -168,7 +194,12 @@ export async function POST(req: NextRequest) {
       frameRate: frameRate || null,
       lighting: lighting || null,
       exclusions: exclusions || null,
-      hostName: hostName || null,
+      hostName: hostName || host?.name || null,
+      hostId: host?.id ?? null,
+      hostRole: host ? (hostRole || null) : null,
+      hostWardrobe: host ? (hostWardrobe || null) : null,
+      hostRate: host ? (parsedHostRate ?? null) : null,
+      hostNotes: host ? (hostNotes || null) : null,
       equipmentIds: Array.isArray(equipmentIds) ? equipmentIds : [],
       scriptContent: writeShootScriptDocument({ version: 1, videosPlanned: Math.max(1, Number(videosPlanned) || 1), scripts: [] }),
       videographerId: assignedVideographerId,
@@ -194,6 +225,28 @@ export async function POST(req: NextRequest) {
           hostName: createdShootDetail.hostName,
           start: window.start,
           end: window.end,
+        });
+      }
+    }
+
+    if (host) {
+      const hostWindow = resolveShootWindow({
+        shootDate: createdShootDetail.shootDate,
+        plannedStartTime: createdShootDetail.plannedStartTime,
+        plannedEndTime: createdShootDetail.plannedEndTime,
+      });
+      if (hostWindow) {
+        await notifyHostShoot({
+          kind: 'assigned',
+          hostId: host.id,
+          taskId,
+          clientId: clientId || null,
+          taskTitle,
+          location: createdShootDetail.location,
+          role: createdShootDetail.hostRole,
+          wardrobe: createdShootDetail.hostWardrobe,
+          start: hostWindow.start,
+          end: hostWindow.end,
         });
       }
     }

@@ -6,7 +6,8 @@ export const ROLE_COLORS = {
   manager: 'bg-purple-100 text-purple-800',
   client: 'bg-indigo-100 text-indigo-800',
   videographer: 'bg-pink-100 text-pink-800',
-  sales: 'bg-yellow-100 text-yellow-800'
+  sales: 'bg-yellow-100 text-yellow-800',
+  host: 'bg-gray-100 text-gray-800'
 } as const;
 
 export const ROLE_NAMES = {
@@ -17,7 +18,8 @@ export const ROLE_NAMES = {
   manager: 'Manager',
   client: 'Client',
   videographer: 'Videographer',
-  sales: 'Sales'
+  sales: 'Sales',
+  host: 'Host'
 } as const;
 
 export type UserRole = keyof typeof ROLE_COLORS;
@@ -32,7 +34,8 @@ export const getUserDisplayName = (role: string): string => {
     manager: 'Manager User',
     client: 'Client User',
     videographer: 'Video Photographer',
-    sales: 'Sales User'
+    sales: 'Sales User',
+    host: 'Host'
   };
   return names[r] || 'Portal User';
 };
@@ -47,7 +50,8 @@ export const getUserAvatar = (role: string): string => {
     manager: 'MU',
     client: 'CU',
     videographer: 'VP',
-    sales: 'SL'
+    sales: 'SL',
+    host: 'H'
   };
   return avatars[r] || 'PU';
 };

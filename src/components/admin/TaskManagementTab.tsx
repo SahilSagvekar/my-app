@@ -178,9 +178,17 @@ function SkeletonRow() {
 // SWR fetcher
 // ─────────────────────────────────────────
 
+// Throws with the HTTP status so the UI can say WHY a load failed (expired
+// session vs. server hiccup) instead of quietly showing an empty list.
 const fetcher = (url: string) =>
   fetch(url, { credentials: 'include' }).then(r => {
-    if (!r.ok) throw new Error('fetch failed');
+    if (!r.ok) {
+      throw new Error(
+        r.status === 401
+          ? 'Your session has expired — refresh the page or sign in again'
+          : `Request failed (${r.status})`
+      );
+    }
     return r.json();
   });
 
@@ -197,13 +205,14 @@ export function TaskManagementTab() {
     client: 'all', status: 'all', deliverableType: 'all', month: 'all',
     search: '', dueDateFrom: undefined, dueDateTo: undefined, tag: 'all',
   });
-  const [allTags, setAllTags] = useState<string[]>([]);
-  useEffect(() => {
-    fetch('/api/tags', { credentials: 'include' })
-      .then((res) => res.json())
-      .then((data) => { if (data.ok) setAllTags(data.tags.map((t: any) => t.name)); })
-      .catch(() => {});
-  }, []);
+  // Tag + client dropdown options use SWR (auto-retry on failure). They used to be
+  // one-shot fetch()es with errors swallowed, so a single failed request left the
+  // dropdown empty until a full page reload.
+  const { data: tagsData } = useSWR('/api/tags', fetcher, { revalidateOnFocus: false, dedupingInterval: 300000 });
+  const allTags: string[] = useMemo(
+    () => (tagsData?.ok ? tagsData.tags.map((t: any) => t.name) : []),
+    [tagsData]
+  );
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -286,10 +295,18 @@ export function TaskManagementTab() {
   }, [page, filters, debouncedSearch]);
 
   // ── SWR: tasks (main data) ─────────────
-  const { data: taskData, isLoading: tasksLoading, isValidating, mutate: mutateTasks } = useSWR(
+  const { data: taskData, error: tasksError, isLoading: tasksLoading, isValidating, mutate: mutateTasks } = useSWR(
     user ? `/api/admin/tasks?${queryString}` : null,
     fetcher,
-    { keepPreviousData: true, dedupingInterval: 10000 }
+    {
+      keepPreviousData: true,
+      dedupingInterval: 10000,
+      // Keep retrying a failed load (transient DB/network errors) instead of giving up silently.
+      shouldRetryOnError: true,
+      errorRetryCount: 5,
+      errorRetryInterval: 3000,
+      revalidateOnReconnect: true,
+    }
   );
 
   // ── SWR: team members (stable, cache 5min) ──
@@ -297,20 +314,11 @@ export function TaskManagementTab() {
     dedupingInterval: 300000, revalidateOnFocus: false,
   });
 
-  // ── SWR: clients for dropdown (stable, cache 5min) ──
-  // Use a lightweight endpoint — just id + name
-  const { data: clientsData } = useSWR('/api/employee/list?role=client', fetcher, {
+  // ── SWR: clients for the dropdown (cache 5min, auto-retry) ──
+  const { data: clientsData } = useSWR('/api/clients', fetcher, {
     dedupingInterval: 300000, revalidateOnFocus: false,
   });
-
-  // Fetch clients via the full clients API only once
-  const [clients, setClients] = useState<Client[]>([]);
-  useEffect(() => {
-    fetch('/api/clients', { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => { if (d.clients) setClients(d.clients); })
-      .catch(() => {});
-  }, []);
+  const clients: Client[] = clientsData?.clients || [];
 
   const tasks: Task[] = taskData?.tasks || [];
   const totalPages: number = taskData?.pagination?.totalPages || 1;
@@ -807,6 +815,23 @@ export function TaskManagementTab() {
           </div>
         )}
 
+        {tasksError && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-red-100 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+            <span>
+              Couldn’t refresh tasks: {tasksError.message}.
+              {tasks.length > 0 && ' Showing the last loaded results.'} Retrying automatically…
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 border-red-200 bg-white text-red-700 hover:bg-red-50"
+              onClick={() => mutateTasks()}
+            >
+              Retry now
+            </Button>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -856,7 +881,9 @@ export function TaskManagementTab() {
               ) : tasks.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-12 text-center text-sm text-slate-500">
-                    No tasks found matching your filters
+                    {tasksError
+                      ? 'Couldn’t load tasks — see the message above'
+                      : 'No tasks found matching your filters'}
                   </td>
                 </tr>
               ) : (

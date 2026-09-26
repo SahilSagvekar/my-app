@@ -8,6 +8,7 @@ import { UploadBackupAdmin } from "../admin/UploadBackupAdmin";
 import { SchedulerActivityTab } from "../admin/SchedulerActivityTab";
 import { HiringTab } from "../admin/HiringTab";
 import { QCDashboard } from "../dashboards/QCDashboard";
+import { HostShootsPage } from "../dashboards/HostShootsPage";
 import { ClientReviewPanel } from "../dashboards/ClientReviewPanel";
 import { QCCompletedPage } from "../dashboards/QCCompletedPage";
 import { QCGuidelinesPage } from "../dashboards/QCGuidelinesPage";
@@ -416,6 +417,15 @@ export function renderPage(
         return <ClientPortfolioPage />;
       default:
         return <ClientMonthlyOverview />;
+    }
+  }
+
+  // Host Portal (talent-facing). Admins previewing as "host" land here too.
+  if (role === "host") {
+    switch (page) {
+      case "host-shoots":
+      default:
+        return <HostShootsPage />;
     }
   }
 

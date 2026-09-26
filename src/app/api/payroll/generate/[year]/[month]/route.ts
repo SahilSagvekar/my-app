@@ -39,10 +39,11 @@ export async function POST(
       hoursPerWeek: user.hoursPerWeek,
       worksOnSaturday: user.worksOnSaturday,
       joinedAt: user.joinedAt,
+      role: user.role,
     }).from(user).where(and(
       eq(user.employeeStatus, "ACTIVE"),
       notInArray(user.role, ["admin", "client"] as any),
-    ));
+    )).then((rows) => rows.filter((r) => (r.role as string) !== "host")); // hosts are 1099 contractors paid per shoot, not payroll
 
     const payrolls = [];
 

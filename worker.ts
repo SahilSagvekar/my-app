@@ -19,6 +19,7 @@ import { default as handler } from './.open-next/worker.js';
 import { deliverSlackJobNow, deliverEmailJobNow, NotificationJob } from './src/lib/notification-queue';
 import { deliverZipJob, ZipJobMessage } from './src/lib/zip-jobs-queue';
 import { applyR2Events, R2EventMessage } from './src/lib/drive/index-store';
+import { blockHostFromInternalApi } from './src/lib/host-api-guard';
 
 const APP_URL = 'https://e8productions.com';
 
@@ -47,7 +48,13 @@ async function triggerCronRoute(path: string, env: any, ctx: ExecutionContext): 
 }
 
 export default {
-  fetch: handler.fetch,
+  // Host Portal accounts are confined to an allow-list of /api routes (fails open on any
+  // error — see src/lib/host-api-guard.ts). Everything else goes straight to Next.js.
+  async fetch(request: Request, env: any, ctx: ExecutionContext) {
+    const blocked = await blockHostFromInternalApi(request, env);
+    if (blocked) return blocked;
+    return handler.fetch(request, env, ctx);
+  },
 
   async scheduled(controller: ScheduledController, env: any, ctx: ExecutionContext) {
     switch (controller.cron) {

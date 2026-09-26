@@ -9,7 +9,7 @@ import { sendWelcomeEmail } from '@/lib/email';
 import { generateTempPassword, hashPassword } from '@/lib/password'; // ← Add this import
 import { z } from "zod";
 
-type Role = "admin" | "manager" | "editor" | "videographer" | "scheduler" | "client" | "qc" | "sales" | "sales_manager";
+type Role = "admin" | "manager" | "editor" | "videographer" | "scheduler" | "client" | "qc" | "sales" | "sales_manager" | "host";
 
 interface CreateUserData {
   name: string;
@@ -37,7 +37,7 @@ const BodySchema = z.object({
 });
 
 function isValidRole(role: string): role is Role {
-  return ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager', 'null'].includes(role);
+  return ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager', 'host', 'null'].includes(role);
 }
 
 export async function POST(req: Request) {
