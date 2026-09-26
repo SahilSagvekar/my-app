@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { getDbHttp } from "@/lib/db";
 import { timeClockEntry } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
-import { getESTDateString } from "@/lib/est-date";
+import { dbTimestampToIso, getESTDateString } from "@/lib/est-date";
 
 export async function GET(req: NextRequest) {
   try {
@@ -33,14 +33,14 @@ export async function GET(req: NextRequest) {
     if (!entry.clockOutAt) {
       return NextResponse.json({
         status: "clocked_in",
-        clockInAt: entry.clockInAt,
+        clockInAt: dbTimestampToIso(entry.clockInAt),
       });
     }
 
     return NextResponse.json({
       status: "clocked_out",
-      clockInAt: entry.clockInAt,
-      clockOutAt: entry.clockOutAt,
+      clockInAt: dbTimestampToIso(entry.clockInAt),
+      clockOutAt: dbTimestampToIso(entry.clockOutAt),
       autoClosedOut: entry.autoClosedOut,
     });
   } catch (err: any) {

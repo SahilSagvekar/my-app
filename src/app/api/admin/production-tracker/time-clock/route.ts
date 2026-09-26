@@ -14,7 +14,7 @@ import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { getDbHttp } from "@/lib/db";
 import { auditLog, timeClockEntry, user as userTable } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
-import { getESTDate, getESTDateString } from "@/lib/est-date";
+import { dbTimestampToIso, getESTDate, getESTDateString } from "@/lib/est-date";
 
 // Same audit actions daily-summary-report.ts already treats as "task activity".
 const TASK_ACTIVITY_ACTIONS = [
@@ -58,10 +58,6 @@ function describeAuditEvent(log: {
     default:
       return log.details || log.action;
   }
-}
-
-function toIso(value: string | Date): string {
-  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 export async function GET(req: NextRequest) {
@@ -127,14 +123,14 @@ export async function GET(req: NextRequest) {
       const timeline: { at: string; type: string; label: string }[] = [];
 
       timeline.push({
-        at: toIso(entry.clockInAt),
+        at: dbTimestampToIso(entry.clockInAt),
         type: "clock_in",
         label: "Clocked in",
       });
 
       for (const log of auditByUser.get(entry.userId) || []) {
         timeline.push({
-          at: toIso(log.timestamp),
+          at: dbTimestampToIso(log.timestamp),
           type: "task_event",
           label: describeAuditEvent(log),
         });
@@ -142,7 +138,7 @@ export async function GET(req: NextRequest) {
 
       if (entry.clockOutAt) {
         timeline.push({
-          at: toIso(entry.clockOutAt),
+          at: dbTimestampToIso(entry.clockOutAt),
           type: entry.autoClosedOut ? "clock_out_auto" : "clock_out",
           label: entry.autoClosedOut
             ? "Clocked out automatically (missed stop)"
@@ -156,8 +152,8 @@ export async function GET(req: NextRequest) {
         userId: entry.userId,
         name: entry.userName || entry.userEmail,
         role: entry.userRole,
-        clockInAt: toIso(entry.clockInAt),
-        clockOutAt: entry.clockOutAt ? toIso(entry.clockOutAt) : null,
+        clockInAt: dbTimestampToIso(entry.clockInAt),
+        clockOutAt: entry.clockOutAt ? dbTimestampToIso(entry.clockOutAt) : null,
         autoClosedOut: entry.autoClosedOut,
         stillClockedIn: !entry.clockOutAt,
         timeline,
