@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { toast } from "sonner";
 import { uploadService } from "@/lib/upload-service";
 import { sortTaskImages } from "@/lib/task-image-order";
-import { ImageOrderPopover } from "../client/ImageOrderPopover";
+import { DraggableImageGrid } from "./DraggableImageGrid";
 import {
   CheckCircle,
   AlertCircle,
@@ -624,17 +624,6 @@ export function TaskUploadSections({
                     className={`h-3.5 w-3.5 text-gray-400 transition-transform ml-0.5 ${isOpen ? "rotate-180" : ""}`}
                   />
                 </button>
-                {isHardPostSection && isOpen && orderedHardPostImages.length > 1 && (
-                  <div className="pr-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <ImageOrderPopover
-                      files={orderedHardPostImages as any}
-                      onSelectFile={() => {}}
-                      onReorder={handleReorderImages}
-                      isSaving={savingImageOrder}
-                      buttonLabel="Reorder"
-                    />
-                  </div>
-                )}
               </div>
 
               {/* Expanded Content */}
@@ -646,8 +635,12 @@ export function TaskUploadSections({
                       piling on a 6th one. */}
                   {isHardPostSection ? (
                     orderedHardPostImages.length > 0 && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1.5">
-                        {orderedHardPostImages.map((img: any, idx: number) => {
+                      <DraggableImageGrid
+                        items={orderedHardPostImages as any[]}
+                        onReorder={handleReorderImages}
+                        isSaving={savingImageOrder}
+                        className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-1.5"
+                        renderTile={(img: any, idx: number) => {
                           const commentCount = imageFeedbackCounts[img.id] || 0;
                           const isReplacing = replacingImageId === img.id;
                           return (
@@ -655,6 +648,7 @@ export function TaskUploadSections({
                               <img
                                 src={img.url}
                                 alt={img.name}
+                                draggable={false}
                                 className="w-full aspect-square object-cover"
                               />
                               <div className="absolute top-1 left-1 text-[10px] font-medium bg-black/60 text-white px-1.5 py-0.5 rounded">
@@ -696,8 +690,8 @@ export function TaskUploadSections({
                               </label>
                             </div>
                           );
-                        })}
-                      </div>
+                        }}
+                      />
                     )
                   ) : sectionFiles.length > 0 && (
                     <div className="space-y-1 p-1.5 bg-white/50 rounded border">

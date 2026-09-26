@@ -20,7 +20,7 @@ import { TaskUploadSections, classifyDeliverableType } from "../workflow/TaskUpl
 import { FileUploadDialog } from "../workflow/FileUploadDialog-Resumable";
 import { uploadService } from "@/lib/upload-service";
 import { sortTaskImages } from "@/lib/task-image-order";
-import { ImageOrderPopover } from "../client/ImageOrderPopover";
+import { DraggableImageGrid } from "../workflow/DraggableImageGrid";
 import { TaskActionsMenu, computeTaskActionCount } from "../workflow/TaskActionsMenu";
 import {
   Calendar,
@@ -1440,17 +1440,6 @@ function TaskCard({
                       </span>
                       <ChevronUp className="h-4 w-4 text-gray-400 ml-0.5" />
                     </button>
-                    {isHardPostTask && hardPostImages.length > 1 && (
-                      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <ImageOrderPopover
-                          files={hardPostImages as any}
-                          onSelectFile={() => {}}
-                          onReorder={handleReorderImages}
-                          isSaving={savingImageOrder}
-                          buttonLabel="Reorder"
-                        />
-                      </div>
-                    )}
                   </div>
 
                   {/* Hard-post images — one tile per active image, each with
@@ -1458,11 +1447,13 @@ function TaskCard({
                       a revision on image 3 replaces just that image instead
                       of piling on a 6th one. */}
                   {isHardPostTask && hardPostImages.length > 0 && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="grid grid-cols-3 gap-2"
-                    >
-                      {hardPostImages.map((img, idx) => {
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <DraggableImageGrid
+                        items={hardPostImages}
+                        onReorder={handleReorderImages}
+                        isSaving={savingImageOrder}
+                        className="grid grid-cols-3 gap-2"
+                        renderTile={(img, idx) => {
                         const commentCount = imageFeedbackCounts[img.id] || 0;
                         const isReplacing = replacingImageId === img.id;
                         return (
@@ -1470,6 +1461,7 @@ function TaskCard({
                             <img
                               src={img.url}
                               alt={img.name}
+                              draggable={false}
                               className="w-full aspect-square object-cover"
                             />
                             <div className="absolute top-1 left-1 text-[10px] font-medium bg-black/60 text-white px-1.5 py-0.5 rounded">
@@ -1505,7 +1497,8 @@ function TaskCard({
                             )}
                           </div>
                         );
-                      })}
+                        }}
+                      />
                     </div>
                   )}
 
@@ -1873,15 +1866,19 @@ function TaskCard({
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
                     <Clock className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
-                    <span className="font-bold text-[12.5px] truncate">Revision Feedback</span>
+                    <span className="font-bold text-[12.5px] truncate min-w-0">Revision Feedback</span>
                     {allVersions.length > 1 && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-red-100 text-red-700">
-                        {allVersions.map((v) => `V${v}`).join(", ")}
+                      <span
+                        className="shrink-0 whitespace-nowrap text-[10px] font-bold leading-none px-1.5 py-1 rounded bg-red-100 text-red-700"
+                        title={allVersions.map((v) => `V${v}`).join(", ")}
+                      >
+                        V{allVersions[0]}
+                        {allVersions.length > 1 && ` +${allVersions.length - 1}`}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-xs font-semibold text-[#DC2626]">
+                    <span className="text-xs font-semibold text-[#DC2626] whitespace-nowrap">
                       {fixedRevisionsCount}/{totalRevisionsCount || 1} fixed
                     </span>
                     <button
