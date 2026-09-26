@@ -1,10 +1,14 @@
 // FILE: src/app/api/time-clock/start/route.ts
-// New file. Clocks the logged-in user in for "today" (EST calendar date).
+// Clocks the logged-in user in for "today" (EST calendar date).
 // Rejects if today's entry already exists (enforces one start/stop per day
-// via the @@unique([userId, workDate]) constraint too, as a DB-level backstop).
+// via the unique([userId, workDate]) constraint too, as a DB-level backstop).
+// Uses Drizzle/Neon HTTP — Prisma's native query engine does not run on Cloudflare Workers.
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, eq } from "drizzle-orm";
+import { getDbHttp } from "@/lib/db";
+import { timeClockEntry } from "@/lib/db/schema";
+import { createId } from "@/lib/db/id";
 import { getCurrentUser2 } from "@/lib/auth";
 import { getESTDateString } from "@/lib/est-date";
 
@@ -21,11 +25,14 @@ export async function POST(req: NextRequest) {
     }
 
     const workDate = getESTDateString();
-    const now = new Date();
+    const now = new Date().toISOString();
+    const db = getDbHttp();
 
-    const existing = await prisma.timeClockEntry.findUnique({
-      where: { userId_workDate: { userId: user.id, workDate } },
-    });
+    const [existing] = await db
+      .select()
+      .from(timeClockEntry)
+      .where(and(eq(timeClockEntry.userId, user.id), eq(timeClockEntry.workDate, workDate)))
+      .limit(1);
 
     if (existing) {
       return NextResponse.json(
@@ -34,19 +41,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const entry = await prisma.timeClockEntry.create({
-      data: {
+    const [entry] = await db
+      .insert(timeClockEntry)
+      .values({
+        id: createId(),
         userId: user.id,
         workDate,
         clockInAt: now,
-      },
-    });
+        updatedAt: now,
+      })
+      .returning();
 
     return NextResponse.json({ status: "clocked_in", clockInAt: entry.clockInAt });
   } catch (err: any) {
-    // Race condition: two rapid clicks both pass the findUnique check.
-    // The @@unique constraint on [userId, workDate] catches it here.
-    if (err?.code === "P2002") {
+    // Race condition: two rapid clicks both pass the find check.
+    // The unique constraint on [userId, workDate] catches it here (Postgres 23505).
+    if (err?.code === "23505") {
       return NextResponse.json({ error: "You've already clocked in today" }, { status: 409 });
     }
     console.error("❌ /api/time-clock/start error:", err.message);

@@ -130,6 +130,13 @@ export default {
         ctx.waitUntil(triggerCronRoute('/api/cron/windsor-sync', env, ctx));
         break;
 
+      // Close open time clocks — ≈ 11:55 PM America/New_York (03:55 UTC during EDT).
+      // Anyone still clocked in for the EST calendar day gets auto-closed so
+      // the next morning's Start button resets cleanly.
+      case '55 3 * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/close-open-time-clocks', env, ctx));
+        break;
+
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);
     }

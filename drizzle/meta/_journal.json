@@ -71,6 +71,13 @@
       "when": 1790553600000,
       "tag": "0010_add_upload_backend",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790639999000,
+      "tag": "0011_add_time_clock_entry",
+      "breakpoints": true
     }
   ]
 }

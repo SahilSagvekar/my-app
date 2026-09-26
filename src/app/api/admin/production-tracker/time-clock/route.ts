@@ -1,16 +1,18 @@
 // FILE: src/app/api/admin/production-tracker/time-clock/route.ts
-// New file. Feeds the new "Time Clock" tab in Production Tracker.
+// Feeds the "Time Clock" tab in Production Tracker.
 //
-// For a given EST calendar date, returns every user who clocked in that day
-// (plus, optionally, everyone else with no entry), each with a merged,
-// chronologically-sorted timeline of:
+// For a given EST calendar date, returns every user who clocked in that day,
+// each with a merged, chronologically-sorted timeline of:
 //   - clock in / clock out events
 //   - their TASK_STATUS_CHANGED (and related) AuditLog events that day
 //
 // GET /api/admin/production-tracker/time-clock?date=2026-09-25
+// Uses Drizzle/Neon HTTP — Prisma's native query engine does not run on Cloudflare Workers.
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
+import { getDbHttp } from "@/lib/db";
+import { auditLog, timeClockEntry, user as userTable } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
 import { getESTDate, getESTDateString } from "@/lib/est-date";
 
@@ -58,6 +60,10 @@ function describeAuditEvent(log: {
   }
 }
 
+function toIso(value: string | Date): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getCurrentUser2(req);
@@ -69,13 +75,25 @@ export async function GET(req: NextRequest) {
     const dateParam = searchParams.get("date"); // "YYYY-MM-DD" in EST, optional
     const workDate = dateParam || getESTDateString();
     const { start, end } = getESTDate(dateParam ? `${dateParam}T12:00:00` : undefined);
+    const db = getDbHttp();
 
     // 1. Everyone who clocked in that day.
-    const entries = await prisma.timeClockEntry.findMany({
-      where: { workDate },
-      include: { user: { select: { id: true, name: true, email: true, role: true } } },
-      orderBy: { clockInAt: "asc" },
-    });
+    const entries = await db
+      .select({
+        id: timeClockEntry.id,
+        userId: timeClockEntry.userId,
+        workDate: timeClockEntry.workDate,
+        clockInAt: timeClockEntry.clockInAt,
+        clockOutAt: timeClockEntry.clockOutAt,
+        autoClosedOut: timeClockEntry.autoClosedOut,
+        userName: userTable.name,
+        userEmail: userTable.email,
+        userRole: userTable.role,
+      })
+      .from(timeClockEntry)
+      .innerJoin(userTable, eq(timeClockEntry.userId, userTable.id))
+      .where(eq(timeClockEntry.workDate, workDate))
+      .orderBy(asc(timeClockEntry.clockInAt));
 
     if (entries.length === 0) {
       return NextResponse.json({ date: workDate, people: [] });
@@ -84,14 +102,18 @@ export async function GET(req: NextRequest) {
     const userIds = entries.map((e) => e.userId);
 
     // 2. Their task activity for the same EST day.
-    const auditLogs = await prisma.auditLog.findMany({
-      where: {
-        userId: { in: userIds },
-        action: { in: TASK_ACTIVITY_ACTIONS },
-        timestamp: { gte: start, lte: end },
-      },
-      orderBy: { timestamp: "asc" },
-    });
+    const auditLogs = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          inArray(auditLog.userId, userIds),
+          inArray(auditLog.action, TASK_ACTIVITY_ACTIONS),
+          gte(auditLog.timestamp, start.toISOString()),
+          lte(auditLog.timestamp, end.toISOString()),
+        ),
+      )
+      .orderBy(asc(auditLog.timestamp));
 
     const auditByUser = new Map<number, typeof auditLogs>();
     for (const log of auditLogs) {
@@ -105,14 +127,14 @@ export async function GET(req: NextRequest) {
       const timeline: { at: string; type: string; label: string }[] = [];
 
       timeline.push({
-        at: entry.clockInAt.toISOString(),
+        at: toIso(entry.clockInAt),
         type: "clock_in",
         label: "Clocked in",
       });
 
       for (const log of auditByUser.get(entry.userId) || []) {
         timeline.push({
-          at: log.timestamp.toISOString(),
+          at: toIso(log.timestamp),
           type: "task_event",
           label: describeAuditEvent(log),
         });
@@ -120,7 +142,7 @@ export async function GET(req: NextRequest) {
 
       if (entry.clockOutAt) {
         timeline.push({
-          at: entry.clockOutAt.toISOString(),
+          at: toIso(entry.clockOutAt),
           type: entry.autoClosedOut ? "clock_out_auto" : "clock_out",
           label: entry.autoClosedOut
             ? "Clocked out automatically (missed stop)"
@@ -132,10 +154,10 @@ export async function GET(req: NextRequest) {
 
       return {
         userId: entry.userId,
-        name: entry.user.name || entry.user.email,
-        role: entry.user.role,
-        clockInAt: entry.clockInAt.toISOString(),
-        clockOutAt: entry.clockOutAt ? entry.clockOutAt.toISOString() : null,
+        name: entry.userName || entry.userEmail,
+        role: entry.userRole,
+        clockInAt: toIso(entry.clockInAt),
+        clockOutAt: entry.clockOutAt ? toIso(entry.clockOutAt) : null,
         autoClosedOut: entry.autoClosedOut,
         stillClockedIn: !entry.clockOutAt,
         timeline,

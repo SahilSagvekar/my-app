@@ -1,8 +1,11 @@
 // FILE: src/app/api/time-clock/stop/route.ts
-// New file. Clocks the logged-in user out for "today" (EST calendar date).
+// Clocks the logged-in user out for "today" (EST calendar date).
+// Uses Drizzle/Neon HTTP — Prisma's native query engine does not run on Cloudflare Workers.
 
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { and, eq } from "drizzle-orm";
+import { getDbHttp } from "@/lib/db";
+import { timeClockEntry } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
 import { getESTDateString } from "@/lib/est-date";
 
@@ -14,11 +17,14 @@ export async function POST(req: NextRequest) {
     }
 
     const workDate = getESTDateString();
-    const now = new Date();
+    const now = new Date().toISOString();
+    const db = getDbHttp();
 
-    const existing = await prisma.timeClockEntry.findUnique({
-      where: { userId_workDate: { userId: user.id, workDate } },
-    });
+    const [existing] = await db
+      .select()
+      .from(timeClockEntry)
+      .where(and(eq(timeClockEntry.userId, user.id), eq(timeClockEntry.workDate, workDate)))
+      .limit(1);
 
     if (!existing) {
       return NextResponse.json({ error: "You haven't clocked in today" }, { status: 400 });
@@ -31,10 +37,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const entry = await prisma.timeClockEntry.update({
-      where: { userId_workDate: { userId: user.id, workDate } },
-      data: { clockOutAt: now },
-    });
+    const [entry] = await db
+      .update(timeClockEntry)
+      .set({ clockOutAt: now, updatedAt: now })
+      .where(and(eq(timeClockEntry.userId, user.id), eq(timeClockEntry.workDate, workDate)))
+      .returning();
 
     return NextResponse.json({
       status: "clocked_out",

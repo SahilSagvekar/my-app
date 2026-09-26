@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, roleEodReport, roleEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask } from "./schema";
+import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, roleEodReport, roleEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask, timeClockEntry } from "./schema";
 
 export const monthlyDeliverableRelations = relations(monthlyDeliverable, ({one, many}) => ({
 	client: one(client, {
@@ -149,6 +149,7 @@ export const userRelations = relations(user, ({one, many}) => ({
 	nasMirrorJobs: many(nasMirrorJob),
 	schedulerActivityEvents: many(schedulerActivityEvent),
 	clientPortalAccesses: many(clientPortalAccess),
+	timeClockEntries: many(timeClockEntry),
 }));
 
 export const leaveRelations = relations(leave, ({one, many}) => ({
@@ -939,4 +940,11 @@ export const tagToTaskRelations = relations(tagToTask, ({one}) => ({
 
 export const tagRelations = relations(tag, ({many}) => ({
 	tagToTasks: many(tagToTask),
+}));
+
+export const timeClockEntryRelations = relations(timeClockEntry, ({one}) => ({
+	user: one(user, {
+		fields: [timeClockEntry.userId],
+		references: [user.id]
+	}),
 }));
