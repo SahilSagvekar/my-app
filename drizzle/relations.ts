@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, roleEodReport, roleEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask, timeClockEntry, ledgerAccount, bankAccount, ledgerEntry, contractor, w9Submission, contractorPayment, expenseCategory, expense, financialGoal } from "./schema";
+import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, roleEodReport, roleEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask, timeClockEntry, ledgerAccount, bankAccount, ledgerEntry, contractor, w9Submission, contractorPayment, expenseCategory, expense, financialGoal, clientGeneralComment } from "./schema";
 
 export const monthlyDeliverableRelations = relations(monthlyDeliverable, ({one, many}) => ({
 	client: one(client, {
@@ -17,6 +17,7 @@ export const clientRelations = relations(client, ({one, many}) => ({
 	users: many(user, {
 		relationName: "user_linkedClientId_client_id"
 	}),
+	generalComments: many(clientGeneralComment),
 	recurringTasks: many(recurringTask),
 	tasks: many(task),
 	socialLogins: many(socialLogin),
@@ -79,6 +80,7 @@ export const userRelations = relations(user, ({one, many}) => ({
 		relationName: "user_linkedClientId_client_id"
 	}),
 	auditLogs: many(auditLog),
+	generalComments: many(clientGeneralComment),
 	feedbacks: many(feedback),
 	feedbackResponses: many(feedbackResponse),
 	qcAchievements: many(qcAchievement),
@@ -1050,6 +1052,17 @@ export const expenseRelations = relations(expense, ({one}) => ({
 export const financialGoalRelations = relations(financialGoal, ({one}) => ({
 	createdBy: one(user, {
 		fields: [financialGoal.createdById],
+		references: [user.id]
+	}),
+}));
+
+export const clientGeneralCommentRelations = relations(clientGeneralComment, ({one}) => ({
+	client: one(client, {
+		fields: [clientGeneralComment.clientId],
+		references: [client.id]
+	}),
+	createdBy: one(user, {
+		fields: [clientGeneralComment.createdBy],
 		references: [user.id]
 	}),
 }));

@@ -3471,3 +3471,32 @@ export const financialGoal = pgTable("FinancialGoal", {
 			name: "FinancialGoal_createdById_fkey"
 		}).onUpdate("cascade").onDelete("setnull"),
 ]);
+
+// ---------------------------------------------------------------------------
+// Client general comments — a freeform note a client can send from the
+// Content Review page that isn't tied to any specific video/task. Delivered
+// to the client's Slack channel (with the scheduler @mentioned inline); not
+// shown back to the client as a thread/history — see ClientGeneralCommentButton.
+// ---------------------------------------------------------------------------
+
+export const clientGeneralComment = pgTable("ClientGeneralComment", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	createdBy: integer().notNull(),
+	body: text().notNull(),
+	slackDeliveredAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("ClientGeneralComment_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	index("ClientGeneralComment_createdAt_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "ClientGeneralComment_clientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [user.id],
+			name: "ClientGeneralComment_createdBy_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);

@@ -232,6 +232,9 @@ export function ClientDashboard() {
   const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted' | 'rejected'>('pending');
   const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>('all');
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
+  const [showGeneralCommentDialog, setShowGeneralCommentDialog] = useState(false);
+  const [generalCommentText, setGeneralCommentText] = useState('');
+  const [isSendingGeneralComment, setIsSendingGeneralComment] = useState(false);
   const [revisionNotes, setRevisionNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -1179,6 +1182,34 @@ export function ClientDashboard() {
   const switchToThumbnailFile = getPrimaryThumbnailFile(selectedTask);
   const switchToVideoFile = getPrimaryVideoFile(selectedTask);
 
+  // "Send a note" — a general comment that isn't tied to any specific video,
+  // posted straight to the client's Slack channel (with the scheduler
+  // tagged). Fire-and-confirm: no thread/history shown back here.
+  const handleSendGeneralComment = async () => {
+    const body = generalCommentText.trim();
+    if (!body) return;
+    setIsSendingGeneralComment(true);
+    try {
+      const res = await fetch('/api/client/general-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ body }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.message || 'Failed to send note');
+      }
+      toast.success('Note sent to your E8 team');
+      setGeneralCommentText('');
+      setShowGeneralCommentDialog(false);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to send note');
+    } finally {
+      setIsSendingGeneralComment(false);
+    }
+  };
+
   return (
     <TooltipProvider>
       <div className="flex flex-col h-full space-y-6">
@@ -1221,6 +1252,17 @@ export function ClientDashboard() {
           description="Review submitted work and approve or reject with feedback"
           actions={
           <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+            {/* General note — not tied to a specific video */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              onClick={() => setShowGeneralCommentDialog(true)}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Send a note
+            </Button>
+
             {/* Desktop App auto-download toggle */}
             {typeof window !== 'undefined' && (window as any).e8?.isDesktopApp && (
               <div className="flex items-center gap-2 shrink-0 mr-1">
@@ -1353,6 +1395,55 @@ export function ClientDashboard() {
             </div>
           )}
         </div>
+
+        {/* Send a Note Dialog — general comment, not tied to a video */}
+        <Dialog
+          open={showGeneralCommentDialog}
+          onOpenChange={(open) => {
+            if (!isSendingGeneralComment) setShowGeneralCommentDialog(open);
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Send a note
+              </DialogTitle>
+              <DialogDescription>
+                Not about a specific video? Send a general note to your E8 team — it goes straight to them, no need to attach it to a task.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="general-comment-text">Your note</Label>
+              <Textarea
+                id="general-comment-text"
+                value={generalCommentText}
+                onChange={(e) => setGeneralCommentText(e.target.value)}
+                placeholder="Type your note here..."
+                rows={5}
+                maxLength={4000}
+                disabled={isSendingGeneralComment}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowGeneralCommentDialog(false)}
+                disabled={isSendingGeneralComment}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSendGeneralComment}
+                disabled={isSendingGeneralComment || !generalCommentText.trim()}
+                className="gap-1.5"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {isSendingGeneralComment ? 'Sending…' : 'Send'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* File Selector Dialog */}
         {selectedTask && (

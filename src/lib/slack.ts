@@ -106,6 +106,7 @@ const TYPE_EMOJI: Record<string, string> = {
   qc_ready: "🔍",
   task_scheduled: "📅",
   file_uploaded: "📤",
+  client_general_comment: "💬",
 };
 
 function emojiForType(type: string): string {
@@ -469,6 +470,41 @@ export async function deliverSlackNotification(
         body: `Your ${assetLabel.toLowerCase()} for "${notification.payload?.taskTitle || "Task"}" needs revisions.${revisionNote}`,
       };
     }
+
+    // Send to client channel ONLY
+    await sendClientSlackWebhook(
+      notification.payload.clientId,
+      mentionedNotification,
+    );
+    return;
+  }
+
+  // 2b. CLIENT_GENERAL_COMMENT → Client channel ONLY (with @mention of the scheduler)
+  //     A freeform note from the client that isn't tied to a specific video —
+  //     sent from the "Send a note" button on the Content Review page.
+  //     There's no per-client scheduler assignment yet (scheduler is only
+  //     ever set per-task today), so — same as the QC admin mention above —
+  //     this hardcodes Daena's Slack ID until a real per-client assignment
+  //     exists to look up instead.
+  if (notificationType === "client_general_comment") {
+    console.log(`[Slack Dispatch] Client General Comment → Client channel only`);
+
+    if (!notification.payload?.clientId) {
+      console.log(`[Slack Dispatch] No clientId provided, skipping client_general_comment notification`);
+      return;
+    }
+
+    // Hardcoded scheduler's Slack ID (Daena) — see comment above.
+    const schedulerMention = `<@U0AQWFELDFH>`;
+    const clientName = notification.payload?.clientName || "A client";
+    const submitterName = notification.payload?.submitterName || "Someone";
+    const comment = notification.payload?.commentBody || "";
+
+    const mentionedNotification = {
+      ...notification,
+      title: `💬 New note from ${clientName}`,
+      body: `${submitterName} left a note that isn't about a specific video:\n\n"${comment}"\n\ncc ${schedulerMention}`,
+    };
 
     // Send to client channel ONLY
     await sendClientSlackWebhook(
