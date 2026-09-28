@@ -438,7 +438,10 @@ export function LayoutShell({
             ) : items.map((item) => {
               const normalizedRole = (currentRole as string).toLowerCase() as NavigationRole;
               const Icon = NAVIGATION_ITEMS[normalizedRole]?.find(i => i.id === item.id)?.icon || (item.id === 'ai-agent' ? Bot : FileText);
-              const isActive = currentPage === item.id;
+              // Exact match, or a sub-page of this item (e.g. 'financials2-ledger'
+              // under 'financials2') so the parent nav item stays highlighted
+              // while drilled into one of its full-page views.
+              const isActive = currentPage === item.id || currentPage.startsWith(`${item.id}-`);
 
               // For locked client portals, grey out everything except contracts
               const isClientLocked = portalLocked && normalizedRole === 'client';

@@ -39,6 +39,8 @@ import { CreateTaskDialog } from '../tasks/CreateTaskDialog';
 import { RecentTasksCard } from '../tasks/RecentTasksCard';
 import { StorageOverviewCard } from '../admin/StorageOverviewCard';
 import { QuickAddClientDialog } from '../client/QuickAddClientDialog';
+import { Financials2Overview } from '../admin/financials2/Financials2Overview';
+import { Financials2ModulePage } from '../admin/financials2/Financials2ModulePage';
 
 // ============================================
 // ROBUST DYNAMIC IMPORT WRAPPER
@@ -798,6 +800,71 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
             />
             <FinanceTab />
           </div>
+        );
+
+      case 'financials2':
+        return (
+          <div className="space-y-6">
+            <AdminPageHeader
+              title="Financials 2"
+              description="Every dollar in and out of E8, in one place — ledger, client payments, contractors, payroll, expenses, and reporting"
+            />
+            <Financials2Overview onNavigate={(page) => onPageChange?.(page)} />
+          </div>
+        );
+
+      case 'financials2-ledger':
+        return (
+          <Financials2ModulePage
+            title="Ledger"
+            description="Every recorded money movement across the business"
+            onBack={() => onPageChange?.('financials2')}
+          />
+        );
+
+      case 'financials2-client-payments':
+        return (
+          <Financials2ModulePage
+            title="Client Payments"
+            description="Unified billing and payment history across all clients"
+            onBack={() => onPageChange?.('financials2')}
+          />
+        );
+
+      case 'financials2-contractors':
+        return (
+          <Financials2ModulePage
+            title="Contractors"
+            description="Contractor profiles, W-9 status, and payment history"
+            onBack={() => onPageChange?.('financials2')}
+          />
+        );
+
+      case 'financials2-payroll':
+        return (
+          <Financials2ModulePage
+            title="Payroll"
+            description="Employee payroll runs, pay stubs, and history"
+            onBack={() => onPageChange?.('financials2')}
+          />
+        );
+
+      case 'financials2-expenses':
+        return (
+          <Financials2ModulePage
+            title="Expenses"
+            description="Employee expense submissions, approvals, and reimbursements"
+            onBack={() => onPageChange?.('financials2')}
+          />
+        );
+
+      case 'financials2-reports':
+        return (
+          <Financials2ModulePage
+            title="Reports & KPIs"
+            description="P&L, cash flow, AR aging, and goal tracking"
+            onBack={() => onPageChange?.('financials2')}
+          />
         );
 
       case 'permissions':
