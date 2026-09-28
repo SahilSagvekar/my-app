@@ -189,6 +189,13 @@ export function renderPage(
       case "reports":
       case "audit":
       case "finance":
+      case "financials2":
+      case "financials2-ledger":
+      case "financials2-client-payments":
+      case "financials2-contractors":
+      case "financials2-payroll":
+      case "financials2-expenses":
+      case "financials2-reports":
       case "permissions":
       case "leaves":
       case "activity_logs":
