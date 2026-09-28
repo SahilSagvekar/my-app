@@ -87,12 +87,6 @@ model User {
   hiringCandidatesAdded   HiringCandidate[]
   hiringTestTasksReviewed HiringTestTask[]
   convertedFromCandidate  HiringCandidate?         @relation("ConvertedCandidateUser")
-  ledgerEntriesCreated    LedgerEntry[]            @relation("LedgerEntryCreator")
-  w9SubmissionsVerified   W9Submission[]           @relation("W9Verifier")
-  contractorPaymentsMade  ContractorPayment[]      @relation("ContractorPaymentCreator")
-  expensesSubmitted       Expense[]                @relation("ExpenseSubmitter")
-  expensesApproved        Expense[]                @relation("ExpenseApprover")
-  financialGoalsCreated   FinancialGoal[]          @relation("FinancialGoalCreator")
 
   @@index([email])
   @@index([role])
@@ -1674,7 +1668,6 @@ model Contract {
   template             ContractTemplate?  @relation(fields: [templateId], references: [id])
   auditLogs            ContractAuditLog[]
   signers              ContractSigner[]
-  w9Submission         W9Submission?
 
   @@index([status])
   @@index([createdById])
@@ -2206,170 +2199,6 @@ model NasMirrorJob {
   @@index([createdAt])
 }
 
-// ---------------------------------------------------------------------------
-// Financials 2 — ledger, contractors (W-9), expenses, goals/KPIs
-// See docs: Financial Tracker — Architecture Plan
-// ---------------------------------------------------------------------------
-
-model Account {
-  id        String      @id @default(cuid())
-  name      String
-  code      String?     @unique
-  type      AccountType
-  parentId  String?
-  isActive  Boolean     @default(true)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  parent        Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children      Account[]     @relation("AccountHierarchy")
-  ledgerEntries LedgerEntry[]
-
-  @@index([type])
-  @@index([parentId])
-}
-
-model BankAccount {
-  id             String          @id @default(cuid())
-  name           String
-  type           BankAccountType
-  currency       String          @default("usd")
-  openingBalance Decimal         @default(0) @db.Decimal(14, 2)
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  ledgerEntries  LedgerEntry[]
-
-  @@index([isActive])
-}
-
-model LedgerEntry {
-  id            String           @id @default(cuid())
-  date          DateTime
-  accountId     String
-  bankAccountId String
-  amount        Decimal          @db.Decimal(14, 2) // signed: positive = income, negative = expense
-  currency      String           @default("usd")
-  sourceType    LedgerSourceType
-  sourceId      String? // id of the Payment / ContractorPayment / Payroll / Expense row that caused this entry
-  description   String?
-  notes         String?
-  createdById   Int?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  account       Account          @relation(fields: [accountId], references: [id])
-  bankAccount   BankAccount      @relation(fields: [bankAccountId], references: [id])
-  createdBy     User?            @relation("LedgerEntryCreator", fields: [createdById], references: [id])
-
-  @@index([date])
-  @@index([accountId])
-  @@index([bankAccountId])
-  @@index([sourceType, sourceId])
-}
-
-model Contractor {
-  id                String            @id @default(cuid())
-  name              String
-  email             String            @unique
-  phone             String?
-  businessName      String?
-  taxClassification String?
-  status            ContractorStatus  @default(ACTIVE)
-  w9Status          W9Status          @default(PENDING)
-  notes             String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  w9Submission      W9Submission?
-  payments          ContractorPayment[]
-
-  @@index([status])
-  @@index([w9Status])
-}
-
-model W9Submission {
-  id           String     @id @default(cuid())
-  contractorId String     @unique
-  contractId   String?    @unique // links to the signed Contract (existing e-sign flow) holding the actual W-9 document
-  taxIdLast4   String?
-  submittedAt  DateTime?
-  verifiedById Int?
-  verifiedAt   DateTime?
-  expiresAt    DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  contractor   Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
-  contract     Contract?  @relation(fields: [contractId], references: [id])
-  verifiedBy   User?      @relation("W9Verifier", fields: [verifiedById], references: [id])
-}
-
-model ContractorPayment {
-  id           String     @id @default(cuid())
-  contractorId String
-  amount       Decimal    @db.Decimal(12, 2)
-  currency     String     @default("usd")
-  date         DateTime
-  method       String? // ACH | check | wire | other
-  notes        String?
-  createdById  Int?
-  createdAt    DateTime   @default(now())
-  contractor   Contractor @relation(fields: [contractorId], references: [id])
-  createdBy    User?      @relation("ContractorPaymentCreator", fields: [createdById], references: [id])
-
-  @@index([contractorId])
-  @@index([date])
-}
-
-model ExpenseCategory {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  expenses  Expense[]
-}
-
-model Expense {
-  id              String          @id @default(cuid())
-  submittedById   Int
-  categoryId      String
-  amount          Decimal         @db.Decimal(12, 2)
-  currency        String          @default("usd")
-  dateIncurred    DateTime
-  description     String?
-  isReimbursable  Boolean         @default(true)
-  status          ExpenseStatus   @default(SUBMITTED)
-  receiptS3Key    String?
-  receiptFileName String?
-  approvedById    Int?
-  approvedAt      DateTime?
-  rejectionReason String?
-  reimbursedAt    DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  submittedBy     User            @relation("ExpenseSubmitter", fields: [submittedById], references: [id])
-  approvedBy      User?           @relation("ExpenseApprover", fields: [approvedById], references: [id])
-  category        ExpenseCategory @relation(fields: [categoryId], references: [id])
-
-  @@index([submittedById])
-  @@index([status])
-  @@index([categoryId])
-}
-
-model FinancialGoal {
-  id           String         @id @default(cuid())
-  name         String
-  metricType   GoalMetricType
-  targetAmount Decimal        @db.Decimal(14, 2)
-  period       GoalPeriod
-  startDate    DateTime
-  endDate      DateTime
-  createdById  Int?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  createdBy    User?          @relation("FinancialGoalCreator", fields: [createdById], references: [id])
-
-  @@index([period])
-  @@index([startDate, endDate])
-}
-
 enum SubscriptionStatus {
   ACTIVE
   PAST_DUE
@@ -2529,61 +2358,4 @@ enum QuoteStatus {
   VIEWED
   ACCEPTED
   REJECTED
-}
-
-enum AccountType {
-  ASSET
-  LIABILITY
-  EQUITY
-  INCOME
-  EXPENSE
-}
-
-enum BankAccountType {
-  CHECKING
-  SAVINGS
-  CREDIT_CARD
-  CASH
-  OTHER
-}
-
-enum LedgerSourceType {
-  CLIENT_PAYMENT
-  CONTRACTOR_PAYOUT
-  PAYROLL
-  EXPENSE_REIMBURSEMENT
-  MANUAL
-}
-
-enum ContractorStatus {
-  ACTIVE
-  INACTIVE
-}
-
-enum W9Status {
-  PENDING
-  SUBMITTED
-  VERIFIED
-  EXPIRED
-}
-
-enum ExpenseStatus {
-  DRAFT
-  SUBMITTED
-  APPROVED
-  REJECTED
-  REIMBURSED
-}
-
-enum GoalMetricType {
-  REVENUE
-  PROFIT
-  EXPENSE_CAP
-  CUSTOM
-}
-
-enum GoalPeriod {
-  MONTHLY
-  QUARTERLY
-  YEARLY
 }
