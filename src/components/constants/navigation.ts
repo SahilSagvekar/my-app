@@ -28,6 +28,7 @@ import {
   PlayCircle,
   UserPlus,
   Activity,
+  Wallet,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -39,6 +40,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'leaves', label: 'User Management', icon: Users },
     { id: 'clients', label: 'Clients', icon: FolderOpen },
     { id: 'finance', label: 'Financials', icon: DollarSign },
+    { id: 'financials2', label: 'Financials 2', icon: Wallet },
     { id: 'training', label: 'Training Management', icon: Layout },
     { id: 'portfolio', label: 'Portfolio', icon: Film },
     { id: 'contracts', label: 'Contracts', icon: PenLine },
