@@ -1,19 +1,26 @@
 import { pgTable, uniqueIndex, text, timestamp, foreignKey, integer, boolean, serial, numeric, varchar, type AnyPgColumn, index, jsonb, bigint, doublePrecision, date, primaryKey, pgEnum } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
+export const accountType = pgEnum("AccountType", ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'])
+export const bankAccountType = pgEnum("BankAccountType", ['CHECKING', 'SAVINGS', 'CREDIT_CARD', 'CASH', 'OTHER'])
 export const bidStatus = pgEnum("BidStatus", ['PENDING', 'ACCEPTED', 'REJECTED'])
 export const clientExpenseStatus = pgEnum("ClientExpenseStatus", ['PENDING', 'INVOICED', 'PAID'])
 export const contractStatus = pgEnum("ContractStatus", ['DRAFT', 'SENT', 'PARTIALLY_SIGNED', 'COMPLETED', 'CANCELLED', 'EXPIRED'])
+export const contractorStatus = pgEnum("ContractorStatus", ['ACTIVE', 'INACTIVE'])
 export const employeeStatus = pgEnum("EmployeeStatus", ['ACTIVE', 'INACTIVE', 'TERMINATED'])
+export const expenseStatus = pgEnum("ExpenseStatus", ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'REIMBURSED'])
 export const feedbackCategory = pgEnum("FeedbackCategory", ['GENERAL', 'TECHNICAL', 'WORKFLOW', 'SUGGESTION', 'BUG_REPORT'])
 export const feedbackPriority = pgEnum("FeedbackPriority", ['LOW', 'MEDIUM', 'HIGH'])
 export const feedbackStatus = pgEnum("FeedbackStatus", ['PENDING', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED'])
 export const fileDeletionRequestStatus = pgEnum("FileDeletionRequestStatus", ['PENDING', 'APPROVED', 'REJECTED'])
+export const goalMetricType = pgEnum("GoalMetricType", ['REVENUE', 'PROFIT', 'EXPENSE_CAP', 'CUSTOM'])
+export const goalPeriod = pgEnum("GoalPeriod", ['MONTHLY', 'QUARTERLY', 'YEARLY'])
 export const hiringCandidateStatus = pgEnum("HiringCandidateStatus", ['NEW', 'CONTACTED', 'TEST_SENT', 'TEST_SUBMITTED', 'IN_REVIEW', 'HIRED', 'REJECTED'])
 export const hiringTestTaskStatus = pgEnum("HiringTestTaskStatus", ['PENDING', 'SENT', 'SUBMITTED', 'IN_REVIEW', 'APPROVED', 'REJECTED'])
 export const invoiceStatus = pgEnum("InvoiceStatus", ['DRAFT', 'PENDING', 'SENT', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'CANCELED', 'REFUNDED'])
 export const jobStatus = pgEnum("JobStatus", ['OPEN', 'ASSIGNED', 'COMPLETED', 'CANCELLED'])
 export const leaveStatus = pgEnum("LeaveStatus", ['PENDING', 'APPROVED', 'REJECTED'])
+export const ledgerSourceType = pgEnum("LedgerSourceType", ['CLIENT_PAYMENT', 'CONTRACTOR_PAYOUT', 'PAYROLL', 'EXPENSE_REIMBURSEMENT', 'MANUAL'])
 export const logEntryStatus = pgEnum("LogEntryStatus", ['PLANNED', 'COMPLETED'])
 export const logEntryType = pgEnum("LogEntryType", ['CALL', 'MEETING', 'ANALYTICS_REVIEW'])
 export const paymentStatus = pgEnum("PaymentStatus", ['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'CANCELED', 'REFUNDED'])
@@ -23,11 +30,12 @@ export const portalAccessStatus = pgEnum("PortalAccessStatus", ['ONBOARDING', 'C
 export const preClientStatus = pgEnum("PreClientStatus", ['QUALIFIED', 'QUOTED', 'QUOTE_ACCEPTED', 'PROVISIONING', 'CONVERTED'])
 export const quoteStatus = pgEnum("QuoteStatus", ['DRAFT', 'SENT', 'VIEWED', 'ACCEPTED', 'REJECTED'])
 export const rawFootageFolderCode = pgEnum("RawFootageFolderCode", ['SF', 'LF'])
-export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager'])
+export const role = pgEnum("Role", ['admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager', 'host'])
 export const signerStatus = pgEnum("SignerStatus", ['PENDING', 'VIEWED', 'SIGNED', 'DECLINED'])
 export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'TRIALING', 'PAUSED'])
 export const syncStatus = pgEnum("SyncStatus", ['PENDING', 'SYNCING', 'COMPLETED', 'FAILED'])
 export const taskStatus = pgEnum("TaskStatus", ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED', 'SCHEDULED', 'ON_HOLD', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW', 'VIDEOGRAPHER_ASSIGNED', 'POSTED', 'HIDDEN', 'CANCELLED'])
+export const w9Status = pgEnum("W9Status", ['PENDING', 'SUBMITTED', 'VERIFIED', 'EXPIRED'])
 
 
 export const verificationToken = pgTable("VerificationToken", {
@@ -920,6 +928,16 @@ export const shootDetail = pgTable("ShootDetail", {
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 	hostName: text(),
+	// Host Portal: the booked host/talent for this shoot. hostName stays as the
+	// free-text legacy field for shoots booked before hosts had accounts; hostId is
+	// the real link to a User with role `host`. One host per shoot.
+	hostId: integer(),
+	hostRole: text(),
+	hostWardrobe: text(),
+	hostRate: numeric({ precision: 10, scale: 2 }),
+	// Notes shown to the host in their portal. Separate from videographerNotes, which are
+	// internal production notes and must never be exposed to talent.
+	hostNotes: text(),
 	equipmentIds: text().array(),
 	equipmentReturnedAt: timestamp({ precision: 3, mode: 'string' }),
 	equipmentReturnedPhotoUrl: text(),
@@ -943,6 +961,7 @@ export const shootDetail = pgTable("ShootDetail", {
 	// Set on the replacement shoot itself, pointing back at the one it replaced.
 	replacesTaskId: text(),
 }, (table) => [
+	index("ShootDetail_hostId_idx").using("btree", table.hostId.asc().nullsLast().op("int4_ops")),
 	uniqueIndex("ShootDetail_taskId_key").using("btree", table.taskId.asc().nullsLast().op("text_ops")),
 	foreignKey({
 			columns: [table.taskId],
@@ -953,6 +972,11 @@ export const shootDetail = pgTable("ShootDetail", {
 			columns: [table.videographerId],
 			foreignColumns: [user.id],
 			name: "ShootDetail_videographerId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.hostId],
+			foreignColumns: [user.id],
+			name: "ShootDetail_hostId_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
 	foreignKey({
 			columns: [table.cancelledBy],
@@ -1146,23 +1170,6 @@ export const slackConfig = pgTable("SlackConfig", {
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 });
 
-// Single-row table backing the admin "Primary/Backup" upload switch. Always
-// query/upsert the row with id = 'singleton' — see lib/upload-backend.ts,
-// the only place that's meant to read or write this table.
-export const uploadBackendConfig = pgTable("UploadBackendConfig", {
-	id: text().primaryKey().notNull(),
-	activeBackend: text().default('r2').notNull(), // 'r2' | 'backup'
-	switchedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	switchedBy: integer(),
-	// Set when a migration sweep (backup -> r2) is running so the admin
-	// panel and the migration cron itself can avoid starting a second one.
-	migrationInProgress: boolean().default(false).notNull(),
-	lastCanaryAt: timestamp({ precision: 3, mode: 'string' }),
-	lastCanaryOk: boolean(),
-	lastCanaryError: text(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-});
-
 export const guideline = pgTable("Guideline", {
 	id: text().primaryKey().notNull(),
 	category: text().notNull(),
@@ -1236,22 +1243,29 @@ export const file = pgTable("File", {
 	// manual link is left alone automatically — this column exists purely
 	// so the UI/audit trail can tell the two apart.
 	youtubeLinkedBy: integer(),
-	// Which R2 bucket this file's bytes actually live in. Set once at upload
-	// time from the active backend at that moment (see lib/upload-backend.ts)
-	// and never auto-changed — only the migration job flips 'backup' -> 'r2'
-	// after it has verified the copy landed in the primary bucket. Files
-	// uploaded before this column existed are implicitly 'r2' (the default).
 	storageBackend: text().default('r2').notNull(),
 }, (table) => [
-	index("File_storageBackend_idx").using("btree", table.storageBackend.asc().nullsLast().op("text_ops")),
 	index("File_taskId_folderType_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.folderType.asc().nullsLast().op("text_ops")),
 	index("File_taskId_isActive_idx").using("btree", table.taskId.asc().nullsLast().op("text_ops"), table.isActive.asc().nullsLast().op("text_ops")),
+	index("File_storageBackend_idx").using("btree", table.storageBackend.asc().nullsLast().op("text_ops")),
 	foreignKey({
 			columns: [table.taskId],
 			foreignColumns: [task.id],
 			name: "File_taskId_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 ]);
+
+export const uploadBackendConfig = pgTable("UploadBackendConfig", {
+	id: text().primaryKey().notNull(),
+	activeBackend: text().default('r2').notNull(), // 'r2' | 'backup'
+	switchedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	switchedBy: integer(),
+	migrationInProgress: boolean().default(false).notNull(),
+	lastCanaryAt: timestamp({ precision: 3, mode: 'string' }),
+	lastCanaryOk: boolean(),
+	lastCanaryError: text(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
 
 export const trainingCourse = pgTable("TrainingCourse", {
 	id: text().primaryKey().notNull(),
@@ -3211,3 +3225,249 @@ export const driveSyncRun = pgTable("DriveSyncRun", {
 	triggeredBy: text(),
 	error: text(),
 });
+
+// Clock-in / clock-out for the daily Start/Stop header button.
+// workDate is the EST calendar date ("YYYY-MM-DD") — one entry per user per day.
+export const timeClockEntry = pgTable("TimeClockEntry", {
+	id: text().primaryKey().notNull(),
+	userId: integer().notNull(),
+	workDate: text().notNull(),
+	clockInAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	clockOutAt: timestamp({ precision: 3, mode: 'string' }),
+	autoClosedOut: boolean().default(false).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("TimeClockEntry_userId_workDate_key").using("btree", table.userId.asc().nullsLast().op("int4_ops"), table.workDate.asc().nullsLast().op("text_ops")),
+	index("TimeClockEntry_userId_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	index("TimeClockEntry_workDate_idx").using("btree", table.workDate.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "TimeClockEntry_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+// ---------------------------------------------------------------------------
+// Financials 2 — ledger, contractors (W-9), expenses, goals/KPIs
+// See docs: Financial Tracker — Architecture Plan
+//
+// Named "LedgerAccount" (not "Account") to avoid colliding with the existing
+// NextAuth "Account" table above.
+// ---------------------------------------------------------------------------
+
+export const ledgerAccount = pgTable("LedgerAccount", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	code: text(),
+	type: accountType().notNull(),
+	parentId: text(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("LedgerAccount_code_key").using("btree", table.code.asc().nullsLast().op("text_ops")),
+	index("LedgerAccount_type_idx").using("btree", table.type.asc().nullsLast().op("enum_ops")),
+	index("LedgerAccount_parentId_idx").using("btree", table.parentId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.parentId],
+			foreignColumns: [table.id],
+			name: "LedgerAccount_parentId_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+
+export const bankAccount = pgTable("BankAccount", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	type: bankAccountType().notNull(),
+	currency: text().default('usd').notNull(),
+	openingBalance: numeric({ precision: 14, scale: 2 }).default('0').notNull(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("BankAccount_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
+]);
+
+export const ledgerEntry = pgTable("LedgerEntry", {
+	id: text().primaryKey().notNull(),
+	date: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	accountId: text().notNull(),
+	bankAccountId: text().notNull(),
+	// signed: positive = income, negative = expense
+	amount: numeric({ precision: 14, scale: 2 }).notNull(),
+	currency: text().default('usd').notNull(),
+	sourceType: ledgerSourceType().notNull(),
+	// id of the Payment / ContractorPayment / Payroll / Expense row that caused this entry
+	sourceId: text(),
+	description: text(),
+	notes: text(),
+	createdById: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("LedgerEntry_date_idx").using("btree", table.date.asc().nullsLast().op("timestamp_ops")),
+	index("LedgerEntry_accountId_idx").using("btree", table.accountId.asc().nullsLast().op("text_ops")),
+	index("LedgerEntry_bankAccountId_idx").using("btree", table.bankAccountId.asc().nullsLast().op("text_ops")),
+	index("LedgerEntry_sourceType_sourceId_idx").using("btree", table.sourceType.asc().nullsLast().op("enum_ops"), table.sourceId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.accountId],
+			foreignColumns: [ledgerAccount.id],
+			name: "LedgerEntry_accountId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.bankAccountId],
+			foreignColumns: [bankAccount.id],
+			name: "LedgerEntry_bankAccountId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "LedgerEntry_createdById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+
+export const contractor = pgTable("Contractor", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	email: text().notNull(),
+	phone: text(),
+	businessName: text(),
+	taxClassification: text(),
+	status: contractorStatus().default('ACTIVE').notNull(),
+	w9Status: w9Status().default('PENDING').notNull(),
+	notes: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("Contractor_email_key").using("btree", table.email.asc().nullsLast().op("text_ops")),
+	index("Contractor_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
+	index("Contractor_w9Status_idx").using("btree", table.w9Status.asc().nullsLast().op("enum_ops")),
+]);
+
+export const w9Submission = pgTable("W9Submission", {
+	id: text().primaryKey().notNull(),
+	contractorId: text().notNull(),
+	// links to the signed Contract (existing e-sign flow) holding the actual W-9 document
+	contractId: text(),
+	taxIdLast4: text(),
+	submittedAt: timestamp({ precision: 3, mode: 'string' }),
+	verifiedById: integer(),
+	verifiedAt: timestamp({ precision: 3, mode: 'string' }),
+	expiresAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("W9Submission_contractorId_key").using("btree", table.contractorId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("W9Submission_contractId_key").using("btree", table.contractId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.contractorId],
+			foreignColumns: [contractor.id],
+			name: "W9Submission_contractorId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.contractId],
+			foreignColumns: [contract.id],
+			name: "W9Submission_contractId_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+	foreignKey({
+			columns: [table.verifiedById],
+			foreignColumns: [user.id],
+			name: "W9Submission_verifiedById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+
+export const contractorPayment = pgTable("ContractorPayment", {
+	id: text().primaryKey().notNull(),
+	contractorId: text().notNull(),
+	amount: numeric({ precision: 12, scale: 2 }).notNull(),
+	currency: text().default('usd').notNull(),
+	date: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	// ACH | check | wire | other
+	method: text(),
+	notes: text(),
+	createdById: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("ContractorPayment_contractorId_idx").using("btree", table.contractorId.asc().nullsLast().op("text_ops")),
+	index("ContractorPayment_date_idx").using("btree", table.date.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.contractorId],
+			foreignColumns: [contractor.id],
+			name: "ContractorPayment_contractorId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "ContractorPayment_createdById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+
+export const expenseCategory = pgTable("ExpenseCategory", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("ExpenseCategory_name_key").using("btree", table.name.asc().nullsLast().op("text_ops")),
+]);
+
+export const expense = pgTable("Expense", {
+	id: text().primaryKey().notNull(),
+	submittedById: integer().notNull(),
+	categoryId: text().notNull(),
+	amount: numeric({ precision: 12, scale: 2 }).notNull(),
+	currency: text().default('usd').notNull(),
+	dateIncurred: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	description: text(),
+	isReimbursable: boolean().default(true).notNull(),
+	status: expenseStatus().default('SUBMITTED').notNull(),
+	receiptS3Key: text(),
+	receiptFileName: text(),
+	approvedById: integer(),
+	approvedAt: timestamp({ precision: 3, mode: 'string' }),
+	rejectionReason: text(),
+	reimbursedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("Expense_submittedById_idx").using("btree", table.submittedById.asc().nullsLast().op("int4_ops")),
+	index("Expense_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
+	index("Expense_categoryId_idx").using("btree", table.categoryId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.submittedById],
+			foreignColumns: [user.id],
+			name: "Expense_submittedById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.approvedById],
+			foreignColumns: [user.id],
+			name: "Expense_approvedById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+	foreignKey({
+			columns: [table.categoryId],
+			foreignColumns: [expenseCategory.id],
+			name: "Expense_categoryId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const financialGoal = pgTable("FinancialGoal", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	metricType: goalMetricType().notNull(),
+	targetAmount: numeric({ precision: 14, scale: 2 }).notNull(),
+	period: goalPeriod().notNull(),
+	startDate: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	endDate: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	createdById: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("FinancialGoal_period_idx").using("btree", table.period.asc().nullsLast().op("enum_ops")),
+	index("FinancialGoal_startDate_endDate_idx").using("btree", table.startDate.asc().nullsLast().op("timestamp_ops"), table.endDate.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "FinancialGoal_createdById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);

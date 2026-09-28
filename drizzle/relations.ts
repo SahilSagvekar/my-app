@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, file, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, expenseTrip, clientExpense, taskFeedback, equipment, driveNote, monthlyShootGeneration, logEntry, scriptShootLink, rawFootageFolder, tag, tagToTask } from "./schema";
+import { client, monthlyDeliverable, brandAsset, monthlyRun, user, bonus, leave, account, deduction, payroll, session, auditLog, feedback, feedbackResponse, recurringTask, task, qcAchievement, userSecurityPin, socialLogin, loginAuditLog, qcAnalytics, qcRejectionReason, qcMonthlyTrend, taskFeedback, file, qcCategoryMetrics, oneOffDeliverable, invoice, userTwoFactorAuth, titlingJob, youTubeChannel, youTubeSnapshot, youTubeVideoStat, shootDetail, metaAccount, metaSnapshot, clientRevenue, job, bid, guideline, editorClientPermission, trainingCourse, trainingVideo, portfolioCategory, portfolioSubcategory, socialAccount, socialPost, socialAnalytics, contract, contractAuditLog, affiliateCommission, salesLead, commissionPayout, contractSigner, stripeCustomer, paymentMethod, subscription, payment, facebookPage, facebookSnapshot, postedContent, salesLeadGenerationJob, postingTarget, editorEodReport, editorEodReportItem, roleEodReport, roleEodReportItem, onboardingToken, contractTemplate, employeeDocument, preClient, quote, trainingDocument, commissionAdjustment, salesManagerPermission, helpVideo, salesActivityLog, salesRepPayoutProfile, payoutBatchRun, folderStatus, hiringCandidate, hiringTestTask, meetingNote, schedulerActivityDailySummary, portfolioJourneyClient, portfolioJourneyStep, nasMirrorJob, schedulerActivityEvent, clientPortalAccess, tag, tagToTask, timeClockEntry, ledgerAccount, bankAccount, ledgerEntry, contractor, w9Submission, contractorPayment, expenseCategory, expense, financialGoal } from "./schema";
 
 export const monthlyDeliverableRelations = relations(monthlyDeliverable, ({one, many}) => ({
 	client: one(client, {
@@ -43,11 +43,6 @@ export const clientRelations = relations(client, ({one, many}) => ({
 	folderStatuses: many(folderStatus),
 	meetingNotes: many(meetingNote),
 	clientPortalAccesses: many(clientPortalAccess),
-	expenseTrips: many(expenseTrip),
-	driveNotes: many(driveNote),
-	monthlyShootGenerations: many(monthlyShootGeneration),
-	logEntries: many(logEntry),
-	rawFootageFolders: many(rawFootageFolder),
 }));
 
 export const brandAssetRelations = relations(brandAsset, ({one}) => ({
@@ -92,6 +87,7 @@ export const userRelations = relations(user, ({one, many}) => ({
 	qcAnalytics: many(qcAnalytics),
 	qcRejectionReasons: many(qcRejectionReason),
 	qcMonthlyTrends: many(qcMonthlyTrend),
+	taskFeedbacks: many(taskFeedback),
 	qcCategoryMetrics: many(qcCategoryMetrics),
 	tasks_assignedTo: many(task, {
 		relationName: "task_assignedTo_user_id"
@@ -117,10 +113,8 @@ export const userRelations = relations(user, ({one, many}) => ({
 	invoices: many(invoice),
 	salesLeadGenerationJobs: many(salesLeadGenerationJob),
 	editorEodReports: many(editorEodReport),
+	roleEodReports: many(roleEodReport),
 	salesLeads: many(salesLead),
-	clients: many(client, {
-		relationName: "client_userId_user_id"
-	}),
 	contracts: many(contract),
 	employeeDocuments_employeeId: many(employeeDocument, {
 		relationName: "employeeDocument_employeeId_user_id"
@@ -129,6 +123,9 @@ export const userRelations = relations(user, ({one, many}) => ({
 		relationName: "employeeDocument_uploadedById_user_id"
 	}),
 	preClients: many(preClient),
+	clients: many(client, {
+		relationName: "client_userId_user_id"
+	}),
 	commissionAdjustments: many(commissionAdjustment),
 	salesManagerPermissions_managerId: many(salesManagerPermission, {
 		relationName: "salesManagerPermission_managerId_user_id"
@@ -152,12 +149,17 @@ export const userRelations = relations(user, ({one, many}) => ({
 	nasMirrorJobs: many(nasMirrorJob),
 	schedulerActivityEvents: many(schedulerActivityEvent),
 	clientPortalAccesses: many(clientPortalAccess),
-	expenseTrips: many(expenseTrip),
-	clientExpenses: many(clientExpense),
-	taskFeedbacks: many(taskFeedback),
-	equipment: many(equipment),
-	driveNotes: many(driveNote),
-	logEntries: many(logEntry),
+	timeClockEntries: many(timeClockEntry),
+	ledgerEntries: many(ledgerEntry),
+	w9SubmissionsVerified: many(w9Submission),
+	contractorPayments: many(contractorPayment),
+	expensesSubmitted: many(expense, {
+		relationName: "expense_submittedById_user_id"
+	}),
+	expensesApproved: many(expense, {
+		relationName: "expense_approvedById_user_id"
+	}),
+	financialGoals: many(financialGoal),
 }));
 
 export const leaveRelations = relations(leave, ({one, many}) => ({
@@ -243,6 +245,7 @@ export const recurringTaskRelations = relations(recurringTask, ({one}) => ({
 
 export const taskRelations = relations(task, ({one, many}) => ({
 	recurringTasks: many(recurringTask),
+	taskFeedbacks: many(taskFeedback),
 	monthlyDeliverable: one(monthlyDeliverable, {
 		fields: [task.monthlyDeliverableId],
 		references: [monthlyDeliverable.id]
@@ -251,6 +254,11 @@ export const taskRelations = relations(task, ({one, many}) => ({
 		fields: [task.assignedTo],
 		references: [user.id],
 		relationName: "task_assignedTo_user_id"
+	}),
+	user_thumbnailEditor: one(user, {
+		fields: [task.thumbnailEditor],
+		references: [user.id],
+		relationName: "task_thumbnailEditor_user_id"
 	}),
 	client: one(client, {
 		fields: [task.clientId],
@@ -287,14 +295,7 @@ export const taskRelations = relations(task, ({one, many}) => ({
 	files: many(file),
 	socialPosts: many(socialPost),
 	editorEodReportItems: many(editorEodReportItem),
-	taskFeedbacks: many(taskFeedback),
-	scriptShootLinks_sourceShootTaskId: many(scriptShootLink, {
-		relationName: "scriptShootLink_sourceShootTaskId_task_id"
-	}),
-	scriptShootLinks_targetShootTaskId: many(scriptShootLink, {
-		relationName: "scriptShootLink_targetShootTaskId_task_id"
-	}),
-	rawFootageFolders: many(rawFootageFolder),
+	roleEodReportItems: many(roleEodReportItem),
 	tagToTasks: many(tagToTask),
 }));
 
@@ -356,6 +357,29 @@ export const qcMonthlyTrendRelations = relations(qcMonthlyTrend, ({one}) => ({
 	}),
 }));
 
+export const taskFeedbackRelations = relations(taskFeedback, ({one}) => ({
+	task: one(task, {
+		fields: [taskFeedback.taskId],
+		references: [task.id]
+	}),
+	file: one(file, {
+		fields: [taskFeedback.fileId],
+		references: [file.id]
+	}),
+	user: one(user, {
+		fields: [taskFeedback.createdBy],
+		references: [user.id]
+	}),
+}));
+
+export const fileRelations = relations(file, ({one, many}) => ({
+	taskFeedbacks: many(taskFeedback),
+	task: one(task, {
+		fields: [file.taskId],
+		references: [task.id]
+	}),
+}));
+
 export const qcCategoryMetricsRelations = relations(qcCategoryMetrics, ({one}) => ({
 	user: one(user, {
 		fields: [qcCategoryMetrics.qcSpecialistId],
@@ -387,7 +411,6 @@ export const invoiceRelations = relations(invoice, ({one, many}) => ({
 		fields: [invoice.createdBy],
 		references: [user.id]
 	}),
-	clientExpenses: many(clientExpense),
 }));
 
 export const userTwoFactorAuthRelations = relations(userTwoFactorAuth, ({one}) => ({
@@ -431,7 +454,7 @@ export const youTubeVideoStatRelations = relations(youTubeVideoStat, ({one}) => 
 	}),
 }));
 
-export const shootDetailRelations = relations(shootDetail, ({one}) => ({
+export const shootDetailRelations = relations(shootDetail, ({one, many}) => ({
 	task: one(task, {
 		fields: [shootDetail.taskId],
 		references: [task.id]
@@ -515,14 +538,6 @@ export const editorClientPermissionRelations = relations(editorClientPermission,
 	}),
 }));
 
-export const fileRelations = relations(file, ({one, many}) => ({
-	task: one(task, {
-		fields: [file.taskId],
-		references: [task.id]
-	}),
-	taskFeedbacks: many(taskFeedback),
-}));
-
 export const trainingVideoRelations = relations(trainingVideo, ({one}) => ({
 	trainingCourse: one(trainingCourse, {
 		fields: [trainingVideo.courseId],
@@ -591,6 +606,7 @@ export const contractRelations = relations(contract, ({one, many}) => ({
 		fields: [contract.templateId],
 		references: [contractTemplate.id]
 	}),
+	w9Submission: many(w9Submission),
 }));
 
 export const affiliateCommissionRelations = relations(affiliateCommission, ({one, many}) => ({
@@ -718,6 +734,25 @@ export const editorEodReportItemRelations = relations(editorEodReportItem, ({one
 	}),
 	task: one(task, {
 		fields: [editorEodReportItem.taskId],
+		references: [task.id]
+	}),
+}));
+
+export const roleEodReportRelations = relations(roleEodReport, ({one, many}) => ({
+	user: one(user, {
+		fields: [roleEodReport.userId],
+		references: [user.id]
+	}),
+	roleEodReportItems: many(roleEodReportItem),
+}));
+
+export const roleEodReportItemRelations = relations(roleEodReportItem, ({one}) => ({
+	roleEodReport: one(roleEodReport, {
+		fields: [roleEodReportItem.reportId],
+		references: [roleEodReport.id]
+	}),
+	task: one(task, {
+		fields: [roleEodReportItem.taskId],
 		references: [task.id]
 	}),
 }));
@@ -903,108 +938,6 @@ export const clientPortalAccessRelations = relations(clientPortalAccess, ({one})
 	}),
 }));
 
-export const expenseTripRelations = relations(expenseTrip, ({one, many}) => ({
-	client: one(client, {
-		fields: [expenseTrip.clientId],
-		references: [client.id]
-	}),
-	user: one(user, {
-		fields: [expenseTrip.createdById],
-		references: [user.id]
-	}),
-	clientExpenses: many(clientExpense),
-}));
-
-export const clientExpenseRelations = relations(clientExpense, ({one}) => ({
-	expenseTrip: one(expenseTrip, {
-		fields: [clientExpense.tripId],
-		references: [expenseTrip.id]
-	}),
-	invoice: one(invoice, {
-		fields: [clientExpense.invoiceId],
-		references: [invoice.id]
-	}),
-	user: one(user, {
-		fields: [clientExpense.createdById],
-		references: [user.id]
-	}),
-}));
-
-export const taskFeedbackRelations = relations(taskFeedback, ({one}) => ({
-	task: one(task, {
-		fields: [taskFeedback.taskId],
-		references: [task.id]
-	}),
-	file: one(file, {
-		fields: [taskFeedback.fileId],
-		references: [file.id]
-	}),
-	user: one(user, {
-		fields: [taskFeedback.createdBy],
-		references: [user.id]
-	}),
-}));
-
-export const equipmentRelations = relations(equipment, ({one}) => ({
-	user: one(user, {
-		fields: [equipment.createdById],
-		references: [user.id]
-	}),
-}));
-
-export const driveNoteRelations = relations(driveNote, ({one}) => ({
-	client: one(client, {
-		fields: [driveNote.clientId],
-		references: [client.id]
-	}),
-	user: one(user, {
-		fields: [driveNote.createdById],
-		references: [user.id]
-	}),
-}));
-
-export const monthlyShootGenerationRelations = relations(monthlyShootGeneration, ({one}) => ({
-	client: one(client, {
-		fields: [monthlyShootGeneration.clientId],
-		references: [client.id]
-	}),
-}));
-
-export const logEntryRelations = relations(logEntry, ({one}) => ({
-	client: one(client, {
-		fields: [logEntry.clientId],
-		references: [client.id]
-	}),
-	user: one(user, {
-		fields: [logEntry.createdBy],
-		references: [user.id]
-	}),
-}));
-
-export const scriptShootLinkRelations = relations(scriptShootLink, ({one}) => ({
-	task_sourceShootTaskId: one(task, {
-		fields: [scriptShootLink.sourceShootTaskId],
-		references: [task.id],
-		relationName: "scriptShootLink_sourceShootTaskId_task_id"
-	}),
-	task_targetShootTaskId: one(task, {
-		fields: [scriptShootLink.targetShootTaskId],
-		references: [task.id],
-		relationName: "scriptShootLink_targetShootTaskId_task_id"
-	}),
-}));
-
-export const rawFootageFolderRelations = relations(rawFootageFolder, ({one}) => ({
-	client: one(client, {
-		fields: [rawFootageFolder.clientId],
-		references: [client.id]
-	}),
-	task: one(task, {
-		fields: [rawFootageFolder.taskId],
-		references: [task.id]
-	}),
-}));
-
 export const tagToTaskRelations = relations(tagToTask, ({one}) => ({
 	tag: one(tag, {
 		fields: [tagToTask.a],
@@ -1018,4 +951,105 @@ export const tagToTaskRelations = relations(tagToTask, ({one}) => ({
 
 export const tagRelations = relations(tag, ({many}) => ({
 	tagToTasks: many(tagToTask),
+}));
+
+export const timeClockEntryRelations = relations(timeClockEntry, ({one}) => ({
+	user: one(user, {
+		fields: [timeClockEntry.userId],
+		references: [user.id]
+	}),
+}));
+
+// ---------------------------------------------------------------------------
+// Financials 2 — ledger, contractors (W-9), expenses, goals/KPIs
+// ---------------------------------------------------------------------------
+
+export const ledgerAccountRelations = relations(ledgerAccount, ({one, many}) => ({
+	parent: one(ledgerAccount, {
+		fields: [ledgerAccount.parentId],
+		references: [ledgerAccount.id],
+		relationName: "ledgerAccount_parentId_ledgerAccount_id"
+	}),
+	children: many(ledgerAccount, {
+		relationName: "ledgerAccount_parentId_ledgerAccount_id"
+	}),
+	ledgerEntries: many(ledgerEntry),
+}));
+
+export const bankAccountRelations = relations(bankAccount, ({many}) => ({
+	ledgerEntries: many(ledgerEntry),
+}));
+
+export const ledgerEntryRelations = relations(ledgerEntry, ({one}) => ({
+	account: one(ledgerAccount, {
+		fields: [ledgerEntry.accountId],
+		references: [ledgerAccount.id]
+	}),
+	bankAccount: one(bankAccount, {
+		fields: [ledgerEntry.bankAccountId],
+		references: [bankAccount.id]
+	}),
+	createdBy: one(user, {
+		fields: [ledgerEntry.createdById],
+		references: [user.id]
+	}),
+}));
+
+export const contractorRelations = relations(contractor, ({many}) => ({
+	payments: many(contractorPayment),
+	w9Submission: many(w9Submission),
+}));
+
+export const w9SubmissionRelations = relations(w9Submission, ({one}) => ({
+	contractor: one(contractor, {
+		fields: [w9Submission.contractorId],
+		references: [contractor.id]
+	}),
+	contract: one(contract, {
+		fields: [w9Submission.contractId],
+		references: [contract.id]
+	}),
+	verifiedBy: one(user, {
+		fields: [w9Submission.verifiedById],
+		references: [user.id]
+	}),
+}));
+
+export const contractorPaymentRelations = relations(contractorPayment, ({one}) => ({
+	contractor: one(contractor, {
+		fields: [contractorPayment.contractorId],
+		references: [contractor.id]
+	}),
+	createdBy: one(user, {
+		fields: [contractorPayment.createdById],
+		references: [user.id]
+	}),
+}));
+
+export const expenseCategoryRelations = relations(expenseCategory, ({many}) => ({
+	expenses: many(expense),
+}));
+
+export const expenseRelations = relations(expense, ({one}) => ({
+	submittedBy: one(user, {
+		fields: [expense.submittedById],
+		references: [user.id],
+		relationName: "expense_submittedById_user_id"
+	}),
+	approvedBy: one(user, {
+		fields: [expense.approvedById],
+		references: [user.id],
+		relationName: "expense_approvedById_user_id"
+	}),
+	category: one(expenseCategory, {
+		fields: [expense.categoryId],
+		references: [expenseCategory.id]
+	}),
+}));
+
+export const financialGoalRelations = relations(financialGoal, ({one}) => ({
+	createdBy: one(user, {
+		fields: [financialGoal.createdById],
+		references: [user.id]
+	}),
 }));
