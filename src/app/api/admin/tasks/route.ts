@@ -13,7 +13,7 @@ import {
     tag as tagTable,
     tagToTask as tagToTaskTable,
 } from "@/lib/db/schema";
-import { and, or, eq, ne, gte, lte, lt, inArray, notInArray, isNotNull, ilike, desc, asc, count, exists, sql as drizzleSql } from "drizzle-orm";
+import { and, or, eq, ne, gte, lte, lt, inArray, notInArray, isNotNull, ilike, desc, asc, count } from "drizzle-orm";
 import { getCurrentUser2 } from '@/lib/auth';
 
 // 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts and
@@ -325,13 +325,20 @@ export async function GET(req: NextRequest) {
         if (deliverableType) {
             conditions.push(or(
                 eq(taskTable.deliverableType, deliverableType),
-                exists(
-                    db.select({ one: drizzleSql`1` }).from(monthlyDeliverableTable)
-                        .where(and(eq(monthlyDeliverableTable.id, taskTable.monthlyDeliverableId), eq(monthlyDeliverableTable.type, deliverableType)))
+                // Uncorrelated inArray, NOT a correlated exists(): this `where`
+                // is also passed to db.query.task.findMany, which aliases the
+                // outer table as "task" and does not rewrite columns nested
+                // inside a subquery — a correlated ref to taskTable there
+                // renders as "Task"."x" and Postgres rejects it (42P01).
+                inArray(
+                    taskTable.monthlyDeliverableId,
+                    db.select({ id: monthlyDeliverableTable.id }).from(monthlyDeliverableTable)
+                        .where(eq(monthlyDeliverableTable.type, deliverableType))
                 ),
-                exists(
-                    db.select({ one: drizzleSql`1` }).from(oneOffDeliverableTable)
-                        .where(and(eq(oneOffDeliverableTable.id, taskTable.oneOffDeliverableId), eq(oneOffDeliverableTable.type, deliverableType)))
+                inArray(
+                    taskTable.oneOffDeliverableId,
+                    db.select({ id: oneOffDeliverableTable.id }).from(oneOffDeliverableTable)
+                        .where(eq(oneOffDeliverableTable.type, deliverableType))
                 ),
             ));
         }
@@ -343,10 +350,11 @@ export async function GET(req: NextRequest) {
 
         // Tag filter
         if (tag && tag !== 'all') {
-            conditions.push(exists(
-                db.select({ one: drizzleSql`1` }).from(tagToTaskTable)
+            conditions.push(inArray(
+                taskTable.id,
+                db.select({ id: tagToTaskTable.b }).from(tagToTaskTable)
                     .innerJoin(tagTable, eq(tagToTaskTable.a, tagTable.id))
-                    .where(and(eq(tagToTaskTable.b, taskTable.id), eq(tagTable.name, tag)))
+                    .where(eq(tagTable.name, tag))
             ));
         }
 
