@@ -12,14 +12,36 @@ import {
 } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, inArray, gte, lte } from "drizzle-orm";
-import { NextResponse } from "next/server";
-import { getUser } from "@/lib/auth";
-import jwt from "jsonwebtoken";
+import { NextRequest, NextResponse } from "next/server";
+import { getUserFromToken, hasRole } from "@/lib/auth-helpers";
 import { sendToChannel } from "@/lib/slack";
 
-export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
+// ---------------------------------------------------------------------------
+// SECURITY FIX (see audit): GET/PUT/DELETE on a single client previously had
+// NO auth check at all — anyone who knew/guessed a client id could read full
+// billing/PII, rewrite it, or cascade-delete the client entirely.
+//
+// This is an internal admin/manager CRUD surface (ClientManagement.tsx) —
+// client-role users fetch their own record through /api/client/me instead —
+// so all three handlers below now require a logged-in admin or manager.
+// ---------------------------------------------------------------------------
+function requireStaff(req: NextRequest) {
+  const currentUser = getUserFromToken(req);
+  if (!currentUser) {
+    return { error: NextResponse.json({ message: "Unauthorized" }, { status: 401 }), user: null };
+  }
+  if (!hasRole(currentUser, "admin") && !hasRole(currentUser, "manager")) {
+    return { error: NextResponse.json({ message: "Access denied" }, { status: 403 }), user: null };
+  }
+  return { error: null, user: currentUser };
+}
+
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const db = getDbHttp();
   try {
+    const { error } = requireStaff(req);
+    if (error) return error;
+
     const { id } = await context.params;
 
     // Get current month date range
@@ -108,9 +130,12 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   }
 }
 
-export async function PUT(req: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const db = getDbHttp();
   try {
+    const { error, user: currentUser } = requireStaff(req);
+    if (error) return error;
+
     const { id } = await context.params;
     const data = await req.json();
 
@@ -357,14 +382,13 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 
     console.log("✅ Client updated successfully with", finalClient?.monthlyDeliverables.length, "deliverables");
 
-    // 🔥 Audit client update
-    const token = req.headers.get("cookie")?.match(/authToken=([^;]+)/)?.[1];
-    if (token) {
+    // 🔥 Audit client update (currentUser is already verified staff above —
+    // no need to re-decode the token here)
+    if (currentUser) {
       try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
         const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
         await createAuditLog({
-          userId: decoded.userId,
+          userId: currentUser.userId ?? currentUser.id,
           action: AuditAction.CLIENT_UPDATED,
           entity: "Client",
           entityId: id,
@@ -396,12 +420,15 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 }
 
 export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const db = getDbHttp();
   try {
-    const { id } = params;
+    const { error, user: currentUser } = requireStaff(req);
+    if (error) return error;
+
+    const { id } = await params;
 
     const tasksWithFiles = await db.select({ id: task.id }).from(task).where(eq(task.clientId, id));
 
@@ -433,14 +460,16 @@ export async function DELETE(
 
     const [deletedClient] = await db.delete(clientTable).where(eq(clientTable.id, id)).returning();
 
-    // 🔥 Audit client deletion
-    const token = req.headers.get("cookie")?.match(/authToken=([^;]+)/)?.[1];
-    if (token) {
+    if (!deletedClient) {
+      return NextResponse.json({ message: "Client not found" }, { status: 404 });
+    }
+
+    // 🔥 Audit client deletion (currentUser is already verified staff above)
+    if (currentUser) {
       try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
         const { createAuditLog, AuditAction } = await import('@/lib/audit-logger');
         await createAuditLog({
-          userId: decoded.userId,
+          userId: currentUser.userId ?? currentUser.id,
           action: AuditAction.CLIENT_DELETED,
           entity: "Client",
           entityId: id,

@@ -20,6 +20,13 @@
 # production
 /build
 
+# build artifacts — these are bundled outputs that inline every env var at
+# build time (SECURITY: dist/custom-worker.js was committed with the full
+# production .env baked in — see the 2026-09-28 secret-rotation runbook).
+# Never commit build output again.
+/dist/
+.wrangler/
+
 # misc
 .DS_Store
 *.pem
@@ -49,5 +56,4 @@ service-account.jsonservice-account.json
 .env.local
 .env.local
 .open-next/
-x.wrangler/
 e8-coomands.txt

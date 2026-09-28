@@ -1,6 +1,16 @@
 import { pgTable, uniqueIndex, text, timestamp, foreignKey, integer, boolean, serial, numeric, varchar, type AnyPgColumn, index, jsonb, bigint, doublePrecision, date, primaryKey, pgEnum } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
+// Financials 2 enums
+export const accountType = pgEnum("AccountType", ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'])
+export const bankAccountType = pgEnum("BankAccountType", ['CHECKING', 'SAVINGS', 'CREDIT_CARD', 'CASH', 'OTHER'])
+export const contractorStatus = pgEnum("ContractorStatus", ['ACTIVE', 'INACTIVE'])
+export const expenseStatus = pgEnum("ExpenseStatus", ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'REIMBURSED'])
+export const goalMetricType = pgEnum("GoalMetricType", ['REVENUE', 'PROFIT', 'EXPENSE_CAP', 'CUSTOM'])
+export const goalPeriod = pgEnum("GoalPeriod", ['MONTHLY', 'QUARTERLY', 'YEARLY'])
+export const ledgerSourceType = pgEnum("LedgerSourceType", ['CLIENT_PAYMENT', 'CONTRACTOR_PAYOUT', 'PAYROLL', 'EXPENSE_REIMBURSEMENT', 'MANUAL'])
+export const w9Status = pgEnum("W9Status", ['PENDING', 'SUBMITTED', 'VERIFIED', 'EXPIRED'])
+
 export const bidStatus = pgEnum("BidStatus", ['PENDING', 'ACCEPTED', 'REJECTED'])
 export const clientExpenseStatus = pgEnum("ClientExpenseStatus", ['PENDING', 'INVOICED', 'PAID'])
 export const contractStatus = pgEnum("ContractStatus", ['DRAFT', 'SENT', 'PARTIALLY_SIGNED', 'COMPLETED', 'CANCELLED', 'EXPIRED'])
@@ -3239,3 +3249,224 @@ export const timeClockEntry = pgTable("TimeClockEntry", {
 			name: "TimeClockEntry_userId_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 ]);
+
+// ---------------------------------------------------------------------------
+// Financials 2 — ledger, contractors (W-9), expenses, goals/KPIs
+// ---------------------------------------------------------------------------
+
+export const ledgerAccount = pgTable("LedgerAccount", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	code: text(),
+	type: accountType().notNull(),
+	parentId: text(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("LedgerAccount_code_key").using("btree", table.code.asc().nullsLast().op("text_ops")),
+	index("LedgerAccount_type_idx").using("btree", table.type.asc().nullsLast().op("enum_ops")),
+	index("LedgerAccount_parentId_idx").using("btree", table.parentId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.parentId],
+			foreignColumns: [table.id],
+			name: "LedgerAccount_parentId_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+
+export const bankAccount = pgTable("BankAccount", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	type: bankAccountType().notNull(),
+	currency: text().default('usd').notNull(),
+	openingBalance: numeric({ precision: 14, scale: 2 }).default('0').notNull(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("BankAccount_isActive_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
+]);
+
+export const ledgerEntry = pgTable("LedgerEntry", {
+	id: text().primaryKey().notNull(),
+	date: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	accountId: text().notNull(),
+	bankAccountId: text().notNull(),
+	// signed: positive = income, negative = expense
+	amount: numeric({ precision: 14, scale: 2 }).notNull(),
+	currency: text().default('usd').notNull(),
+	sourceType: ledgerSourceType().notNull(),
+	// id of the Payment / ContractorPayment / Payroll / Expense row that caused this entry
+	sourceId: text(),
+	description: text(),
+	notes: text(),
+	createdById: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("LedgerEntry_date_idx").using("btree", table.date.asc().nullsLast().op("timestamp_ops")),
+	index("LedgerEntry_accountId_idx").using("btree", table.accountId.asc().nullsLast().op("text_ops")),
+	index("LedgerEntry_bankAccountId_idx").using("btree", table.bankAccountId.asc().nullsLast().op("text_ops")),
+	index("LedgerEntry_sourceType_sourceId_idx").using("btree", table.sourceType.asc().nullsLast().op("enum_ops"), table.sourceId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.accountId],
+			foreignColumns: [ledgerAccount.id],
+			name: "LedgerEntry_accountId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.bankAccountId],
+			foreignColumns: [bankAccount.id],
+			name: "LedgerEntry_bankAccountId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "LedgerEntry_createdById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+
+export const contractor = pgTable("Contractor", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	email: text().notNull(),
+	phone: text(),
+	businessName: text(),
+	taxClassification: text(),
+	status: contractorStatus().default('ACTIVE').notNull(),
+	w9Status: w9Status().default('PENDING').notNull(),
+	notes: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("Contractor_email_key").using("btree", table.email.asc().nullsLast().op("text_ops")),
+	index("Contractor_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
+	index("Contractor_w9Status_idx").using("btree", table.w9Status.asc().nullsLast().op("enum_ops")),
+]);
+
+export const w9Submission = pgTable("W9Submission", {
+	id: text().primaryKey().notNull(),
+	contractorId: text().notNull(),
+	// links to the signed Contract (existing e-sign flow) holding the actual W-9 document
+	contractId: text(),
+	taxIdLast4: text(),
+	submittedAt: timestamp({ precision: 3, mode: 'string' }),
+	verifiedById: integer(),
+	verifiedAt: timestamp({ precision: 3, mode: 'string' }),
+	expiresAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("W9Submission_contractorId_key").using("btree", table.contractorId.asc().nullsLast().op("text_ops")),
+	uniqueIndex("W9Submission_contractId_key").using("btree", table.contractId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.contractorId],
+			foreignColumns: [contractor.id],
+			name: "W9Submission_contractorId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.contractId],
+			foreignColumns: [contract.id],
+			name: "W9Submission_contractId_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+	foreignKey({
+			columns: [table.verifiedById],
+			foreignColumns: [user.id],
+			name: "W9Submission_verifiedById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+
+export const contractorPayment = pgTable("ContractorPayment", {
+	id: text().primaryKey().notNull(),
+	contractorId: text().notNull(),
+	amount: numeric({ precision: 12, scale: 2 }).notNull(),
+	currency: text().default('usd').notNull(),
+	date: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	// ACH | check | wire | other
+	method: text(),
+	notes: text(),
+	createdById: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("ContractorPayment_contractorId_idx").using("btree", table.contractorId.asc().nullsLast().op("text_ops")),
+	index("ContractorPayment_date_idx").using("btree", table.date.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.contractorId],
+			foreignColumns: [contractor.id],
+			name: "ContractorPayment_contractorId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "ContractorPayment_createdById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+
+export const expenseCategory = pgTable("ExpenseCategory", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	isActive: boolean().default(true).notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("ExpenseCategory_name_key").using("btree", table.name.asc().nullsLast().op("text_ops")),
+]);
+
+export const expense = pgTable("Expense", {
+	id: text().primaryKey().notNull(),
+	submittedById: integer().notNull(),
+	categoryId: text().notNull(),
+	amount: numeric({ precision: 12, scale: 2 }).notNull(),
+	currency: text().default('usd').notNull(),
+	dateIncurred: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	description: text(),
+	isReimbursable: boolean().default(true).notNull(),
+	status: expenseStatus().default('SUBMITTED').notNull(),
+	receiptS3Key: text(),
+	receiptFileName: text(),
+	approvedById: integer(),
+	approvedAt: timestamp({ precision: 3, mode: 'string' }),
+	rejectionReason: text(),
+	reimbursedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("Expense_submittedById_idx").using("btree", table.submittedById.asc().nullsLast().op("int4_ops")),
+	index("Expense_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
+	index("Expense_categoryId_idx").using("btree", table.categoryId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.submittedById],
+			foreignColumns: [user.id],
+			name: "Expense_submittedById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.approvedById],
+			foreignColumns: [user.id],
+			name: "Expense_approvedById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+	foreignKey({
+			columns: [table.categoryId],
+			foreignColumns: [expenseCategory.id],
+			name: "Expense_categoryId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const financialGoal = pgTable("FinancialGoal", {
+	id: text().primaryKey().notNull(),
+	name: text().notNull(),
+	metricType: goalMetricType().notNull(),
+	targetAmount: numeric({ precision: 14, scale: 2 }).notNull(),
+	period: goalPeriod().notNull(),
+	startDate: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	endDate: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	createdById: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("FinancialGoal_period_idx").using("btree", table.period.asc().nullsLast().op("enum_ops")),
+	index("FinancialGoal_startDate_endDate_idx").using("btree", table.startDate.asc().nullsLast().op("timestamp_ops"), table.endDate.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "FinancialGoal_createdById_fkey"
+		}).onUpdate("cascade").onDelete("setnull"),
+]);
+

@@ -34,6 +34,15 @@ export async function GET(
       );
     }
 
+    // SECURITY FIX (see audit): this had NO auth check at all — anyone with
+    // a task id, logged in or not, could read full task detail (assigned
+    // users, file URLs, etc). Now requires login, and a client-role caller
+    // is additionally scoped to their own client's tasks (ownership check).
+    const user = await getCurrentUser2(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const found = await db.query.task.findFirst({
       where: eq(task.id, taskId),
       with: {
@@ -78,6 +87,12 @@ export async function GET(
         { error: "Task not found" },
         { status: 404 }
       );
+    }
+
+    // Ownership check for client-role callers — everyone else (internal
+    // staff) can look up any task by id, same as before this fix.
+    if ((user.role || '').toLowerCase() === 'client' && found.clientId !== user.linkedClientId) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
     const { user_assignedTo, tagToTasks, ...rest } = found as any;
