@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AuthProvider, useAuth } from "../components/auth/AuthContext";
+import { AuthProvider, useAuth, hasSessionHint } from "../components/auth/AuthContext";
 import { ViewAsRoleProvider, useViewAsRole } from "../components/auth/ViewAsRoleContext";
 // import { NotificationProvider } from "../components/NotificationContext";
 import { SearchProvider } from "../components/SearchContext";
@@ -140,6 +140,15 @@ function AuthenticationFlow() {
   const [pendingTwoFactorEmail, setPendingTwoFactorEmail] = useState<string>("");
   const [resetToken] = useState("demo-reset-token"); // Mock token
 
+  // null until the first client effect runs, so the server render and first
+  // client render match (both show the neutral placeholder). After that:
+  //  - hint present  → returning user, keep "Loading..." until /api/auth/me answers
+  //  - no hint       → show the login form right away instead of waiting on the server
+  const [returningUser, setReturningUser] = useState<boolean | null>(null);
+  useEffect(() => {
+    setReturningUser(hasSessionHint());
+  }, []);
+
   const handleLogin = async (
     email: string,
     password: string,
@@ -185,7 +194,7 @@ function AuthenticationFlow() {
     setPendingTwoFactorEmail("");
   };
 
-  if (loading) {
+  if (returningUser === null || (loading && returningUser)) {
     return <div>Loading...</div>;
   }
 
