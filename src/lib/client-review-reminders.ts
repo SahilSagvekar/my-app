@@ -10,8 +10,9 @@
 //   bundle several overdue tasks for the same client into one email).
 
 import { getDbHttp } from '@/lib/db';
-import { task as taskTable, client as clientTable } from '@/lib/db/schema';
-import { and, eq, isNull, lte, or, asc } from 'drizzle-orm';
+import { task as taskTable, client as clientTable, user as userTable, file as fileTable, mediaPreview } from '@/lib/db/schema';
+import { and, eq, isNull, lte, or, asc, inArray } from 'drizzle-orm';
+import { addSignedUrlsToFiles } from '@/lib/s3';
 import { createTransporter } from '@/lib/mail-transport';
 import { getAllClientEmails } from '@/lib/email-notifications';
 import { getOrCreateReviewShareUrl } from '@/lib/share-review-link';
@@ -39,6 +40,117 @@ export interface TaskInReview {
   lastReminderSentAt: string | null;
   reviewUrl: string;
   dueDate: string | null;
+  // Extra fields so the Client Review screen can render QC-style cards.
+  // Optional: the reminder cron builds TaskInReview objects without them.
+  deliverableType?: string | null;
+  taskCategory?: string | null;
+  editorName?: string | null;
+  thumbnails?: string[];
+  latestVersion?: number;
+  fileCount?: number;
+}
+
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif)$/i;
+
+/**
+ * Card media for a set of tasks in one query: thumbnail URLs (same priority
+ * as the QC card — editor thumbnails/tiles, then other images, then the
+ * generated video preview), latest video version and file count. Only the
+ * thumbnail files themselves get signed, not every file on the task.
+ */
+async function getCardMedia(taskIds: string[]) {
+  const db = getDbHttp();
+  const out = new Map<string, { thumbnails: string[]; latestVersion: number; fileCount: number }>();
+  if (taskIds.length === 0) return out;
+
+  const files: any[] = await db
+    .select({
+      id: fileTable.id,
+      taskId: fileTable.taskId,
+      name: fileTable.name,
+      url: fileTable.url,
+      s3Key: fileTable.s3Key,
+      mimeType: fileTable.mimeType,
+      folderType: fileTable.folderType,
+      version: fileTable.version,
+      isActive: fileTable.isActive,
+      uploadedAt: fileTable.uploadedAt,
+    })
+    .from(fileTable)
+    .where(inArray(fileTable.taskId, taskIds));
+
+  const videoKeys = [...new Set(
+    files.filter((f) => f.isActive !== false && f.mimeType?.startsWith('video/') && f.s3Key).map((f) => f.s3Key as string)
+  )];
+  const previewByKey = new Map<string, string>();
+  if (videoKeys.length) {
+    const previews = await db
+      .select({ s3Key: mediaPreview.s3Key, previewS3Key: mediaPreview.previewS3Key })
+      .from(mediaPreview)
+      .where(and(inArray(mediaPreview.s3Key, videoKeys), eq(mediaPreview.status, 'READY')));
+    for (const p of previews) {
+      if (p.previewS3Key) previewByKey.set(p.s3Key, `/api/media-previews/image?key=${encodeURIComponent(p.previewS3Key)}`);
+    }
+  }
+
+  const byTask = new Map<string, any[]>();
+  for (const f of files) {
+    if (!byTask.has(f.taskId)) byTask.set(f.taskId, []);
+    byTask.get(f.taskId)!.push(f);
+  }
+
+  const newestFirst = (a: any, b: any) => {
+    const v = (b.version || 1) - (a.version || 1);
+    return v !== 0 ? v : new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime();
+  };
+
+  // Decide which files become thumbnails per task, then sign them all at once.
+  const plan = new Map<string, { signFiles: any[]; previewUrls: string[] }>();
+  for (const [taskId, tFiles] of byTask) {
+    const active = tFiles.filter((f) => f.isActive !== false && !!f.url);
+    const thumbFiles = active.filter((f) => f.folderType === 'thumbnails' || f.folderType === 'tiles').sort(newestFirst);
+    let signFiles: any[] = [];
+    let previewUrls: string[] = [];
+    if (thumbFiles.length) {
+      signFiles = thumbFiles;
+    } else {
+      const images = active
+        .filter((f) => f.mimeType?.startsWith('image/') || f.folderType === 'covers' || (f.name && IMAGE_EXT.test(f.name)))
+        .sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
+      if (images.length) {
+        signFiles = images;
+      } else {
+        const vid = active.find((f) => f.mimeType?.startsWith('video/') && f.s3Key && previewByKey.has(f.s3Key));
+        if (vid) previewUrls = [previewByKey.get(vid.s3Key)!];
+      }
+    }
+    plan.set(taskId, { signFiles: signFiles.slice(0, 6), previewUrls });
+  }
+
+  const allToSign = [...plan.values()].flatMap((p) => p.signFiles);
+  const signed = await addSignedUrlsToFiles(allToSign);
+  const signedById = new Map(signed.map((f: any) => [f.id, f.url as string]));
+
+  for (const taskId of taskIds) {
+    const tFiles = byTask.get(taskId) || [];
+    const p = plan.get(taskId);
+    const urls = [
+      ...(p?.signFiles || []).map((f) => signedById.get(f.id) || f.url),
+      ...(p?.previewUrls || []),
+    ];
+    const videos = tFiles.filter((f) => f.mimeType?.startsWith('video/'));
+    const pool = videos.length ? videos : tFiles;
+    const latestVersion = pool.reduce((m, f) => Math.max(m, f.version || 1), 1);
+    const imageCount = tFiles.filter(
+      (f) => f.mimeType?.startsWith('image/') || ['thumbnails', 'tiles', 'covers'].includes(f.folderType) || (f.name && IMAGE_EXT.test(f.name))
+    ).length;
+    out.set(taskId, {
+      thumbnails: [...new Set(urls.filter(Boolean))],
+      latestVersion,
+      fileCount: imageCount || tFiles.length,
+    });
+  }
+  return out;
 }
 
 function daysSince(iso: string | null): number {
@@ -78,11 +190,17 @@ export async function getTasksInReview(): Promise<TaskInReview[]> {
       clientReviewStartedAt: taskTable.clientReviewStartedAt,
       lastReminderSentAt: taskTable.lastReminderSentAt,
       dueDate: taskTable.dueDate,
+      deliverableType: taskTable.deliverableType,
+      taskCategory: taskTable.taskCategory,
+      editorName: userTable.name,
     })
     .from(taskTable)
     .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
+    .leftJoin(userTable, eq(taskTable.assignedTo, userTable.id))
     .where(eq(taskTable.status, 'CLIENT_REVIEW'))
     .orderBy(asc(taskTable.clientReviewStartedAt));
+
+  const media = await getCardMedia(rows.map((r) => r.id));
 
   // A direct, no-login review link per task — clicking it lands the client
   // straight on the review screen (just typing their name) instead of
@@ -98,6 +216,12 @@ export async function getTasksInReview(): Promise<TaskInReview[]> {
       lastReminderSentAt: r.lastReminderSentAt,
       reviewUrl: await getOrCreateReviewShareUrl(r.id),
       dueDate: r.dueDate,
+      deliverableType: r.deliverableType,
+      taskCategory: r.taskCategory,
+      editorName: r.editorName,
+      thumbnails: media.get(r.id)?.thumbnails ?? [],
+      latestVersion: media.get(r.id)?.latestVersion ?? 1,
+      fileCount: media.get(r.id)?.fileCount ?? 0,
     }))
   );
 }
