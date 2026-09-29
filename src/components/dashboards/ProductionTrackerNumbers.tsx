@@ -151,13 +151,14 @@ function HeroStat({
   return (
     <Card className="border shadow-sm">
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
+        {/* Text centered in the card; icon pinned right with equal side padding. */}
+        <div className="relative flex items-center justify-center">
+          <div className="space-y-1 text-center px-12">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
             <p className={cn('text-3xl font-bold tracking-tight', color)}>{value}</p>
             {sublabel && <p className="text-[11px] text-muted-foreground">{sublabel}</p>}
           </div>
-          <div className="p-2.5 rounded-xl bg-gray-50">{icon}</div>
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 p-2.5 rounded-xl bg-gray-50">{icon}</div>
         </div>
       </CardContent>
     </Card>
