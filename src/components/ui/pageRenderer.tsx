@@ -14,6 +14,7 @@ import { QCReportsPage } from "../dashboards/QCReportsPage";
 import { QCRejectionPatternsPage } from "../dashboards/QCRejectionPatternsPage";
 import { QCResourcesPage } from "../dashboards/QCResourcesPage";
 import { TrainingManagementTab } from "../admin/TrainingManagementTab";
+import { PageHeader } from "./page-header";
 import { TrainingPortalPage } from "../training/TrainingPortalPage";
 import { EditorGuidelinesPage } from "../dashboards/EditorGuidelinesPage";
 // import { SchedulerGuidelinesPage } from "../dashboards/SchedulerGuidelinesPage";
@@ -207,14 +208,10 @@ export function renderPage(
       case "training":
         return (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Training Management</h1>
-                <p className="text-muted-foreground mt-1 text-lg">
-                  Upload and manage role-specific training videos (Cloudinary). Staff see them as a course.
-                </p>
-              </div>
-            </div>
+            <PageHeader
+              title="Training Management"
+              description="Upload and manage role-specific training videos (Cloudinary). Staff see them as a course."
+            />
             <TrainingManagementTab />
           </div>
         );

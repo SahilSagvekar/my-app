@@ -9,6 +9,7 @@ import {
   CardDescription,
 } from "../ui/card";
 import { Button } from "../ui/button";
+import { PageHeader } from "../ui/page-header";
 import {
   Dialog,
   DialogContent,
@@ -125,6 +126,11 @@ export function TrainingPortalPage() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Training"
+        description="Watch your role's training videos and read the reference guides."
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
