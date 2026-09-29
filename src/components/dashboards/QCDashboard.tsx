@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -280,6 +280,25 @@ export function QCDashboard() {
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+
+  // 🔥 Paged queue: the API returns QC_PAGE_SIZE tasks at a time (oldest-first
+  // ordering is decided server-side) plus totals and filter options for the
+  // WHOLE queue, so counts/filters stay correct with only one page loaded.
+  const QC_PAGE_SIZE = 10;
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [pageInfo, setPageInfo] = useState({ total: 0, totalPending: 0, hasMore: false });
+  const [facetClients, setFacetClients] = useState<{ id: string; name: string }[]>([]);
+  const [facetTypes, setFacetTypes] = useState<string[]>([]);
+  // loadQCTasks is captured by long-lived listeners (task-updated, polling),
+  // so it reads the live filters/loaded-count through refs, not closures.
+  const filtersRef = useRef({ type: "all", client: "all", tag: "all" });
+  const loadedCountRef = useRef(0);
+  const viewingAsRef = useRef<string | null | undefined>(viewingAsRole);
+  // Set right before the loader replaces the list, so the effect below can tell
+  // "server refreshed the list" apart from "a card was approved/removed locally".
+  const serverSetRef = useRef(false);
+  const prevLenRef = useRef(0);
+  const filtersMountedRef = useRef(false);
   const [selectedTaskTags, setSelectedTaskTags] = useState<string[]>([]);
 
   useEffect(() => {
@@ -453,8 +472,41 @@ useEffect(() => {
 
   // 🔥 Initial load - run once on mount
   useEffect(() => {
-    loadQCTasks();
+    loadQCTasks({ reset: true });
   }, []);
+
+  // Keep the refs the loader reads in sync with current state.
+  useEffect(() => {
+    filtersRef.current = { type: deliverableTypeFilter, client: clientFilter, tag: tagFilter };
+  }, [deliverableTypeFilter, clientFilter, tagFilter]);
+  useEffect(() => {
+    viewingAsRef.current = viewingAsRole;
+  }, [viewingAsRole]);
+  useEffect(() => {
+    loadedCountRef.current = qcTasks.length;
+    // A card was removed locally (approved / sent back / reassigned): keep the
+    // header counts honest until the next server refresh.
+    const removed = prevLenRef.current - qcTasks.length;
+    if (!serverSetRef.current && removed > 0) {
+      setPageInfo((p) => ({
+        ...p,
+        total: Math.max(0, p.total - removed),
+        totalPending: Math.max(0, p.totalPending - removed),
+      }));
+    }
+    serverSetRef.current = false;
+    prevLenRef.current = qcTasks.length;
+  }, [qcTasks.length]);
+
+  // Filters are applied by the server now → changing one starts over at page 1.
+  useEffect(() => {
+    if (!filtersMountedRef.current) {
+      filtersMountedRef.current = true;
+      return;
+    }
+    filtersRef.current = { type: deliverableTypeFilter, client: clientFilter, tag: tagFilter };
+    loadQCTasks({ reset: true });
+  }, [deliverableTypeFilter, clientFilter, tagFilter]);
 
   // 🔥 Polling effect - only check for active optimization jobs
   useEffect(() => {
@@ -486,25 +538,45 @@ useEffect(() => {
     setSelectionMode(false);
   }, [viewingAsRole]);
 
-  const loadQCTasks = useCallback(async () => {
+  const loadQCTasks = useCallback(async (opts: { reset?: boolean; append?: boolean } = {}) => {
+    const { reset = false, append = false } = opts;
     try {
-      setLoading(true);
-      // 🔥 Fetch PENDING tasks (READY_FOR_QC status)
-      // limit=500 (the API's max) so the QC queue isn't silently truncated
-      // by the default 100-row safety cap once it grows past that.
-      const res = await fetch("/api/tasks?status=READY_FOR_QC&limit=500", {
-  method: "GET",
-  credentials: "include",
-  headers: viewingAsRole && viewingAsRole !== user?.role
-    ? { "x-viewing-as": viewingAsRole }
-    : {},
-});
+      if (append) setLoadingMore(true);
+      else if (reset) setLoading(true);
+
+      const f = filtersRef.current;
+      const loaded = loadedCountRef.current;
+      // append → next page after what's already loaded.
+      // reset  → back to the first page (filters changed / first load).
+      // else   → silent refresh: re-fetch everything currently on screen so
+      //          a background update doesn't collapse the list to page 1.
+      const offset = append ? loaded : 0;
+      const limit = append || reset ? QC_PAGE_SIZE : Math.min(Math.max(loaded, QC_PAGE_SIZE), 500);
+
+      const params = new URLSearchParams({
+        status: "READY_FOR_QC",
+        order: "queue",
+        limit: String(limit),
+        offset: String(offset),
+      });
+      if (!append) params.set("facets", "1");
+      if (f.type !== "all") params.set("deliverableType", f.type);
+      if (f.client !== "all") params.set("clientId", f.client);
+      if (f.tag !== "all") params.set("tag", f.tag);
+
+      const viewingAs = viewingAsRef.current;
+      const res = await fetch(`/api/tasks?${params.toString()}`, {
+        method: "GET",
+        credentials: "include",
+        headers: viewingAs && viewingAs !== user?.role
+          ? { "x-viewing-as": viewingAs }
+          : {},
+      });
 
       if (!res.ok) throw new Error("Failed fetching QC tasks");
 
-      let data = await res.json();
-
-      if (data.tasks) data = data.tasks;
+      const payload = await res.json();
+      const data = payload?.tasks ?? payload;
       if (!Array.isArray(data)) {
         console.error("QC API returned non-array:", data);
         return;
@@ -527,18 +599,36 @@ useEffect(() => {
         clientName: task.client?.companyName || task.client?.name || "Unknown Client",
       }));
 
-      const sorted = normalized.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() -
-          new Date(b.createdAt).getTime()
-      );
+      // The server already returns the queue in display order — don't re-sort
+      // here or rows would shuffle across page boundaries.
+      serverSetRef.current = true;
+      if (append) {
+        setQCTasks((prev) => {
+          const seen = new Set(prev.map((t) => t.id));
+          return [...prev, ...normalized.filter((t: any) => !seen.has(t.id))];
+        });
+      } else {
+        setQCTasks(normalized);
+      }
 
-      setQCTasks(sorted);
+      const paging = payload?.paging;
+      if (paging) {
+        setPageInfo((prev) => ({
+          total: paging.total ?? prev.total,
+          totalPending: paging.totalPending ?? prev.totalPending,
+          hasMore: !!paging.hasMore,
+        }));
+        if (paging.facets) {
+          setFacetClients(paging.facets.clients || []);
+          setFacetTypes(paging.facets.deliverableTypes || []);
+        }
+      }
     } catch (err) {
       console.error("QC load error:", err);
       toast.error("Failed to load QC tasks");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
@@ -1322,47 +1412,12 @@ useEffect(() => {
   };
 
   // 🔥 DERIVED DATA FOR FILTERING
-  const availableDeliverableTypes = useMemo(() => {
-    const types = new Set<string>();
-    qcTasks.forEach((task: any) => {
-      if (task.deliverableType) types.add(task.deliverableType);
-    });
-    return Array.from(types).sort();
-  }, [qcTasks]);
+  // Filter options + totals come from the server (whole queue, not one page).
+  const availableDeliverableTypes = facetTypes;
+  const availableClients = facetClients;
 
-  const availableClients = useMemo(() => {
-    const clients = new Map<string, string>();
-    qcTasks.forEach((task: any) => {
-      if (task.clientId && task.clientName) {
-        clients.set(task.clientId, task.clientName);
-      }
-    });
-    return Array.from(clients.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [qcTasks]);
-
-  const filteredTasks = useMemo(() => {
-    const list = qcTasks.filter(task => {
-      const matchType = deliverableTypeFilter === "all" || (task as any).deliverableType === deliverableTypeFilter;
-      const matchClient = clientFilter === "all" || task.clientId === clientFilter;
-      const matchTag = tagFilter === "all" || ((task as any).tags || []).some((t: any) => t.name === tagFilter);
-      return matchType && matchClient && matchTag;
-    });
-
-    // 🔥 Sort tasks with higher versions to the top (e.g. V4, V3, V2 before V1)
-    // Secondary tie-breaker: newest due date / creation date first
-    return list.sort((a, b) => {
-      const verA = getTaskLatestVersion(a);
-      const verB = getTaskLatestVersion(b);
-      if (verB !== verA) {
-        return verB - verA; // Descending by version
-      }
-      const timeA = new Date(a.dueDate || a.createdAt || 0).getTime();
-      const timeB = new Date(b.dueDate || b.createdAt || 0).getTime();
-      return timeB - timeA;
-    });
-  }, [qcTasks, deliverableTypeFilter, clientFilter, tagFilter]);
+  // The server already applied the filters and the queue order.
+  const filteredTasks = qcTasks;
 
   const clearAllFilters = () => {
     setDeliverableTypeFilter("all");
@@ -1371,8 +1426,9 @@ useEffect(() => {
   };
 
   const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all" || tagFilter !== "all";
-  const pendingReviews = filteredTasks.length;
-  const totalPending = qcTasks.length;
+  const pendingReviews = pageInfo.total;
+  const totalPending = pageInfo.totalPending;
+  const remainingToLoad = Math.max(0, pageInfo.total - qcTasks.length);
 
   // Counterpart files for the review-modal switch buttons — only set (and
   // thus only rendered) when the task actually has both a video and a
@@ -1781,6 +1837,31 @@ useEffect(() => {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {!loading && filteredTasks.length > 0 && (
+            <div className="flex flex-col items-center gap-2 py-6">
+              <p className="text-xs text-zinc-500">
+                Showing {filteredTasks.length} of {pageInfo.total}
+              </p>
+              {pageInfo.hasMore && (
+                <Button
+                  variant="outline"
+                  onClick={() => loadQCTasks({ append: true })}
+                  disabled={loadingMore}
+                  className="h-9 px-5 text-sm font-medium"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    `Load more (${Math.min(QC_PAGE_SIZE, remainingToLoad)} of ${remainingToLoad} remaining)`
+                  )}
+                </Button>
+              )}
             </div>
           )}
         </div>

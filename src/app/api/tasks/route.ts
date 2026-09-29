@@ -17,7 +17,7 @@ import {
   mediaPreview,
 } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
-import { and, or, eq, inArray, isNull, isNotNull, ne, desc, count, getTableColumns, sql as drizzleSql } from "drizzle-orm";
+import { and, or, eq, inArray, isNull, isNotNull, ne, desc, asc, count, getTableColumns, sql as drizzleSql } from "drizzle-orm";
 import { uploadBufferToS3, addSignedUrlsToFiles } from "@/lib/s3";
 // import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
@@ -273,6 +273,27 @@ const effectiveRole =
       ? Math.min(requestedLimit, 500)
       : 100;
 
+    // 🔥 Paged "queue" mode (used by the QC review queue).
+    //   ?order=queue          → same order the QC screen shows: highest video
+    //                           version first, then latest due date, then id
+    //                           (id makes paging stable when two tasks tie).
+    //   ?offset=N             → skip the first N rows (for "Load more").
+    //   ?deliverableType=, ?tag= → server-side filters (the screen only holds
+    //                           one page, so it can no longer filter locally).
+    //   ?facets=1             → also return counts + filter dropdown options
+    //                           computed over the WHOLE queue, not just a page.
+    // Without these params the endpoint behaves exactly as before.
+    const queueMode = searchParams.get("order") === "queue";
+    const requestedOffset = parseInt(searchParams.get("offset") || "", 10);
+    const taskOffset = Number.isFinite(requestedOffset) && requestedOffset > 0 ? requestedOffset : 0;
+    const deliverableTypeFilter = searchParams.get("deliverableType");
+    const tagFilter = searchParams.get("tag");
+    const wantFacets = searchParams.get("facets") === "1";
+
+    // Same "effective deliverable type" the QC screen used client-side.
+    const deliverableTypeExpr = drizzleSql`coalesce(nullif(${taskTable.deliverableType}, ''), (select m."type" from "MonthlyDeliverable" m where m."id" = ${taskTable.monthlyDeliverableId}), (select o."type" from "OneOffDeliverable" o where o."id" = ${taskTable.oneOffDeliverableId}), 'Other')`;
+    const latestVersionExpr = drizzleSql`coalesce((select max(f."version") from "File" f where f."taskId" = ${taskTable.id} and f."mimeType" like 'video/%'), (select max(f."version") from "File" f where f."taskId" = ${taskTable.id}), 1)`;
+
     // Build role-based where query. When previewing "client", pass the
     // requested clientId through as the override (see buildRoleWhereQuery) —
     // for a real client user this is undefined and it falls back to
@@ -315,15 +336,34 @@ const effectiveRole =
       conditions.push(eq(taskTable.monthFolder, monthFilter));
     }
 
+    // Everything above = the "whole queue" (used for totals + filter options).
+    const baseWhere = conditions.length ? and(...conditions) : undefined;
+
+    if (queueMode && deliverableTypeFilter && deliverableTypeFilter !== "all") {
+      conditions.push(drizzleSql`${deliverableTypeExpr} = ${deliverableTypeFilter}`);
+    }
+    if (queueMode && tagFilter && tagFilter !== "all") {
+      conditions.push(
+        drizzleSql`exists (select 1 from "_TagToTask" tt join "Tag" tg on tg."id" = tt."A" where tt."B" = ${taskTable.id} and tg."name" = ${tagFilter})`
+      );
+    }
+
     const where = conditions.length ? and(...conditions) : undefined;
+
+    const queueOrderBy = [
+      desc(latestVersionExpr),
+      desc(drizzleSql`coalesce(${taskTable.dueDate}, ${taskTable.createdAt})`),
+      asc(taskTable.id),
+    ];
 
     let tasks: any[];
     try {
       // ✅ NO PAGINATION - Fetch all tasks matching the query
       const rawTasks = await db.query.task.findMany({
         where,
-        orderBy: desc(taskTable.createdAt),
+        orderBy: queueMode ? queueOrderBy : desc(taskTable.createdAt),
         limit: taskLimit,
+        ...(taskOffset ? { offset: taskOffset } : {}),
         columns: {
           id: true,
           title: true,
@@ -502,8 +542,9 @@ const effectiveRole =
         .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
         .leftJoin(userTable, eq(taskTable.assignedTo, userTable.id))
         .where(where)
-        .orderBy(desc(taskTable.createdAt))
-        .limit(taskLimit);
+        .orderBy(...(queueMode ? queueOrderBy : [desc(taskTable.createdAt)]))
+        .limit(taskLimit)
+        .offset(taskOffset);
 
       const taskIds = rawRows.map(t => t.id);
       const allFiles: any[] = taskIds.length > 0
@@ -571,7 +612,9 @@ const effectiveRole =
     };
 
     // Sort: company → date → prefix → number
-    const sortedTasks = tasks.sort((a: any, b: any) => {
+    // In queue mode the database order IS the page order — re-sorting here
+    // would shuffle rows across page boundaries.
+    const sortedTasks = queueMode ? tasks : tasks.sort((a: any, b: any) => {
       const taskA = extractSortParts(a.title);
       const taskB = extractSortParts(b.title);
 
@@ -650,15 +693,69 @@ const effectiveRole =
       return { ...task, requiresClientReview: allowedTypes.includes(taskType) };
     });
 
-    // 🔥 Get distinct monthFolder values for the filter dropdown
-    const distinctMonths = await db
-      .selectDistinct({ monthFolder: taskTable.monthFolder })
-      .from(taskTable)
-      .where(isNotNull(taskTable.monthFolder))
-      .orderBy(desc(taskTable.monthFolder));
-    const availableMonths = distinctMonths
-      .map((t: any) => t.monthFolder as string)
-      .filter(Boolean);
+    // 🔥 Get distinct monthFolder values for the filter dropdown.
+    // Skipped in queue mode: the QC screen doesn't use it, and it scans the
+    // whole Task table on every request.
+    let availableMonths: string[] = [];
+    if (!queueMode) {
+      const distinctMonths = await db
+        .selectDistinct({ monthFolder: taskTable.monthFolder })
+        .from(taskTable)
+        .where(isNotNull(taskTable.monthFolder))
+        .orderBy(desc(taskTable.monthFolder));
+      availableMonths = distinctMonths
+        .map((t: any) => t.monthFolder as string)
+        .filter(Boolean);
+    }
+
+    // 🔥 Queue totals + filter options over the whole queue (cheap: no files,
+    // no feedback — just ids, client and deliverable type).
+    let paging: Record<string, any> | undefined;
+    if (queueMode) {
+      const [{ value: filteredTotal }] = await db
+        .select({ value: count() })
+        .from(taskTable)
+        .where(where);
+      paging = {
+        total: Number(filteredTotal),
+        offset: taskOffset,
+        limit: taskLimit,
+        hasMore: taskOffset + tasksWithEffectiveReview.length < Number(filteredTotal),
+      };
+
+      if (wantFacets) {
+        const facetRows = await db
+          .selectDistinct({
+            clientId: taskTable.clientId,
+            clientName: clientTable.name,
+            clientCompanyName: clientTable.companyName,
+            deliverableType: deliverableTypeExpr.as("effective_deliverable_type"),
+          })
+          .from(taskTable)
+          .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
+          .where(baseWhere);
+        const [{ value: totalPending }] = await db
+          .select({ value: count() })
+          .from(taskTable)
+          .where(baseWhere);
+
+        const clientMap = new Map<string, string>();
+        const typeSet = new Set<string>();
+        for (const r of facetRows as any[]) {
+          if (r.clientId) {
+            clientMap.set(r.clientId, r.clientCompanyName || r.clientName || "Unknown Client");
+          }
+          if (r.deliverableType) typeSet.add(String(r.deliverableType));
+        }
+        paging.totalPending = Number(totalPending);
+        paging.facets = {
+          clients: Array.from(clientMap.entries())
+            .map(([id, name]) => ({ id, name }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+          deliverableTypes: Array.from(typeSet).sort(),
+        };
+      }
+    }
 
     // ✅ Return all tasks without pagination
     // return NextResponse.json({
@@ -683,6 +780,7 @@ const finalTasks = isClientRole
 return NextResponse.json({
   tasks: finalTasks,
   availableMonths,
+  ...(paging ? { paging } : {}),
 }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
