@@ -1,0 +1,51 @@
+import * as React from 'react';
+
+// The E8 mark as an inline SVG.
+//
+// Why this exists instead of <img src="/assets/e8-logo-white.svg">:
+//  - Inline means there is no network request, so the logo can never be late,
+//    missing, or fall back to its alt text when the review screen mounts (the
+//    <img> re-fetched the file every time the screen opened).
+//  - The original file has no width/height (only a viewBox), so until it
+//    loaded the <img> had no size and the header jumped. Here the size is
+//    explicit and the width is a whole pixel.
+//  - The artwork's outline is a ~1px hairline at header size, so it is drawn
+//    edge-to-edge in a whole-pixel box (no viewBox padding) to keep it crisp.
+//    preserveAspectRatio="none" only absorbs the <1px rounding of the width.
+
+const VIEWBOX_W = 370.08;
+const VIEWBOX_H = 496.58;
+
+const E8_PATH =
+  'M370.08,111.08v274.43l-.99,10.88c-7.12,55.78-54.98,98.68-111.19,100.2H111.71c-56-2.02-103.16-43.93-110.72-99.48L0,387.42C0,294.67.01,201.91,0,109.16,2.69,51.08,50.91,2.78,109.07,0h151.7c59.51,2.98,107.01,51.79,109.31,111.08ZM254.64,14.64H110.27C57.77,17.38,16.53,59.7,14.63,112.15v271.81c1.87,54.01,44.72,96.62,98.76,97.99h141.25v-72.69H114.83c-14.27-.41-26.11-11.55-27.23-25.79v-98.95s97.44,0,97.44,0v-72.68h-97.44v-98.71c.97-13.67,11.91-24.67,25.55-25.8h141.49s0-72.68,0-72.68ZM267.6,197.2v-84.56c0-4.53-6.98-10.84-11.64-10.67-47.95.22-95.99-.47-143.88.35-4.92,1.13-9.83,6.62-9.83,11.76v83.12h165.36ZM267.6,299.15H102.24v83.12c0,5.81,5.68,11.63,11.39,12.12h143.05c4.54-.18,10.92-6.2,10.92-10.68v-84.56Z';
+
+interface E8LogoProps {
+  /** Rendered height in CSS px. Width follows the artwork's aspect ratio, rounded to a whole pixel. */
+  height?: number;
+  /** Fill colour of the mark. Defaults to white (for dark headers). */
+  color?: string;
+  className?: string;
+  style?: React.CSSProperties;
+  title?: string;
+}
+
+export function E8Logo({ height = 28, color = '#ffffff', className, style, title = 'E8' }: E8LogoProps) {
+  const width = Math.max(1, Math.round((height * VIEWBOX_W) / VIEWBOX_H));
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox={`0 0 ${VIEWBOX_W} ${VIEWBOX_H}`}
+      preserveAspectRatio="none"
+      width={width}
+      height={height}
+      role="img"
+      aria-label={title}
+      shapeRendering="geometricPrecision"
+      className={className}
+      style={{ display: 'block', flex: 'none', ...style }}
+    >
+      <path fill={color} d={E8_PATH} />
+    </svg>
+  );
+}
