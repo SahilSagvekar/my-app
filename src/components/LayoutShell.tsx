@@ -337,8 +337,14 @@ export function LayoutShell({
               </Button>
             )}
 
-            <TimeClockButton />
-            <SCDigitalClock />
+            {/* Time clock + SC clock are staff tools — hidden in client portals
+                (including an admin previewing a client via role switch). */}
+            {currentRole?.toLowerCase() !== 'client' && (
+              <>
+                <TimeClockButton />
+                <SCDigitalClock />
+              </>
+            )}
             {/* User Menu */}
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
