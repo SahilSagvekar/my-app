@@ -40,6 +40,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// A tiny per-browser hint that this browser had a signed-in session last time.
+// The real check is still /api/auth/me — the hint only decides what to show
+// WHILE that request is in flight: returning users keep the "Loading..." state
+// (no login-form flash), first-time / signed-out visitors get the login form
+// immediately instead of waiting on the server. Never used for auth decisions.
+const SESSION_HINT_KEY = "e8_session_hint";
+
+export function hasSessionHint(): boolean {
+  try {
+    return window.localStorage.getItem(SESSION_HINT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeSessionHint(signedIn: boolean) {
+  try {
+    if (signedIn) window.localStorage.setItem(SESSION_HINT_KEY, "1");
+    else window.localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    // storage blocked (private mode etc.) — hint just stays off
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -76,6 +100,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
   }, [refreshUser]);
+
+  // Keep the hint in step with the real auth result (login, logout, expiry).
+  useEffect(() => {
+    if (!loading) writeSessionHint(isAuthenticated);
+  }, [isAuthenticated, loading]);
 
   // Global fetch interceptor for JWT expiration
   useEffect(() => {
