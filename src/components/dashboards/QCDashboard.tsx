@@ -1197,6 +1197,7 @@ useEffect(() => {
   };
 
   const handleSelectAllFiltered = () => {
+    if (!isAdmin) return; // admin-only, also guarded in the UI
     setSelectedTaskIds((prev) => {
       const allSelected = filteredTasks.length > 0 && filteredTasks.every((t) => prev.has(t.id));
       if (allSelected) return new Set();
@@ -1560,11 +1561,14 @@ useEffect(() => {
         {selectionMode && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-violet-50 border border-violet-200 rounded-xl">
             <div className="flex items-center gap-3">
-              <Checkbox
-                checked={filteredTasks.length > 0 && filteredTasks.every((t) => selectedTaskIds.has(t.id))}
-                onCheckedChange={handleSelectAllFiltered}
-                aria-label="Select all visible tasks"
-              />
+              {/* "Select all" is admin-only; everyone else picks cards one by one */}
+              {isAdmin && (
+                <Checkbox
+                  checked={filteredTasks.length > 0 && filteredTasks.every((t) => selectedTaskIds.has(t.id))}
+                  onCheckedChange={handleSelectAllFiltered}
+                  aria-label="Select all visible tasks"
+                />
+              )}
               <span className="text-sm font-medium text-violet-900">
                 {selectedTaskIds.size === 0
                   ? "Select tasks to approve or reject in bulk"
