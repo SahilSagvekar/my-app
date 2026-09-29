@@ -1698,51 +1698,6 @@ useEffect(() => {
                         </div>
                       )}
 
-                      {/* Top Right: Replace/Edit actions for cards with thumbnail */}
-                      {hasThumbnails && (
-                        <div
-                          className={`absolute top-3 right-3 z-20 items-center gap-1.5 ${
-                            isLongForm ? "flex" : "hidden group-hover:flex"
-                          }`}
-                        >
-                          <label
-                            className="text-xs font-medium text-white bg-black/60 hover:bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-md cursor-pointer transition-colors shadow-xs border border-white/10"
-                            onClick={(e) => e.stopPropagation()}
-                            title="Replace thumbnail"
-                          >
-                            Replace
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleStillUpload(task, file);
-                              }}
-                            />
-                          </label>
-                          <button
-                            type="button"
-                            className="text-xs font-medium text-white bg-black/60 hover:bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-md transition-colors shadow-xs border border-white/10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (currentThumb?.file) {
-                                setSelectedTask(task);
-                                setSelectedFile(currentThumb.file);
-                                const mime = getMimeType(currentThumb.file);
-                                if (mime.startsWith('image/')) {
-                                  setShowThumbnailReview(true);
-                                  return;
-                                }
-                              }
-                              handleTaskClick(task);
-                            }}
-                            title="Review & edit task"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      )}
                     </div>
 
                     {/* Card Body */}
