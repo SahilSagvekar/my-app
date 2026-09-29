@@ -620,11 +620,19 @@ useEffect(() => {
   // two without closing the review screen.
   const getPrimaryVideoFile = (task: typeof selectedTask) => {
     if (!task) return null;
-    return (
-      task.files?.find(
-        (f) => getMimeType(f).startsWith('video/') && (f.folderType || 'main') === 'main'
-      ) || null
+    // Latest main video, ordered exactly like the "Review Content" list
+    // (version desc, then upload date desc). A plain .find() returned the
+    // first file in raw order — V1 — so switching from thumbnails back to
+    // video reopened the oldest version instead of the newest.
+    const videos = (task.files || []).filter(
+      (f) => getMimeType(f).startsWith('video/') && (f.folderType || 'main') === 'main'
     );
+    if (videos.length === 0) return null;
+    return [...videos].sort((a, b) => {
+      const versionDiff = (b.version || 1) - (a.version || 1);
+      if (versionDiff !== 0) return versionDiff;
+      return new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime();
+    })[0];
   };
 
   const getPrimaryThumbnailFile = (task: typeof selectedTask) => {
