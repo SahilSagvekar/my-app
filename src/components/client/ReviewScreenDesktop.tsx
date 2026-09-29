@@ -12,6 +12,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Slider } from '../ui/slider';
+import { E8Logo } from '../ui/E8Logo';
 import {
     DropdownMenu,
     DropdownMenuTrigger,
@@ -588,8 +589,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                         <div style={{ width: 1, height: 32, background: 'var(--review-border)' }} />
 
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/assets/e8-logo-white.svg" alt="E8" style={{ height: 28, width: 'auto', display: 'block', flex: 'none' }} />
+                        <E8Logo height={28} />
 
                         <div style={{ width: 1, height: 32, background: 'var(--review-border)' }} />
 
