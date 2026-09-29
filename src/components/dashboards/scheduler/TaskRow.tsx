@@ -528,9 +528,9 @@ export function TaskRow({
                                         <h4 className="font-semibold mb-2 text-sm text-gray-700">Tags</h4>
                                         <div className="flex flex-wrap gap-1.5">
                                             {task.postingTags.map(t => (
-                                                <button key={t.id} onClick={() => navigator.clipboard.writeText(t.text)}
+                                                <button key={t.id} onClick={() => navigator.clipboard.writeText(`#${t.text.replace(/^#+/, '').trim()}`)}
                                                     className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full border text-gray-700 transition-colors">
-                                                    #{t.text}
+                                                    #{t.text.replace(/^#+/, '').trim()}
                                                     <Copy className="h-2.5 w-2.5 opacity-50" />
                                                 </button>
                                             ))}
