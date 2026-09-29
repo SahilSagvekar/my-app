@@ -5,10 +5,12 @@ import { equipment as equipmentTable } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
-// Edit/Delete are admin-only in practice (manager included for parity with
-// other management surfaces) — videographer can create equipment (see
-// POST in ../route.ts) but not edit or remove it.
-const CAN_EDIT_DELETE = ['admin', 'manager'];
+// Anyone on the team can add equipment (see POST in ../route.ts), but the
+// destructive/administrative actions are locked down:
+//   - Edit   → admin + manager (unchanged)
+//   - Delete → admin ONLY
+const CAN_EDIT = ['admin', 'manager'];
+const CAN_DELETE = ['admin'];
 
 // PATCH — edit an equipment item
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -19,7 +21,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!CAN_EDIT_DELETE.includes((user.role || '').toLowerCase())) {
+    if (!CAN_EDIT.includes((user.role || '').toLowerCase())) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -49,10 +51,11 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   }
 }
 
-// DELETE — remove an equipment item. Past shoots keep referencing this id
-// in ShootDetail.equipmentIds (a plain text array, no FK) — their history
-// stays intact; the frontend just won't be able to resolve the name for a
-// deleted item on old shoots, so it can label it "(removed)" if not found.
+// DELETE — remove an equipment item (admin only). Past shoots keep
+// referencing this id in ShootDetail.equipmentIds (a plain text array, no FK)
+// — their history stays intact; the frontend just won't be able to resolve
+// the name for a deleted item on old shoots, so it can label it "(removed)"
+// if not found.
 export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const db = getDbHttp();
   const params = await props.params;
@@ -61,8 +64,8 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!CAN_EDIT_DELETE.includes((user.role || '').toLowerCase())) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!CAN_DELETE.includes((user.role || '').toLowerCase())) {
+      return NextResponse.json({ error: 'Only an admin can delete equipment' }, { status: 403 });
     }
 
     const [deleted] = await db.delete(equipmentTable).where(eq(equipmentTable.id, params.id)).returning();

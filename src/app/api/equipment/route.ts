@@ -6,7 +6,10 @@ import { createId } from '@/lib/db/id';
 import { eq, asc } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 
-const CAN_MANAGE = ['admin', 'manager', 'videographer'];
+// Any signed-in team member can add equipment. External accounts (clients,
+// host-portal accounts) are the only ones kept out. Deleting is a separate,
+// stricter rule — see [id]/route.ts (admin only).
+const CANNOT_ADD = ['client', 'host'];
 
 // GET — list equipment (active by default; ?includeInactive=1 for all)
 export async function GET(req: NextRequest) {
@@ -31,7 +34,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST — add a new piece of equipment
+// POST — add a new piece of equipment (any signed-in team member)
 export async function POST(req: NextRequest) {
   const db = getDbHttp();
   try {
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!CAN_MANAGE.includes((user.role || '').toLowerCase())) {
+    if (CANNOT_ADD.includes((user.role || '').toLowerCase())) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
