@@ -57,3 +57,5 @@ service-account.jsonservice-account.json
 .env.local
 .open-next/
 e8-coomands.txt
+# Sentry Config File
+.env.sentry-build-plugin
