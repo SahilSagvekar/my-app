@@ -43,13 +43,15 @@ function StatCard({
   return (
     <Card className="border shadow-sm">
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
+        {/* Text sits in the middle of the card; the icon is pinned to the right
+            and equal side padding keeps the text from running under it. */}
+        <div className="relative flex items-center justify-center">
+          <div className="space-y-1 text-center px-12">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
             <p className="text-2xl font-bold tracking-tight">{value}</p>
             {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
           </div>
-          <div className={cn('p-2.5 rounded-xl', color)}>{icon}</div>
+          <div className={cn('absolute right-0 top-1/2 -translate-y-1/2 p-2.5 rounded-xl', color)}>{icon}</div>
         </div>
       </CardContent>
     </Card>
