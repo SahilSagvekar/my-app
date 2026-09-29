@@ -390,12 +390,14 @@ function StatCard({
   return (
     <Card className="border shadow-sm">
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
+        {/* Text centered in the card; icon pinned right, equal side padding
+            keeps the text clear of it. */}
+        <div className="relative flex items-center justify-center">
+          <div className="space-y-1 text-center px-12">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               {title}
             </p>
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-baseline justify-center gap-2">
               <p className="text-2xl font-bold tracking-tight">{value}</p>
               {trend && (
                 <span
@@ -418,7 +420,7 @@ function StatCard({
               <p className="text-[11px] text-muted-foreground">{subtitle}</p>
             )}
           </div>
-          <div className={cn('p-2.5 rounded-xl', color)}>{icon}</div>
+          <div className={cn('absolute right-0 top-1/2 -translate-y-1/2 p-2.5 rounded-xl', color)}>{icon}</div>
         </div>
       </CardContent>
     </Card>
