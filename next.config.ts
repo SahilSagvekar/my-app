@@ -86,12 +86,12 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://www.loom.com https://vercel.live https://www.googletagmanager.com https://www.youtube.com https://s.ytimg.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://www.loom.com https://vercel.live https://www.googletagmanager.com https://www.youtube.com https://s.ytimg.com https://static.cloudflareinsights.com",
               "style-src 'self' 'unsafe-inline' https://unpkg.com",
               // https: allows admin-pasted external portfolio photo URLs (any host).
               "img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*",
               "media-src 'self' blob: https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://*.cloudflarestorage.com https:",
-              "connect-src 'self' https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://unpkg.com https://*.cloudflarestorage.com https://www.google-analytics.com https://www.googletagmanager.com",
+              "connect-src 'self' https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://unpkg.com https://*.cloudflarestorage.com https://www.google-analytics.com https://www.googletagmanager.com https://*.ingest.us.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com",
               "frame-src 'self' blob: https://drive.google.com https://docs.google.com https://www.youtube.com https://player.vimeo.com https://*.s3.amazonaws.com https://*.cloudflarestorage.com",
               "font-src 'self' data:",
               "worker-src 'self' blob: https://unpkg.com",
