@@ -8,7 +8,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, ilike, isNotNull, or, sql } from 'drizzle-orm';
 import { getCurrentUser2 } from '@/lib/auth';
 import { getDbHttp } from '@/lib/db';
 import {
@@ -64,19 +64,25 @@ async function notifyLogEntryAdded(
     ].filter(Boolean);
     const message = lines.join('\n');
 
+    // Case-insensitive email match, falling back to name — the stored email
+    // casing (e.g. "Eric@e8productions.com") can differ from ERIC_EMAIL.
     const [eric] = await db
       .select({ id: userTable.id, slackUserId: userTable.slackUserId })
       .from(userTable)
-      .where(eq(userTable.email, ERIC_EMAIL))
+      .where(or(sql`lower(${userTable.email}) = ${ERIC_EMAIL}`, ilike(userTable.name, 'Eric Davis')))
       .limit(1);
 
-    await Promise.allSettled([
+    if (!eric) console.warn('[Production Log] Eric user not found — no DM sent');
+    else if (!eric.slackUserId) console.warn('[Production Log] Eric has no slackUserId — no DM sent');
+
+    const results = await Promise.allSettled([
       sendToChannel('e8app', { type: 'production_log_entry_added', message, payload: { clientId: entry.clientId } }),
       // No point DMing Eric about an entry he created himself.
       eric?.slackUserId && String(eric.id) !== String(creator.id)
         ? sendSlackDM(eric.slackUserId, { type: 'production_log_entry_added', message, payload: { clientId: entry.clientId } })
         : Promise.resolve(),
     ]);
+    console.log('[Production Log] Slack notify results:', JSON.stringify(results));
   } catch (err) {
     console.error('[Production Log] Slack notification failed:', err);
   }
