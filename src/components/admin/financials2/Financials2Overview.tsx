@@ -52,7 +52,7 @@ interface OverviewData {
   clientPayments: { outstandingCents: number; collectedCents: number; overdueCount: number };
   contractors: { activeCount: number; w9PendingCount: number; paidThisMonth: number };
   payroll: { totalThisMonth: number; nextRunDate: string | null };
-  expenses: { pendingApprovalCount: number; reimbursedThisMonth: number; submittedThisMonthTotal: number };
+  expenses: { pendingApprovalCount: number; loggedThisMonth: number; loggedCount: number; submittedThisMonthTotal: number };
   reports: {
     revenue: number;
     expensesTotal: number;
@@ -180,8 +180,8 @@ export function Financials2Overview({ onNavigate }: Financials2OverviewProps) {
         icon: Receipt,
         iconColor: "text-red-600",
         stats: [
-          { label: "Pending approval", value: data ? v(String(data.expenses.pendingApprovalCount)) : "—" },
-          { label: "Reimbursed (mo.)", value: data ? v(formatUsd(data.expenses.reimbursedThisMonth)) : "—" },
+          { label: "Logged (mo.)", value: data ? v(formatUsd(data.expenses.loggedThisMonth)) : "—" },
+          { label: "Entries", value: data ? v(String(data.expenses.loggedCount)) : "—" },
         ],
       },
       {

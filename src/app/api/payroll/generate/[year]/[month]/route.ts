@@ -106,6 +106,12 @@ export async function POST(
 
       let payrollRow;
 
+      // A run that's already been paid is final — regenerating must not rewrite it.
+      if (existing?.status === 'PAID') {
+        payrolls.push(existing);
+        continue;
+      }
+
       if (existing) {
         [payrollRow] = await db.update(payrollTable).set({
           baseSalary: String(baseSalary),
