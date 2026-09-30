@@ -1,4 +1,3 @@
-import { withSentryConfig } from '@sentry/nextjs/config';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -92,7 +91,7 @@ const nextConfig = {
               // https: allows admin-pasted external portfolio photo URLs (any host).
               "img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*",
               "media-src 'self' blob: https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://*.cloudflarestorage.com https:",
-              "connect-src 'self' https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://unpkg.com https://*.cloudflarestorage.com https://www.google-analytics.com https://www.googletagmanager.com https://*.ingest.us.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com",
+              "connect-src 'self' https://*.s3.amazonaws.com https://*.amazonaws.com https://res.cloudinary.com https://unpkg.com https://*.cloudflarestorage.com https://www.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com",
               "frame-src 'self' blob: https://drive.google.com https://docs.google.com https://www.youtube.com https://player.vimeo.com https://*.s3.amazonaws.com https://*.cloudflarestorage.com",
               "font-src 'self' data:",
               "worker-src 'self' blob: https://unpkg.com",
@@ -139,41 +138,3 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
-
-export default withSentryConfig(undefined, {
-  // For all available options, see:
-  // https://www.npmjs.com/package/@sentry/webpack-plugin#options
-
-  org: "e8-hj",
-
-  project: "e8",
-
-  // Only print logs for uploading source maps in CI
-  silent: !process.env.CI,
-
-  // For all available options, see:
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
-
-  // Upload a larger set of source maps for prettier stack traces (increases build time)
-  widenClientFileUpload: true,
-
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
-  tunnelRoute: "/monitoring",
-
-  webpack: {
-    // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-    // See the following for more information:
-    // https://docs.sentry.io/product/crons/
-    // https://vercel.com/docs/cron-jobs
-    automaticVercelMonitors: true,
-
-    // Tree-shaking options for reducing bundle size
-    treeshake: {
-      // Automatically tree-shake Sentry logger statements to reduce bundle size
-      removeDebugLogging: true,
-    },
-  },
-});
