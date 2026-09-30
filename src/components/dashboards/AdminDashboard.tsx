@@ -43,6 +43,7 @@ import { Financials2Overview } from '../admin/financials2/Financials2Overview';
 import { Financials2ModulePage } from '../admin/financials2/Financials2ModulePage';
 import { ClientPaymentsModule } from '../admin/financials2/ClientPaymentsModule';
 import { PayrollModule } from '../admin/financials2/PayrollModule';
+import { ExpensesModule } from '../admin/financials2/ExpensesModule';
 
 // ============================================
 // ROBUST DYNAMIC IMPORT WRAPPER
@@ -859,9 +860,11 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
         return (
           <Financials2ModulePage
             title="Expenses"
-            description="Employee expense submissions, approvals, and reimbursements"
+            description="Log what E8 spent each month"
             onBack={() => onPageChange?.('financials2')}
-          />
+          >
+            <ExpensesModule />
+          </Financials2ModulePage>
         );
 
       case 'financials2-reports':

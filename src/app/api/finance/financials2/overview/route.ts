@@ -40,7 +40,7 @@ import {
   expense as expenseTable,
   financialGoal as financialGoalTable,
 } from '@/lib/db/schema';
-import { and, asc, eq, gte, lt, notInArray } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, notInArray } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import {
   effectiveInvoiceStatus,
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
       payrollPaidThisMonth,
       payrollNextPending,
       expensePendingApproval,
-      expensesReimbursedThisMonth,
+      expensesLoggedThisMonth,
       expensesSubmittedThisMonth,
       revenueGoal,
     ] = await Promise.all([
@@ -163,14 +163,15 @@ export async function GET(req: NextRequest) {
         .from(expenseTable)
         .where(eq(expenseTable.status, 'SUBMITTED')),
 
-      // Expenses: reimbursed this month.
+      // Expenses: everything logged/approved for this month, by the date the
+      // expense was incurred (admin-logged expenses are stored as APPROVED).
       db
         .select({ amount: expenseTable.amount })
         .from(expenseTable)
         .where(and(
-          eq(expenseTable.status, 'REIMBURSED'),
-          gte(expenseTable.reimbursedAt, startIso),
-          lt(expenseTable.reimbursedAt, endIso),
+          inArray(expenseTable.status, ['APPROVED', 'REIMBURSED']),
+          gte(expenseTable.dateIncurred, startIso),
+          lt(expenseTable.dateIncurred, endIso),
         )),
 
       // Expenses: submitted this month (for reference / KPIs).
@@ -236,7 +237,8 @@ export async function GET(req: NextRequest) {
 
     // ---- Expenses ----
     const pendingApprovalCount = expensePendingApproval.length;
-    const reimbursedThisMonth = expensesReimbursedThisMonth.reduce((sum, e) => sum + num(e.amount), 0);
+    const loggedThisMonth = expensesLoggedThisMonth.reduce((sum, e) => sum + num(e.amount), 0);
+    const loggedCount = expensesLoggedThisMonth.length;
     const submittedThisMonthTotal = expensesSubmittedThisMonth.reduce((sum, e) => sum + num(e.amount), 0);
 
     // ---- Reports & KPIs ----
@@ -246,7 +248,7 @@ export async function GET(req: NextRequest) {
     // from a Payment will have sourceType CLIENT_PAYMENT — until that
     // hookup exists this second term is just 0).
     const revenue = collectedCents / 100 + ledgerMoneyIn;
-    const expensesTotal = payrollTotalThisMonth + contractorsPaidThisMonth + reimbursedThisMonth + ledgerMoneyOut;
+    const expensesTotal = payrollTotalThisMonth + contractorsPaidThisMonth + loggedThisMonth + ledgerMoneyOut;
     const profitMarginPct = revenue > 0 ? ((revenue - expensesTotal) / revenue) * 100 : null;
 
     const goalRow = revenueGoal[0] ?? null;
@@ -282,7 +284,8 @@ export async function GET(req: NextRequest) {
       },
       expenses: {
         pendingApprovalCount,
-        reimbursedThisMonth,
+        loggedThisMonth,
+        loggedCount,
         submittedThisMonthTotal,
       },
       reports: {
