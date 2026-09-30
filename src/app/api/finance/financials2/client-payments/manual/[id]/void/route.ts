@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { getDbHttp } from '@/lib/db';
 import { clientManualPayment as manualTable } from '@/lib/db/schema';
-import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
+import { getJwtUserId, getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const db = getDbHttp();
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const now = new Date().toISOString();
     await db
       .update(manualTable)
-      .set({ voidedAt: now, voidedById: Number(currentUser.id) || null, voidReason: reason, updatedAt: now })
+      .set({ voidedAt: now, voidedById: getJwtUserId(currentUser), voidReason: reason, updatedAt: now })
       .where(eq(manualTable.id, id));
 
     return NextResponse.json({ ok: true });
