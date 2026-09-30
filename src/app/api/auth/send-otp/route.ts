@@ -4,7 +4,7 @@ import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
-import { sendOTPEmail } from '@/lib/mail-transport';
+import { sendOTPEmail } from '@/lib/email';
 
 export async function POST(req: Request) {
   const db = getDbHttp();
