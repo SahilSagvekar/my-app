@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 // Financials 2 → Payroll (expanded view)
 //
 // One row per employee for the selected month: Name, Role, Hourly Rate,
-// Est. Monthly, a Paid / Unpaid dropdown, and the amount the admin enters.
+// Est. Monthly, the amount the admin enters, and a Paid / Unpaid dropdown.
 // Changes save immediately (dropdown change, or amount on blur / Enter).
 // Data: /api/finance/financials2/payroll (same Payroll table as the Finance tab).
 // ---------------------------------------------------------------------------
@@ -175,8 +175,8 @@ export function PayrollModule() {
                   <TableHead>Role</TableHead>
                   <TableHead className="text-right">Hourly Rate</TableHead>
                   <TableHead className="text-right">Est. Monthly</TableHead>
-                  <TableHead className="w-40">Status</TableHead>
                   <TableHead className="w-44">Amount</TableHead>
+                  <TableHead className="w-40">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -189,17 +189,6 @@ export function PayrollModule() {
                       <TableCell>{roleLabel(row.role)}</TableCell>
                       <TableCell className="text-right">{row.hourlyRate !== null ? usd(row.hourlyRate) : "—"}</TableCell>
                       <TableCell className="text-right">{usd(row.estMonthly)}</TableCell>
-                      <TableCell>
-                        <Select value={row.status} onValueChange={(v) => onStatusChange(row, v as "PAID" | "PENDING")} disabled={busy}>
-                          <SelectTrigger className={row.status === "PAID" ? "border-green-300 bg-green-50 text-green-800" : ""}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="PAID">Paid</SelectItem>
-                            <SelectItem value="PENDING">Unpaid</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
                       <TableCell>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
@@ -219,6 +208,17 @@ export function PayrollModule() {
                             }}
                           />
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <Select value={row.status} onValueChange={(v) => onStatusChange(row, v as "PAID" | "PENDING")} disabled={busy}>
+                          <SelectTrigger className={row.status === "PAID" ? "border-green-300 bg-green-50 text-green-800" : ""}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PAID">Paid</SelectItem>
+                            <SelectItem value="PENDING">Unpaid</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </TableCell>
                     </TableRow>
                   );
@@ -245,8 +245,8 @@ export function PayrollModule() {
                       Total
                     </TableCell>
                     <TableCell className="text-right font-semibold">{usd(data.totals.estTotal)}</TableCell>
-                    <TableCell className="font-semibold">{data.totals.paidCount} paid</TableCell>
                     <TableCell className="font-semibold">{usd(data.totals.paidTotal)} paid</TableCell>
+                    <TableCell className="font-semibold">{data.totals.paidCount} paid</TableCell>
                   </TableRow>
                 </TableFooter>
               )}
