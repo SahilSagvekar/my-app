@@ -41,6 +41,7 @@ import { StorageOverviewCard } from '../admin/StorageOverviewCard';
 import { QuickAddClientDialog } from '../client/QuickAddClientDialog';
 import { Financials2Overview } from '../admin/financials2/Financials2Overview';
 import { Financials2ModulePage } from '../admin/financials2/Financials2ModulePage';
+import { ClientPaymentsModule } from '../admin/financials2/ClientPaymentsModule';
 
 // ============================================
 // ROBUST DYNAMIC IMPORT WRAPPER
@@ -828,7 +829,9 @@ export function AdminDashboard({ currentPage = 'dashboard', onPageChange }: Admi
             title="Client Payments"
             description="Unified billing and payment history across all clients"
             onBack={() => onPageChange?.('financials2')}
-          />
+          >
+            <ClientPaymentsModule />
+          </Financials2ModulePage>
         );
 
       case 'financials2-contractors':

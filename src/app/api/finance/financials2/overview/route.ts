@@ -42,6 +42,11 @@ import {
 } from '@/lib/db/schema';
 import { and, asc, eq, gte, lt, notInArray } from 'drizzle-orm';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
+import {
+  effectiveInvoiceStatus,
+  getManualPaidByInvoice,
+  getRevenueByMonth,
+} from '@/lib/finance/client-payments';
 
 /** YYYY-MM-01T00:00:00Z .. next month's YYYY-MM-01T00:00:00Z, for a "YYYY-MM" input. */
 function monthRange(monthParam: string | null): { start: Date; end: Date; label: string } {
@@ -84,7 +89,7 @@ export async function GET(req: NextRequest) {
     const [
       ledgerRows,
       invoicesDueThisMonth,
-      invoicesCollectedThisMonth,
+      revenueByMonth,
       overdueInvoices,
       contractorCounts,
       contractorPaymentsThisMonth,
@@ -103,7 +108,7 @@ export async function GET(req: NextRequest) {
 
       // Client Payments: invoices due this month, still owing something.
       db
-        .select({ amount: invoiceTable.amount, amountPaid: invoiceTable.amountPaid })
+        .select({ id: invoiceTable.id, amount: invoiceTable.amount, amountPaid: invoiceTable.amountPaid })
         .from(invoiceTable)
         .where(and(
           gte(invoiceTable.dueDate, startIso),
@@ -111,16 +116,15 @@ export async function GET(req: NextRequest) {
           notInArray(invoiceTable.status, ['CANCELED', 'REFUNDED']),
         )),
 
-      // Client Payments: what actually came in this month.
-      db
-        .select({ amountPaid: invoiceTable.amountPaid })
-        .from(invoiceTable)
-        .where(and(gte(invoiceTable.paidAt, startIso), lt(invoiceTable.paidAt, endIso))),
+      // Client Payments: what actually came in this month — Stripe invoice
+      // payments (by paid date) plus manual cash/check/Zelle/wire payments
+      // (by received date). Same definition as the Client Payments page.
+      getRevenueByMonth(db, startIso, endIso),
 
       // Client Payments: overdue right now (not month-scoped — overdue is a
       // current state, not something that belongs to one calendar month).
       db
-        .select({ id: invoiceTable.id })
+        .select({ id: invoiceTable.id, amount: invoiceTable.amount, amountPaid: invoiceTable.amountPaid })
         .from(invoiceTable)
         .where(eq(invoiceTable.status, 'OVERDUE')),
 
@@ -204,12 +208,22 @@ export async function GET(req: NextRequest) {
     }
 
     // ---- Client Payments (Invoice amounts are cents) ----
+    // Manual payments applied to an invoice count toward its balance, so an
+    // invoice settled in cash is neither "outstanding" nor "overdue".
+    const manualByInvoice = await getManualPaidByInvoice(db, [
+      ...invoicesDueThisMonth.map((i) => i.id),
+      ...overdueInvoices.map((i) => i.id),
+    ]);
     const outstandingCents = invoicesDueThisMonth.reduce(
-      (sum, inv) => sum + Math.max(0, num(inv.amount) - num(inv.amountPaid)),
+      (sum, inv) => sum + Math.max(0, num(inv.amount) - num(inv.amountPaid) - (manualByInvoice.get(inv.id) ?? 0)),
       0,
     );
-    const collectedCents = invoicesCollectedThisMonth.reduce((sum, inv) => sum + num(inv.amountPaid), 0);
-    const overdueCount = overdueInvoices.length;
+    const monthRevenue = revenueByMonth.values().next().value ?? { stripeCents: 0, manualCents: 0 };
+    const collectedCents = monthRevenue.stripeCents + monthRevenue.manualCents;
+    const overdueCount = overdueInvoices.filter(
+      (inv) =>
+        effectiveInvoiceStatus('OVERDUE', num(inv.amount), num(inv.amountPaid) + (manualByInvoice.get(inv.id) ?? 0)) === 'OVERDUE',
+    ).length;
 
     // ---- Contractors ----
     const activeContractors = contractorCounts.filter((c) => c.status === 'ACTIVE').length;

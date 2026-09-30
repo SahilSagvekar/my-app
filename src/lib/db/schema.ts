@@ -3470,3 +3470,52 @@ export const financialGoal = pgTable("FinancialGoal", {
 		}).onUpdate("cascade").onDelete("setnull"),
 ]);
 
+
+
+// Financials 2 — Client Payments: money received outside Stripe (cash, check,
+// Zelle, wire…) recorded by an admin. Counts toward revenue in the month it
+// was RECEIVED. Amounts are integer cents, like Invoice. Never hard-deleted —
+// a mistaken entry is voided (voidedAt set) so there is an audit trail.
+export const manualPaymentMethod = pgEnum("ManualPaymentMethod", ['CASH', 'CHECK', 'ZELLE', 'WIRE', 'OTHER'])
+
+export const clientManualPayment = pgTable("ClientManualPayment", {
+	id: text().primaryKey().notNull(),
+	clientId: text().notNull(),
+	// optional: the invoice this payment settles (all or part of)
+	invoiceId: text(),
+	amount: integer().notNull(),
+	method: manualPaymentMethod().notNull(),
+	receivedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	reference: text(),
+	notes: text(),
+	createdById: integer(),
+	voidedAt: timestamp({ precision: 3, mode: 'string' }),
+	voidedById: integer(),
+	voidReason: text(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("ClientManualPayment_receivedAt_idx").using("btree", table.receivedAt.asc().nullsLast().op("timestamp_ops")),
+	index("ClientManualPayment_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	index("ClientManualPayment_invoiceId_idx").using("btree", table.invoiceId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.clientId],
+			foreignColumns: [client.id],
+			name: "ClientManualPayment_clientId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.invoiceId],
+			foreignColumns: [invoice.id],
+			name: "ClientManualPayment_invoiceId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "ClientManualPayment_createdById_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.voidedById],
+			foreignColumns: [user.id],
+			name: "ClientManualPayment_voidedById_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
