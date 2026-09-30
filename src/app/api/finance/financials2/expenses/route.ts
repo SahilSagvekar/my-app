@@ -16,7 +16,7 @@ import { and, desc, eq, gte, inArray, lt } from 'drizzle-orm';
 import { getDbHttp } from '@/lib/db';
 import { expense as expenseTable, expenseCategory as categoryTable, user as userTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
-import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
+import { getJwtUserId, getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import { monthBounds, num } from '@/lib/finance/client-payments';
 import { getActiveCategories, resolveCategoryId } from '@/lib/finance/expenses';
 
@@ -118,7 +118,10 @@ export async function POST(req: NextRequest) {
     if (!categoryId) return NextResponse.json({ ok: false, message: 'Choose a category' }, { status: 400 });
 
     const now = new Date().toISOString();
-    const adminId = Number(currentUser.id);
+    const adminId = getJwtUserId(currentUser);
+    if (adminId === null) {
+      return NextResponse.json({ ok: false, message: 'Could not identify your account — please sign in again' }, { status: 401 });
+    }
     const [created] = await db
       .insert(expenseTable)
       .values({

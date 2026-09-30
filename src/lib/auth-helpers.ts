@@ -51,3 +51,12 @@ export function requireAdmin(user: JWTUser | null) {
   
   return null;
 }
+/**
+ * Numeric user id from a decoded JWT. Tokens carry it as `userId` (some older
+ * ones as `id`), so never read `user.id` alone. Returns null if absent.
+ */
+export function getJwtUserId(user: JWTUser | null): number | null {
+  if (!user) return null;
+  const n = Number((user as any).userId ?? (user as any).id);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}

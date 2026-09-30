@@ -16,7 +16,7 @@ import {
   clientManualPayment as manualTable,
 } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
-import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
+import { getJwtUserId, getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import { getManualPaidByInvoice, num } from '@/lib/finance/client-payments';
 
 const METHODS = ['CASH', 'CHECK', 'ZELLE', 'WIRE', 'OTHER'] as const;
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         receivedAt: receivedIso,
         reference,
         notes,
-        createdById: Number(currentUser.id) || null,
+        createdById: getJwtUserId(currentUser),
         updatedAt: now,
       })
       .returning();
