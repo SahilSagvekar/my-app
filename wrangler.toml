@@ -4,13 +4,6 @@ compatibility_date = "2026-08-04"
 compatibility_flags = [ "nodejs_compat" ]
 account_id = "dbc98815b0fb7124d9fc27fb40abd290"
 
-[vars]
-# Sentry DSN — not a secret (it's designed to be publicly embeddable; the
-# only thing it lets someone do is send fake error reports to this project,
-# which Sentry's rate limiting/spam filtering handles). Fill in after
-# creating the Sentry project — see SENTRY_SETUP.md.
-SENTRY_DSN = "https://cc6875c5fef51be1c5b3c3ebb7061035@o4510521496043520.ingest.us.sentry.io/4512163557867520"
-
 [[routes]]
 pattern = "e8productions.com/*"
 zone_name = "e8productions.com"

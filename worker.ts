@@ -20,7 +20,6 @@ import { deliverSlackJobNow, deliverEmailJobNow, NotificationJob } from './src/l
 import { deliverZipJob, ZipJobMessage } from './src/lib/zip-jobs-queue';
 import { applyR2Events, R2EventMessage } from './src/lib/drive/index-store';
 import { blockHostFromInternalApi } from './src/lib/host-api-guard';
-import * as Sentry from '@sentry/cloudflare';
 
 const APP_URL = 'https://e8productions.com';
 
@@ -227,22 +226,4 @@ const workerHandlers = {
   },
 };
 
-// Sentry — wraps fetch/scheduled/queue so uncaught errors in any of them are
-// reported (see /areas/... Sentry setup, 2026-09-28). Uses @sentry/cloudflare
-// specifically (not @sentry/nextjs's Node-based server instrumentation,
-// which assumes a runtime this Worker doesn't have) — this is the officially
-// documented pattern for @opennextjs/cloudflare:
-// https://opennext.js.org/cloudflare/howtos/sentry
-//
-// env.SENTRY_DSN comes from wrangler.toml's [vars] (DSNs aren't secret — see
-// the block added there) or a `wrangler secret put SENTRY_DSN` override.
-// Silently a no-op (no reporting, no crash) if SENTRY_DSN isn't set, so this
-// is safe to ship before the env var exists.
-export default Sentry.withSentry(
-  (env: any) => ({
-    dsn: env.SENTRY_DSN,
-    tracesSampleRate: 0.1,
-    environment: env.ENVIRONMENT || 'production',
-  }),
-  workerHandlers,
-);
+export default workerHandlers;
