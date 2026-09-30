@@ -35,8 +35,9 @@ binding = "ASSETS"
 # 15 * * * *     — Tech Fee failure retry sweep (hourly, offset 15m past billing-sync)
 # 0 5 1 * *      — generate-monthly-shoots (auto-create each client's monthly shoot-day quota)
 # 5 5 * * *      — Windsor.ai social analytics sync (pulls previous day's data)
+# 0 22 * * *     — editor EOD report reminder → e8-editor-updates Slack (6 PM EDT; the 23:00 UTC trigger covers 6 PM EST, route guards to exactly 6 PM ET on weekdays)
 # 55 3 * * *     — close open time clocks (≈ 11:55 PM America/New_York during EDT)
-crons = [ "* * * * *", "0 20 * * 6", "0 23 * * *", "0 13 * * *", "15 13 * * *", "0 14 * * *", "30 14 * * *", "0 * * * *", "15 * * * *", "0 5 1 * *", "5 5 * * *", "55 3 * * *" ]
+crons = [ "* * * * *", "0 20 * * 6", "0 23 * * *", "0 22 * * *", "0 13 * * *", "15 13 * * *", "0 14 * * *", "30 14 * * *", "0 * * * *", "15 * * * *", "0 5 1 * *", "5 5 * * *", "55 3 * * *" ]
 
 [[r2_buckets]]
 binding = "R2_VIDEOS"

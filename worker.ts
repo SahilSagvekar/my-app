@@ -90,6 +90,16 @@ const workerHandlers = {
       case '0 23 * * *':
       case '0 0 * * *':
         ctx.waitUntil(triggerCronRoute('/api/reports/daily-summary', env, ctx));
+        // 23:00 UTC is 6 PM EST (winter) — the route's ET-hour guard posts
+        // only when it really is 6 PM Eastern, so this and the 22:00 UTC
+        // trigger below never double-post.
+        ctx.waitUntil(triggerCronRoute('/api/cron/editor-eod-reminder', env, ctx));
+        break;
+
+      // Editor EOD report reminder — 6:00 PM ET on weekdays to the
+      // e8-editor-updates Slack channel. 22:00 UTC = 6 PM EDT (summer).
+      case '0 22 * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/editor-eod-reminder', env, ctx));
         break;
 
       // Pre-existing placeholder schedule (0 9 * * *) — not wired to
