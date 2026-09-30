@@ -108,6 +108,13 @@ export function LayoutShell({
   // 🔥 Role switching feature
   const { canSwitchRole, isViewingAsOther, switchableRoles, switchToRole, resetToOriginal, viewingAsClientLabel } = useViewAsRole();
 
+  // Admin portal only: the South Carolina clock sits on the LEFT of the top
+  // bar (next to the logo) and the role switcher stays on the right. Keyed off
+  // the signed-in user's real role, not the viewed role, so the layout doesn't
+  // jump around while an admin is switching into other roles.
+  const isAdminPortal = authUser?.role?.toLowerCase() === 'admin';
+  const showStaffClock = currentRole?.toLowerCase() !== 'client';
+
   const roleDisplay = currentRole
     ? currentRole.toLowerCase() === 'qc'
       ? 'QC'
@@ -230,6 +237,12 @@ export function LayoutShell({
                 {roleDisplay} Portal
               </span>
             </div>
+
+            {isAdminPortal && showStaffClock && (
+              <div className="hidden sm:block">
+                <SCDigitalClock />
+              </div>
+            )}
           </div>
 
           {/* Center Section - Search */}
@@ -342,7 +355,7 @@ export function LayoutShell({
             {currentRole?.toLowerCase() !== 'client' && (
               <>
                 <TimeClockButton />
-                <SCDigitalClock />
+                {!isAdminPortal && <SCDigitalClock />}
               </>
             )}
             {/* User Menu */}
