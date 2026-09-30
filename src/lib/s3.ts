@@ -361,9 +361,20 @@ export async function generateDownloadUrl(
   }
 }
 
-// Add signed URLs to file objects
-export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
+// Add signed URLs to file objects.
+//
+// options.includeDownloadUrl (default true): the "attachment" download URL is
+// a SECOND presign per file on top of the viewing URL. List screens that only
+// need to render/play files (e.g. the client Content Review list) pass false
+// so a 100-task response does ~1 presign per file instead of 2-3 — the
+// download buttons already fall back to /api/files/:id/download when
+// `downloadUrl` is absent.
+export async function addSignedUrlsToFiles(
+  files: any[],
+  options: { includeDownloadUrl?: boolean } = {}
+): Promise<any[]> {
   if (!files || files.length === 0) return [];
+  const includeDownloadUrl = options.includeDownloadUrl !== false;
 
   return Promise.all(
     files.map(async (file) => {
@@ -393,13 +404,15 @@ export async function addSignedUrlsToFiles(files: any[]): Promise<any[]> {
 
         // ALWAYS generate a fresh download URL with the attachment header
         // This ensures the download feature works even for files previously signed
-        const downloadUrl = await generateDownloadUrl(s3Key, file.name);
+        const downloadUrl = includeDownloadUrl
+          ? await generateDownloadUrl(s3Key, file.name)
+          : undefined;
 
         return {
           ...file,
           url: signedUrl,
           proxyUrl: signedProxyUrl,
-          downloadUrl: downloadUrl,
+          ...(includeDownloadUrl ? { downloadUrl } : {}),
           originalUrl: file.url,
         };
       } catch (error) {

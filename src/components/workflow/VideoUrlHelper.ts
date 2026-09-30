@@ -94,6 +94,54 @@ export function convertToGoogleDrivePreview(url: string): string | null {
 }
 
 /**
+ * True when `url` is an S3/R2 presigned GET URL that is still valid for at
+ * least `marginSeconds` more seconds. Reads X-Amz-Date + X-Amz-Expires from
+ * the query string, so it needs no server round trip.
+ */
+export function isFreshPresignedUrl(url: string | null | undefined, marginSeconds = 300): boolean {
+  if (!url) return false;
+  try {
+    const params = new URL(url).searchParams;
+    if (!params.get('X-Amz-Signature')) return false;
+    const date = params.get('X-Amz-Date'); // e.g. 20260930T075500Z
+    const expires = Number(params.get('X-Amz-Expires'));
+    const m = date?.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+    if (!m || !Number.isFinite(expires) || expires <= 0) return false;
+    const signedAt = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+    return Date.now() < signedAt + (expires - marginSeconds) * 1000;
+  } catch {
+    return false;
+  }
+}
+
+const preconnected = new Set<string>();
+
+/**
+ * Opens (and keeps warm) the connection to the host a URL lives on, so the
+ * first request to it skips DNS + TCP + TLS. Safe to call repeatedly — each
+ * origin is only hinted once. No-op on the server and for same-origin URLs.
+ */
+export function preconnectToUrlOrigin(url: string | null | undefined): void {
+  if (typeof document === 'undefined' || !url) return;
+  try {
+    const origin = new URL(url, window.location.href).origin;
+    if (origin === window.location.origin || preconnected.has(origin)) return;
+    preconnected.add(origin);
+    // Video elements that set crossOrigin="anonymous" and ones that don't use
+    // different connection pools, so hint both.
+    for (const crossOrigin of [true, false]) {
+      const link = document.createElement('link');
+      link.rel = 'preconnect';
+      link.href = origin;
+      if (crossOrigin) link.crossOrigin = 'anonymous';
+      document.head.appendChild(link);
+    }
+  } catch {
+    /* invalid URL — nothing to warm */
+  }
+}
+
+/**
  * Gets the appropriate video source for a video element or iframe.
  * Priority:
  * 1. youtubeVideoId - Review-mirror uploaded this to YouTube (Unlisted) — use
@@ -101,13 +149,20 @@ export function convertToGoogleDrivePreview(url: string): string | null {
  * 2. reviewDriveUrl - Drive mirror fallback (used when YouTube upload failed
  *    or quota was exhausted — see review-mirror.ts).
  * 3. proxyUrl - If a lower-quality version exists, use it for speed.
- * 4. streamProxy - If it's an S3/R2 file, use the byte-range streaming proxy.
- * 5. original - Fallback to the original URL.
- * 
- * @param file - The file object containing url and optional proxyUrl/id
+ * 4. The already-signed storage URL itself, when `preferDirect` is set and it
+ *    is still valid — skips the extra /api/files/:id/stream hop (auth + DB
+ *    lookup + re-sign + 302) before the first byte.
+ * 5. streamProxy - If it's an S3/R2 file, use the byte-range streaming proxy.
+ * 6. original - Fallback to the original URL.
+ *
+ * @param file - The file object containing url and optional proxyUrl/id.
+ *   `preferDirect` must be false whenever the caller appends its own query
+ *   params (e.g. a `_r=` retry cache-buster): a presigned URL is signed over
+ *   its exact query string, so any extra param invalidates it. On retry, pass
+ *   false to get the /stream route, which signs a fresh URL every time.
  */
-export function getVideoSource(file: { url: string; id?: string; proxyUrl?: string | null; reviewDriveUrl?: string | null; youtubeVideoId?: string | null }): { type: 'video' | 'iframe' | 'youtube', src: string } {
-  const { url, id, proxyUrl, reviewDriveUrl, youtubeVideoId } = file;
+export function getVideoSource(file: { url: string; id?: string; proxyUrl?: string | null; reviewDriveUrl?: string | null; youtubeVideoId?: string | null; preferDirect?: boolean }): { type: 'video' | 'iframe' | 'youtube', src: string } {
+  const { url, id, proxyUrl, reviewDriveUrl, youtubeVideoId, preferDirect } = file;
 
   // 0. YouTube mirror — highest priority. Real IFrame Player API, unlike
   // Drive's dumb preview embed (see YoutubePlayer.tsx for why).
@@ -144,6 +199,12 @@ export function getVideoSource(file: { url: string; id?: string; proxyUrl?: stri
     url.includes('r2.dev')
   );
   if (isObjectStorage && id) {
+    // Fast path: the list response already carries a freshly presigned URL.
+    // Playing it directly saves a full Worker round trip (auth + DB + sign +
+    // redirect) before the browser can request the first byte.
+    if (preferDirect && isFreshPresignedUrl(url)) {
+      return { type: 'video', src: url };
+    }
     return { type: 'video', src: `/api/files/${id}/stream` };
   }
 

@@ -336,10 +336,16 @@ export function FullScreenReviewModalFrameIO({
             proxyUrl: v?.proxyUrl || asset.proxyUrl,
             reviewDriveUrl: v?.reviewDriveUrl || asset.reviewDriveUrl,
             youtubeVideoId: v?.youtubeVideoId || asset.youtubeVideoId,
+            // First attempt plays the already-signed storage URL directly
+            // (no /api/files/:id/stream hop). Retries go through /stream,
+            // which signs a fresh URL and tolerates the `_r=` param below.
+            preferDirect: retryKey === 0,
         });
 
-        // Append cache-busting param on retries to avoid stale/failed responses
-        if (retryKey > 0 && source.type === 'video') {
+        // Append cache-busting param on retries to avoid stale/failed responses.
+        // Never on a presigned URL though — its signature covers the exact
+        // query string, so an extra param would turn a retry into a 403.
+        if (retryKey > 0 && source.type === 'video' && !source.src.includes('X-Amz-Signature=')) {
             const separator = source.src.includes('?') ? '&' : '?';
             return { ...source, src: `${source.src}${separator}_r=${retryKey}` };
         }
