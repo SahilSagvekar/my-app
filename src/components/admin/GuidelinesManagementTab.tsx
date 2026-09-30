@@ -37,6 +37,8 @@ import {
     FileText,
     AlertTriangle,
     Target,
+    Hash,
+    X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -84,6 +86,80 @@ export function GuidelinesManagementTab() {
         role: "all",
         clientId: "all",
     });
+
+    // Template hashtags for the client picked in the form. They live on the
+    // client record (not on the guideline), so this state is kept apart from
+    // formData — which is what gets POSTed as the guideline itself — and is
+    // saved through /api/clients/:id/hashtags. That list is what clients see
+    // as selectable tags on their review screen.
+    const [hashtags, setHashtags] = useState<string[]>([]);
+    const [savedHashtags, setSavedHashtags] = useState<string[]>([]);
+    const [hashtagInput, setHashtagInput] = useState("");
+    const [hashtagsStatus, setHashtagsStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+
+    const resetHashtagState = () => {
+        setHashtags([]);
+        setSavedHashtags([]);
+        setHashtagInput("");
+        setHashtagsStatus("idle");
+    };
+
+    // Load the selected client's current hashtags whenever the dialog is open
+    // on a specific client. Editing stays disabled until this succeeds, so a
+    // failed load can never be followed by a save that overwrites the real
+    // list with a partial one.
+    useEffect(() => {
+        if (!showAddDialog || formData.clientId === "all") {
+            resetHashtagState();
+            return;
+        }
+
+        let cancelled = false;
+        setHashtagsStatus("loading");
+        setHashtagInput("");
+        fetch(`/api/clients/${formData.clientId}/hashtags`, { credentials: "include" })
+            .then(async (res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (cancelled) return;
+                const list: string[] = Array.isArray(data.hashtags) ? data.hashtags : [];
+                setHashtags(list);
+                setSavedHashtags(list);
+                setHashtagsStatus("ready");
+            })
+            .catch((error) => {
+                if (cancelled) return;
+                console.error("Failed to load client hashtags", error);
+                setHashtags([]);
+                setSavedHashtags([]);
+                setHashtagsStatus("error");
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [showAddDialog, formData.clientId]);
+
+    const normalizeTag = (tag: string) => tag.trim().replace(/^#/, "").toLowerCase();
+
+    const addHashtag = () => {
+        const raw = hashtagInput.trim().replace(/^#+/, "").replace(/\s+/g, "");
+        if (!raw) return;
+        const tag = `#${raw}`;
+        // De-dupe ignoring case and the leading "#" (older entries may have been saved without it).
+        if (!hashtags.some((t) => normalizeTag(t) === normalizeTag(tag))) {
+            setHashtags([...hashtags, tag]);
+        }
+        setHashtagInput("");
+    };
+
+    const removeHashtag = (tag: string) => {
+        setHashtags(hashtags.filter((t) => t !== tag));
+    };
+
+    const hashtagsChanged =
+        hashtags.length !== savedHashtags.length ||
+        hashtags.some((t, i) => t !== savedHashtags[i]);
 
     useEffect(() => {
         loadGuidelines();
@@ -139,6 +215,31 @@ export function GuidelinesManagementTab() {
             const data = await res.json();
             if (data.ok) {
                 toast.success(`Guideline ${editingGuideline ? "updated" : "created"} successfully`);
+
+                // The guideline itself is saved — now sync the client's
+                // template hashtags if they were edited. Done second and
+                // reported separately so a hashtag failure never looks like
+                // the guideline failed to save.
+                if (formData.clientId !== "all" && hashtagsStatus === "ready" && hashtagsChanged) {
+                    try {
+                        const tagRes = await fetch(`/api/clients/${formData.clientId}/hashtags`, {
+                            method: "PUT",
+                            credentials: "include",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ hashtags }),
+                        });
+                        const tagData = await tagRes.json().catch(() => ({}));
+                        if (tagRes.ok) {
+                            toast.success("Client hashtags updated");
+                        } else {
+                            toast.error(`Guideline saved, but hashtags weren't updated: ${tagData.message || tagRes.status}`);
+                        }
+                    } catch (tagError) {
+                        console.error("Error saving client hashtags", tagError);
+                        toast.error("Guideline saved, but hashtags weren't updated");
+                    }
+                }
+
                 setShowAddDialog(false);
                 setEditingGuideline(null);
                 setFormData({
@@ -148,6 +249,7 @@ export function GuidelinesManagementTab() {
                     role: "all",
                     clientId: "all",
                 });
+                resetHashtagState();
                 loadGuidelines();
             } else {
                 toast.error(data.message || "Something went wrong");
@@ -289,6 +391,69 @@ export function GuidelinesManagementTab() {
                                             </SelectContent>
                                         </Select>
                                     </div>
+
+                                    {formData.clientId !== "all" && (
+                                        <div className="space-y-2">
+                                            <Label className="flex items-center gap-1.5">
+                                                <Hash className="h-4 w-4 text-blue-500" />
+                                                Template Hashtags
+                                            </Label>
+                                            <p className="text-sm text-muted-foreground">
+                                                Shown as selectable tags when this client reviews a video. Saved to the client&apos;s template hashtags along with this guideline.
+                                            </p>
+                                            {hashtagsStatus === "error" ? (
+                                                <p className="text-sm text-destructive">
+                                                    Couldn&apos;t load this client&apos;s hashtags, so they can&apos;t be edited right now. Re-select the client to try again.
+                                                </p>
+                                            ) : (
+                                                <>
+                                                    <div className="flex gap-2">
+                                                        <Input
+                                                            value={hashtagInput}
+                                                            onChange={(e) => setHashtagInput(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter") {
+                                                                    e.preventDefault();
+                                                                    addHashtag();
+                                                                }
+                                                            }}
+                                                            placeholder={hashtagsStatus === "loading" ? "Loading hashtags..." : "e.g. contentcreation"}
+                                                            disabled={hashtagsStatus !== "ready"}
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            onClick={addHashtag}
+                                                            disabled={hashtagsStatus !== "ready"}
+                                                        >
+                                                            Add
+                                                        </Button>
+                                                    </div>
+                                                    {hashtags.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {hashtags.map((tag) => (
+                                                                <Badge
+                                                                    key={tag}
+                                                                    variant="secondary"
+                                                                    className="gap-1.5 pr-1.5 bg-blue-50 text-blue-700 border-blue-200"
+                                                                >
+                                                                    {tag}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => removeHashtag(tag)}
+                                                                        className="text-blue-400 hover:text-blue-700"
+                                                                        aria-label={`Remove ${tag}`}
+                                                                    >
+                                                                        <X className="h-3 w-3" />
+                                                                    </button>
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <div className="space-y-2">
                                         <Label>Title</Label>

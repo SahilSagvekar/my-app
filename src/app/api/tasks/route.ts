@@ -290,6 +290,16 @@ const effectiveRole =
     const tagFilter = searchParams.get("tag");
     const wantFacets = searchParams.get("facets") === "1";
 
+    // 🔥 Light mode (?light=1) — used by the client Content Review screen.
+    // That screen never reads feedback threads, shoot details, tags, the
+    // thumbnail-editor / QC-reviewer users, or the distinct-months list, and
+    // it falls back to /api/files/:id/download when a file has no
+    // `downloadUrl`. Skipping all of that removes 5 relation joins from the
+    // main query, one presign per file, and an unscoped
+    // SELECT DISTINCT over the whole Task table. Opt-in only: every other
+    // caller (QC, editor, admin, scheduler…) keeps the full response.
+    const lightMode = searchParams.get("light") === "1";
+
     // Same "effective deliverable type" the QC screen used client-side.
     const deliverableTypeExpr = drizzleSql`coalesce(nullif(${taskTable.deliverableType}, ''), (select m."type" from "MonthlyDeliverable" m where m."id" = ${taskTable.monthlyDeliverableId}), (select o."type" from "OneOffDeliverable" o where o."id" = ${taskTable.oneOffDeliverableId}), 'Other')`;
     const latestVersionExpr = drizzleSql`coalesce((select max(f."version") from "File" f where f."taskId" = ${taskTable.id} and f."mimeType" like 'video/%'), (select max(f."version") from "File" f where f."taskId" = ${taskTable.id}), 1)`;
@@ -438,10 +448,10 @@ const effectiveRole =
               youtubeVideoId: true,
             },
           },
-          shootDetails: true,
+          ...(lightMode ? {} : { shootDetails: true }),
           monthlyDeliverable: true,
           oneOffDeliverable: true,
-          tagToTasks: { with: { tag: true } },
+          ...(lightMode ? {} : { tagToTasks: { with: { tag: true } } }),
           client: {
             columns: {
               name: true,
@@ -456,50 +466,53 @@ const effectiveRole =
               role: true,
             },
           },
-          user_thumbnailEditor: {
-            columns: {
-              id: true,
-              name: true,
-              role: true,
-            },
-          },
-          user_qcReviewedBy: {
-            columns: {
-              id: true,
-              name: true,
-            },
-          },
-          taskFeedbacks: {
-            columns: {
-              id: true,
-              fileId: true,
-              folderType: true,
-              feedback: true,
-              status: true,
-              timestamp: true,
-              category: true,
-              createdAt: true,
-              resolvedAt: true,
-              acknowledgedAt: true,
-              acknowledgedBy: true,
-            },
-            with: {
-              file: {
-                columns: {
-                  version: true,
-                  name: true,
-                },
-              },
-              user: {
-                columns: {
-                  id: true,
-                  name: true,
-                  role: true,
-                },
+          // Heavy relations below are skipped in light mode (see lightMode above).
+          ...(lightMode ? {} : {
+            user_thumbnailEditor: {
+              columns: {
+                id: true,
+                name: true,
+                role: true,
               },
             },
-            orderBy: (tf, { desc }) => desc(tf.createdAt),
-          },
+            user_qcReviewedBy: {
+              columns: {
+                id: true,
+                name: true,
+              },
+            },
+            taskFeedbacks: {
+              columns: {
+                id: true,
+                fileId: true,
+                folderType: true,
+                feedback: true,
+                status: true,
+                timestamp: true,
+                category: true,
+                createdAt: true,
+                resolvedAt: true,
+                acknowledgedAt: true,
+                acknowledgedBy: true,
+              },
+              with: {
+                file: {
+                  columns: {
+                    version: true,
+                    name: true,
+                  },
+                },
+                user: {
+                  columns: {
+                    id: true,
+                    name: true,
+                    role: true,
+                  },
+                },
+              },
+              orderBy: (tf: any, { desc }: any) => desc(tf.createdAt),
+            },
+          }),
         },
       });
 
@@ -639,7 +652,7 @@ const effectiveRole =
     const tasksWithSignedUrls = await Promise.all(
       sortedTasks.map(async (task) => {
         if (task.files && task.files.length > 0) {
-          const signedFiles = await addSignedUrlsToFiles(task.files);
+          const signedFiles = await addSignedUrlsToFiles(task.files, { includeDownloadUrl: !lightMode });
           return { ...task, files: signedFiles };
         }
         return task;
@@ -697,7 +710,7 @@ const effectiveRole =
     // Skipped in queue mode: the QC screen doesn't use it, and it scans the
     // whole Task table on every request.
     let availableMonths: string[] = [];
-    if (!queueMode) {
+    if (!queueMode && !lightMode) {
       const distinctMonths = await db
         .selectDistinct({ monthFolder: taskTable.monthFolder })
         .from(taskTable)
