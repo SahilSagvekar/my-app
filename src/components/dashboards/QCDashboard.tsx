@@ -479,8 +479,14 @@ useEffect(() => {
   useEffect(() => {
     filtersRef.current = { type: deliverableTypeFilter, client: clientFilter, tag: tagFilter };
   }, [deliverableTypeFilter, clientFilter, tagFilter]);
+  // The role switcher can update viewingAsRole AFTER this screen mounts, so the
+  // first fetch may go out without the x-viewing-as header (→ only the user's
+  // own assigned tasks and a one-client dropdown until a hard reload). Reload
+  // whenever the effective role actually changes.
   useEffect(() => {
+    const changed = viewingAsRef.current !== viewingAsRole;
     viewingAsRef.current = viewingAsRole;
+    if (changed) loadQCTasks({ reset: true });
   }, [viewingAsRole]);
   useEffect(() => {
     loadedCountRef.current = qcTasks.length;
