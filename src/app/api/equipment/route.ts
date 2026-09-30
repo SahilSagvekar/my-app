@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ equipment: rows });
   } catch (error: any) {
-    console.error('[Equipment] GET error:', error);
+    console.error('[Equipment] GET error:', error?.cause?.message || error?.message, error?.cause?.code || '');
     return NextResponse.json({ error: 'Failed to load equipment' }, { status: 500 });
   }
 }
@@ -64,7 +64,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ equipment: created }, { status: 201 });
   } catch (error: any) {
-    console.error('[Equipment] POST error:', error);
+    // Drizzle wraps the real Postgres error in `cause` — log that, or the
+    // log only shows "Failed query: ..." with no reason.
+    console.error('[Equipment] POST error:', error?.cause?.message || error?.message, error?.cause?.code || '');
     return NextResponse.json({ error: 'Failed to add equipment' }, { status: 500 });
   }
 }
