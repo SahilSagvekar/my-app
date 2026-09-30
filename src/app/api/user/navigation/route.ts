@@ -129,7 +129,9 @@ export async function GET(req: NextRequest) {
         const filteredItems = finalItems.filter(item => 
             enabledIds.includes(item.id) ||
             dynamicallyInjectedIds.has(item.id) ||
-            (role === 'client' && requiredClientItems.has(item.id))
+            (role === 'client' && requiredClientItems.has(item.id)) ||
+            // Brand-new videographer nav item — existing RolePermission rows predate it.
+            (role === 'videographer' && item.id === 'posting-tracker')
         );
 
         return NextResponse.json(filteredItems);

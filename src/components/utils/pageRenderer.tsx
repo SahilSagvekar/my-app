@@ -462,6 +462,8 @@ export function renderPage(
         return <VideographerDashboard initialTab="calendar" />;
       case "production-tracker":
         return <ProductionTracker />;
+      case "posting-tracker":
+        return <SchedulerDailyTargetsPage />;
       case "reports":
         return <TaskManagementTab />;
       case "drive":

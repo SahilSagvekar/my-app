@@ -129,6 +129,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'reports', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'production-tracker', label: 'Production Tracker', icon: Target },
+    { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
     { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
