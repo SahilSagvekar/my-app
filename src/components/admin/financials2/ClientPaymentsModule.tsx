@@ -400,7 +400,7 @@ export function ClientPaymentsModule() {
 function SummaryCard({ label, value, sub, strong }: { label: string; value: string; sub?: string; strong?: boolean }) {
   return (
     <Card>
-      <CardContent className="p-5">
+      <CardContent className="p-5 text-center">
         <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className={`mt-1 ${strong ? "text-3xl" : "text-2xl"} font-semibold tracking-tight`}>{value}</div>
         {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
