@@ -2,9 +2,9 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { generateOTP, getOTPExpiryTime } from '@/lib/otp';
-import { sendOTPEmail } from '@/lib/mail-transport';
+import { sendOTPEmail } from '@/lib/email';
 
 export async function POST(req: Request) {
   const db = getDbHttp();
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     }
 
     // Find user
-    const [foundUser] = await db.select().from(user).where(eq(user.email, email)).limit(1);
+    const [foundUser] = await db.select().from(user).where(sql`lower(${user.email}) = ${String(email).trim().toLowerCase()}`).limit(1);
 
     if (!foundUser) {
       // Return success to prevent email enumeration

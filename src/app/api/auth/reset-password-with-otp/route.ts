@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { isOTPExpired } from '@/lib/otp';
 
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     }
 
     // Find user with matching OTP
-    const [foundUser] = await db.select().from(user).where(and(eq(user.email, email), eq(user.resetOtp, otp))).limit(1);
+    const [foundUser] = await db.select().from(user).where(and(sql`lower(${user.email}) = ${String(email).trim().toLowerCase()}`, eq(user.resetOtp, otp))).limit(1);
 
     if (!foundUser || !foundUser.resetOtpExpiry) {
       return NextResponse.json(

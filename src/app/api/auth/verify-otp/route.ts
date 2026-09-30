@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { getDbHttp } from '@/lib/db';
 import { user } from '@/lib/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { isOTPExpired } from '@/lib/otp';
 import { NextRequest, NextResponse } from "next/server";
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: "Email and code are required" }, { status: 400 });
     }
 
-    const [foundUser] = await db.select().from(user).where(and(eq(user.email, email), eq(user.resetOtp, otp))).limit(1);
+    const [foundUser] = await db.select().from(user).where(and(sql`lower(${user.email}) = ${String(email).trim().toLowerCase()}`, eq(user.resetOtp, otp))).limit(1);
 
     if (!foundUser || !foundUser.resetOtpExpiry) {
       return NextResponse.json({ ok: false, message: "Invalid OTP" }, { status: 400 });
