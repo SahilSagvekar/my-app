@@ -19,6 +19,68 @@ import {
   logEntry as logEntryTable,
 } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
+import { sendSlackDM, sendToChannel } from '@/lib/slack';
+
+const ERIC_EMAIL = 'eric@e8productions.com';
+
+const TYPE_LABELS: Record<string, string> = {
+  CALL: 'Call',
+  MEETING: 'Meeting',
+  ANALYTICS_REVIEW: 'Analytics Review',
+};
+
+// Tells Eric (DM) and the e8-app channel that a log entry was added.
+// Best-effort: the entry is already saved, so any failure here is only logged.
+async function notifyLogEntryAdded(
+  db: ReturnType<typeof getDbHttp>,
+  entry: { clientId: string; type: string; title: string | null; date: string; location: string | null; attendees: string[] | null; plannedMinutes: number | null; status: string; noteBody: string | null; createdBy: string | number | null },
+  creator: { id: any; name?: string | null; email?: string | null },
+) {
+  try {
+    const [clientRow] = await db
+      .select({ name: clientTable.name, companyName: clientTable.companyName })
+      .from(clientTable)
+      .where(eq(clientTable.id, entry.clientId))
+      .limit(1);
+    const clientName = clientRow?.companyName || clientRow?.name || 'Unknown client';
+    const typeLabel = TYPE_LABELS[entry.type] || entry.type;
+    const when = new Date(entry.date).toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+    const attendees = Array.isArray(entry.attendees) ? entry.attendees.filter(Boolean) : [];
+
+    const lines = [
+      `:memo: *New Production Log entry* — ${typeLabel} (${entry.status === 'COMPLETED' ? 'Completed' : 'Planned'})`,
+      `*Client:* ${clientName}`,
+      entry.title ? `*Title:* ${entry.title}` : null,
+      `*When:* ${when} ET`,
+      entry.plannedMinutes ? `*Planned:* ${entry.plannedMinutes} min` : null,
+      entry.location ? `*Location:* ${entry.location}` : null,
+      attendees.length ? `*Attendees:* ${attendees.join(', ')}` : null,
+      entry.noteBody ? `*Notes:* ${entry.noteBody.length > 500 ? entry.noteBody.slice(0, 500) + '…' : entry.noteBody}` : null,
+      `*Added by:* ${creator.name || creator.email || 'Unknown'}`,
+    ].filter(Boolean);
+    const message = lines.join('\n');
+
+    const [eric] = await db
+      .select({ id: userTable.id, slackUserId: userTable.slackUserId })
+      .from(userTable)
+      .where(eq(userTable.email, ERIC_EMAIL))
+      .limit(1);
+
+    await Promise.allSettled([
+      sendToChannel('e8app', { type: 'production_log_entry_added', message, payload: { clientId: entry.clientId } }),
+      // No point DMing Eric about an entry he created himself.
+      eric?.slackUserId && String(eric.id) !== String(creator.id)
+        ? sendSlackDM(eric.slackUserId, { type: 'production_log_entry_added', message, payload: { clientId: entry.clientId } })
+        : Promise.resolve(),
+    ]);
+  } catch (err) {
+    console.error('[Production Log] Slack notification failed:', err);
+  }
+}
 
 const CAN_VIEW = ['admin', 'manager', 'videographer'];
 const CAN_CREATE = ['admin', 'manager', 'videographer'];
@@ -187,6 +249,8 @@ export async function POST(req: NextRequest) {
       createdBy: auth.user.id,
       updatedAt: now,
     }).returning();
+
+    await notifyLogEntryAdded(db, created as any, auth.user as any);
 
     return NextResponse.json({ entry: created }, { status: 201 });
   } catch (error: unknown) {
