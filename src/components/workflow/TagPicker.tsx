@@ -23,6 +23,25 @@ interface TagPickerProps {
   canRemove?: boolean;
 }
 
+// One shared /api/tags request for every mounted picker (there is one per task
+// row) — previously each row fetched the full tag list on its own mount.
+let tagNamesPromise: Promise<string[]> | null = null;
+let tagNamesFetchedAt = 0;
+const TAG_NAMES_TTL_MS = 60_000;
+
+function loadTagNames(): Promise<string[]> {
+  if (tagNamesPromise && Date.now() - tagNamesFetchedAt < TAG_NAMES_TTL_MS) return tagNamesPromise;
+  tagNamesFetchedAt = Date.now();
+  tagNamesPromise = fetch('/api/tags', { credentials: 'include' })
+    .then((res) => res.json())
+    .then((data) => (data.ok ? data.tags.map((t: any) => t.name as string) : []))
+    .catch(() => {
+      tagNamesPromise = null;
+      return [] as string[];
+    });
+  return tagNamesPromise;
+}
+
 export function TagPicker({ taskId, tags, onChange, canRemove = false }: TagPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -30,12 +49,13 @@ export function TagPicker({ taskId, tags, onChange, canRemove = false }: TagPick
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch('/api/tags', { credentials: 'include' })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.ok) setAllTags(data.tags.map((t: any) => t.name));
-      })
-      .catch(() => {});
+    let cancelled = false;
+    loadTagNames().then((names) => {
+      if (!cancelled) setAllTags(names);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const saveTags = async (next: string[]) => {
