@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, email, message } = body || {};
+    const phone = typeof body?.phone === 'string' ? body.phone.trim().slice(0, 30) : '';
 
     if (!name || !email || !message) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -58,6 +59,10 @@ export async function POST(req: NextRequest) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+
+    if (phone && !/^[0-9+()\-.\s]{5,30}$/.test(phone)) {
+      return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
     }
 
     // Rate-limiting per IP
@@ -123,6 +128,7 @@ body { margin: 0; padding: 0; }
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #e7e7e9;border-radius:8px;">
           <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Name</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${escapeHtml(name)}</td></tr>
           <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Email</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${escapeHtml(email)}</td></tr>
+          ${phone ? `<tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Phone</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;"><a href="tel:${escapeHtml(phone)}" style="color:#0a0a0b;">${escapeHtml(phone)}</a></td></tr>` : ''}
           <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Location</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${locationString}${googleMapsUrl ? ` <a href="${googleMapsUrl}" style="color:#0a0a0b;">(Map)</a>` : ''}</td></tr>
           <tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">IP Address</td><td style="padding:12px 16px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${ip}</td></tr>
         </table>

@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 export default function ContactForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -26,7 +27,7 @@ export default function ContactForm() {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), message: message.trim() }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.trim(), message: message.trim() }),
       });
 
       const data = await res.json();
@@ -35,6 +36,7 @@ export default function ContactForm() {
         setStatus({ type: 'success', message: data.message || 'Message sent. We will get back to you shortly.' });
         setName('');
         setEmail('');
+        setPhone('');
         setMessage('');
 
       } else {
@@ -86,6 +88,23 @@ export default function ContactForm() {
             placeholder="your@email.com"
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="phone" className="block text-sm text-black/70 mb-2 font-medium">
+          Phone Number <span className="text-black/40 font-normal">(optional)</span>
+        </label>
+        <input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          type="tel"
+          id="phone"
+          autoComplete="tel"
+          inputMode="tel"
+          maxLength={30}
+          className="w-full px-4 py-3 text-base border border-black/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black/30 transition-all"
+          placeholder="(555) 123-4567"
+        />
       </div>
 
       <div>

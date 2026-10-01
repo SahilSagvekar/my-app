@@ -1113,6 +1113,18 @@ export function ClientManagement() {
         });
       }
 
+      // The edit dialog renders its deliverable list from newClient, so it must
+      // be updated too — otherwise the change only shows after a page reload.
+      setNewClient((prev) => {
+        const upsert = <T extends { id: string }>(list: T[] | undefined): T[] =>
+          method === "PUT"
+            ? (list || []).map((d) => (d.id === editingDeliverableId ? data.deliverable : d))
+            : [...(list || []), data.deliverable];
+        return isOneOff
+          ? { ...prev, oneOffDeliverables: upsert(prev.oneOffDeliverables) }
+          : { ...prev, monthlyDeliverables: upsert(prev.monthlyDeliverables) };
+      });
+
       toast.success(`${method === "PUT" ? "Updated" : "Added"}: ${newDeliverable.type}`);
       setShowAddDeliverableDialog(false);
       resetDeliverableForm();

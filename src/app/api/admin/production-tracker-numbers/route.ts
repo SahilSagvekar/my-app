@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/schema";
 import { and, or, eq, gte, lte, isNull, isNotNull, inArray } from "drizzle-orm";
 import { getCurrentUser2 } from "@/lib/auth";
+import { isHiddenFromProductionTracker } from "@/lib/production-tracker-exclusions";
 
 // GET /api/admin/production-tracker-numbers?month=April-2026
 //
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
     const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
 
     // ─── 1. Clients + their promised deliverables ───
-    const clients = await db.query.client.findMany({
+    const allClients = await db.query.client.findMany({
       where: eq(clientTable.status, "active"),
       columns: { id: true, name: true, companyName: true },
       with: {
@@ -51,9 +52,14 @@ export async function GET(req: NextRequest) {
       },
       orderBy: (c, { asc }) => asc(c.companyName),
     });
+    // Internal/test clients are hidden from the tracker (and from its totals).
+    const clients = allClients.filter((c) => !isHiddenFromProductionTracker(c));
+    const hiddenClientIds = new Set(
+      allClients.filter(isHiddenFromProductionTracker).map((c) => c.id)
+    );
 
     // ─── 2. Tasks for the target month, with feedback attached ───
-    const tasks = await db.query.task.findMany({
+    const monthTasks = await db.query.task.findMany({
       where: and(
         or(
           eq(taskTable.monthFolder, targetMonth),
@@ -80,6 +86,7 @@ export async function GET(req: NextRequest) {
         taskFeedbacks: { columns: { category: true, feedback: true } },
       },
     });
+    const tasks = monthTasks.filter((t) => !t.clientId || !hiddenClientIds.has(t.clientId));
 
     // ─── 3. Active editors ───
     const employees = await db
