@@ -13,10 +13,10 @@ import { requireAdmin } from '@/lib/auth';
 // constraints — an actual DELETE would fail for anyone with real history).
 //
 // For each employee id:
-//   - No active tasks (PENDING/IN_PROGRESS/REJECTED/READY_FOR_QC)  -> terminate immediately
+//   - No active tasks (PENDING/IN_PROGRESS/REJECTED_BY_*/READY_FOR_QC)  -> terminate immediately
 //   - Has active tasks, reassignAllTo given                        -> reassign all to that user, then terminate
 //   - Has active tasks, no reassignAllTo given                     -> skip, report back for the caller to handle
-const ACTIVE_TASK_STATUSES = ['PENDING', 'IN_PROGRESS', 'REJECTED', 'READY_FOR_QC'];
+const ACTIVE_TASK_STATUSES = ['PENDING', 'IN_PROGRESS', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'READY_FOR_QC'];
 
 export async function POST(req: Request) {
   const { db, closeDb } = getDbPool();

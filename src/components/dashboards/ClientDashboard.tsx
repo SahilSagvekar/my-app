@@ -148,8 +148,7 @@ const persistClientResult = async ({
     if (feedback) metaBody.clientFeedback = feedback;
   } else {
     // Client requested revisions → Send back to Editor
-    // Use REJECTED as the valid TaskStatus
-    metaBody.status = "REJECTED";
+    metaBody.status = "REJECTED_BY_CLIENT";
     metaBody.clientResult = "REVISION_REQUESTED";
     metaBody.route = "editor";
     if (feedback) {
@@ -1142,7 +1141,11 @@ export function ClientDashboard() {
     pendingReviews: tasks.filter(task => task.status === 'CLIENT_REVIEW').length,
     approvedCount: tasks.filter(task => task.status === 'COMPLETED').length,
     postedCount: tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length,
-    rejectedCount: tasks.filter(task => task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED').length,
+    rejectedCount: tasks.filter(task =>
+      task.status === 'CHANGES_REQUESTED' ||
+      task.status === 'REJECTED_BY_CLIENT' ||
+      task.status === 'REJECTED' // legacy
+    ).length,
     overdueReviews: tasks.filter(task => isOverdue(task)).length,
   }), [tasks]);
 
@@ -1176,7 +1179,11 @@ export function ClientDashboard() {
         return task.status === 'POSTED' || task.status === 'SCHEDULED';
       }
       if (currentFilter === 'rejected') {
-        return task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED';
+        return (
+          task.status === 'CHANGES_REQUESTED' ||
+          task.status === 'REJECTED_BY_CLIENT' ||
+          task.status === 'REJECTED' // legacy
+        );
       }
       return true;
     });

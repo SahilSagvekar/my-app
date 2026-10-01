@@ -48,7 +48,7 @@ const safeFormatDate = (
   }
 };
 
-type TaskStatus = 'COMPLETED' | 'REJECTED' | 'REJECTED_BY_QC' | 'REJECTED_BY_CLIENT' | 'CLIENT_REVIEW';
+type TaskStatus = 'COMPLETED' | 'REJECTED_BY_QC' | 'REJECTED_BY_CLIENT' | 'CLIENT_REVIEW';
 
 interface CompletedTask {
   id: string;
@@ -387,10 +387,11 @@ export function QCCompletedPage() {
     return 'destructive';
   };
 
-  const getStatusLabel = (status: TaskStatus) => {
+  const getStatusLabel = (status: TaskStatus | string) => {
     if (status === 'COMPLETED') return 'Approved';
     if (status === 'CLIENT_REVIEW') return 'Client Review';
     if (status === 'REJECTED_BY_CLIENT') return 'Rejected by Client';
+    // REJECTED_BY_QC and legacy REJECTED both display as Rejected by QC
     return 'Rejected by QC';
   };
 

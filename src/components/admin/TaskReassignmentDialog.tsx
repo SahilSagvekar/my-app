@@ -56,9 +56,10 @@ interface TaskReassignmentDialogProps {
 const STATUS_STYLES: Record<string, string> = {
   'PENDING': 'bg-blue-100 text-blue-700',
   'IN_PROGRESS': 'bg-yellow-100 text-yellow-700',
-  'REJECTED': 'bg-red-100 text-red-700',
   'REJECTED_BY_QC': 'bg-red-100 text-red-700',
   'REJECTED_BY_CLIENT': 'bg-rose-100 text-rose-700',
+  // Legacy value — kept so any unmigrated rows still render a readable pill
+  'REJECTED': 'bg-red-100 text-red-700',
   'READY_FOR_QC': 'bg-green-100 text-green-700',
 };
 

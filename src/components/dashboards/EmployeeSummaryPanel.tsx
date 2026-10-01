@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Loader2 } from 'lucide-react';
+import { getTaskStatusLabel } from '@/lib/task-status';
 
 interface ByClient {
   clientId: string;
@@ -19,23 +20,6 @@ interface SummaryData {
   byClient: ByClient[];
   byStatus: ByStatus[];
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pending',
-  IN_PROGRESS: 'In Progress',
-  READY_FOR_QC: 'Quality Control',
-  QC_IN_PROGRESS: 'QC in Progress',
-  COMPLETED: 'Completed',
-  SCHEDULED: 'Scheduled',
-  ON_HOLD: 'On Hold',
-  REJECTED: 'Rejected by QC',
-  REJECTED_BY_QC: 'Rejected by QC',
-  REJECTED_BY_CLIENT: 'Rejected by Client',
-  CLIENT_REVIEW: 'Client Review',
-  VIDEOGRAPHER_ASSIGNED: 'Videographer Assigned',
-  POSTED: 'Posted',
-  HIDDEN: 'Hidden',
-};
 
 // Simplest possible view: one number per client, one number per status.
 // Pass month="all" for a lifetime total, or "July-2026" to scope it.
@@ -118,7 +102,7 @@ export function EmployeeSummaryPanel({
               .map((s) => (
                 <div key={s.status} className="space-y-1">
                   <div className="flex justify-between text-sm">
-                    <span>{STATUS_LABELS[s.status] || s.status}</span>
+                    <span>{getTaskStatusLabel(s.status)}</span>
                     <span className="font-medium">{s.count}</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-muted overflow-hidden">
