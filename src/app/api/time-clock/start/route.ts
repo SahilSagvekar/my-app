@@ -7,10 +7,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { getDbHttp } from "@/lib/db";
-import { timeClockEntry } from "@/lib/db/schema";
+import { timeClockEntry, client as clientTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { getCurrentUser2 } from "@/lib/auth";
-import { dbTimestampToIso, getESTDateString } from "@/lib/est-date";
+import { dbTimestampToIso, formatEasternTime, getESTDateString } from "@/lib/est-date";
+import { sendClientSlackWebhook, sendToChannel } from "@/lib/slack";
+
+const MAX_REPORT_LENGTH = 3000;
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +25,16 @@ export async function POST(req: NextRequest) {
     // Admins don't clock in/out.
     if (user.role?.toLowerCase() === "admin") {
       return NextResponse.json({ error: "Admins do not use the time clock" }, { status: 403 });
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const clientId = typeof body?.clientId === "string" ? body.clientId : "";
+    const report = typeof body?.report === "string" ? body.report.trim() : "";
+    if (!clientId || !report) {
+      return NextResponse.json({ error: "Select a client and write your start-of-day report" }, { status: 400 });
+    }
+    if (report.length > MAX_REPORT_LENGTH) {
+      return NextResponse.json({ error: `Report is too long (max ${MAX_REPORT_LENGTH} characters)` }, { status: 400 });
     }
 
     const workDate = getESTDateString();
@@ -52,7 +65,32 @@ export async function POST(req: NextRequest) {
       })
       .returning();
 
-    return NextResponse.json({ status: "clocked_in", clockInAt: dbTimestampToIso(entry.clockInAt) });
+    const clockInAt = dbTimestampToIso(entry.clockInAt);
+    const personName = user.name || user.email || "Team member";
+
+    // Slack posts are best-effort — a failure here must never undo the clock-in.
+    try {
+      const [clientRow] = await db
+        .select({ name: clientTable.name, companyName: clientTable.companyName })
+        .from(clientTable)
+        .where(eq(clientTable.id, clientId))
+        .limit(1);
+      const clientName = clientRow?.companyName || clientRow?.name || "Client";
+
+      await sendClientSlackWebhook(clientId, {
+        type: "sod_report",
+        message: `:sunrise: *Start-of-day report — ${personName}*\n${report}`,
+      });
+
+      await sendToChannel("attendance", {
+        type: "attendance_clock_in",
+        message: `:sunny: Good morning! *${personName}* clocked in at ${formatEasternTime(clockInAt)} (working on ${clientName}).`,
+      });
+    } catch (slackErr) {
+      console.error("❌ /api/time-clock/start slack error:", slackErr);
+    }
+
+    return NextResponse.json({ status: "clocked_in", clockInAt });
   } catch (err: any) {
     // Race condition: two rapid clicks both pass the find check.
     // The unique constraint on [userId, workDate] catches it here (Postgres 23505).

@@ -231,7 +231,7 @@ export async function sendSlackWebhook(
 // ---------------------------------------------------------------------------
 // 2. CLIENT WEBHOOK — Post to a client-specific channel
 // ---------------------------------------------------------------------------
-async function sendClientSlackWebhook(
+export async function sendClientSlackWebhook(
   clientId: string,
   notification: SlackNotification
 ): Promise<boolean> {

@@ -6,6 +6,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Button } from './ui/button';
+import { Textarea } from './ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { toast } from 'sonner';
 import { Clock, Square, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from './auth/AuthContext';
 import { formatEasternTime } from '@/lib/est-date';
@@ -20,6 +24,13 @@ export function TimeClockButton() {
   const { user } = useAuth();
   const [status, setStatus] = useState<ClockStatus>({ state: 'loading' });
   const [busy, setBusy] = useState(false);
+
+  // Start-of-day report dialog
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [clientsLoading, setClientsLoading] = useState(false);
+  const [clientId, setClientId] = useState('');
+  const [report, setReport] = useState('');
 
   const isAdmin = user?.role?.toLowerCase() === 'admin';
 
@@ -52,17 +63,48 @@ export function TimeClockButton() {
 
   if (!user || isAdmin) return null;
 
+  // Clicking Start opens the start-of-day report dialog; the actual clock-in
+  // happens on Send.
+  const openStartDialog = async () => {
+    setDialogOpen(true);
+    setClientsLoading(true);
+    try {
+      const res = await fetch('/api/time-clock/clients');
+      if (res.ok) {
+        const data = await res.json();
+        setClients(data.clients || []);
+      }
+    } catch {
+      // Dropdown stays empty; the user sees "No clients available".
+    } finally {
+      setClientsLoading(false);
+    }
+  };
+
   const handleStart = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/time-clock/start', { method: 'POST' });
+      const res = await fetch('/api/time-clock/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, report }),
+      });
       const data = await res.json();
       if (res.ok) {
         setStatus({ state: 'clocked_in', clockInAt: data.clockInAt });
+        setDialogOpen(false);
+        setReport('');
+        setClientId('');
+        toast.success('Clocked in — report sent');
       } else if (data.clockInAt) {
         // Already started (e.g. race with another tab) — sync to the real state.
         setStatus({ state: 'clocked_in', clockInAt: data.clockInAt });
+        setDialogOpen(false);
+      } else {
+        toast.error(data.error || 'Failed to clock in');
       }
+    } catch {
+      toast.error('Failed to clock in');
     } finally {
       setBusy(false);
     }
@@ -95,16 +137,67 @@ export function TimeClockButton() {
 
   if (status.state === 'not_started') {
     return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleStart}
-        disabled={busy}
-        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-      >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-        <span className="hidden sm:inline">Start</span>
-      </Button>
+      <>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={openStartDialog}
+          disabled={busy}
+          className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+        >
+          <Clock className="h-4 w-4" />
+          <span className="hidden sm:inline">Start</span>
+        </Button>
+
+        <Dialog open={dialogOpen} onOpenChange={(open) => !busy && setDialogOpen(open)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Start your day</DialogTitle>
+              <DialogDescription>
+                Write your start-of-day report and pick the client. It will be posted to that
+                client&apos;s Slack channel and you&apos;ll be clocked in.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <Select value={clientId} onValueChange={setClientId} disabled={clientsLoading}>
+                <SelectTrigger>
+                  <SelectValue placeholder={clientsLoading ? 'Loading clients…' : 'Select client'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.length === 0 && !clientsLoading ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">No clients available</div>
+                  ) : (
+                    clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+
+              <Textarea
+                value={report}
+                onChange={(e) => setReport(e.target.value)}
+                placeholder="What are you working on today?"
+                rows={6}
+                maxLength={3000}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={handleStart} disabled={busy || !clientId || !report.trim()}>
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                Send &amp; clock in
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
