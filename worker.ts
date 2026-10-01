@@ -108,6 +108,10 @@ const workerHandlers = {
       // Auto-invoice — daily ≈ 9:00 AM America/New_York (13:00 UTC during EDT).
       case '0 13 * * *':
         ctx.waitUntil(triggerCronRoute('/api/cron/auto-invoice', env, ctx));
+        // Editor clock-in reminder — 13:00 UTC is 9 AM EDT; the 14:00 UTC
+        // trigger below covers 9 AM EST. The route's ET-hour guard posts
+        // only at 9 AM Eastern on weekdays, so the two never double-post.
+        ctx.waitUntil(triggerCronRoute('/api/cron/editor-clock-in-reminder', env, ctx));
         break;
 
       // Enforce portal locks — daily ≈ 9:15 AM ET (after auto-invoice).
@@ -118,6 +122,8 @@ const workerHandlers = {
       // Billing warning emails — daily ≈ 10:00 AM ET (clients due in 3 days).
       case '0 14 * * *':
         ctx.waitUntil(triggerCronRoute('/api/cron/billing-warnings', env, ctx));
+        // 9 AM EST editor clock-in reminder (see the 13:00 UTC trigger above).
+        ctx.waitUntil(triggerCronRoute('/api/cron/editor-clock-in-reminder', env, ctx));
         break;
 
       // Auto-invoice day-before review — ≈ 10:30 AM ET (notify Eric to review settings).
