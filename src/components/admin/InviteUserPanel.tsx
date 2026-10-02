@@ -3,7 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { Mail, RefreshCw, UserPlus, X } from "lucide-react";
+import { Mail, RefreshCw, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -61,32 +61,31 @@ const fmt = (iso: string) =>
     timeZone: "America/New_York",
   });
 
-export function InviteUserPanel() {
-  const { data, mutate } = useSWR<{ invites: Invite[] }>("/api/admin/users/invite", fetcher);
+const INVITES_KEY = "/api/admin/users/invite";
+
+const reportResult = (json: any, okMsg: string) => {
+  if (json.emailSent === false && json.inviteUrl) {
+    // SMTP is down/unconfigured — hand the admin the link instead of failing silently.
+    navigator.clipboard?.writeText(json.inviteUrl).catch(() => {});
+    toast.warning("Email couldn't be sent. Invite link copied to your clipboard — send it manually.");
+  } else {
+    toast.success(okMsg);
+  }
+};
+
+/** "Invite" button + dialog: enter an email (and role), an invite email goes out. */
+export function InviteUserButton({ className }: { className?: string }) {
+  const { mutate } = useSWR<{ invites: Invite[] }>(INVITES_KEY, fetcher);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState("editor");
   const [sending, setSending] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  const invites = data?.invites ?? [];
-  const visible = invites.filter((i) => i.status !== "ACCEPTED").slice(0, 20);
 
   const reset = () => {
     setEmail("");
     setName("");
     setRole("editor");
-  };
-
-  const reportResult = (json: any, okMsg: string) => {
-    if (json.emailSent === false && json.inviteUrl) {
-      // SMTP is down/unconfigured — hand the admin the link instead of failing silently.
-      navigator.clipboard?.writeText(json.inviteUrl).catch(() => {});
-      toast.warning("Email couldn't be sent. Invite link copied to your clipboard — send it manually.");
-    } else {
-      toast.success(okMsg);
-    }
   };
 
   const sendInvite = async () => {
@@ -114,94 +113,12 @@ export function InviteUserPanel() {
     }
   };
 
-  const resend = async (invite: Invite) => {
-    setBusyId(invite.id);
-    try {
-      const res = await fetch(`/api/admin/users/invite/${invite.id}`, { method: "POST", credentials: "include" });
-      const json = await res.json();
-      if (!res.ok) toast.error(json.error || "Failed to resend");
-      else reportResult(json, `Invite resent to ${invite.email}`);
-      mutate();
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const revoke = async (invite: Invite) => {
-    setBusyId(invite.id);
-    try {
-      const res = await fetch(`/api/admin/users/invite/${invite.id}`, { method: "DELETE", credentials: "include" });
-      const json = await res.json();
-      if (!res.ok) toast.error(json.error || "Failed to revoke");
-      else toast.success("Invite revoked");
-      mutate();
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>Invitations</CardTitle>
-          <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-            <UserPlus className="h-3.5 w-3.5" />
-            Invite user
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {visible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No open invitations. Invite someone by email and they'll get a link to register with their role pre-assigned.
-            </p>
-          ) : (
-            <div className="divide-y">
-              {visible.map((inv) => (
-                <div key={inv.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {inv.name ? `${inv.name} · ` : ""}
-                      {inv.email}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {roleName(inv.role)} · sent {fmt(inv.createdAt)}
-                      {inv.invitedByName ? ` by ${inv.invitedByName}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={STATUS_STYLE[inv.status] ?? ""}>{inv.status.toLowerCase()}</Badge>
-                    {inv.status !== "REVOKED" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1"
-                        disabled={busyId === inv.id}
-                        onClick={() => resend(inv)}
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                        Resend
-                      </Button>
-                    )}
-                    {(inv.status === "PENDING" || inv.status === "EXPIRED") && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1 text-red-600"
-                        disabled={busyId === inv.id}
-                        onClick={() => revoke(inv)}
-                      >
-                        <X className="h-3 w-3" />
-                        Revoke
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Button variant="outline" className={className ?? "h-9 shadow-sm"} onClick={() => setOpen(true)}>
+        <Mail className="h-4 w-4 mr-2" />
+        Invite
+      </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -239,5 +156,88 @@ export function InviteUserPanel() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/** Open invites with Resend / Revoke. Renders nothing when there are none. */
+export function PendingInvitesList() {
+  const { data, mutate } = useSWR<{ invites: Invite[] }>(INVITES_KEY, fetcher);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const visible = (data?.invites ?? []).filter((i) => i.status !== "ACCEPTED" && i.status !== "REVOKED").slice(0, 20);
+  if (visible.length === 0) return null;
+
+  const resend = async (invite: Invite) => {
+    setBusyId(invite.id);
+    try {
+      const res = await fetch(`/api/admin/users/invite/${invite.id}`, { method: "POST", credentials: "include" });
+      const json = await res.json();
+      if (!res.ok) toast.error(json.error || "Failed to resend");
+      else reportResult(json, `Invite resent to ${invite.email}`);
+      mutate();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const revoke = async (invite: Invite) => {
+    setBusyId(invite.id);
+    try {
+      const res = await fetch(`/api/admin/users/invite/${invite.id}`, { method: "DELETE", credentials: "include" });
+      const json = await res.json();
+      if (!res.ok) toast.error(json.error || "Failed to revoke");
+      else toast.success("Invite revoked");
+      mutate();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Pending invitations</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="divide-y">
+          {visible.map((inv) => (
+            <div key={inv.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {inv.name ? `${inv.name} · ` : ""}
+                  {inv.email}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {roleName(inv.role)} · sent {fmt(inv.createdAt)}
+                  {inv.invitedByName ? ` by ${inv.invitedByName}` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className={STATUS_STYLE[inv.status] ?? ""}>{inv.status.toLowerCase()}</Badge>
+                <Button variant="outline" size="sm" className="gap-1" disabled={busyId === inv.id} onClick={() => resend(inv)}>
+                  <RefreshCw className="h-3 w-3" />
+                  Resend
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-1 text-red-600" disabled={busyId === inv.id} onClick={() => revoke(inv)}>
+                  <X className="h-3 w-3" />
+                  Revoke
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Button + pending list together (used where there's no toolbar to host the button). */
+export function InviteUserPanel() {
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <InviteUserButton />
+      </div>
+      <PendingInvitesList />
+    </div>
   );
 }

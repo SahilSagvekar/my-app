@@ -78,6 +78,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { TaskReassignmentDialog } from "./TaskReassignmentDialog";
 import { formatPhone } from "@/lib/formatPhone";
+import { InviteUserButton, PendingInvitesList } from "./InviteUserPanel";
 
 type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -1164,6 +1165,9 @@ export default function LeavesComponent() {
               />
             </div>
 
+            <div className="flex items-center gap-2">
+            <InviteUserButton />
+
             <Dialog
               open={isAddUserDialogOpen}
               onOpenChange={setIsAddUserDialogOpen}
@@ -1402,7 +1406,10 @@ export default function LeavesComponent() {
                 </div>
               </DialogContent>
             </Dialog>
+            </div>
           </div>
+
+          <div className="mb-6"><PendingInvitesList /></div>
 
           <div className="overflow-x-auto">
             <table className="w-full">
