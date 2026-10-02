@@ -73,6 +73,7 @@ export async function GET(
         id: taskTable.id,
         title: taskTable.title,
         description: taskTable.description,
+        status: taskTable.status,
         driveLinks: taskTable.driveLinks,
         createdAt: taskTable.createdAt,
         socialMediaLinks: taskTable.socialMediaLinks,
@@ -158,6 +159,7 @@ export async function GET(
         id: taskRow.id,
         title: taskRow.title,
         description: taskRow.description,
+        status: taskRow.status,
         driveLinks: taskRow.driveLinks || [],
         files: filesWithSignedUrls,
         client: taskRow.clientId

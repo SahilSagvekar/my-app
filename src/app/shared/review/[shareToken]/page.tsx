@@ -12,6 +12,7 @@ interface SharedReviewData {
         id: string;
         title: string;
         description: string;
+        status?: string;
         driveLinks: string[];
         files: any[];
         client?: any;
@@ -153,7 +154,10 @@ export default function SharedReviewPage() {
             }],
             currentVersion: versions[0]?.id || '1',
             downloadEnabled: false,
-            approvalLocked: true, // Locked for external viewers
+            // Approving/requesting changes works via the share token (see the
+            // passwordless flow in PATCH /api/tasks/[id]/status). Only lock once
+            // the task is already approved/scheduled — same rule as the client portal.
+            approvalLocked: task.status === 'COMPLETED' || task.status === 'SCHEDULED',
         };
     };
 
