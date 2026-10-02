@@ -5,19 +5,46 @@ export const dynamic = 'force-dynamic';
 // which writes a ShareableReview row). Consumed by
 // src/app/shared/review/[shareToken]/page.tsx.
 //
-// NOTE: this used to contain folder-share (ShareableFile) logic — that logic
-// was misplaced here and has been moved to its correct location at
-// src/app/api/shared/folder/[shareToken]/route.ts, matching what
-// src/app/shared/folder/[shareToken]/page.tsx actually calls.
+// Uses Drizzle over the Neon HTTP driver (getDbHttp) like the rest of the
+// Cloudflare Workers app — the old Prisma + ws client does not run reliably
+// on Workers and was surfacing here as a generic 500 ("Failed to load shared
+// review").
+//
+// NOTE: folder-share (ShareableFile) logic lives in
+// src/app/api/shared/folder/[shareToken]/route.ts.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getDbHttp } from '@/lib/db';
+import {
+  shareableReview,
+  task as taskTable,
+  client as clientTable,
+  monthlyDeliverable as monthlyDeliverableTable,
+  file as fileTable,
+} from '@/lib/db/schema';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { generateSignedUrl } from '@/lib/s3';
+
+// Drizzle returns timestamps as strings (mode: 'string'), often without a
+// timezone suffix. They are stored in UTC, so parse them as UTC.
+function parseUtc(value: string): Date {
+  const hasTz = /([zZ]|[+-]\d{2}(:?\d{2})?)$/.test(value);
+  return new Date(hasTz ? value : value.replace(' ', 'T') + 'Z');
+}
+
+function safeDecode(key: string): string {
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key;
+  }
+}
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ shareToken: string }> }
 ) {
+  const db = getDbHttp();
   try {
     const { shareToken } = await params;
 
@@ -25,101 +52,133 @@ export async function GET(
       return NextResponse.json({ error: 'Share token required' }, { status: 400 });
     }
 
-    const shareableReview = await prisma.shareableReview.findUnique({
-      where: { shareToken },
-    });
+    const [share] = await db
+      .select()
+      .from(shareableReview)
+      .where(eq(shareableReview.shareToken, shareToken))
+      .limit(1);
 
-    if (!shareableReview) {
+    if (!share) {
       return NextResponse.json({ error: 'Share link not found' }, { status: 404 });
     }
-    if (!shareableReview.isActive) {
+    if (!share.isActive) {
       return NextResponse.json({ error: 'This share link has been deactivated' }, { status: 410 });
     }
-    if (shareableReview.expiresAt && shareableReview.expiresAt < new Date()) {
+    if (share.expiresAt && parseUtc(share.expiresAt) < new Date()) {
       return NextResponse.json({ error: 'This share link has expired' }, { status: 410 });
     }
 
-    const task = await prisma.task.findUnique({
-      where: { id: shareableReview.taskId },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            companyName: true,
-          },
-        },
-        monthlyDeliverable: {
-          select: {
-            type: true,
-            platforms: true,
-          },
-        },
-        files: {
-          where: { isActive: true },
-          orderBy: [
-            { folderType: 'asc' },
-            { version: 'desc' },
-          ],
-        },
-      },
-    });
+    const [taskRow] = await db
+      .select({
+        id: taskTable.id,
+        title: taskTable.title,
+        description: taskTable.description,
+        driveLinks: taskTable.driveLinks,
+        createdAt: taskTable.createdAt,
+        socialMediaLinks: taskTable.socialMediaLinks,
+        clientId: clientTable.id,
+        clientName: clientTable.name,
+        clientCompanyName: clientTable.companyName,
+        deliverableType: monthlyDeliverableTable.type,
+        deliverablePlatforms: monthlyDeliverableTable.platforms,
+      })
+      .from(taskTable)
+      .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
+      .leftJoin(
+        monthlyDeliverableTable,
+        eq(taskTable.monthlyDeliverableId, monthlyDeliverableTable.id)
+      )
+      .where(eq(taskTable.id, share.taskId))
+      .limit(1);
 
-    if (!task) {
+    if (!taskRow) {
       return NextResponse.json({ error: 'Shared task not found' }, { status: 404 });
     }
 
-    // Sign each file's S3 URL (files are private — the raw `url` column
-    // isn't directly playable), same pattern as /api/tasks/[id]/files.
+    const files = await db
+      .select({
+        id: fileTable.id,
+        name: fileTable.name,
+        url: fileTable.url,
+        s3Key: fileTable.s3Key,
+        size: fileTable.size,
+        mimeType: fileTable.mimeType,
+        version: fileTable.version,
+        folderType: fileTable.folderType,
+        uploadedAt: fileTable.uploadedAt,
+        createdAt: fileTable.createdAt,
+      })
+      .from(fileTable)
+      .where(and(eq(fileTable.taskId, taskRow.id), eq(fileTable.isActive, true)))
+      .orderBy(asc(fileTable.folderType), desc(fileTable.version));
+
+    // Files are private — the raw `url` column isn't directly playable, so
+    // sign each one (same pattern as /api/tasks/[id]/files).
     const filesWithSignedUrls = await Promise.all(
-      task.files.map(async (file) => {
-        let url = file.url;
-        if (file.s3Key) {
+      files.map(async (f) => {
+        let url = f.url;
+        if (f.s3Key) {
           try {
-            url = await generateSignedUrl(file.s3Key);
+            url = await generateSignedUrl(safeDecode(f.s3Key));
           } catch (err) {
-            console.error(`❌ Failed to sign URL for shared file ${file.id}:`, err);
+            console.error(`❌ Failed to sign URL for shared file ${f.id}:`, err);
           }
         }
         return {
-          id: file.id,
-          name: file.name,
+          id: f.id,
+          name: f.name,
           url,
-          size: Number(file.size),
-          mimeType: file.mimeType,
-          version: file.version,
-          folderType: file.folderType,
-          uploadedAt: file.uploadedAt,
-          createdAt: file.createdAt,
+          size: Number(f.size),
+          mimeType: f.mimeType,
+          version: f.version,
+          folderType: f.folderType,
+          uploadedAt: f.uploadedAt,
+          createdAt: f.createdAt,
         };
       })
     );
 
     // Bump view count + last-viewed, best-effort (don't fail the request over it)
     try {
-      await prisma.shareableReview.update({
-        where: { shareToken },
-        data: { viewCount: { increment: 1 }, lastViewedAt: new Date() },
-      });
+      const now = new Date().toISOString();
+      await db
+        .update(shareableReview)
+        .set({
+          viewCount: sql`${shareableReview.viewCount} + 1`,
+          lastViewedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(shareableReview.id, share.id));
     } catch (err) {
       console.error('⚠️ Failed to update share view count:', err);
     }
 
     return NextResponse.json({
       task: {
-        id: task.id,
-        title: task.title,
-        description: task.description,
-        driveLinks: task.driveLinks || [],
+        id: taskRow.id,
+        title: taskRow.title,
+        description: taskRow.description,
+        driveLinks: taskRow.driveLinks || [],
         files: filesWithSignedUrls,
-        client: task.client,
-        monthlyDeliverable: task.monthlyDeliverable,
-        createdAt: task.createdAt,
-        socialMediaLinks: task.socialMediaLinks,
+        client: taskRow.clientId
+          ? {
+              id: taskRow.clientId,
+              name: taskRow.clientName,
+              companyName: taskRow.clientCompanyName,
+            }
+          : null,
+        monthlyDeliverable: taskRow.deliverableType
+          ? {
+              type: taskRow.deliverableType,
+              platforms: taskRow.deliverablePlatforms || [],
+            }
+          : null,
+        createdAt: taskRow.createdAt,
+        socialMediaLinks: taskRow.socialMediaLinks,
       },
       shareInfo: {
-        viewCount: shareableReview.viewCount + 1,
-        expiresAt: shareableReview.expiresAt,
+        viewCount: share.viewCount + 1,
+        expiresAt: share.expiresAt,
       },
     });
   } catch (error: any) {
