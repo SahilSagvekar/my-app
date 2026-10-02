@@ -2,8 +2,9 @@ export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
 import { getDbHttp } from '@/lib/db';
-import { user, auditLog } from '@/lib/db/schema';
+import { user, auditLog, userInvite } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { hashInviteToken } from '@/lib/invites';
 import { getGeoLocation, formatLocation } from '@/lib/geo';
 import { NextRequest, NextResponse } from "next/server";
 import { validatePassword, buildPasswordContext, checkPasswordPwnedSafe, PASSWORD_RULES } from '@/lib/password-policy';
@@ -17,7 +18,7 @@ export async function POST(req: NextRequest) {
   const locationData = await getGeoLocation(ip);
   const locationString = formatLocation(locationData);
   try {
-    const { name, email, phone, password, acceptTerms } = await req.json();
+    const { name, email, phone, password, acceptTerms, inviteToken } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ message: "Email and password are required" }, { status: 400 });
@@ -53,6 +54,26 @@ export async function POST(req: NextRequest) {
         { message: "This password has appeared in known data breaches. Please choose a different password." },
         { status: 400 }
       );
+    }
+
+    // Invite-based signup: the emailed link carries a one-time token that
+    // fixes the account's role. Validated up front so a bad/used/expired
+    // link fails before anything is written.
+    let invite: typeof userInvite.$inferSelect | null = null;
+    if (inviteToken) {
+      const [found] = await db.select().from(userInvite)
+        .where(eq(userInvite.tokenHash, await hashInviteToken(String(inviteToken)))).limit(1);
+      if (
+        !found ||
+        found.status !== 'PENDING' ||
+        new Date(found.expiresAt + 'Z').getTime() < Date.now()
+      ) {
+        return NextResponse.json({ message: "This invite link is invalid or has expired. Ask your admin to send a new one." }, { status: 410 });
+      }
+      if (found.email.toLowerCase() !== String(email).trim().toLowerCase()) {
+        return NextResponse.json({ message: "Register with the email address the invite was sent to." }, { status: 400 });
+      }
+      invite = found;
     }
 
     // Check if user exists
@@ -138,8 +159,20 @@ export async function POST(req: NextRequest) {
       email,
       password: hashedPassword,
       phone: String(phone),
+      // Invited users get their role immediately, so their portal exists the
+      // moment they finish registering (no PendingRoleScreen).
+      ...(invite ? { role: invite.role } : {}),
       updatedAt: new Date().toISOString(),
     }).returning();
+
+    if (invite) {
+      await db.update(userInvite).set({
+        status: 'ACCEPTED',
+        acceptedAt: new Date().toISOString(),
+        acceptedUserId: newUser.id,
+        updatedAt: new Date().toISOString(),
+      }).where(eq(userInvite.id, invite.id));
+    }
 
     // Add audit log for new user signup
     await db.insert(auditLog).values({
@@ -147,7 +180,7 @@ export async function POST(req: NextRequest) {
       action: 'USER_SIGNUP',
       entity: 'User',
       entityId: String(newUser.id),
-      details: `New user signed up from ${locationString}`,
+      details: invite ? `New user signed up via invite (${invite.role}) from ${locationString}` : `New user signed up from ${locationString}`,
       ipAddress: ip,
       userAgent: userAgent,
       metadata: {

@@ -37,6 +37,7 @@ import {
   BarChart3,
   ListChecks,
   Wallet,
+  Bug,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -145,6 +146,11 @@ export const NAVIGATION_ITEMS = {
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
   ],
+  // Dev Portal: pseudo-role reachable only through the portal switcher by
+  // DEV_PORTAL_EMAILS (see ViewAsRoleContext). Not a DB role.
+  dev: [
+    { id: 'dev-tickets', label: 'Dev Tickets', icon: Bug },
+  ],
   sales_manager: [
     { id: 'dashboard', label: 'Sales Team', icon: Users },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
@@ -165,6 +171,7 @@ export const getDefaultPage = (role: string): string => {
     case 'host': return 'host-shoots';
     case 'sales': return 'dashboard';
     case 'sales_manager': return 'dashboard';
+    case 'dev': return 'dev-tickets';
     default: return 'dashboard';
   }
 };

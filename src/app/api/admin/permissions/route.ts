@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
         const permissionMap = new Map(dbPermissions.map((p: any) => [p.role, p.navigationItems]));
 
         // Prepare response with ALL roles from NAVIGATION_ITEMS
-        const roles = Object.keys(NAVIGATION_ITEMS) as NavigationRole[];
+        // 'dev' is a pseudo-role (Dev Portal), not a DB Role enum value — it has no RolePermission row.
+        const roles = (Object.keys(NAVIGATION_ITEMS) as NavigationRole[]).filter(r => r !== 'dev');
 
         const result = roles.map(role => {
             const enabledItems = permissionMap.get(role as any);

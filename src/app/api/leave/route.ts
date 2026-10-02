@@ -232,6 +232,8 @@ import { and, eq, gte, lte, asc, desc } from "drizzle-orm";
 import { z } from "zod";
 import { isEmployee } from "@/lib/auth";
 import { countWorkingDaysBetween } from "@/lib/workdays";
+import { notifyAdminsOfLeaveRequest } from "@/lib/leave-notifications";
+import { keepAlive } from "@/lib/keep-alive";
 import type { NextRequest } from "next/server";
 import jwt from 'jsonwebtoken';
 
@@ -348,6 +350,14 @@ export async function POST(req: NextRequest) {
     }).returning();
 
     console.log(`Leave request created: ${createdLeave.id} for employee ${employeeId}`);
+
+    // Fire-and-forget (kept alive past the response) so a Slack/SMTP hiccup
+    // never fails the request itself.
+    keepAlive(
+      notifyAdminsOfLeaveRequest(createdLeave).catch((err) =>
+        console.warn("[Leave] admin notification failed:", err)
+      )
+    );
 
     return NextResponse.json({ ok: true, leave: createdLeave });
   } catch (err: any) {

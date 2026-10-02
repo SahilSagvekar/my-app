@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { Users, UserCheck, UserX, Calendar, Search, UserMinus } from "lucide-react";
+import { InviteUserPanel } from "./InviteUserPanel";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -347,6 +348,8 @@ export function UserManagementTab() {
           </CardContent>
         </Card>
       </div>
+
+      <InviteUserPanel />
 
       {/* Employee table */}
       <Card>

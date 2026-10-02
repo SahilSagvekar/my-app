@@ -10,9 +10,10 @@ import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { getDbHttp } from "@/lib/db";
 import { user as userTable, feedback as feedbackTable } from "@/lib/db/schema";
+import { createDevTicketFromReport } from "@/lib/dev-portal-report";
 import { createId } from "@/lib/db/id";
 import { eq } from "drizzle-orm";
-import { sendClientFeedbackEmail } from "@/lib/mail-transport";
+import { sendClientFeedbackEmail } from "@/lib/email";
 
 // Reasonable ceiling so a giant screenshot payload can't be abused —
 // html2canvas output for a normal viewport is well under this.
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
       columns: { name: true, email: true, role: true },
       // "client" is the drizzle relation name for User.linkedClientId -> Client.id
       // (Prisma's `linkedClient` relation)
-      with: { client: { columns: { name: true, companyName: true } } },
+      with: { client: { columns: { id: true, name: true, companyName: true } } },
     });
     if (!user) return NextResponse.json({ message: "User not found" }, { status: 404 });
 
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
 
     // Send the email and persist the queue entry independently — a failure
     // in one shouldn't silently swallow the other.
-    const [emailResult, dbResult] = await Promise.allSettled([
+    const [emailResult, dbResult, ticketResult] = await Promise.allSettled([
       sendClientFeedbackEmail({
         clientName: sourceLabel,
         userName: user.name || "Unknown",
@@ -90,7 +91,25 @@ export async function POST(req: Request) {
         senderId: userId,
         updatedAt: new Date().toISOString(),
       }),
+      // Every "Report a Problem" also becomes a Dev Portal ticket (client
+      // reports are pinned to the top there and ping Eric/Sahil).
+      createDevTicketFromReport({
+        reporterId: userId,
+        reporterName: user.name || user.email,
+        isClient: user.role === "client",
+        clientId: user.client?.id ?? null,
+        clientName: user.client ? user.client.companyName || user.client.name || null : null,
+        sourceLabel,
+        message: cleanMessage,
+        pageUrl: cleanPageUrl,
+        userAgent: req.headers.get("user-agent") || "",
+        screenshotDataUrl: cleanScreenshot,
+      }),
     ]);
+
+    if (ticketResult.status === "rejected") {
+      console.error("[POST /api/client/feedback] dev ticket failed:", ticketResult.reason);
+    }
 
     if (emailResult.status === "rejected") {
       console.error("[POST /api/client/feedback] email failed:", emailResult.reason);
@@ -100,7 +119,7 @@ export async function POST(req: Request) {
     }
 
     // As long as at least one of the two succeeded, the report wasn't lost.
-    if (emailResult.status === "rejected" && dbResult.status === "rejected") {
+    if (emailResult.status === "rejected" && dbResult.status === "rejected" && ticketResult.status === "rejected") {
       return NextResponse.json({ message: "Failed to send feedback" }, { status: 500 });
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import logo from "../../../public/assets/575743c7bd0af4189cb4a7349ecfe505c6699243.png";
 import { Eye, EyeOff, Check, X } from "lucide-react";
@@ -18,6 +18,42 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Invite flow: /register?invite=<token> (from the emailed link). The email
+  // and role are fixed by the invite; the user only adds their own details
+  // and password.
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteRole, setInviteRole] = useState<string | null>(null);
+  const [inviteChecked, setInviteChecked] = useState(false);
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("invite");
+    if (!token) {
+      setInviteChecked(true);
+      return;
+    }
+    fetch(`/api/invite/${encodeURIComponent(token)}`)
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.valid) {
+          const reasons: Record<string, string> = {
+            expired: "This invite link has expired. Ask your admin to send a new one.",
+            used: "This invite has already been used. Try signing in instead.",
+            revoked: "This invite was cancelled. Ask your admin for a new one.",
+          };
+          setError(reasons[data.reason] || "This invite link is not valid.");
+          return;
+        }
+        setInviteToken(token);
+        setInviteRole(data.role);
+        setEmail(data.email);
+        const [first, ...rest] = String(data.name || "").trim().split(/\s+/);
+        if (first) setFirstName(first);
+        if (rest.length) setLastName(rest.join(" "));
+      })
+      .catch(() => setError("Could not verify your invite link. Please try again."))
+      .finally(() => setInviteChecked(true));
+  }, []);
 
   const passwordContext = useMemo(
     () => buildPasswordContext({ email, firstName, lastName }),
@@ -52,7 +88,8 @@ export default function RegisterPage() {
           email,
           phone,
           password,
-          acceptTerms
+          acceptTerms,
+          ...(inviteToken ? { inviteToken } : {}),
         }),
       });
 
@@ -92,7 +129,11 @@ export default function RegisterPage() {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Create an Account</h1>
-          <p className="text-gray-500 mt-2 text-sm">Join E8 Productions and get access to the E8 App</p>
+          <p className="text-gray-500 mt-2 text-sm">
+            {inviteRole
+              ? `You've been invited as ${inviteRole === "qc" ? "Quality Control" : inviteRole.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}. Set your password to get started.`
+              : "Join E8 Productions and get access to the E8 App"}
+          </p>
         </div>
 
       <form
@@ -148,7 +189,8 @@ export default function RegisterPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg p-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary"
+            readOnly={!!inviteToken}
+            className={`w-full border border-gray-300 rounded-lg p-2 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-primary ${inviteToken ? "bg-gray-100 text-gray-600" : ""}`}
             placeholder="Enter your email"
             required
           />
@@ -218,7 +260,7 @@ export default function RegisterPage() {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !inviteChecked}
           className="w-full bg-primary text-white font-semibold py-2.5 sm:py-3 text-sm sm:text-base rounded-lg hover:bg-primary-dark transition disabled:opacity-60"
         >
           {loading ? "Registering..." : "Register"}

@@ -55,6 +55,11 @@ model User {
   Equipment                       Equipment[]
   ExpenseTrip                     ExpenseTrip[]
   feedbackSent                    Feedback[]                      @relation("FeedbackSender")
+  userInvitesSent                 UserInvite[]                    @relation("UserInviteInviter")
+  devTicketsReported              DevTicket[]                     @relation("DevTicketReporter")
+  devTicketsAssigned              DevTicket[]                     @relation("DevTicketAssignee")
+  devTicketAttachments            DevTicketAttachment[]           @relation("DevTicketAttachmentUploader")
+  devTicketComments               DevTicketComment[]              @relation("DevTicketCommentAuthor")
   feedbackResponses               FeedbackResponse[]              @relation("FeedbackResponseSender")
   folderStatusUpdates             FolderStatus[]
   helpVideos                      HelpVideo[]
@@ -2659,4 +2664,77 @@ model ScriptShootLink {
 
   @@unique([scriptId, targetShootTaskId])
   @@index([targetShootTaskId])
+}
+
+model UserInvite {
+  id             String    @id @default(cuid())
+  email          String
+  name           String?
+  role           Role
+  tokenHash      String    @unique
+  status         String    @default("PENDING")
+  invitedById    Int
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  acceptedUserId Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  invitedBy      User      @relation("UserInviteInviter", fields: [invitedById], references: [id])
+
+  @@index([email])
+  @@index([status])
+}
+
+model DevTicket {
+  id          String                @id @default(cuid())
+  title       String
+  description String?
+  type        String                @default("BUG")
+  source      String                @default("INTERNAL")
+  clientId    String?
+  clientName  String?
+  priority    String                @default("UNSET")
+  status      String                @default("OPEN")
+  loomUrl     String?
+  reporterId  Int
+  assigneeId  Int?
+  resolvedAt  DateTime?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  reporter    User                  @relation("DevTicketReporter", fields: [reporterId], references: [id])
+  assignee    User?                 @relation("DevTicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  attachments DevTicketAttachment[]
+  comments    DevTicketComment[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([assigneeId])
+  @@index([createdAt(sort: Desc)])
+}
+
+model DevTicketAttachment {
+  id           String    @id @default(cuid())
+  ticketId     String
+  r2Key        String
+  fileName     String
+  mimeType     String?
+  size         Int?
+  uploadedById Int
+  createdAt    DateTime  @default(now())
+  ticket       DevTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  uploadedBy   User      @relation("DevTicketAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([ticketId])
+}
+
+model DevTicketComment {
+  id        String    @id @default(cuid())
+  ticketId  String
+  authorId  Int
+  message   String
+  createdAt DateTime  @default(now())
+  ticket    DevTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User      @relation("DevTicketCommentAuthor", fields: [authorId], references: [id])
+
+  @@index([ticketId])
 }

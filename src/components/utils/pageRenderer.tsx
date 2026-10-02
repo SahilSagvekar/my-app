@@ -99,6 +99,8 @@ const AdminDailyTargetsPage = dynamic(() => import("../dashboards/Admindailytarg
 });
 
 import { Loader2 } from "lucide-react";
+import { isDevPortalEmail } from "@/lib/dev-portal-access";
+import { DevPortalPage } from "../dev-portal/DevPortalPage";
 import { TaskManagementTab } from "../admin/TaskManagementTab";
 
 const ComingSoonPage = ({ title }: { title: string }) => (
@@ -130,6 +132,12 @@ export function renderPage(
       return <ComingSoonPage title="Access Restricted" />;
     }
     return <AdminAIAgentPage />;
+  }
+
+  // Dev Portal (pseudo-role, switcher-only for DEV_PORTAL_EMAILS). The API
+  // enforces access server-side; this just stops other emails rendering it.
+  if (role.toLowerCase() === "dev") {
+    return isDevPortalEmail(userEmail) ? <DevPortalPage /> : <ComingSoonPage title="Access Restricted" />;
   }
 
   // 🔥 Block unauthorized access for clients without posting services

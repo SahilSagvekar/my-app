@@ -3519,3 +3519,106 @@ export const clientManualPayment = pgTable("ClientManualPayment", {
 			name: "ClientManualPayment_voidedById_fkey"
 		}).onUpdate("cascade").onDelete("set null"),
 ]);
+
+
+// ── User invites (admin invites a new staff member by email) ─────────────
+export const userInvite = pgTable("UserInvite", {
+	id: text().primaryKey().notNull(),
+	email: text().notNull(),
+	name: text(),
+	role: role().notNull(),
+	tokenHash: text().notNull(),
+	status: text().default('PENDING').notNull(), // PENDING | ACCEPTED | REVOKED
+	invitedById: integer().notNull(),
+	expiresAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	acceptedAt: timestamp({ precision: 3, mode: 'string' }),
+	acceptedUserId: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("UserInvite_tokenHash_key").using("btree", table.tokenHash.asc().nullsLast().op("text_ops")),
+	index("UserInvite_email_idx").using("btree", table.email.asc().nullsLast().op("text_ops")),
+	index("UserInvite_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.invitedById],
+			foreignColumns: [user.id],
+			name: "UserInvite_invitedById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+// ── Dev portal (internal + client-reported problems / requests) ──────────
+export const devTicket = pgTable("DevTicket", {
+	id: text().primaryKey().notNull(),
+	title: text().notNull(),
+	description: text(),
+	type: text().default('BUG').notNull(), // BUG | REQUEST | IMPROVEMENT | QUESTION
+	source: text().default('INTERNAL').notNull(), // INTERNAL | CLIENT
+	clientId: text(),
+	clientName: text(),
+	priority: text().default('UNSET').notNull(), // UNSET | LOW | MEDIUM | HIGH | URGENT (set by admins)
+	status: text().default('OPEN').notNull(), // OPEN | IN_PROGRESS | DONE | WONT_FIX
+	loomUrl: text(),
+	reporterId: integer().notNull(),
+	assigneeId: integer(),
+	resolvedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("DevTicket_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("DevTicket_priority_idx").using("btree", table.priority.asc().nullsLast().op("text_ops")),
+	index("DevTicket_assigneeId_idx").using("btree", table.assigneeId.asc().nullsLast().op("int4_ops")),
+	index("DevTicket_createdAt_idx").using("btree", table.createdAt.desc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.reporterId],
+			foreignColumns: [user.id],
+			name: "DevTicket_reporterId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.assigneeId],
+			foreignColumns: [user.id],
+			name: "DevTicket_assigneeId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+export const devTicketAttachment = pgTable("DevTicketAttachment", {
+	id: text().primaryKey().notNull(),
+	ticketId: text().notNull(),
+	r2Key: text().notNull(),
+	fileName: text().notNull(),
+	mimeType: text(),
+	size: integer(),
+	uploadedById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("DevTicketAttachment_ticketId_idx").using("btree", table.ticketId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.ticketId],
+			foreignColumns: [devTicket.id],
+			name: "DevTicketAttachment_ticketId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.uploadedById],
+			foreignColumns: [user.id],
+			name: "DevTicketAttachment_uploadedById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const devTicketComment = pgTable("DevTicketComment", {
+	id: text().primaryKey().notNull(),
+	ticketId: text().notNull(),
+	authorId: integer().notNull(),
+	message: text().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("DevTicketComment_ticketId_idx").using("btree", table.ticketId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.ticketId],
+			foreignColumns: [devTicket.id],
+			name: "DevTicketComment_ticketId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.authorId],
+			foreignColumns: [user.id],
+			name: "DevTicketComment_authorId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);

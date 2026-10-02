@@ -5,6 +5,7 @@ import { user as userTable, rolePermission, socialLogin } from '@/lib/db/schema'
 import { eq, or, arrayContains } from 'drizzle-orm';
 import { NAVIGATION_ITEMS, type NavigationRole } from '@/components/constants/navigation';
 import jwt from 'jsonwebtoken';
+import { isDevPortalEmail } from '@/lib/dev-portal-access';
 
 function getTokenFromCookies(req: Request) {
     const cookieHeader = req.headers.get("cookie");
@@ -35,6 +36,15 @@ export async function GET(req: NextRequest) {
         // 🔥 If user is admin/manager, OR switching roles via view-as feature,
         // allow them to request navigation for the target role
         const viewingAs = req.headers.get("x-viewing-as")?.toLowerCase() as NavigationRole | null;
+
+        // 'dev' (Dev Portal) is a pseudo-role: only the allow-listed emails may
+        // see its nav, and it has no RolePermission row, so answer directly.
+        if (requestedRole === 'dev') {
+            if (!isDevPortalEmail(decoded.email)) {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+            return NextResponse.json(NAVIGATION_ITEMS.dev);
+        }
 
         if ((role === 'admin' || role === 'manager') && requestedRole && NAVIGATION_ITEMS[requestedRole as NavigationRole]) {
             role = requestedRole as NavigationRole;

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { isDevPortalEmail } from "@/lib/dev-portal-access";
 
 // 🔥 Preview-only switching: lets specific people look at another role's
 // dashboard UI without it being a real, backend-authorized capability.
@@ -81,6 +82,12 @@ export function ViewAsRoleProvider({ children, userEmail, userRole, userRoles }:
         // generically, since there'd be no client to scope it to.
         if (clientPreview) {
             permittedRoles = Array.from(new Set([...permittedRoles, "client"]));
+        }
+
+        // 5. Dev Portal — a pseudo-role (not a DB role) offered only to the
+        // emails in DEV_PORTAL_EMAILS. The API re-checks the email server-side.
+        if (isDevPortalEmail(emailKey)) {
+            permittedRoles = Array.from(new Set([...permittedRoles, "dev"]));
         }
 
         // Remove the user's current original role from the list if present

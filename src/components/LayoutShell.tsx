@@ -118,6 +118,8 @@ export function LayoutShell({
   const roleDisplay = currentRole
     ? currentRole.toLowerCase() === 'qc'
       ? 'QC'
+      : currentRole.toLowerCase() === 'dev'
+      ? 'Dev Portal'
       : currentRole
           .toLowerCase()
           .split('_')
@@ -297,6 +299,8 @@ export function LayoutShell({
                       const roleLabel =
                         role.toLowerCase() === 'qc'
                           ? 'Quality Control'
+                          : role.toLowerCase() === 'dev'
+                          ? 'Dev Portal'
                           : role.toLowerCase() === 'client' && viewingAsClientLabel
                           ? viewingAsClientLabel
                           : role
