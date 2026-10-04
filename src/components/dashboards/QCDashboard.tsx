@@ -1176,6 +1176,17 @@ useEffect(() => {
     return type.includes('text post');
   };
 
+  // File to open straight away when a task is clicked (skips the file list).
+  const pickDirectReviewFile = (task: EnhancedWorkflowTask): TaskFile | null => {
+    const video = getPrimaryVideoFile(task);
+    if (video && video.isActive !== false) {
+      const busy = video.optimizationStatus === 'PROCESSING' || video.optimizationStatus === 'PENDING';
+      return busy ? null : video;
+    }
+    const thumb = getPrimaryThumbnailFile(task);
+    return thumb && thumb.isActive !== false ? thumb : null;
+  };
+
   const handleTaskClick = (task: EnhancedWorkflowTask) => {
     if (selectionMode && isViewingAsOther) {
       toggleTaskSelection(task.id);
@@ -1208,6 +1219,15 @@ useEffect(() => {
         setShowThumbnailReview(true);
         return;
       }
+    }
+
+    // Open the review screen directly on the latest main video (or the
+    // thumbnail when there's no video). The file list is only a fallback —
+    // e.g. nothing reviewable yet, or the video is still being optimized.
+    const direct = pickDirectReviewFile(task);
+    if (direct) {
+      handleFileSelect(direct);
+      return;
     }
 
     setShowFileSelector(true);

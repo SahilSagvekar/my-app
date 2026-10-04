@@ -20,10 +20,14 @@ import { createId } from '@/lib/db/id';
 import { and, arrayContains, arrayOverlaps, asc, desc, eq, gt, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { sendRawEmail } from '@/lib/email';
 import { renderEmailShell } from '@/lib/email-shell';
-import { sendToChannel } from '@/lib/slack';
+import { sendToChannel, type SlackChannel } from '@/lib/slack';
 
 export const ANNOUNCEMENT_TYPES = ['NEW_FEATURE', 'UPDATE', 'MAINTENANCE', 'IMPORTANT'] as const;
 export type AnnouncementType = (typeof ANNOUNCEMENT_TYPES)[number];
+
+export const ANNOUNCEMENT_SLACK_CHANNELS = [
+  'e8app', 'editors', 'qc', 'scheduling', 'reports', 'attendance', 'tdbs_guests', 'sales',
+] as const;
 
 export const ANNOUNCEMENT_ROLES = [
   'admin', 'manager', 'editor', 'videographer', 'scheduler', 'client', 'qc', 'sales', 'sales_manager', 'host',
@@ -134,14 +138,18 @@ export async function publishDueAnnouncements(): Promise<number> {
 // ---------------------------------------------------------------------------
 
 async function postToSlack(a: AnnouncementRow) {
-  // Editors have their own channel; everything else goes to the general app channel.
-  const channel = a.audienceRoles.includes('editor') && !a.audienceAll ? 'editors' : 'e8app';
+  // Channels the admin picked; if none (older rows) fall back to editors/e8app by audience.
+  const channels: SlackChannel[] = a.slackChannels.length
+    ? (a.slackChannels as SlackChannel[])
+    : [a.audienceRoles.includes('editor') && !a.audienceAll ? 'editors' : 'e8app'];
   const link = a.linkUrl ? `\n<${absoluteUrl(a.linkUrl)}|${a.linkLabel || 'Learn more'}>` : '';
-  await sendToChannel(channel, {
-    type: 'announcement',
-    title: a.title,
-    message: `📣 *${TYPE_LABEL[a.type] || 'Announcement'}: ${a.title}*\n${a.body}${link}`,
-  });
+  for (const channel of channels) {
+    await sendToChannel(channel, {
+      type: 'announcement',
+      title: a.title,
+      message: `📣 *${TYPE_LABEL[a.type] || 'Announcement'}: ${a.title}*\n${a.body}${link}`,
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 // Validation/normalisation of admin-submitted announcement fields.
-import { ANNOUNCEMENT_ROLES, ANNOUNCEMENT_TYPES } from '@/lib/announcements';
+import { ANNOUNCEMENT_ROLES, ANNOUNCEMENT_SLACK_CHANNELS, ANNOUNCEMENT_TYPES } from '@/lib/announcements';
 
 export type AnnouncementInput = {
   title: string;
@@ -12,6 +12,7 @@ export type AnnouncementInput = {
   audienceUserIds: number[];
   sendEmail: boolean;
   sendSlack: boolean;
+  slackChannels: string[];
   showPopup: boolean;
   publishAt: string | null;
   expiresAt: string | null;
@@ -55,6 +56,10 @@ export function parseAnnouncementInput(b: any): { data?: AnnouncementInput; erro
       return { error: 'Choose who should receive this (everyone, one or more roles, or specific people)' };
     }
 
+    if (b?.sendSlack === true && !(Array.isArray(b?.slackChannels) && b.slackChannels.length)) {
+      return { error: 'Pick at least one Slack channel' };
+    }
+
     const publishAt = parseDate(b?.publishAt, 'publish time');
     const expiresAt = parseDate(b?.expiresAt, 'expiry time');
     if (publishAt && expiresAt && new Date(expiresAt) <= new Date(publishAt)) {
@@ -69,6 +74,12 @@ export function parseAnnouncementInput(b: any): { data?: AnnouncementInput; erro
         audienceUserIds: audienceAll ? [] : audienceUserIds,
         sendEmail: b?.sendEmail === true,
         sendSlack: b?.sendSlack === true,
+        slackChannels:
+          b?.sendSlack === true && Array.isArray(b?.slackChannels)
+            ? Array.from(new Set<string>(b.slackChannels.map(String))).filter((c) =>
+                (ANNOUNCEMENT_SLACK_CHANNELS as readonly string[]).includes(c),
+              )
+            : [],
         showPopup: b?.showPopup === true || type === 'IMPORTANT' ? b?.showPopup !== false : false,
         publishAt, expiresAt,
       },

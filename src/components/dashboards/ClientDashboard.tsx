@@ -1133,6 +1133,18 @@ export function ClientDashboard() {
       }
     }
 
+    // Open the review screen directly on the latest main video (or the
+    // thumbnail when there's no video). The file list is only a fallback.
+    const video = getPrimaryVideoFile(task);
+    const thumb = (task.files || []).find(
+      (f) => f.folderType === 'thumbnails' && f.mimeType?.startsWith('image/') && f.isActive !== false,
+    );
+    const direct = video && video.isActive !== false && isReviewable(video) ? video : thumb && isReviewable(thumb) ? thumb : null;
+    if (direct) {
+      handleFileSelect(direct);
+      return;
+    }
+
     setShowFileSelector(true);
   };
 

@@ -29,6 +29,17 @@ const ROLE_OPTIONS = [
   { id: 'admin', label: 'Admins' },
 ];
 
+const SLACK_CHANNELS = [
+  { id: 'e8app', label: '#e8-app (general)' },
+  { id: 'editors', label: 'Editors' },
+  { id: 'qc', label: 'QC' },
+  { id: 'scheduling', label: 'Scheduling' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'attendance', label: 'Attendance' },
+  { id: 'sales', label: 'Sales' },
+  { id: 'tdbs_guests', label: 'TDBS guests' },
+];
+
 interface Item {
   id: string;
   title: string;
@@ -41,6 +52,7 @@ interface Item {
   audienceUserIds: number[];
   sendEmail: boolean;
   sendSlack: boolean;
+  slackChannels: string[];
   showPopup: boolean;
   status: 'DRAFT' | 'SCHEDULED' | 'PUBLISHED';
   publishAt: string | null;
@@ -84,6 +96,7 @@ export function AnnouncementsAdminTab() {
   const [roles, setRoles] = useState<string[]>([]);
   const [sendEmail, setSendEmail] = useState(false);
   const [sendSlack, setSendSlack] = useState(false);
+  const [slackChannels, setSlackChannels] = useState<string[]>([]);
   const [showPopup, setShowPopup] = useState(false);
   const [publishAt, setPublishAt] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
@@ -108,7 +121,7 @@ export function AnnouncementsAdminTab() {
     linkLabel: linkLabel.trim() || null,
     audienceAll,
     audienceRoles: roles,
-    sendEmail, sendSlack, showPopup,
+    sendEmail, sendSlack, slackChannels, showPopup,
     publishAt: localToIso(publishAt),
     expiresAt: localToIso(expiresAt),
   });
@@ -133,7 +146,7 @@ export function AnnouncementsAdminTab() {
   const reset = () => {
     setEditingId(null); setTitle(''); setBody(''); setType('NEW_FEATURE');
     setLinkUrl(''); setLinkLabel(''); setAudienceAll(false); setRoles([]);
-    setSendEmail(false); setSendSlack(false); setShowPopup(false);
+    setSendEmail(false); setSendSlack(false); setSlackChannels([]); setShowPopup(false);
     setPublishAt(''); setExpiresAt('');
   };
 
@@ -141,7 +154,7 @@ export function AnnouncementsAdminTab() {
     setEditingId(i.id); setTitle(i.title); setBody(i.body); setType(i.type);
     setLinkUrl(i.linkUrl || ''); setLinkLabel(i.linkLabel || '');
     setAudienceAll(i.audienceAll); setRoles(i.audienceRoles);
-    setSendEmail(i.sendEmail); setSendSlack(i.sendSlack); setShowPopup(i.showPopup);
+    setSendEmail(i.sendEmail); setSendSlack(i.sendSlack); setSlackChannels(i.slackChannels || []); setShowPopup(i.showPopup);
     setPublishAt(utcToLocalInput(i.publishAt)); setExpiresAt(utcToLocalInput(i.expiresAt));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -188,7 +201,7 @@ export function AnnouncementsAdminTab() {
       const res = await fetch('/api/admin/announcements/test', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload(), audienceAll: true }), // audience irrelevant for a self-test
+        body: JSON.stringify({ ...payload(), audienceAll: true, sendSlack: false }), // audience/Slack irrelevant for a self-test
       });
       const data = await res.json();
       res.ok ? toast.success(`Test email sent to ${data.sentTo}`) : toast.error(data.error || 'Failed');
@@ -213,7 +226,8 @@ export function AnnouncementsAdminTab() {
   };
 
   const toggleRole = (r: string) => setRoles((p) => (p.includes(r) ? p.filter((x) => x !== r) : [...p, r]));
-  const canSubmit = title.trim() && body.trim() && (audienceAll || roles.length > 0);
+  const toggleChannel = (c: string) => setSlackChannels((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]));
+  const canSubmit = title.trim() && body.trim() && (audienceAll || roles.length > 0) && (!sendSlack || slackChannels.length > 0);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -281,7 +295,7 @@ export function AnnouncementsAdminTab() {
               <Switch checked={sendEmail} onCheckedChange={setSendEmail} />
             </label>
             <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
-              <span>Post to Slack<br /><span className="text-xs text-muted-foreground">Editors channel, else app channel</span></span>
+              <span>Post to Slack<br /><span className="text-xs text-muted-foreground">Choose channels below</span></span>
               <Switch checked={sendSlack} onCheckedChange={setSendSlack} />
             </label>
             <label className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm">
@@ -289,6 +303,21 @@ export function AnnouncementsAdminTab() {
               <Switch checked={showPopup} onCheckedChange={setShowPopup} />
             </label>
           </div>
+
+          {sendSlack && (
+            <div>
+              <label className="text-sm font-medium">Slack channels</label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {SLACK_CHANNELS.map((c) => (
+                  <button type="button" key={c.id} onClick={() => toggleChannel(c.id)}
+                    className={`px-3 py-1.5 rounded-full border text-sm ${slackChannels.includes(c.id) ? 'bg-black text-white border-black' : 'hover:bg-gray-50'}`}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              {slackChannels.length === 0 && <p className="text-xs text-red-600 mt-1">Pick at least one channel.</p>}
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>

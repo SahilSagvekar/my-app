@@ -3636,6 +3636,7 @@ export const announcement = pgTable("Announcement", {
 	audienceUserIds: integer().array().default(sql`ARRAY[]::integer[]`).notNull(),
 	sendEmail: boolean().default(false).notNull(),
 	sendSlack: boolean().default(false).notNull(),
+	slackChannels: text().array().default(sql`ARRAY[]::text[]`).notNull(),
 	showPopup: boolean().default(false).notNull(),
 	status: text().default('DRAFT').notNull(),
 	publishAt: timestamp({ precision: 3, mode: 'string' }),
