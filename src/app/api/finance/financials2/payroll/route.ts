@@ -9,6 +9,8 @@ export const dynamic = 'force-dynamic';
 //       enters the actual `amount` paid.
 // PUT — set one employee's Paid/Unpaid status and/or amount for the month.
 //       Body: { employeeId, month "YYYY-MM", status?: "PAID"|"PENDING", amount?: number }
+//       Or change their hourly rate: { employeeId, hourlyRate: number } (no month;
+//       updates User.hourlyRate and writes an audit-log entry).
 //
 // Rows live in the existing Payroll table (one per employee per month, same
 // period keys as /api/payroll/generate), so the Finance tab, this page and the
@@ -23,8 +25,10 @@ import { payroll as payrollTable, timeClockEntry, user as userTable } from '@/li
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import { monthBounds, num } from '@/lib/finance/client-payments';
 import { dbTimestampToDate, getESTDateString } from '@/lib/est-date';
+import { AuditAction, createAuditLog, getRequestMetadata } from '@/lib/audit-logger';
 
 const MAX_AMOUNT = 10_000_000;
+const MAX_HOURLY_RATE = 10_000;
 
 // Same estimate the payroll generator uses: hourly × hours/week × 4.
 const estMonthly = (hourlyRate: unknown, hoursPerWeek: unknown): number | null => {
@@ -154,7 +158,8 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const db = getDbHttp();
   try {
-    const adminCheck = requireAdmin(getUserFromToken(req));
+    const actor = getUserFromToken(req);
+    const adminCheck = requireAdmin(actor);
     if (adminCheck) {
       return NextResponse.json({ ok: false, message: adminCheck.error }, { status: adminCheck.status });
     }
@@ -166,6 +171,53 @@ export async function PUT(req: NextRequest) {
     if (!Number.isInteger(employeeId)) {
       return NextResponse.json({ ok: false, message: 'employeeId is required' }, { status: 400 });
     }
+
+    // Hourly-rate edit — changes the employee's rate itself (User.hourlyRate),
+    // not a per-month value, so it needs no `month`. It affects the rate shown
+    // on every month's row, the Est. Monthly figure and Calculated Amount.
+    if (body.hourlyRate !== undefined) {
+      const rate = Number(body.hourlyRate);
+      if (body.hourlyRate === null || body.hourlyRate === '' || !Number.isFinite(rate) || rate < 0 || rate > MAX_HOURLY_RATE) {
+        return NextResponse.json({ ok: false, message: 'Enter a valid hourly rate' }, { status: 400 });
+      }
+      const nextRate = Math.round(rate * 100) / 100;
+
+      const [target] = await db
+        .select({ id: userTable.id, name: userTable.name, email: userTable.email, hourlyRate: userTable.hourlyRate })
+        .from(userTable)
+        .where(eq(userTable.id, employeeId))
+        .limit(1);
+      if (!target) return NextResponse.json({ ok: false, message: 'Employee not found' }, { status: 404 });
+
+      const previousRate = target.hourlyRate ? num(target.hourlyRate) : null;
+      if (previousRate === nextRate) return NextResponse.json({ ok: true, unchanged: true, hourlyRate: nextRate });
+
+      await db
+        .update(userTable)
+        .set({ hourlyRate: String(nextRate), updatedAt: new Date().toISOString() })
+        .where(eq(userTable.id, employeeId));
+
+      // Pay rates are sensitive — leave a trail of who changed what. Never let a
+      // logging failure undo or block the change itself.
+      try {
+        const { ipAddress, userAgent } = getRequestMetadata(req);
+        await createAuditLog({
+          userId: actor!.id,
+          action: AuditAction.USER_UPDATED,
+          entity: 'User',
+          entityId: employeeId,
+          details: `Changed hourly rate for ${target.name || target.email}: ${previousRate ?? 'not set'} → ${nextRate}`,
+          metadata: { field: 'hourlyRate', from: previousRate, to: nextRate, via: 'financials2/payroll' },
+          ipAddress,
+          userAgent,
+        });
+      } catch (auditErr) {
+        console.error('[financials2/payroll PUT] audit log failed:', auditErr);
+      }
+
+      return NextResponse.json({ ok: true, hourlyRate: nextRate });
+    }
+
     if (typeof body.month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(body.month)) {
       return NextResponse.json({ ok: false, message: 'month must be YYYY-MM' }, { status: 400 });
     }

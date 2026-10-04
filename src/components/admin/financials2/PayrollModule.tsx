@@ -83,6 +83,7 @@ export function PayrollModule() {
   const [month, setMonth] = useState(thisMonth());
   const [data, setData] = useState<PageData | null>(null);
   const [drafts, setDrafts] = useState<Record<number, string>>({});
+  const [rateDrafts, setRateDrafts] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +121,43 @@ export function PayrollModule() {
       toast.error(e.message || "Failed to save");
       await load(month); // snap the row back to what's actually stored
     } finally {
+      setSaving((s) => ({ ...s, [row.employeeId]: false }));
+    }
+  };
+
+  const clearRateDraft = (employeeId: number) =>
+    setRateDrafts((d) => {
+      const { [employeeId]: _omit, ...rest } = d;
+      return rest;
+    });
+
+  // Hourly rate belongs to the employee (not the month): saves immediately on
+  // blur / Enter, then reloads so Est. Monthly and Calculated Amount follow.
+  const onRateCommit = async (row: EmployeeRow) => {
+    const draft = rateDrafts[row.employeeId];
+    if (draft === undefined) return;
+    const next = Number(draft);
+    // Blank or unchanged → just drop the draft and show the stored rate again.
+    if (draft.trim() === "" || (row.hourlyRate !== null && next === row.hourlyRate)) {
+      clearRateDraft(row.employeeId);
+      return;
+    }
+    setSaving((s) => ({ ...s, [row.employeeId]: true }));
+    try {
+      const res = await fetch("/api/finance/financials2/payroll", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: row.employeeId, hourlyRate: next }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.message || "Failed to save hourly rate");
+      toast.success(`Hourly rate updated for ${row.name}`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save hourly rate");
+    } finally {
+      clearRateDraft(row.employeeId);
+      await load(month);
       setSaving((s) => ({ ...s, [row.employeeId]: false }));
     }
   };
@@ -206,7 +244,27 @@ export function PayrollModule() {
                     <TableRow key={row.employeeId}>
                       <TableCell className="font-medium">{row.name}</TableCell>
                       <TableCell>{roleLabel(row.role)}</TableCell>
-                      <TableCell className="text-right">{row.hourlyRate !== null ? usd(row.hourlyRate) : "—"}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="relative ml-auto w-28">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                          <Input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.01"
+                            className="pl-6 text-right"
+                            placeholder="0.00"
+                            aria-label={`Hourly rate for ${row.name}`}
+                            value={rateDrafts[row.employeeId] ?? (row.hourlyRate !== null ? String(row.hourlyRate) : "")}
+                            disabled={busy}
+                            onChange={(e) => setRateDrafts((d) => ({ ...d, [row.employeeId]: e.target.value }))}
+                            onBlur={() => onRateCommit(row)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            }}
+                          />
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right">{usd(row.estMonthly)}</TableCell>
                       <TableCell className="text-right">{hoursLabel(row.totalHours)}</TableCell>
                       <TableCell className="text-right">{usd(row.calculatedAmount)}</TableCell>
