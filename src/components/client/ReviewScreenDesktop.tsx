@@ -99,6 +99,9 @@ export interface ReviewScreenProps {
     measuredResolution: string;
     videoError: boolean;
     iframeLoaded: boolean;
+    // True while the native <video> has no playable data yet (initial load,
+    // or waiting for frames after play/seek) — shows a loading spinner.
+    isVideoLoading?: boolean;
     isDragging: boolean;
 
     comments: ReviewComment[];
@@ -867,7 +870,12 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                     preload="metadata"
                                                 />
                                                 <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={p.togglePlay}>
-                                                    {!p.isPlaying && (
+                                                    {p.isVideoLoading ? (
+                                                        <div className="flex flex-col items-center gap-3 rounded-xl bg-black/50 px-6 py-5 pointer-events-none" role="status" aria-live="polite">
+                                                            <div className="animate-spin rounded-full h-10 w-10 border-2 border-white/30 border-t-white" />
+                                                            <p className="text-sm text-white/80">Loading video...</p>
+                                                        </div>
+                                                    ) : !p.isPlaying && (
                                                         <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
                                                             <Play className="h-12 w-12 text-white fill-white" />
                                                         </div>
@@ -960,7 +968,12 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 preload="metadata"
                                             />
                                             <div className="absolute inset-0 flex items-center justify-center cursor-pointer" onClick={p.togglePlay}>
-                                                {!p.isPlaying && (
+                                                {p.isVideoLoading ? (
+                                                    <div className="flex flex-col items-center gap-3 rounded-xl bg-black/50 px-6 py-5 pointer-events-none" role="status" aria-live="polite">
+                                                        <div className="animate-spin rounded-full h-10 w-10 border-2 border-white/30 border-t-white" />
+                                                        <p className="text-sm text-white/80">Loading video...</p>
+                                                    </div>
+                                                ) : !p.isPlaying && (
                                                     <div className="bg-black/50 rounded-full p-6 transition-transform hover:scale-110">
                                                         <Play className="h-12 w-12 text-white fill-white" />
                                                     </div>

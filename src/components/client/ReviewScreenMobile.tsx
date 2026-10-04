@@ -421,9 +421,14 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                             playsInline
                             preload="metadata"
                         />
-                        {/* Big play button overlay */}
+                        {/* Big play button overlay (spinner while the video is loading) */}
                         <div className="absolute inset-0 flex items-center justify-center" onClick={p.togglePlay}>
-                            {!p.isPlaying && (
+                            {p.isVideoLoading ? (
+                                <div className="flex flex-col items-center gap-2 rounded-xl bg-black/50 px-4 py-3 pointer-events-none" role="status" aria-live="polite">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-white/30 border-t-white" />
+                                    <p className="text-xs text-white/80">Loading video...</p>
+                                </div>
+                            ) : !p.isPlaying && (
                                 <div className="bg-black/60 rounded-full p-4 active:scale-90 transition-transform">
                                     <Play className="h-9 w-9 text-white fill-white" />
                                 </div>

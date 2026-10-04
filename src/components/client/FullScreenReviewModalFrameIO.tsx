@@ -238,6 +238,10 @@ export function FullScreenReviewModalFrameIO({
     const [effectiveConnectionType, setEffectiveConnectionType] = useState<string | null>(null);
     const [bufferingEvents, setBufferingEvents] = useState(0);
     const [isBuffering, setIsBuffering] = useState(false);
+    // True while the native <video> has no playable data yet — the initial
+    // fetch, or the wait after pressing play / seeking before frames arrive.
+    // Drives the loading spinner so the video area isn't just a blank screen.
+    const [isVideoLoading, setIsVideoLoading] = useState(false);
     const [retryKey, setRetryKey] = useState(0); // cache-busting key for video retries
     const videoRetryCountRef = useRef(0);
     const MAX_VIDEO_RETRIES = 3;
@@ -593,12 +597,29 @@ export function FullScreenReviewModalFrameIO({
     useEffect(() => {
         if (!open || videoSource.type !== 'video') {
             setIsBuffering(false);
+            setIsVideoLoading(false);
             return;
         }
 
         const video = videoRef.current;
         if (!video) return;
 
+        // Nothing loaded yet (not even metadata) → show the spinner straight away.
+        setIsVideoLoading(video.readyState < 1);
+
+        // 'loadstart' = a (re)load began; 'waiting' fires when playback or a
+        // seek can't continue for lack of data — including right after pressing
+        // play before the first frame has arrived.
+        const markLoading = () => setIsVideoLoading(true);
+        const clearLoading = () => setIsVideoLoading(false);
+        video.addEventListener('loadstart', markLoading);
+        video.addEventListener('waiting', markLoading);
+        video.addEventListener('loadedmetadata', clearLoading);
+        video.addEventListener('loadeddata', clearLoading);
+        video.addEventListener('canplay', clearLoading);
+        video.addEventListener('playing', clearLoading);
+        video.addEventListener('pause', clearLoading);
+        video.addEventListener('error', clearLoading);
         const markBuffering = () => {
             if (video.paused || video.seeking || video.currentTime <= 0) return;
 
@@ -620,6 +641,14 @@ export function FullScreenReviewModalFrameIO({
         video.addEventListener('pause', clearBuffering);
 
         return () => {
+            video.removeEventListener('loadstart', markLoading);
+            video.removeEventListener('waiting', markLoading);
+            video.removeEventListener('loadedmetadata', clearLoading);
+            video.removeEventListener('loadeddata', clearLoading);
+            video.removeEventListener('canplay', clearLoading);
+            video.removeEventListener('playing', clearLoading);
+            video.removeEventListener('pause', clearLoading);
+            video.removeEventListener('error', clearLoading);
             video.removeEventListener('waiting', markBuffering);
             video.removeEventListener('stalled', markBuffering);
             video.removeEventListener('playing', clearBuffering);
@@ -1188,6 +1217,7 @@ export function FullScreenReviewModalFrameIO({
         measuredResolution,
         videoError,
         iframeLoaded,
+        isVideoLoading,
         isDragging,
         comments,
         sortedComments,
