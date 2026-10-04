@@ -187,6 +187,7 @@ const persistQCResult = async ({
   approved,
   feedback,
   requiresClientReview,
+  bypassClientReview,
   postingTitles,
   postingDescriptions,
   postingTags,
@@ -197,6 +198,10 @@ const persistQCResult = async ({
   approved: boolean;
   feedback?: string;
   requiresClientReview?: boolean;
+  // QC explicitly skips client review for this approval (the "Bypass Client
+  // Review" button). Sent as its own flag because the server otherwise sends
+  // any client with requiresClientReview=true to client review regardless.
+  bypassClientReview?: boolean;
   postingTitles?: { id: string; text: string }[];
   postingDescriptions?: { id: string; text: string }[];
   postingTags?: { id: string; text: string }[];
@@ -214,8 +219,13 @@ const persistQCResult = async ({
 
   if (approved) {
     metaBody.qcResult = "APPROVED";
-    metaBody.route = requiresClientReview ? "client_then_scheduler" : "scheduler";
-    if (requiresClientReview) metaBody.forceClientReview = true;
+    if (bypassClientReview && !requiresClientReview) {
+      metaBody.route = "scheduler";
+      metaBody.bypassClientReview = true;
+    } else {
+      metaBody.route = requiresClientReview ? "client_then_scheduler" : "scheduler";
+      if (requiresClientReview) metaBody.forceClientReview = true;
+    }
   } else {
     metaBody.qcResult = "REJECTED";
     metaBody.route = "editor";
@@ -638,20 +648,31 @@ useEffect(() => {
     }
   }, []);
 
-  const handleSendToClient = async (asset: any) => {
+  // `opts.sendToClient` is passed directly by the "Send to Client Review" /
+  // "Bypass Client Review" buttons. It must not travel through
+  // forceClientReviewOverride state: the buttons used to set that state and
+  // approve in the same tick, so this handler could still see the old value.
+  // When opts is omitted (plain Approve), the state value is used as before.
+  const handleSendToClient = async (asset: any, opts?: { sendToClient?: boolean }) => {
     if (!selectedTask) return;
+    const sendToClient = opts?.sendToClient ?? forceClientReviewOverride;
+    const bypass = opts?.sendToClient === false;
     try {
       await persistQCResult({
         taskId: selectedTask.id,
         approved: true,
-        requiresClientReview: forceClientReviewOverride,
+        requiresClientReview: sendToClient,
+        bypassClientReview: bypass,
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
         viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
-      toast("✅ Approved – Sent to Client", { description: "Content has been moved to the next stage." });
+      toast(
+        bypass ? "✅ Approved – Client Review Bypassed" : "✅ Approved – Sent to Client",
+        { description: "Content has been moved to the next stage." },
+      );
       setShowVideoReview(false);
       setSelectedFile(null);
       setSelectedTask(null);
@@ -738,20 +759,28 @@ useEffect(() => {
     );
   };
 
-  const handleThumbnailApprove = async (file: TaskFile) => {
+  // `opts.sendToClient` comes from the modal's "Send to Client Review" (true)
+  // and "Bypass Client Review" (false) buttons; the plain Approve button omits
+  // it and keeps the task's own requiresClientReview setting.
+  const handleThumbnailApprove = async (file: TaskFile, opts?: { sendToClient?: boolean }) => {
     if (!selectedTask) return;
+    const bypass = opts?.sendToClient === false;
     try {
       await persistQCResult({
         taskId: selectedTask.id,
         approved: true,
-        requiresClientReview: selectedTask.requiresClientReview,
+        requiresClientReview: opts?.sendToClient ?? selectedTask.requiresClientReview,
+        bypassClientReview: bypass,
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
         viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
-      toast("✅ Thumbnail Approved", { description: "Task has been moved to the next stage." });
+      toast(
+        bypass ? "✅ Thumbnail Approved – Client Review Bypassed" : "✅ Thumbnail Approved",
+        { description: "Task has been moved to the next stage." },
+      );
       setShowThumbnailReview(false);
       setSelectedFile(null);
       setSelectedTask(null);

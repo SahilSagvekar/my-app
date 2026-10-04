@@ -139,7 +139,7 @@ export interface ReviewScreenProps {
     handleCommentResolve: (id: string, resolved: boolean) => void;
     handleCommentDelete: (id: string) => void;
     handleCommentEdit: (id: string, newContent: string) => void;
-    handleStatusChange: (s: 'approved' | 'needs_changes') => void;
+    handleStatusChange: (s: 'approved' | 'needs_changes', opts?: { sendToClient?: boolean }) => void;
     handleRejectWithComment?: (comment: string) => Promise<void>;
 
     setShowCommentInput: (v: boolean) => void;
@@ -1532,8 +1532,10 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={() => {
+                                                        // Choice is passed directly — setting override state and
+                                                        // approving in the same tick left the handler on stale state.
                                                         p.onForceClientReviewOverrideChange?.(true);
-                                                        p.handleStatusChange('approved');
+                                                        p.handleStatusChange('approved', { sendToClient: true });
                                                     }}
                                                     disabled={p.savingFeedback || unresolvedCount > 0}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#2563eb] hover:border-[#3b82f6] hover:text-white text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -1546,7 +1548,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 <button
                                                     onClick={() => {
                                                         p.onForceClientReviewOverrideChange?.(false);
-                                                        p.handleStatusChange('approved');
+                                                        p.handleStatusChange('approved', { sendToClient: false });
                                                     }}
                                                     disabled={p.savingFeedback || unresolvedCount > 0}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#eab308] hover:border-[#facc15] hover:text-black text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"

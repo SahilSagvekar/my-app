@@ -59,8 +59,8 @@ export async function PATCH(
     const {
       status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle,
       postingTitle, titleSetByQC, titleSetByClient, postingTitles,
-      postingDescriptions, postingTags, forceClientReview, imageOrder,
-      folderType, shareToken, reviewerName,
+      postingDescriptions, postingTags, forceClientReview, bypassClientReview,
+      imageOrder, folderType, shareToken, reviewerName,
     } = body;
 
     // Resolve the user from DB (authToken JWT *or* NextAuth session).
@@ -280,9 +280,20 @@ export async function PATCH(
     // deliverable-type whitelist. Works both at approval time
     // (status === "COMPLETED") and as an after-the-fact push on an
     // already-approved task (status === "CLIENT_REVIEW" sent directly).
+    //
+    // 🔥 QC manual bypass: `bypassClientReview === true` is the opposite
+    // override — QC explicitly skips client review for this approval, even
+    // when the client's account requires it. It has to be an explicit flag:
+    // "no forceClientReview" alone can't mean bypass, since that is also what
+    // a normal approval sends. If both flags ever arrive together the request
+    // is contradictory, so forceClientReview wins and the task still goes to
+    // client review. Only qc/admin reach this block, so other roles can't use it.
+    const qcBypassesClientReview =
+      bypassClientReview === true && forceClientReview !== true;
     if (
       (effectiveRole === "qc" || effectiveRole === "admin") &&
       (status === "COMPLETED" || status === "CLIENT_REVIEW") &&
+      !qcBypassesClientReview &&
       (task.client?.requiresClientReview === true || forceClientReview === true)
     ) {
       const allowedTypes: string[] = task.client?.clientReviewDeliverableTypes ?? [];

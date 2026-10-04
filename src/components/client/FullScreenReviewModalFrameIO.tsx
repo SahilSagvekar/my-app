@@ -63,7 +63,9 @@ interface FullScreenReviewModalProps {
     onNextAsset?: () => void;
     onSwitchToThumbnail?: () => void;
     userRole?: 'client' | 'qc';
-    onSendToClient?: (asset: ReviewAsset) => void;
+    // `opts.sendToClient`: true = force into client review, false = bypass it,
+    // undefined = fall back to forceClientReviewOverride / client default.
+    onSendToClient?: (asset: ReviewAsset, opts?: { sendToClient?: boolean }) => void;
     onSendBackToEditor?: (asset: ReviewAsset, revisionData: RevisionRequest) => void;
     currentFileSection?: { folderType: string; fileId: string; version: number };
     taskId?: string;
@@ -985,13 +987,16 @@ export function FullScreenReviewModalFrameIO({
     };
 
     /* ── Status change ── */
-    const handleStatusChange = async (status: ReviewStatus['value']) => {
+    const handleStatusChange = async (
+        status: ReviewStatus['value'],
+        opts?: { sendToClient?: boolean },
+    ) => {
         if (!asset) return;
         // Prevent double-submit
         if (savingFeedback) return;
-        
+
         if (status === 'approved') {
-            if (userRole === 'qc' && onSendToClient) onSendToClient(asset);
+            if (userRole === 'qc' && onSendToClient) onSendToClient(asset, opts);
             else onApprove(asset, true);
             setShowApprovalSuccess(true);
             setTimeout(() => { setShowApprovalSuccess(false); onOpenChange(false); }, 2000);

@@ -63,7 +63,9 @@ interface ThumbnailReviewModalProps {
     allFiles: TaskFile[];
     taskId: string;
     taskTitle: string;
-    onApprove: (file: TaskFile) => void | Promise<void>;
+    // `opts.sendToClient` (QC only): true = force into client review, false =
+    // bypass it, undefined = keep the task's own client-review setting.
+    onApprove: (file: TaskFile, opts?: { sendToClient?: boolean }) => void | Promise<void>;
     onRequestRevisions: (file: TaskFile, feedback: any[]) => void | Promise<void>;
     onSwitchToVideo?: () => void;
     userRole?: 'client' | 'qc';
@@ -405,12 +407,18 @@ export function ThumbnailReviewModal({
     };
 
     /* ── Approval / revision handlers ── */
-    const handleApproveClick = async () => {
+    const submitApproval = (opts?: { sendToClient?: boolean }) => {
         if (!currentFile) return;
         setShowApprovalSuccess(true);
-        onApprove(currentFile);
+        onApprove(currentFile, opts);
         setTimeout(() => { setShowApprovalSuccess(false); onOpenChange(false); }, 2000);
     };
+
+    // Plain approve — no override, so it must NOT take the click event as opts.
+    const handleApproveClick = () => submitApproval();
+    // QC's two explicit routing buttons.
+    const handleSendToClientReviewClick = () => submitApproval({ sendToClient: true });
+    const handleBypassClientReviewClick = () => submitApproval({ sendToClient: false });
 
     const handleRequestRevisionsClick = async () => {
         if (!currentFile) return;
@@ -1136,7 +1144,7 @@ export function ThumbnailReviewModal({
                                             {/* Row 2: Send to Client Review & Bypass Client Review */}
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
-                                                    onClick={handleApproveClick}
+                                                    onClick={handleSendToClientReviewClick}
                                                     disabled={savingFeedback || unresolvedCount > 0}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#2563eb] hover:border-[#3b82f6] hover:text-white text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title="Send directly to client review"
@@ -1146,7 +1154,7 @@ export function ThumbnailReviewModal({
                                                 </button>
 
                                                 <button
-                                                    onClick={handleApproveClick}
+                                                    onClick={handleBypassClientReviewClick}
                                                     disabled={savingFeedback || unresolvedCount > 0}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#eab308] hover:border-[#facc15] hover:text-black text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title="Bypass client review and finalize delivery"
