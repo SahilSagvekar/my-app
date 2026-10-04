@@ -3,7 +3,10 @@ export const dynamic = 'force-dynamic';
 // /api/finance/financials2/payroll?month=YYYY-MM
 //
 // GET — every payroll-eligible employee for the month with their pay status
-//       and the amount recorded, plus totals.
+//       and the amount recorded, plus totals. Also returns `totalHours` (time
+//       clocked in that month, from TimeClockEntry) and `calculatedAmount`
+//       (totalHours × hourlyRate) — read-only reference figures; the admin still
+//       enters the actual `amount` paid.
 // PUT — set one employee's Paid/Unpaid status and/or amount for the month.
 //       Body: { employeeId, month "YYYY-MM", status?: "PAID"|"PENDING", amount?: number }
 //
@@ -16,9 +19,10 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, asc, eq, gte, lt, notInArray } from 'drizzle-orm';
 import { getDbHttp } from '@/lib/db';
-import { payroll as payrollTable, user as userTable } from '@/lib/db/schema';
+import { payroll as payrollTable, timeClockEntry, user as userTable } from '@/lib/db/schema';
 import { getUserFromToken, requireAdmin } from '@/lib/auth-helpers';
 import { monthBounds, num } from '@/lib/finance/client-payments';
+import { dbTimestampToDate, getESTDateString } from '@/lib/est-date';
 
 const MAX_AMOUNT = 10_000_000;
 
@@ -43,7 +47,15 @@ export async function GET(req: NextRequest) {
 
     const { start, end, label } = monthBounds(new URL(req.url).searchParams.get('month'));
 
-    const [employees, rows] = await Promise.all([
+    // TimeClockEntry.workDate is a 'YYYY-MM-DD' US Eastern date string, so the
+    // month's entries are the lexicographic range [YYYY-MM-01, next month 01).
+    const pad2 = (n: number) => String(n).padStart(2, '0');
+    const workDateFrom = `${label}-01`;
+    const workDateTo = `${end.getUTCFullYear()}-${pad2(end.getUTCMonth() + 1)}-01`;
+    const todayEst = getESTDateString();
+    const nowMs = Date.now();
+
+    const [employees, rows, clockEntries] = await Promise.all([
       db
         .select({
           id: userTable.id,
@@ -66,18 +78,48 @@ export async function GET(req: NextRequest) {
         })
         .from(payrollTable)
         .where(and(gte(payrollTable.periodStart, start.toISOString()), lt(payrollTable.periodStart, end.toISOString()))),
+      db
+        .select({
+          userId: timeClockEntry.userId,
+          workDate: timeClockEntry.workDate,
+          clockInAt: timeClockEntry.clockInAt,
+          clockOutAt: timeClockEntry.clockOutAt,
+        })
+        .from(timeClockEntry)
+        .where(and(gte(timeClockEntry.workDate, workDateFrom), lt(timeClockEntry.workDate, workDateTo))),
     ]);
+
+    // Minutes clocked in per employee for the month. Entries still clocked in
+    // count up to now — but only for today's entry: an older entry with no
+    // clock-out (e.g. the nightly auto-close failed) has no known end time, so it
+    // contributes nothing rather than growing forever. Auto-closed days (the
+    // nightly job closes forgotten clock-outs) count like any other day.
+    const minutesByUser = new Map<number, number>();
+    for (const e of clockEntries) {
+      const clockIn = dbTimestampToDate(e.clockInAt).getTime();
+      let clockOut: number;
+      if (e.clockOutAt) clockOut = dbTimestampToDate(e.clockOutAt).getTime();
+      else if (e.workDate === todayEst) clockOut = nowMs;
+      else continue;
+      const minutes = Math.max(0, (clockOut - clockIn) / 60000);
+      minutesByUser.set(e.userId, (minutesByUser.get(e.userId) ?? 0) + minutes);
+    }
 
     const byEmployee = new Map(rows.map((r) => [r.employeeId, r]));
 
     const list = employees.map((e) => {
       const p = byEmployee.get(e.id);
+      const minutes = minutesByUser.get(e.id) ?? 0;
+      const hourly = e.hourlyRate ? num(e.hourlyRate) : null;
       return {
         employeeId: e.id,
         name: e.name || e.email,
         role: e.role,
-        hourlyRate: e.hourlyRate ? num(e.hourlyRate) : null,
+        hourlyRate: hourly,
         estMonthly: estMonthly(e.hourlyRate, e.hoursPerWeek),
+        totalHours: Math.round((minutes / 60) * 100) / 100,
+        // From unrounded minutes so rounding the hours doesn't shift the amount.
+        calculatedAmount: hourly ? Math.round((minutes / 60) * hourly * 100) / 100 : null,
         status: (p?.status ?? 'PENDING') as 'PENDING' | 'PAID',
         amount: p ? num(p.netPay) : null,
         paidAt: p?.paidAt ?? null,
@@ -86,6 +128,8 @@ export async function GET(req: NextRequest) {
 
     const paidTotal = list.filter((r) => r.status === 'PAID').reduce((s, r) => s + (r.amount ?? 0), 0);
     const estTotal = list.reduce((s, r) => s + (r.estMonthly ?? 0), 0);
+    const hoursTotal = Math.round(list.reduce((s, r) => s + r.totalHours, 0) * 100) / 100;
+    const calculatedTotal = Math.round(list.reduce((s, r) => s + (r.calculatedAmount ?? 0), 0) * 100) / 100;
 
     return NextResponse.json({
       ok: true,
@@ -97,6 +141,8 @@ export async function GET(req: NextRequest) {
         unpaidCount: list.filter((r) => r.status !== 'PAID').length,
         paidTotal,
         estTotal,
+        hoursTotal,
+        calculatedTotal,
       },
     });
   } catch (err: any) {

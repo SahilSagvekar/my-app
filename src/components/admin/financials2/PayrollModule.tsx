@@ -13,7 +13,9 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 // Financials 2 → Payroll (expanded view)
 //
 // One row per employee for the selected month: Name, Role, Hourly Rate,
-// Est. Monthly, the amount the admin enters, and a Paid / Unpaid dropdown.
+// Est. Monthly, Total Hours (time clocked in that month), Calculated Amount
+// (total hours × hourly rate — read-only reference), the amount the admin
+// enters, and a Paid / Unpaid dropdown.
 // Changes save immediately (dropdown change, or amount on blur / Enter).
 // Data: /api/finance/financials2/payroll (same Payroll table as the Finance tab).
 // ---------------------------------------------------------------------------
@@ -24,19 +26,34 @@ interface EmployeeRow {
   role: string | null;
   hourlyRate: number | null;
   estMonthly: number | null;
+  totalHours: number;
+  calculatedAmount: number | null;
   status: "PENDING" | "PAID";
   amount: number | null;
 }
 interface PageData {
   month: string;
   employees: EmployeeRow[];
-  totals: { employeeCount: number; paidCount: number; unpaidCount: number; paidTotal: number; estTotal: number };
+  totals: {
+    employeeCount: number;
+    paidCount: number;
+    unpaidCount: number;
+    paidTotal: number;
+    estTotal: number;
+    hoursTotal: number;
+    calculatedTotal: number;
+  };
 }
 
 const usd = (n: number | null | undefined) =>
   n === null || n === undefined
     ? "—"
     : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+const hoursLabel = (n: number | null | undefined) =>
+  n === null || n === undefined
+    ? "—"
+    : `${new Intl.NumberFormat("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 }).format(n)} h`;
 
 const roleLabel = (role: string | null) =>
   !role
@@ -175,6 +192,8 @@ export function PayrollModule() {
                   <TableHead>Role</TableHead>
                   <TableHead className="text-right">Hourly Rate</TableHead>
                   <TableHead className="text-right">Est. Monthly</TableHead>
+                  <TableHead className="text-right">Total Hours</TableHead>
+                  <TableHead className="text-right">Calculated Amount</TableHead>
                   <TableHead className="w-44">Amount</TableHead>
                   <TableHead className="w-40">Status</TableHead>
                 </TableRow>
@@ -189,6 +208,8 @@ export function PayrollModule() {
                       <TableCell>{roleLabel(row.role)}</TableCell>
                       <TableCell className="text-right">{row.hourlyRate !== null ? usd(row.hourlyRate) : "—"}</TableCell>
                       <TableCell className="text-right">{usd(row.estMonthly)}</TableCell>
+                      <TableCell className="text-right">{hoursLabel(row.totalHours)}</TableCell>
+                      <TableCell className="text-right">{usd(row.calculatedAmount)}</TableCell>
                       <TableCell>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
@@ -225,14 +246,14 @@ export function PayrollModule() {
                 })}
                 {data && data.employees.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       No active employees found.
                     </TableCell>
                   </TableRow>
                 )}
                 {!data && !error && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       Loading…
                     </TableCell>
                   </TableRow>
@@ -245,6 +266,8 @@ export function PayrollModule() {
                       Total
                     </TableCell>
                     <TableCell className="text-right font-semibold">{usd(data.totals.estTotal)}</TableCell>
+                    <TableCell className="text-right font-semibold">{hoursLabel(data.totals.hoursTotal)}</TableCell>
+                    <TableCell className="text-right font-semibold">{usd(data.totals.calculatedTotal)}</TableCell>
                     <TableCell className="font-semibold">{usd(data.totals.paidTotal)} paid</TableCell>
                     <TableCell className="font-semibold">{data.totals.paidCount} paid</TableCell>
                   </TableRow>
