@@ -141,7 +141,9 @@ export async function GET(req: NextRequest) {
             dynamicallyInjectedIds.has(item.id) ||
             (role === 'client' && requiredClientItems.has(item.id)) ||
             // Brand-new videographer nav item — existing RolePermission rows predate it.
-            (role === 'videographer' && item.id === 'posting-tracker')
+            (role === 'videographer' && item.id === 'posting-tracker') ||
+            // Announcements: new admin nav id — existing admin RolePermission rows predate it.
+            (role === 'admin' && item.id === 'announcements')
         );
 
         return NextResponse.json(filteredItems);

@@ -17,6 +17,7 @@ import {
 import { SearchInput } from './SearchInput';
 // import { Notifications } from './Notifications';
 import { Settings } from './Settings';
+import { AnnouncementsBell } from './AnnouncementsBell';
 import {
   LogOut,
   User,
@@ -251,6 +252,9 @@ export function LayoutShell({
             <Button variant="ghost" size="sm" className="md:hidden min-h-[44px] min-w-[44px]">
               <Search className="h-5 w-5" />
             </Button>
+
+            {/* What's new — announcements from admins (all roles, clients included) */}
+            <AnnouncementsBell />
 
             {/* Admin portal: SC clock sits immediately left of the role switcher. */}
             {isAdminPortal && showStaffClock && (

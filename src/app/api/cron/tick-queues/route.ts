@@ -21,6 +21,7 @@ import { runUploadWorkerTick } from '@/lib/upload-worker';
 import { runNasSweepWorkerTick } from '@/lib/nas-sweep-worker';
 import { getQueueStats } from '@/lib/upload-queue';
 import { getNasSweepQueueStats } from '@/lib/nas-sweep-queue';
+import { publishDueAnnouncements, sendEmailBatches } from '@/lib/announcements';
 
 const MAX_ITERATIONS_PER_TICK = 10; // bounded to stay well inside execution time limits
 
@@ -59,5 +60,16 @@ export async function POST(req: NextRequest) {
     console.error('[TickQueues] NAS sweep queue tick error:', err.message);
   }
 
-  return NextResponse.json({ ok: true, uploadTicks, nasTicks });
+  // Announcements: publish scheduled ones that are due, then send the next
+  // batch of announcement emails (one batch per tick, never a big loop).
+  let announcementsPublished = 0;
+  let announcementEmails = 0;
+  try {
+    announcementsPublished = await publishDueAnnouncements();
+    announcementEmails = await sendEmailBatches();
+  } catch (err: any) {
+    console.error('[TickQueues] Announcements tick error:', err.message);
+  }
+
+  return NextResponse.json({ ok: true, uploadTicks, nasTicks, announcementsPublished, announcementEmails });
 }

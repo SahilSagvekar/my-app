@@ -57,6 +57,7 @@ import { FolderRepairTool } from "../admin/Folderrepairtool";
 import { ScriptLinkingTool } from "../admin/ScriptLinkingTool";
 import { EditorProductionTracker } from "../dashboards/EditorProductionTracker";
 import { HelpVideosManagementTab } from "../admin/HelpVideosManagementTab";
+import { AnnouncementsAdminTab } from "../admin/AnnouncementsAdminTab";
 import { ClientHelpVideos } from "../client/ClientHelpVideos";
 import { ClientShootScriptsPage } from "../dashboards/Clientshootscriptspage";
 import { ClientProductionLogPage } from "../dashboards/ClientProductionLogPage";  
@@ -219,6 +220,8 @@ export function renderPage(
         return <ProductionTracker />;
       case "posting-tracker":
         return <AdminDailyTargetsPage />;
+      case "announcements":
+        return <AnnouncementsAdminTab />;
       case "feedback":
         return <FeedbackSystem currentRole={role} />;
       case "training":

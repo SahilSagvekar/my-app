@@ -38,6 +38,7 @@ import {
   ListChecks,
   Wallet,
   Bug,
+  Megaphone,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -58,6 +59,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
+    { id: 'announcements', label: 'Announcements', icon: Megaphone },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'script-links', label: 'Script Links', icon: FileText },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },

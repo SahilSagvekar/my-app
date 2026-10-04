@@ -3622,3 +3622,57 @@ export const devTicketComment = pgTable("DevTicketComment", {
 			name: "DevTicketComment_authorId_fkey"
 		}).onUpdate("cascade").onDelete("restrict"),
 ]);
+
+
+export const announcement = pgTable("Announcement", {
+	id: text().primaryKey().notNull(),
+	title: text().notNull(),
+	body: text().notNull(),
+	type: text().default('NEW_FEATURE').notNull(),
+	linkUrl: text(),
+	linkLabel: text(),
+	audienceAll: boolean().default(false).notNull(),
+	audienceRoles: text().array().default(sql`ARRAY[]::text[]`).notNull(),
+	audienceUserIds: integer().array().default(sql`ARRAY[]::integer[]`).notNull(),
+	sendEmail: boolean().default(false).notNull(),
+	sendSlack: boolean().default(false).notNull(),
+	showPopup: boolean().default(false).notNull(),
+	status: text().default('DRAFT').notNull(),
+	publishAt: timestamp({ precision: 3, mode: 'string' }),
+	publishedAt: timestamp({ precision: 3, mode: 'string' }),
+	expiresAt: timestamp({ precision: 3, mode: 'string' }),
+	recipientCount: integer().default(0).notNull(),
+	emailSentCount: integer().default(0).notNull(),
+	createdById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("Announcement_status_publishAt_idx").using("btree", table.status.asc().nullsLast().op("text_ops"), table.publishAt.asc().nullsLast().op("timestamp_ops")),
+	index("Announcement_publishedAt_idx").using("btree", table.publishedAt.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "Announcement_createdById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const announcementRead = pgTable("AnnouncementRead", {
+	id: text().primaryKey().notNull(),
+	announcementId: text().notNull(),
+	userId: integer().notNull(),
+	readAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	dismissedAt: timestamp({ precision: 3, mode: 'string' }),
+}, (table) => [
+	uniqueIndex("AnnouncementRead_announcementId_userId_key").using("btree", table.announcementId.asc().nullsLast().op("text_ops"), table.userId.asc().nullsLast().op("int4_ops")),
+	index("AnnouncementRead_userId_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.announcementId],
+			foreignColumns: [announcement.id],
+			name: "AnnouncementRead_announcementId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "AnnouncementRead_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);

@@ -56,6 +56,8 @@ model User {
   ExpenseTrip                     ExpenseTrip[]
   feedbackSent                    Feedback[]                      @relation("FeedbackSender")
   userInvitesSent                 UserInvite[]                    @relation("UserInviteInviter")
+  announcementsCreated            Announcement[]                  @relation("AnnouncementCreator")
+  announcementReads               AnnouncementRead[]              @relation("AnnouncementReads")
   devTicketsReported              DevTicket[]                     @relation("DevTicketReporter")
   devTicketsAssigned              DevTicket[]                     @relation("DevTicketAssignee")
   devTicketAttachments            DevTicketAttachment[]           @relation("DevTicketAttachmentUploader")
@@ -2737,4 +2739,46 @@ model DevTicketComment {
   author    User      @relation("DevTicketCommentAuthor", fields: [authorId], references: [id])
 
   @@index([ticketId])
+}
+
+model Announcement {
+  id              String    @id @default(cuid())
+  title           String
+  body            String
+  type            String    @default("NEW_FEATURE")
+  linkUrl         String?
+  linkLabel       String?
+  audienceAll     Boolean   @default(false)
+  audienceRoles   String[]  @default([])
+  audienceUserIds Int[]     @default([])
+  sendEmail       Boolean   @default(false)
+  sendSlack       Boolean   @default(false)
+  showPopup       Boolean   @default(false)
+  status          String    @default("DRAFT")
+  publishAt       DateTime?
+  publishedAt     DateTime?
+  expiresAt       DateTime?
+  recipientCount  Int       @default(0)
+  emailSentCount  Int       @default(0)
+  createdById     Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       User      @relation("AnnouncementCreator", fields: [createdById], references: [id])
+  reads           AnnouncementRead[]
+
+  @@index([status, publishAt])
+  @@index([publishedAt])
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         Int
+  readAt         DateTime     @default(now())
+  dismissedAt    DateTime?
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation("AnnouncementReads", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId])
 }
