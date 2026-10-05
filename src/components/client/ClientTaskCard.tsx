@@ -7,11 +7,13 @@ import {
   Send,
   Download,
   Check,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   getTaskCardThumbnailUrl,
   taskThumbnailFallbackLabel,
 } from '@/lib/task-thumbnail';
+import { getDeliverableBadge } from '@/lib/deliverable-badge';
 
 interface TaskFile {
   id: string;
@@ -30,8 +32,11 @@ interface ClientTask {
   status: string;
   taskType?: string;
   deliverableType?: string;
+  dueDate?: string | null;
+  createdAt?: string | null;
   files?: TaskFile[];
   monthlyDeliverable?: any;
+  oneOffDeliverable?: any;
 }
 
 interface ClientTaskCardProps {
@@ -71,6 +76,58 @@ function getTaskThumbnailFromFiles(files?: TaskFile[]): string | null {
   return getTaskCardThumbnailUrl(files as any);
 }
 
+// Same version logic as the QC review cards: prefer the active video's
+// version, otherwise the highest version across any file on the task.
+function getTaskLatestVersion(files?: TaskFile[]): number {
+  const latestVideo = (files || [])
+    .filter((f) => f.mimeType?.startsWith('video/'))
+    .sort((a, b) => {
+      if (a.isActive && !b.isActive) return -1;
+      if (!a.isActive && b.isActive) return 1;
+      return (b.version || 1) - (a.version || 1);
+    })[0];
+  if (latestVideo?.version) return latestVideo.version;
+
+  let maxVer = 1;
+  for (const f of files || []) {
+    if (f.version && f.version > maxVer) maxVer = f.version;
+  }
+  return maxVer;
+}
+
+// Same count the QC cards show next to the image icon: image / thumbnail /
+// tile / cover files, falling back to the total file count.
+function getImageFilesCount(files?: TaskFile[]): number {
+  const list = files || [];
+  const images = list.filter(
+    (f) =>
+      (f.mimeType || '').startsWith('image/') ||
+      f.folderType === 'thumbnails' ||
+      f.folderType === 'tiles' ||
+      f.folderType === 'covers' ||
+      (f.name && /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name))
+  ).length;
+  return images || list.length;
+}
+
+function formatCardDate(dateVal?: string | null): string {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getRawDeliverableType(task: ClientTask): string {
+  const t =
+    task.deliverableType ||
+    task.monthlyDeliverable?.type ||
+    task.oneOffDeliverable?.type ||
+    '';
+  if (t) return t;
+  // Text posts only carry their type on taskType.
+  return (task.taskType || '').toLowerCase().includes('text post') ? 'text post' : '';
+}
+
 export const ClientTaskCard = memo(function ClientTaskCard({
   task,
   isSelected,
@@ -90,6 +147,13 @@ export const ClientTaskCard = memo(function ClientTaskCard({
 
   const cardTitle = formatDeliverableTypeTitle(rawTitle);
   const isLongForm = isLongFormTask(task);
+
+  // Footer info (same as the QC review cards)
+  const contentName = task.title || cardTitle;
+  const deliverableBadge = getDeliverableBadge(getRawDeliverableType(task), task.title);
+  const latestVersion = getTaskLatestVersion(task.files);
+  const imageFilesCount = getImageFilesCount(task.files);
+  const dateLabel = formatCardDate(task.dueDate || task.createdAt);
 
   // Desktop app check for local cached files
   const [isFullyDownloaded, setIsFullyDownloaded] = useState(false);
@@ -116,7 +180,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
 
   return (
     <div
-      className={`group cursor-pointer rounded-2xl transition-all duration-200 overflow-hidden flex flex-col h-full bg-[#111113] border shadow-sm hover:shadow-md ${
+      className={`group cursor-pointer rounded-2xl transition-all duration-200 overflow-hidden flex flex-col h-full bg-[#0e0f12] border shadow-sm hover:shadow-md ${
         isLongForm
           ? 'col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2 xl:col-span-2'
           : 'col-span-1'
@@ -153,12 +217,51 @@ export const ClientTaskCard = memo(function ClientTaskCard({
         )}
       </div>
 
-      {/* Dark Action Bottom Bar */}
-      <div className="p-3 bg-black flex flex-col gap-2 mt-auto shrink-0 border-t border-zinc-900/60">
+      {/* Card Body */}
+      <div className="p-4 pt-3 pb-3.5 flex flex-col gap-2 bg-[#0e0f12] mt-auto shrink-0">
+        {/* Row 1: Content name */}
+        <h4
+          className="text-[13px] font-bold text-white truncate leading-snug tracking-tight"
+          title={contentName}
+        >
+          {contentName}
+        </h4>
+
+        {/* Row 2: Date */}
+        {dateLabel && (
+          <div className="flex items-center text-xs text-zinc-400 font-normal leading-none">
+            <span className="shrink-0">{dateLabel}</span>
+          </div>
+        )}
+
+        {/* Row 3: Deliverable type, version & media count */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/70 mt-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            {deliverableBadge && (
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold tracking-wide uppercase shrink-0 ${deliverableBadge.colorClass}`}
+              >
+                {deliverableBadge.label}
+              </span>
+            )}
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold bg-[#27272a] text-zinc-300 shrink-0">
+              V{latestVersion}
+            </span>
+          </div>
+
+          <div
+            className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 shrink-0"
+            title={`${imageFilesCount} file(s)`}
+          >
+            <ImageIcon className="h-3.5 w-3.5 stroke-[1.75]" />
+            <span>{imageFilesCount}</span>
+          </div>
+        </div>
+
         {/* Primary Action Button: Review */}
         <Button
           type="button"
-          className="w-full bg-white hover:bg-zinc-100 text-zinc-950 font-bold text-xs sm:text-sm h-9 rounded-lg flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+          className="w-full bg-white hover:bg-zinc-100 text-zinc-950 font-bold text-xs sm:text-sm h-9 rounded-lg flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer mt-1"
           onClick={(e) => {
             e.stopPropagation();
             onTaskClick(task);
@@ -214,6 +317,9 @@ export const ClientTaskCard = memo(function ClientTaskCard({
     prevProps.task.status === nextProps.task.status &&
     prevProps.task.title === nextProps.task.title &&
     prevProps.task.files?.length === nextProps.task.files?.length &&
+    prevProps.task.deliverableType === nextProps.task.deliverableType &&
+    prevProps.task.dueDate === nextProps.task.dueDate &&
+    getTaskLatestVersion(prevProps.task.files) === getTaskLatestVersion(nextProps.task.files) &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.thumbnail === nextProps.thumbnail &&
     prevProps.isSharing === nextProps.isSharing
