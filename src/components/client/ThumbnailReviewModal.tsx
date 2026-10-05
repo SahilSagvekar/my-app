@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
+import { E8Logo } from '../ui/E8Logo';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import {
@@ -588,9 +589,11 @@ export function ThumbnailReviewModal({
                                     <TooltipContent side="bottom">Go back</TooltipContent>
                                 </Tooltip>
 
-                                <div className="w-8 h-8 rounded-lg bg-black border border-white/20 flex items-center justify-center font-black text-white text-sm select-none shrink-0 shadow-sm">
-                                    E
-                                </div>
+                                <div style={{ width: 1, height: 32, background: 'var(--review-border)' }} className="shrink-0" />
+
+                                <E8Logo height={28} className="shrink-0" />
+
+                                <div style={{ width: 1, height: 32, background: 'var(--review-border)' }} className="shrink-0" />
 
                                 <div className="flex items-baseline gap-3 min-w-0">
                                     <h1 className="text-base font-semibold text-white truncate max-w-md" style={{ letterSpacing: '-0.01em' }}>{taskTitle}</h1>
