@@ -286,6 +286,33 @@ export function ThumbnailReviewModal({
         return orderedThumbnails.findIndex(t => t.id === currentFile.id) + 1;
     }, [currentFile, orderedThumbnails]);
 
+    /* ── ← / → arrow keys: previous / next image (single-image view only) ──
+       Same effect as clicking the numbered buttons under the image. Doesn't
+       wrap around, ignores keys while typing a comment, while the reorder
+       dialog is open, and when a modifier key is held. */
+    useEffect(() => {
+        if (!open || viewMode !== 'single' || showOrderModal || !currentFile || orderedThumbnails.length < 2) return;
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+
+            const el = e.target as HTMLElement | null;
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+
+            const idx = orderedThumbnails.findIndex(t => t.id === currentFile.id);
+            if (idx === -1) return;
+            const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1;
+            if (nextIdx < 0 || nextIdx >= orderedThumbnails.length) return;
+
+            e.preventDefault();
+            setCurrentFile(orderedThumbnails[nextIdx]);
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [open, viewMode, showOrderModal, currentFile, orderedThumbnails]);
+
     const unresolvedCount = comments.filter(c => !c.resolved).length;
 
     /* ── Initialise on file change ── */
