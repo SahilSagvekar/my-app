@@ -776,7 +776,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                                         </div>
                                                     ) : (
                                                         <div className="flex items-start gap-2">
-                                                            <p className="flex-1 text-sm text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
+                                                            <p className={`flex-1 text-sm ${type === 'titles' ? 'text-white' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
                                                             <div className="flex gap-1 shrink-0">
                                                                 <button
                                                                     onClick={() => startMobileEdit(type, item.id, item.text)}

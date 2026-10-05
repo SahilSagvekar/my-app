@@ -1059,7 +1059,7 @@ export function ThumbnailReviewModal({
                                                                     </div>
                                                                 ) : (
                                                                     <div className="flex items-start gap-2">
-                                                                        <p className="flex-1 text-xs text-[var(--review-text-secondary)] leading-relaxed break-words min-w-0">{item.text}</p>
+                                                                        <p className={`flex-1 text-xs ${type === 'titles' ? 'text-white' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
                                                                         <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <button
                                                                                 onClick={() => startEdit(item.id, item.text)}
