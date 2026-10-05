@@ -514,10 +514,27 @@ export function ThumbnailReviewModal({
     /* ── Guard ── */
     if (!currentFile) return null;
 
+    // Back / Esc step back one level: single-image view → gallery, and only
+    // from the gallery do they close the whole review. The X button still
+    // closes the modal from either view.
+    const handleBack = () => {
+        if (viewMode === 'single') setViewMode('gallery');
+        else onOpenChange(false);
+    };
+
+    const handleEscapeKeyDown = (e: KeyboardEvent) => {
+        if (viewMode !== 'single') return; // gallery: default Esc closes the modal
+        e.preventDefault(); // never close the whole modal from the single view
+        // Esc while typing a comment is for the input, not for navigation.
+        const el = e.target as HTMLElement | null;
+        const isTyping = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+        if (!isTyping) setViewMode('gallery');
+    };
+
     /* ─────────────────────────────────────────────────────────── */
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="!fixed !inset-0 !z-50 !w-full !h-full !max-w-none !max-h-none !m-0 !p-0 !overflow-hidden !transform-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none !flex !flex-col !gap-0 fullscreen-dialog review-modal">
+            <DialogContent onEscapeKeyDown={handleEscapeKeyDown} className="!fixed !inset-0 !z-50 !w-full !h-full !max-w-none !max-h-none !m-0 !p-0 !overflow-hidden !transform-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !rounded-none !border-none !shadow-none !flex !flex-col !gap-0 fullscreen-dialog review-modal">
                 <TooltipProvider delayDuration={300}>
                     <div className="sr-only">
                         <DialogTitle>Review {currentFile.name}</DialogTitle>
@@ -560,7 +577,7 @@ export function ThumbnailReviewModal({
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <button
-                                            onClick={() => onOpenChange(false)}
+                                            onClick={handleBack}
                                             title="Go back"
                                             className="h-[38px] px-3 flex items-center justify-center gap-1.5 bg-transparent rounded-md cursor-pointer transition-colors text-sm font-medium text-white hover:bg-white/10"
                                             style={{ border: '1px solid var(--review-border-hover)' }}
