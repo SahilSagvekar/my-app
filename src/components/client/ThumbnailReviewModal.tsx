@@ -690,8 +690,10 @@ export function ThumbnailReviewModal({
                                                     }`}
                                                     onClick={() => { setCurrentFile(t); setViewMode('single'); }}
                                                 >
-                                                    <div className="aspect-video relative">
-                                                        <img src={t.url} alt={t.name} className="w-full h-full object-cover" />
+                                                    {/* Show the full image at its natural ratio (no 16:9 crop). Very tall
+                                                        images are capped to the viewport height and letterboxed. */}
+                                                    <div className="relative bg-black flex items-center justify-center min-h-[160px]">
+                                                        <img src={t.url} alt={t.name} className="w-full h-auto max-h-[75vh] object-contain" />
                                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                             <Button variant="secondary" size="sm" className="bg-white text-black hover:bg-zinc-200">
                                                                 Review Details
