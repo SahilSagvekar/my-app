@@ -292,6 +292,32 @@ export function FullScreenReviewModalFrameIO({
     /* ── UI state ── */
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
+
+    // After approve / send-back the success screen shows for 2s and then closes
+    // this window. The timer lives in a ref so it can be cancelled — otherwise
+    // it fires later and closes whatever video the reviewer has opened in the
+    // meantime. It's cancelled when the reviewed task/video changes or this
+    // component unmounts, and the success overlays are cleared with it.
+    const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const reviewKey = taskId || asset?.id;
+    useEffect(() => {
+        return () => {
+            if (closeTimerRef.current) {
+                clearTimeout(closeTimerRef.current);
+                closeTimerRef.current = null;
+            }
+            setShowApprovalSuccess(false);
+            setShowRevisionSuccess(false);
+        };
+    }, [reviewKey]);
+    const scheduleCloseAfterSuccess = (clearOverlay: () => void) => {
+        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = setTimeout(() => {
+            closeTimerRef.current = null;
+            clearOverlay();
+            onOpenChange(false);
+        }, 2000);
+    };
     const [showInfoPanel, setShowInfoPanel] = useState(false);
     const [showShareDialog, setShowShareDialog] = useState(false);
     const [shareLink, setShareLink] = useState('');
@@ -1028,7 +1054,7 @@ export function FullScreenReviewModalFrameIO({
             if (userRole === 'qc' && onSendToClient) onSendToClient(asset, opts);
             else onApprove(asset, true);
             setShowApprovalSuccess(true);
-            setTimeout(() => { setShowApprovalSuccess(false); onOpenChange(false); }, 2000);
+            scheduleCloseAfterSuccess(() => setShowApprovalSuccess(false));
         } else if (status === 'needs_changes') {
             const saved = await saveFeedbackToDatabase(comments);
             if (!saved) { toast.error('Failed to save feedback. Please try again.'); return; }
@@ -1053,7 +1079,7 @@ export function FullScreenReviewModalFrameIO({
             if (userRole === 'qc' && onSendBackToEditor) onSendBackToEditor(asset, revisionData);
             else onRequestRevisions(asset, revisionData);
             setShowRevisionSuccess(true);
-            setTimeout(() => { setShowRevisionSuccess(false); onOpenChange(false); }, 2000);
+            scheduleCloseAfterSuccess(() => setShowRevisionSuccess(false));
         }
     };
 
@@ -1103,7 +1129,7 @@ export function FullScreenReviewModalFrameIO({
             if (userRole === 'qc' && onSendBackToEditor) onSendBackToEditor(asset, revisionData);
             else onRequestRevisions(asset, revisionData);
             setShowRevisionSuccess(true);
-            setTimeout(() => { setShowRevisionSuccess(false); onOpenChange(false); }, 2000);
+            scheduleCloseAfterSuccess(() => setShowRevisionSuccess(false));
         } catch {
             toast.error('Failed to send feedback. Please try again.');
         } finally {

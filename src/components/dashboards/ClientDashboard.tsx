@@ -243,6 +243,18 @@ export function ClientDashboard() {
   const [videoApprovedTasks, setVideoApprovedTasks] = useState<Set<string>>(new Set());
   const [thumbApprovedTasks, setThumbApprovedTasks] = useState<Set<string>>(new Set());
 
+  // Which task's review window is open right now. Submit handlers (approve /
+  // request revisions / mark as posted) finish asynchronously after a network
+  // call, so by the time they resolve the client may already have opened the
+  // NEXT task. Those late handlers must still show their toast and update the
+  // list, but must NOT close the review window the client is now working in.
+  const selectedTaskIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedTaskIdRef.current = selectedTask?.id ?? null;
+  }, [selectedTask]);
+  const isStillOnTask = (taskId: string) =>
+    selectedTaskIdRef.current === null || selectedTaskIdRef.current === taskId;
+
   // 🔥 Share states
   const [shareLink, setShareLink] = useState("");
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -420,10 +432,12 @@ export function ClientDashboard() {
         description: "Task has been updated to posted status.",
       });
 
-      setShowVideoReview(false);
-      setShowFileSelector(false);
-      setSelectedFile(null);
-      setSelectedTask(null);
+      if (isStillOnTask(taskToMark.id)) {
+        setShowVideoReview(false);
+        setShowFileSelector(false);
+        setSelectedFile(null);
+        setSelectedTask(null);
+      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to mark task as posted");
@@ -473,12 +487,15 @@ export function ClientDashboard() {
         description: "Content has been approved and sent for scheduling.",
       });
 
-      // Close modals and reset state
-      setShowVideoReview(false);
-      setShowThumbnailReview(false);
-      setShowFileSelector(false);
-      setSelectedFile(null);
-      setSelectedTask(null);
+      // Close modals and reset state — but only if the client is still on this
+      // task (a slow reply must not close the next task they've since opened).
+      if (isStillOnTask(taskToApprove.id)) {
+        setShowVideoReview(false);
+        setShowThumbnailReview(false);
+        setShowFileSelector(false);
+        setSelectedFile(null);
+        setSelectedTask(null);
+      }
 
       // Clear session approval tracking for this task
       setVideoApprovedTasks(prev => {
@@ -539,13 +556,15 @@ export function ClientDashboard() {
         description: "Your feedback has been sent to the editor.",
       });
 
-      // Close modals and reset state
-      setShowRevisionDialog(false);
-      setShowVideoReview(false);
-      setShowFileSelector(false);
-      setRevisionNotes("");
-      setSelectedFile(null);
-      setSelectedTask(null);
+      // Close modals and reset state — only if still on this task.
+      if (isStillOnTask(selectedTask.id)) {
+        setShowRevisionDialog(false);
+        setShowVideoReview(false);
+        setShowFileSelector(false);
+        setRevisionNotes("");
+        setSelectedFile(null);
+        setSelectedTask(null);
+      }
 
       // Clear session approval tracking for this task
       setVideoApprovedTasks(prev => {
@@ -615,9 +634,13 @@ export function ClientDashboard() {
         description: "Your feedback has been sent to the editor.",
       });
 
-      setShowVideoReview(false);
-      setSelectedFile(null);
-      setSelectedTask(null);
+      // Only close if the client is still on this task — if the reply was slow
+      // and they've already opened the next video, leave that window alone.
+      if (isStillOnTask(selectedTask.id)) {
+        setShowVideoReview(false);
+        setSelectedFile(null);
+        setSelectedTask(null);
+      }
 
       // Clear session approval tracking for this task
       setVideoApprovedTasks(prev => {
@@ -685,10 +708,12 @@ export function ClientDashboard() {
         description: "Your feedback on the thumbnail has been sent.",
       });
 
-      setShowThumbnailReview(false);
-      setShowFileSelector(false);
-      setSelectedFile(null);
-      setSelectedTask(null);
+      if (isStillOnTask(selectedTask.id)) {
+        setShowThumbnailReview(false);
+        setShowFileSelector(false);
+        setSelectedFile(null);
+        setSelectedTask(null);
+      }
 
       // Clear session approval tracking for this task
       setVideoApprovedTasks(prev => {

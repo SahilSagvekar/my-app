@@ -93,6 +93,31 @@ export function ScriptReviewModal({
     const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
     const [showRevisionSuccess, setShowRevisionSuccess] = useState(false);
 
+    // After approve / send-back the success screen shows for 2s and then closes
+    // this window. The timer lives in a ref so it can be cancelled — otherwise
+    // it fires later and closes whatever task the reviewer has opened in the
+    // meantime. It's cancelled when the reviewed task changes or this
+    // component unmounts, and the success overlays are cleared with it.
+    const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        return () => {
+            if (closeTimerRef.current) {
+                clearTimeout(closeTimerRef.current);
+                closeTimerRef.current = null;
+            }
+            setShowApprovalSuccess(false);
+            setShowRevisionSuccess(false);
+        };
+    }, [taskId]);
+    const scheduleCloseAfterSuccess = (clearOverlay: () => void) => {
+        if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = setTimeout(() => {
+            closeTimerRef.current = null;
+            clearOverlay();
+            onOpenChange(false);
+        }, 2000);
+    };
+
     const latestVersion = versions.length ? versions[versions.length - 1] : null;
     const isViewingLatest = selectedVersion === null || selectedVersion === latestVersion?.number;
     const canEdit = !readOnly && (userRole === 'client' || userRole === 'qc') && isViewingLatest;
@@ -245,7 +270,7 @@ export function ScriptReviewModal({
     const handleApproveClick = async () => {
         setShowApprovalSuccess(true);
         await onApprove();
-        setTimeout(() => { setShowApprovalSuccess(false); onOpenChange(false); }, 2000);
+        scheduleCloseAfterSuccess(() => setShowApprovalSuccess(false));
     };
 
     const handleRequestRevisionsClick = async () => {
@@ -272,7 +297,7 @@ export function ScriptReviewModal({
             if (!res.ok) throw new Error('Failed to save feedback');
             setShowRevisionSuccess(true);
             await onRequestRevisions(feedbackItems);
-            setTimeout(() => { setShowRevisionSuccess(false); onOpenChange(false); }, 2000);
+            scheduleCloseAfterSuccess(() => setShowRevisionSuccess(false));
         } catch (err) {
             console.error('Error requesting script revisions:', err);
             toast.error('Failed to save feedback');
