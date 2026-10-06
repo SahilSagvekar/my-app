@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { portfolioImage } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { requirePortfolioAdmin } from '@/lib/portfolio-auth';
 
 // PATCH /api/portfolio/images/[id] — update a portfolio image
 export async function PATCH(
@@ -11,6 +12,8 @@ export async function PATCH(
 ) {
   const db = getDbHttp();
   try {
+    const denied = requirePortfolioAdmin(req);
+    if (denied) return denied;
     const { id } = await params;
     const body = await req.json();
 
@@ -48,11 +51,13 @@ export async function PATCH(
 
 // DELETE /api/portfolio/images/[id] — delete a portfolio image
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const db = getDbHttp();
   try {
+    const denied = requirePortfolioAdmin(req);
+    if (denied) return denied;
     const { id } = await params;
 
     const [existing] = await db

@@ -30,6 +30,7 @@ import {
     Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import { persistReorder } from "@/lib/portfolio-reorder";
 
 interface JourneyStep {
     id: string;
@@ -98,7 +99,7 @@ export default function PortfolioJourneyManager() {
                     label: newLabel.trim(),
                     sublabel: newSublabel.trim() || null,
                     iconKey: newIcon === "none" ? null : newIcon,
-                    order: clients.length,
+                    order: clients.length > 0 ? Math.max(...clients.map((c) => c.order)) + 1 : 0,
                 }),
             });
             const data = await res.json();
@@ -148,23 +149,12 @@ export default function PortfolioJourneyManager() {
         const idx = sorted.findIndex((c) => c.id === client.id);
         const swapIdx = direction === "up" ? idx - 1 : idx + 1;
         if (swapIdx < 0 || swapIdx >= sorted.length) return;
-        const swap = sorted[swapIdx];
         try {
-            await Promise.all([
-                fetch(`/api/portfolio/journey-clients/${client.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: swap.order }),
-                }),
-                fetch(`/api/portfolio/journey-clients/${swap.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: client.order }),
-                }),
-            ]);
+            await persistReorder(sorted, idx, swapIdx, (id) => `/api/portfolio/journey-clients/${id}`);
             fetchClients();
         } catch {
             toast.error("Failed to reorder");
+            fetchClients();
         }
     }
 
@@ -192,7 +182,7 @@ export default function PortfolioJourneyManager() {
                 body: JSON.stringify({
                     imageUrl: uploadData.url,
                     caption,
-                    order: client.steps.length,
+                    order: client.steps.length > 0 ? Math.max(...client.steps.map((s) => s.order)) + 1 : 0,
                 }),
             });
             const stepData = await stepRes.json();
@@ -234,23 +224,12 @@ export default function PortfolioJourneyManager() {
         const idx = sorted.findIndex((s) => s.id === step.id);
         const swapIdx = direction === "up" ? idx - 1 : idx + 1;
         if (swapIdx < 0 || swapIdx >= sorted.length) return;
-        const swap = sorted[swapIdx];
         try {
-            await Promise.all([
-                fetch(`/api/portfolio/journey-steps/${step.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: swap.order }),
-                }),
-                fetch(`/api/portfolio/journey-steps/${swap.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: step.order }),
-                }),
-            ]);
+            await persistReorder(sorted, idx, swapIdx, (id) => `/api/portfolio/journey-steps/${id}`);
             fetchClients();
         } catch {
             toast.error("Failed to reorder step");
+            fetchClients();
         }
     }
 

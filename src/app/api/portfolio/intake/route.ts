@@ -65,7 +65,10 @@ export async function POST(req: NextRequest) {
     const mergedHashtags = Array.from(
       new Set([
         ...(existing?.templateHashtags ?? []),
-        ...(body.hashtags || []).map((h) => h.trim()).filter(Boolean),
+        ...(Array.isArray(body.hashtags) ? body.hashtags : [])
+          .filter((h): h is string => typeof h === 'string')
+          .map((h) => h.trim())
+          .filter(Boolean),
       ])
     );
 
@@ -139,6 +142,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function escapeHtml(s: string): string {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 async function notifyAdminIntakeComplete(clientName: string, clientEmail: string) {
   const { createTransporter } = await import('@/lib/mail-transport');
   const transporter = createTransporter();
@@ -147,6 +154,6 @@ async function notifyAdminIntakeComplete(clientName: string, clientEmail: string
     from: `"E8 Productions" <${process.env.SMTP_USER}>`,
     to: 'eric@e8productions.com',
     subject: `📋 Intake form submitted — ${clientName}`,
-    html: `<p><strong>${clientName}</strong> (${clientEmail}) has completed their onboarding intake form. All details are now available in the E8 app under their client profile.</p>`,
+    html: `<p><strong>${escapeHtml(clientName)}</strong> (${escapeHtml(clientEmail)}) has completed their onboarding intake form. All details are now available in the E8 app under their client profile.</p>`,
   }).catch(console.error);
 }

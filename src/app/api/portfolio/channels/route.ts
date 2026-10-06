@@ -6,6 +6,7 @@ import { portfolioChannel as portfolioChannelTable } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, asc, eq } from 'drizzle-orm';
 import { scrapeYoutubeChannelInfo } from '@/lib/scrapeYoutubeChannel';
+import { requirePortfolioAdmin } from '@/lib/portfolio-auth';
 
 export interface PortfolioChannel {
     id: string;
@@ -27,6 +28,10 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category');
         const showAll = searchParams.get('all') === 'true'; // admin: fetch all including inactive
+        if (showAll) {
+            const denied = requirePortfolioAdmin(req);
+            if (denied) return denied;
+        }
 
         const conditions = [];
         if (!showAll) conditions.push(eq(portfolioChannelTable.isActive, true));
@@ -36,7 +41,7 @@ export async function GET(req: NextRequest) {
             .select()
             .from(portfolioChannelTable)
             .where(conditions.length ? and(...conditions) : undefined)
-            .orderBy(asc(portfolioChannelTable.order));
+            .orderBy(asc(portfolioChannelTable.order), asc(portfolioChannelTable.createdAt));
 
         return NextResponse.json({ ok: true, channels });
     } catch (err) {
@@ -53,6 +58,8 @@ export async function GET(req: NextRequest) {
 // follower count is always taken as-is (manual, not scraped).
 export async function POST(req: NextRequest) {
     try {
+        const denied = requirePortfolioAdmin(req);
+        if (denied) return denied;
         const db = getDbHttp();
         const body = await req.json();
         const { channelUrl, followerCount, category, order } = body;

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { requirePortfolioAdmin } from '@/lib/portfolio-auth';
+
+// Admin-only uploader for portfolio media. Without these checks anyone on the internet
+// could push arbitrary files into the Cloudinary account.
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -9,11 +14,20 @@ cloudinary.config({
 
 export async function POST(req: NextRequest) {
     try {
-        const formData = await req.formData();
-        const file = formData.get('file') as File;
+        const denied = requirePortfolioAdmin(req);
+        if (denied) return denied;
 
-        if (!file) {
+        const formData = await req.formData();
+        const file = formData.get('file');
+
+        if (!file || typeof file === 'string') {
             return NextResponse.json({ ok: false, message: 'No file provided' }, { status: 400 });
+        }
+        if (!/^(image|video)\//.test(file.type)) {
+            return NextResponse.json({ ok: false, message: 'Only image or video files can be uploaded' }, { status: 400 });
+        }
+        if (file.size > MAX_UPLOAD_BYTES) {
+            return NextResponse.json({ ok: false, message: 'File is too large (max 100 MB)' }, { status: 413 });
         }
 
         const bytes = await file.arrayBuffer();
@@ -40,6 +54,6 @@ export async function POST(req: NextRequest) {
         });
     } catch (err: any) {
         console.error('Cloudinary upload error:', err);
-        return NextResponse.json({ ok: false, message: err.message }, { status: 500 });
+        return NextResponse.json({ ok: false, message: 'Upload failed' }, { status: 500 });
     }
 }

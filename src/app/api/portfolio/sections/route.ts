@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbPool } from '@/lib/db';
+import { getDbHttp, getDbPool } from '@/lib/db';
+import { requirePortfolioAdmin } from '@/lib/portfolio-auth';
 import { portfolioCategory, portfolioSubcategory, portfolioUiSetting } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { asc, eq } from 'drizzle-orm';
@@ -27,7 +28,7 @@ export interface PortfolioSettings {
 const SETTINGS_ID = 'default';
 const DEFAULT_SETTINGS: PortfolioSettings = { howItWorksVisible: true };
 
-async function readSettings(db: ReturnType<typeof getDbPool>['db']): Promise<PortfolioSettings> {
+async function readSettings(db: ReturnType<typeof getDbHttp>): Promise<PortfolioSettings> {
     try {
         const [row] = await db
             .select()
@@ -44,7 +45,7 @@ async function readSettings(db: ReturnType<typeof getDbPool>['db']): Promise<Por
 }
 
 async function writeSettings(
-    db: ReturnType<typeof getDbPool>['db'],
+    db: ReturnType<typeof getDbHttp>,
     settings: PortfolioSettings
 ) {
     await db
@@ -63,8 +64,11 @@ async function writeSettings(
         });
 }
 
+// Public read — no interactive transaction needed, so use the stateless HTTP driver
+// (the WebSocket Pool throws "Network connection lost" under Workers and this is the
+// call the whole public portfolio page depends on).
 export async function GET() {
-  const { db, closeDb } = getDbPool();
+  const db = getDbHttp();
   try {
     try {
         // Ensure Photography section exists (no subcategories) so admins don't
@@ -81,6 +85,8 @@ export async function GET() {
                 allCats.length > 0
                     ? Math.max(...allCats.map((c) => c.order)) + 1
                     : 0;
+            // onConflictDoNothing: two concurrent first loads would otherwise race and the
+            // loser would 500 on the unique key.
             await db.insert(portfolioCategory).values({
                 id: createId(),
                 key: 'photography',
@@ -89,7 +95,7 @@ export async function GET() {
                 isActive: true,
                 order: nextOrder,
                 updatedAt: new Date().toISOString(),
-            });
+            }).onConflictDoNothing({ target: portfolioCategory.key });
         }
 
         const categories = await db.query.portfolioCategory.findMany({
@@ -123,11 +129,14 @@ export async function GET() {
     }
 
   } finally {
-    await closeDb();
+    // nothing to close — HTTP driver is stateless
   }
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = requirePortfolioAdmin(req);
+  if (denied) return denied;
+
   const { db, closeDb } = getDbPool();
   try {
     try {
@@ -197,7 +206,7 @@ export async function PATCH(req: NextRequest) {
 
         if (settings && typeof settings.howItWorksVisible === 'boolean') {
             try {
-                await writeSettings(db, {
+                await writeSettings(getDbHttp(), {
                     howItWorksVisible: settings.howItWorksVisible,
                 });
             } catch (settingsErr) {

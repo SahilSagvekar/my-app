@@ -4,6 +4,7 @@ import { getDbHttp } from '@/lib/db';
 import { portfolioVideo } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { and, asc, eq } from 'drizzle-orm';
+import { requirePortfolioAdmin } from '@/lib/portfolio-auth';
 
 // GET /api/portfolio/videos — fetch videos, optionally filtered by category
 export async function GET(req: NextRequest) {
@@ -12,6 +13,10 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const category = searchParams.get('category');
         const showAll = searchParams.get('all') === 'true'; // admin: fetch all including inactive
+        if (showAll) {
+            const denied = requirePortfolioAdmin(req);
+            if (denied) return denied;
+        }
 
         const conditions = [];
         if (!showAll) {
@@ -23,7 +28,7 @@ export async function GET(req: NextRequest) {
 
         const videos = await db.select().from(portfolioVideo)
             .where(conditions.length ? and(...conditions) : undefined)
-            .orderBy(asc(portfolioVideo.order));
+            .orderBy(asc(portfolioVideo.order), asc(portfolioVideo.createdAt));
 
         return NextResponse.json({ ok: true, videos });
     } catch (err) {
@@ -39,6 +44,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const db = getDbHttp();
     try {
+        const denied = requirePortfolioAdmin(req);
+        if (denied) return denied;
         const body = await req.json();
         const { title, description, videoUrl, thumbnailUrl, category, order } = body;
 

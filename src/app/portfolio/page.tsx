@@ -233,6 +233,16 @@ function LazyVideoCard({
 /* ═══════════════════════════════════════════════════════════════════
    GATE FORM  — full-screen overlay that captures lead info
    ═══════════════════════════════════════════════════════════════════ */
+// sessionStorage throws in some private-browsing / in-app browsers. A throw in the unlock
+// effect left the page permanently blank, and a throw after a successful lead save showed
+// "Network error" even though the lead was stored.
+function safeSessionGet(key: string): string | null {
+    try { return sessionStorage.getItem(key); } catch { return null; }
+}
+function safeSessionSet(key: string, value: string) {
+    try { sessionStorage.setItem(key, value); } catch { /* ignore */ }
+}
+
 function GateForm({ onUnlock }: { onUnlock: () => void }) {
     const [form, setForm] = useState({
         firstName: '',
@@ -262,7 +272,7 @@ function GateForm({ onUnlock }: { onUnlock: () => void }) {
     const handleSubmit = async () => {
         // Anti-spam: if honeypot field is filled, silently "succeed"
         if (honeypot) {
-            sessionStorage.setItem('portfolio_unlocked', '1');
+            safeSessionSet('portfolio_unlocked', '1');
             onUnlock();
             return;
         }
@@ -276,7 +286,7 @@ function GateForm({ onUnlock }: { onUnlock: () => void }) {
             });
             const data = await res.json();
             if (data.ok) {
-                sessionStorage.setItem('portfolio_unlocked', '1');
+                safeSessionSet('portfolio_unlocked', '1');
                 onUnlock();
             } else {
                 setErrors({ _form: data.message || 'Something went wrong' });
@@ -1157,48 +1167,59 @@ function PortfolioContent() {
         setShowHowItWorks(false);
     }, []);
 
+    // Only the most recent request may write state — clicking through sections quickly used
+    // to let a slow earlier response overwrite the section you'd moved on to.
+    const latestRequest = useRef(0);
+
     const fetchVideos = useCallback(async (subcategory: string) => {
+        const reqId = ++latestRequest.current;
         setLoading(true);
+        setVideos([]);
         try {
-            const res = await fetch(`/api/portfolio/videos?category=${subcategory}`);
+            const res = await fetch(`/api/portfolio/videos?category=${encodeURIComponent(subcategory)}`);
             const data = await res.json();
-            if (data.ok) setVideos(data.videos);
+            if (reqId === latestRequest.current && data.ok) setVideos(data.videos);
         } catch (err) {
             console.error('Failed to fetch videos', err);
         } finally {
-            setLoading(false);
+            if (reqId === latestRequest.current) setLoading(false);
         }
     }, []);
 
     const fetchChannels = useCallback(async (subcategory: string) => {
+        const reqId = ++latestRequest.current;
         setLoading(true);
+        setChannels([]);
         try {
-            const res = await fetch(`/api/portfolio/channels?category=${subcategory}`);
+            const res = await fetch(`/api/portfolio/channels?category=${encodeURIComponent(subcategory)}`);
             const data = await res.json();
-            if (data.ok) setChannels(data.channels);
+            if (reqId === latestRequest.current && data.ok) setChannels(data.channels);
         } catch (err) {
             console.error('Failed to fetch channels', err);
         } finally {
-            setLoading(false);
+            if (reqId === latestRequest.current) setLoading(false);
         }
     }, []);
 
     const fetchImages = useCallback(async (category: string) => {
+        const reqId = ++latestRequest.current;
         setLoading(true);
+        setImages([]);
         try {
-            const res = await fetch(`/api/portfolio/images?category=${category}`);
+            const res = await fetch(`/api/portfolio/images?category=${encodeURIComponent(category)}`);
             const data = await res.json();
-            if (data.ok) setImages(data.images);
+            if (reqId === latestRequest.current && data.ok) setImages(data.images);
         } catch (err) {
             console.error('Failed to fetch images', err);
         } finally {
-            setLoading(false);
+            if (reqId === latestRequest.current) setLoading(false);
         }
     }, []);
 
     useEffect(() => {
         if (!activeCategory) return;
         if (activeCategory === BEFORE_AFTER_CATEGORY) {
+            latestRequest.current++;
             setLoading(false);
             return;
         }
@@ -1391,7 +1412,7 @@ export default function PortfolioPage() {
         let cancelled = false;
 
         (async () => {
-            if (sessionStorage.getItem('portfolio_unlocked') === '1') {
+            if (safeSessionGet('portfolio_unlocked') === '1') {
                 if (!cancelled) {
                     setUnlocked(true);
                     setChecked(true);
