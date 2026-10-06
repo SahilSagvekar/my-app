@@ -712,14 +712,16 @@ export function LeadProfileDrawer({ lead, onClose, onUpdate, onDelete }: {
                 </select>
               </div>
               <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-gray-500">Post Link</label>
+                <div className="bg-white rounded-md border border-gray-200 px-1">
+                  <LeadLinkCell value={postUrl} onChange={v => onUpdate(lead.id, { postUrl: v })} />
+                </div>
+              </div>
+              <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Social Links</label>
                 <div className="bg-white rounded-md border border-gray-200">
                   <SocialCell value={lead.socials} onUpdate={patch => onUpdate(lead.id, patch)} />
                 </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-500">Deal Value ($)</label>
-                <Input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })} className="h-9 text-sm bg-white" placeholder="0" />
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-semibold text-gray-500">Profile Link</label>
@@ -728,10 +730,8 @@ export function LeadProfileDrawer({ lead, onClose, onUpdate, onDelete }: {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-gray-500">Post Link</label>
-                <div className="bg-white rounded-md border border-gray-200 px-1">
-                  <LeadLinkCell value={postUrl} onChange={v => onUpdate(lead.id, { postUrl: v })} />
-                </div>
+                <label className="text-[11px] font-semibold text-gray-500">Deal Value ($)</label>
+                <Input type="number" value={lead.value ?? ''} onChange={e => onUpdate(lead.id, { value: e.target.value ? parseFloat(e.target.value) : null })} className="h-9 text-sm bg-white" placeholder="0" />
               </div>
             </div>
           </div>
