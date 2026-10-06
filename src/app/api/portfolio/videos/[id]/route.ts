@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDbHttp } from '@/lib/db';
 import { portfolioVideo } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { requirePortfolioAdmin } from '@/lib/portfolio-auth';
 
 // PATCH /api/portfolio/videos/[id] — update a portfolio video
 export async function PATCH(
@@ -11,6 +12,8 @@ export async function PATCH(
 ) {
   const db = getDbHttp();
     try {
+        const denied = requirePortfolioAdmin(req);
+        if (denied) return denied;
         const { id } = await params;
         const body = await req.json();
 
@@ -50,6 +53,8 @@ export async function DELETE(
 ) {
   const db = getDbHttp();
     try {
+        const denied = requirePortfolioAdmin(req);
+        if (denied) return denied;
         const { id } = await params;
 
         const [video] = await db.select().from(portfolioVideo).where(eq(portfolioVideo.id, id)).limit(1);

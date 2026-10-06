@@ -22,10 +22,15 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
-        const { firstName, lastName, phone, email, serviceNeeded } = body;
+        const { firstName, lastName, phone, email, serviceNeeded } = body ?? {};
 
-        // Validate required fields
-        if (!firstName || !lastName || !phone || !email || !serviceNeeded) {
+        // Validate required fields (and that they're strings — .trim() on anything else
+        // used to throw and surface as a generic 500)
+        if (
+            ![firstName, lastName, phone, email, serviceNeeded].every(
+                (v) => typeof v === 'string' && v.trim().length > 0 && v.length <= 200
+            )
+        ) {
             return NextResponse.json(
                 { ok: false, message: 'All fields are required' },
                 { status: 400 }
@@ -41,7 +46,12 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const ip = req.headers.get('x-forwarded-for') || (req as any).ip || 'unknown';
+        // Behind Cloudflare the real client IP is cf-connecting-ip; x-forwarded-for may be a
+        // comma-separated chain.
+        const ip =
+            req.headers.get('cf-connecting-ip') ||
+            req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+            'unknown';
 
         const [lead] = await db.insert(portfolioLead).values({
             id: createId(),
@@ -49,7 +59,10 @@ export async function POST(req: NextRequest) {
             lastName: lastName.trim(),
             phone: phone.trim(),
             email: email.trim().toLowerCase(),
-            serviceNeeded: `${serviceNeeded} | IP: ${ip}`,
+            // Keep the service clean — it used to have " | IP: …" appended, which broke the
+            // admin's service filter and per-service counts. The IP has its own column.
+            serviceNeeded: serviceNeeded.trim(),
+            ipAddress: ip,
         }).returning();
 
         sendToChannel('sales', {
@@ -84,7 +97,14 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const leads = await db.select().from(portfolioLead).orderBy(desc(portfolioLead.createdAt));
+        const rows = await db.select().from(portfolioLead).orderBy(desc(portfolioLead.createdAt));
+
+        // Older rows have the IP baked into serviceNeeded ("Service | IP: 1.2.3.4"). Split it
+        // out on read so filters/stats group correctly without a data migration.
+        const leads = rows.map((l) => {
+            const m = l.serviceNeeded.match(/^(.*?)\s*\|\s*IP:\s*(.*)$/);
+            return m ? { ...l, serviceNeeded: m[1], ipAddress: l.ipAddress ?? m[2] } : l;
+        });
 
         return NextResponse.json({ ok: true, leads });
     } catch (err) {

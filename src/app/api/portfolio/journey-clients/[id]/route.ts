@@ -37,7 +37,7 @@ export async function PATCH(
 
         const steps = await db.query.portfolioJourneyStep.findMany({
             where: (s, { eq }) => eq(s.clientId, id),
-            orderBy: (s, { asc }) => [asc(s.order)],
+            orderBy: (s, { asc }) => [asc(s.order), asc(s.createdAt)],
         });
 
         const updated = { ...updatedClient, steps };

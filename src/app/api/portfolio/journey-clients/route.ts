@@ -24,10 +24,10 @@ export async function GET(req: NextRequest) {
 
         const clients = await db.query.portfolioJourneyClient.findMany({
             where: showAll ? undefined : eq(portfolioJourneyClient.isActive, true),
-            orderBy: [asc(portfolioJourneyClient.order)],
+            orderBy: [asc(portfolioJourneyClient.order), asc(portfolioJourneyClient.createdAt)],
             with: {
                 portfolioJourneySteps: {
-                    orderBy: (steps, { asc }) => [asc(steps.order)],
+                    orderBy: (steps, { asc }) => [asc(steps.order), asc(steps.createdAt)],
                 },
             },
         });

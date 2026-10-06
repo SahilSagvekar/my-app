@@ -20,7 +20,15 @@ export async function scrapeYoutubeChannelInfo(
     url: string
 ): Promise<{ name: string | null; avatarUrl: string | null }> {
     try {
-        const res = await fetch(url, {
+        // Only ever fetch real YouTube pages — this runs server-side on a user-supplied URL.
+        const parsed = new URL(url);
+        const host = parsed.hostname.toLowerCase();
+        const isYoutube =
+            parsed.protocol === 'https:' &&
+            (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com'));
+        if (!isYoutube) return { name: null, avatarUrl: null };
+
+        const res = await fetch(parsed.toString(), {
             headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E8PortfolioBot/1.0)' },
         });
         if (!res.ok) return { name: null, avatarUrl: null };

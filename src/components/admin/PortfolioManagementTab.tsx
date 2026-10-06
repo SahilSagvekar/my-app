@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { persistReorder } from "@/lib/portfolio-reorder";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { PageHeader } from "../ui/page-header";
 import { Button } from "../ui/button";
@@ -214,8 +215,15 @@ function LeadManagement() {
             l.serviceNeeded,
             new Date(l.createdAt).toLocaleString(),
         ]);
-        const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
-        const blob = new Blob([csv], { type: "text/csv" });
+        // Lead data comes from the public form, so neutralise spreadsheet formulas (=, +, -, @)
+        // and escape embedded quotes — a name like `=HYPERLINK(...)` would otherwise run in Excel.
+        const cell = (v: unknown) => {
+            let str = v == null ? "" : String(v);
+            if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+            return `"${str.replace(/"/g, '""')}"`;
+        };
+        const csv = "\uFEFF" + [headers, ...rows].map((r) => r.map(cell).join(",")).join("\r\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -751,23 +759,12 @@ function ContentControl({ sections }: { sections: Category[] }) {
         const swapIdx = direction === "up" ? idx - 1 : idx + 1;
         if (swapIdx < 0 || swapIdx >= sameCat.length) return;
 
-        const swapVideo = sameCat[swapIdx];
         try {
-            await Promise.all([
-                fetch(`/api/portfolio/videos/${video.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: swapVideo.order }),
-                }),
-                fetch(`/api/portfolio/videos/${swapVideo.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: video.order }),
-                }),
-            ]);
+            await persistReorder(sameCat, idx, swapIdx, (id) => `/api/portfolio/videos/${id}`);
             fetchVideos();
         } catch {
             toast.error("Failed to reorder");
+            fetchVideos();
         }
     };
 
@@ -1415,23 +1412,12 @@ function ChannelControl({ category, label }: { category: string; label: string }
         const idx = sorted.findIndex((c) => c.id === channel.id);
         const swapIdx = direction === "up" ? idx - 1 : idx + 1;
         if (swapIdx < 0 || swapIdx >= sorted.length) return;
-        const swapChannel = sorted[swapIdx];
         try {
-            await Promise.all([
-                fetch(`/api/portfolio/channels/${channel.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: swapChannel.order }),
-                }),
-                fetch(`/api/portfolio/channels/${swapChannel.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: channel.order }),
-                }),
-            ]);
+            await persistReorder(sorted, idx, swapIdx, (id) => `/api/portfolio/channels/${id}`);
             fetchChannels();
         } catch {
             toast.error("Failed to reorder");
+            fetchChannels();
         }
     };
 
@@ -1739,23 +1725,12 @@ function HomeCarouselControl() {
         const idx = sorted.findIndex((v) => v.id === video.id);
         const swapIdx = direction === "up" ? idx - 1 : idx + 1;
         if (swapIdx < 0 || swapIdx >= sorted.length) return;
-        const swapVideo = sorted[swapIdx];
         try {
-            await Promise.all([
-                fetch(`/api/portfolio/videos/${video.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: swapVideo.order }),
-                }),
-                fetch(`/api/portfolio/videos/${swapVideo.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: video.order }),
-                }),
-            ]);
+            await persistReorder(sorted, idx, swapIdx, (id) => `/api/portfolio/videos/${id}`);
             fetchVideos();
         } catch {
             toast.error("Failed to reorder");
+            fetchVideos();
         }
     };
 
@@ -2141,23 +2116,12 @@ function PhotoControl() {
         const idx = sorted.findIndex((i) => i.id === img.id);
         const swapIdx = dir === "up" ? idx - 1 : idx + 1;
         if (swapIdx < 0 || swapIdx >= sorted.length) return;
-        const swap = sorted[swapIdx];
         try {
-            await Promise.all([
-                fetch(`/api/portfolio/images/${img.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: swap.order }),
-                }),
-                fetch(`/api/portfolio/images/${swap.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ order: img.order }),
-                }),
-            ]);
+            await persistReorder(sorted, idx, swapIdx, (id) => `/api/portfolio/images/${id}`);
             fetchImages();
         } catch {
             toast.error("Failed to reorder");
+            fetchImages();
         }
     };
 
