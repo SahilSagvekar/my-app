@@ -1039,7 +1039,7 @@ export function ThumbnailReviewModal({
                                                                 <p className="text-xs opacity-70">No {singular}s yet</p>
                                                             </div>
                                                         ) : currentList.map(item => (
-                                                            <div key={item.id} className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5">
+                                                            <div key={item.id} className={`group rounded-lg border p-2.5 ${type === 'titles' && editingId !== item.id ? 'bg-[var(--review-v2-gray-50)] border-transparent' : 'border-[var(--review-border)] bg-[var(--review-bg-tertiary)]'}`}>
                                                                 {editingId === item.id ? (
                                                                     <div className="space-y-1.5">
                                                                         <Input
@@ -1059,11 +1059,11 @@ export function ThumbnailReviewModal({
                                                                     </div>
                                                                 ) : (
                                                                     <div className="flex items-start gap-2">
-                                                                        <p className={`flex-1 text-xs ${type === 'titles' ? 'text-white' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
+                                                                        <p className={`flex-1 text-xs ${type === 'titles' ? 'text-black' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
                                                                         <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <button
                                                                                 onClick={() => startEdit(item.id, item.text)}
-                                                                                className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
+                                                                                className={`p-1 rounded transition-colors ${type === 'titles' ? 'hover:bg-black/10 text-black/50 hover:text-black' : 'hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white'}`}
                                                                                 title={`Edit ${singular}`}
                                                                             >
                                                                                 <PenLine className="h-3 w-3" />
@@ -1071,7 +1071,7 @@ export function ThumbnailReviewModal({
                                                                             <button
                                                                                 onClick={() => deleteItem(type, item.id)}
                                                                                 disabled={type === 'titles' && userRole === 'client' && currentList.length <= 1}
-                                                                                className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                                className={`p-1 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${type === 'titles' ? 'hover:bg-red-500/15 text-black/50 hover:text-red-600' : 'hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400'}`}
                                                                                 title={`Delete ${singular}`}
                                                                             >
                                                                                 <X className="h-3 w-3" />

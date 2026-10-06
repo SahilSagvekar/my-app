@@ -755,7 +755,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                             ) : list.map(item => (
                                                 <div
                                                     key={item.id}
-                                                    className="rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
+                                                    className={`rounded-lg border p-2.5 ${type === 'titles' && !(mobileEditId === item.id && mobileEditType === type) ? 'bg-[var(--review-v2-gray-50)] border-transparent' : 'border-[var(--review-border)] bg-[var(--review-bg-tertiary)]'}`}
                                                 >
                                                     {mobileEditId === item.id && mobileEditType === type ? (
                                                         <div className="space-y-1.5">
@@ -776,18 +776,18 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                                         </div>
                                                     ) : (
                                                         <div className="flex items-start gap-2">
-                                                            <p className={`flex-1 text-sm ${type === 'titles' ? 'text-white' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
+                                                            <p className={`flex-1 text-sm ${type === 'titles' ? 'text-black' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
                                                             <div className="flex gap-1 shrink-0">
                                                                 <button
                                                                     onClick={() => startMobileEdit(type, item.id, item.text)}
-                                                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
+                                                                    className={`p-1.5 rounded transition-colors ${type === 'titles' ? 'hover:bg-black/10 text-black/50 hover:text-black' : 'hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white'}`}
                                                                 >
                                                                     <PenLine className="h-3.5 w-3.5" />
                                                                 </button>
                                                                 <button
                                                                     onClick={() => deleteMobileItem(type, item.id)}
                                                                     disabled={type === 'titles' && p.userRole === 'client' && list.length <= 1}
-                                                                    className="p-1.5 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                                                    className={`p-1.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${type === 'titles' ? 'hover:bg-red-500/15 text-black/50 hover:text-red-600' : 'hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400'}`}
                                                                 >
                                                                     <X className="h-3.5 w-3.5" />
                                                                 </button>

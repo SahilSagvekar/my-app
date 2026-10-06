@@ -1276,7 +1276,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         ) : p.postingTitles.map(item => (
                                             <div
                                                 key={item.id}
-                                                className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
+                                                className={`group rounded-lg border p-2.5 ${editingId === item.id ? 'border-[var(--review-border)] bg-[var(--review-bg-tertiary)]' : 'bg-[var(--review-v2-gray-50)] border-transparent'}`}
                                             >
                                                 {editingId === item.id ? (
                                                     <div className="space-y-1.5">
@@ -1298,11 +1298,11 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-start gap-2">
-                                                        <p className="flex-1 text-xs text-white leading-relaxed break-words min-w-0">{item.text}</p>
+                                                        <p className="flex-1 text-xs text-black leading-relaxed break-words min-w-0">{item.text}</p>
                                                         <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <button
                                                                 onClick={() => startEdit(item.id, item.text)}
-                                                                className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
+                                                                className="p-1 rounded hover:bg-black/10 text-black/50 hover:text-black transition-colors"
                                                                 title="Edit title"
                                                             >
                                                                 <PenLine className="h-3 w-3" />
@@ -1312,7 +1312,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                                     <button
                                                                         onClick={() => deleteItem('titles', item.id)}
                                                                         disabled={p.userRole === 'client' && p.postingTitles.length <= 1}
-                                                                        className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--review-text-muted)]"
+                                                                        className="p-1 rounded hover:bg-red-500/15 text-black/50 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-black/50"
                                                                         title="Delete title"
                                                                     >
                                                                         <X className="h-3 w-3" />
