@@ -15,6 +15,12 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
+function parseDealValue(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[$,\s]/g, ''));
+  return Number.isFinite(n) && n !== 0 ? n : null;
+}
+
 // PATCH /api/sales-leads/[id] — update a lead
 // admin: any lead. sales_manager: own leads + permitted reps' leads. sales: own leads only.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -56,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       tiktok: body.tiktok !== undefined ? !!body.tiktok : existing.tiktok,
       status: body.status ?? existing.status,
       source: body.source ?? existing.source,
-      value: body.value !== undefined ? (body.value ? parseFloat(body.value) : null) : existing.value,
+      value: body.value !== undefined ? parseDealValue(body.value) : existing.value,
       priority: body.priority ?? existing.priority,
       meetingBooked: body.meetingBooked !== undefined ? !!body.meetingBooked : existing.meetingBooked,
       emailed: body.emailed !== undefined ? !!body.emailed : existing.emailed,
@@ -78,19 +84,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const oldStatus = existing.status;
     const dealValue = lead.value;
 
-    // Status changed TO "WON" — auto-create commission
-    if (newStatus === 'WON' && oldStatus !== 'WON' && dealValue && dealValue > 0) {
+    // Lead is WON with a deal value — make sure a commission exists (covers both "status
+    // changed to WON" and "value filled in after it was already WON"). The commission
+    // belongs to the lead's owner, not to whoever (admin/manager) happened to click.
+    if (newStatus === 'WON' && dealValue && dealValue > 0) {
       try {
         const [existingCommission] = await db.select().from(affiliateCommission)
           .where(eq(affiliateCommission.leadId, lead.id)).limit(1);
         if (!existingCommission) {
-          const commissionRate = await getCommissionRateForUser(decoded.userId);
+          const commissionRate = await getCommissionRateForUser(existing.userId);
           const commissionAmt = dealValue * commissionRate;
           const now = new Date();
           const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
           await db.insert(affiliateCommission).values({
             id: createId(),
-            salesUserId: decoded.userId,
+            salesUserId: existing.userId,
             leadId: lead.id,
             clientName: lead.company || lead.name || '',
             dealValue: String(dealValue),
@@ -143,10 +151,21 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       return NextResponse.json({ ok: false, message: 'Forbidden' }, { status: 403 });
     }
 
-    const [existing] = await db.select().from(salesLead)
-      .where(decoded.role === 'admin' ? eq(salesLead.id, id) : and(eq(salesLead.id, id), eq(salesLead.userId, decoded.userId)))
-      .limit(1);
+    const deleteWhere =
+      decoded.role === 'admin'
+        ? eq(salesLead.id, id)
+        : decoded.role === 'sales_manager'
+          ? and(eq(salesLead.id, id), inArray(salesLead.userId, await getVisibleSalesRepIds(Number(decoded.userId))))
+          : and(eq(salesLead.id, id), eq(salesLead.userId, decoded.userId));
+    const [existing] = await db.select().from(salesLead).where(deleteWhere).limit(1);
     if (!existing) return NextResponse.json({ ok: false, message: 'Not found' }, { status: 404 });
+
+    // Paid/approved commissions must not be wiped by deleting the lead
+    const [paidCommission] = await db.select().from(affiliateCommission)
+      .where(eq(affiliateCommission.leadId, id)).limit(1);
+    if (paidCommission && paidCommission.status !== 'PENDING') {
+      return NextResponse.json({ ok: false, message: 'This lead has an approved/paid commission and cannot be deleted' }, { status: 409 });
+    }
 
     // Handle foreign key constraint for commissions
     await db.delete(affiliateCommission).where(eq(affiliateCommission.leadId, id));

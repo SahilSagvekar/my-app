@@ -8,6 +8,7 @@ import { getDbHttp } from '@/lib/db';
 import { user as userTable, salesActivityLog } from '@/lib/db/schema';
 import { asc, eq, gte } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
+import { getESTDate } from '@/lib/est-date';
 
 function getTokenFromCookies(req: Request) {
   const cookieHeader = req.headers.get('cookie');
@@ -32,8 +33,9 @@ export async function GET(req: NextRequest) {
       .where(eq(userTable.role, 'sales'))
       .orderBy(asc(userTable.name));
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
+    // Midnight Eastern, not server-local midnight (Cloudflare Workers run in UTC, which
+    // reset the board at ~8 PM ET).
+    const startOfToday = getESTDate().start;
 
     const events = await db.select({ userId: salesActivityLog.userId, type: salesActivityLog.type })
       .from(salesActivityLog)

@@ -2,7 +2,9 @@ export const dynamic = 'force-dynamic';
 // POST /api/sales-leaderboard/log — log a call/dealClosed/meeting for the current user
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getDbHttp } from '@/lib/db';
+import { salesActivityLog } from '@/lib/db/schema';
+import { createId } from '@/lib/db/id';
 import jwt from 'jsonwebtoken';
 
 function getTokenFromCookies(req: Request) {
@@ -29,8 +31,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, message: 'Invalid type' }, { status: 400 });
     }
 
-    await (prisma as any).salesActivityLog.create({
-      data: { userId: decoded.userId, type },
+    await getDbHttp().insert(salesActivityLog).values({
+      id: createId(),
+      userId: Number(decoded.userId),
+      type,
     });
 
     return NextResponse.json({ ok: true });
