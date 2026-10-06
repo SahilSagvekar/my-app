@@ -11,6 +11,7 @@ import { timeClockEntry, client as clientTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { getCurrentUser2 } from "@/lib/auth";
 import { dbTimestampToIso, formatEasternTime, getESTDateString } from "@/lib/est-date";
+import { usesTimeClock } from "@/lib/time-clock-access";
 import { sendClientSlackWebhook, sendToChannel } from "@/lib/slack";
 
 const MAX_REPORT_LENGTH = 3000;
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Admins don't clock in/out.
-    if (user.role?.toLowerCase() === "admin") {
+    if (!usesTimeClock(user)) {
       return NextResponse.json({ error: "Admins do not use the time clock" }, { status: 403 });
     }
 

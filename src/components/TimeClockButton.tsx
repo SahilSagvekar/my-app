@@ -1,5 +1,5 @@
 // FILE: src/components/TimeClockButton.tsx
-// The header Start/Stop toggle. Renders nothing for admins.
+// The header Start/Stop toggle. Renders nothing for admins (except the owner account).
 // All times are Eastern Time (South Carolina / America/New_York).
 
 'use client';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Clock, Square, Loader2, CheckCircle2 } from 'lucide-react';
 import { useAuth } from './auth/AuthContext';
 import { formatEasternTime } from '@/lib/est-date';
+import { usesTimeClock } from '@/lib/time-clock-access';
 
 type ClockStatus =
   | { state: 'loading' }
@@ -32,7 +33,7 @@ export function TimeClockButton() {
   const [clientId, setClientId] = useState('');
   const [report, setReport] = useState('');
 
-  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const isAdmin = !!user && !usesTimeClock(user);
 
   const fetchStatus = useCallback(async () => {
     try {
