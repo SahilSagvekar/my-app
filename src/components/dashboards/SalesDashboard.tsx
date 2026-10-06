@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { dbTimestampToIso } from '@/lib/est-date';
 import { ImportLeadsDialog } from './sales/ImportLeadsDialog';
 import { SalesPipelineToolbar } from './sales/SalesPipelineToolbar';
 
@@ -108,15 +109,50 @@ function dbLeadToLocal(l: any): Lead {
     linkedin: !!l.linkedin, twitter: !!l.twitter, tiktok: !!l.tiktok,
     status: l.status || 'NEW',
     source: l.source || '', value: l.value || null, priority: l.priority || '',
-    meetingBooked: l.meetingBooked, emailed: l.emailed,
-    called: l.called, texted: l.texted,
-    notes: l.notes, emailTemplate: l.emailTemplate,
-    dmAt: l.dmAt, meetingAt: l.meetingAt, emailedAt: l.emailedAt,
-    calledAt: l.calledAt, textedAt: l.textedAt,
-    createdAt: l.createdAt, updatedAt: l.updatedAt,
+    meetingBooked: !!l.meetingBooked, emailed: !!l.emailed,
+    called: !!l.called, texted: !!l.texted,
+    // DB timestamps come back as bare strings with no timezone ("2026-09-26 08:16:00.000").
+    // They are UTC; without this, `new Date()` reads them as the browser's local time and
+    // every activity/meeting time displays shifted.
+    dmAt: isoOrUndefined(l.dmAt), meetingAt: isoOrUndefined(l.meetingAt), emailedAt: isoOrUndefined(l.emailedAt),
+    calledAt: isoOrUndefined(l.calledAt), textedAt: isoOrUndefined(l.textedAt),
+    createdAt: isoOrUndefined(l.createdAt), updatedAt: isoOrUndefined(l.updatedAt),
     metadata: l.metadata || {},
+    notes: l.notes ?? '', emailTemplate: l.emailTemplate ?? '',
     _saved: true, _dirty: false, _committing: false,
   };
+}
+
+function isoOrUndefined(v: unknown): string | undefined {
+  if (!v) return undefined;
+  try { return dbTimestampToIso(v as string); } catch { return undefined; }
+}
+
+// Fields that are persisted to the server — used both to build request bodies and to
+// detect edits that happened while a save was in flight.
+function leadBody(lead: Lead) {
+  return {
+    name: lead.name, company: lead.company, email: lead.email,
+    phone: lead.phone, profileUrl: lead.profileUrl, postUrl: lead.postUrl,
+    socials: lead.socials, status: lead.status,
+    source: lead.source, value: lead.value, priority: lead.priority,
+    instagram: lead.instagram, facebook: lead.facebook, linkedin: lead.linkedin,
+    twitter: lead.twitter, tiktok: lead.tiktok,
+    meetingBooked: lead.meetingBooked, emailed: lead.emailed,
+    called: lead.called, texted: lead.texted,
+    notes: lead.notes, emailTemplate: lead.emailTemplate,
+    metadata: lead.metadata,
+    dmAt: lead.dmAt || null, meetingAt: lead.meetingAt || null,
+    emailedAt: lead.emailedAt || null, calledAt: lead.calledAt || null,
+    textedAt: lead.textedAt || null,
+  };
+}
+
+// Quote every CSV cell and neutralise spreadsheet-formula injection (=, +, -, @).
+function csvCell(v: unknown): string {
+  let str = v == null ? '' : String(v);
+  if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+  return `"${str.replace(/"/g, '""')}"`;
 }
 
 function formatToEST(iso: string) {
@@ -1101,6 +1137,7 @@ export function SalesDashboard() {
   const leadsRef = useRef<Lead[]>([]);
   leadsRef.current = leads;
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const scheduleAutoSaveRef = useRef<(id: string) => void>(() => {});
 
   const loadDashboardData = useCallback(async ({ signal, silent = false }: { signal?: AbortSignal; silent?: boolean } = {}) => {
     try {
@@ -1140,38 +1177,48 @@ export function SalesDashboard() {
 
   const persistLead = useCallback(async (lead: Lead) => {
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, _committing: true } : l));
-    const body = {
-      name: lead.name, company: lead.company, email: lead.email,
-      phone: lead.phone, profileUrl: lead.profileUrl, postUrl: lead.postUrl,
-      socials: lead.socials, status: lead.status,
-      source: lead.source, value: lead.value, priority: lead.priority,
-      instagram: lead.instagram, facebook: lead.facebook, linkedin: lead.linkedin,
-      twitter: lead.twitter, tiktok: lead.tiktok,
-      meetingBooked: lead.meetingBooked, emailed: lead.emailed,
-      called: lead.called, texted: lead.texted,
-      notes: lead.notes, emailTemplate: lead.emailTemplate,
-      metadata: lead.metadata,
-      dmAt: lead.dmAt || null, meetingAt: lead.meetingAt || null,
-      emailedAt: lead.emailedAt || null, calledAt: lead.calledAt || null,
-      textedAt: lead.textedAt || null,
-    };
+    const body = leadBody(lead);
+    const sentSnapshot = JSON.stringify(body);
+    // After a save, keep the row dirty (and re-queue a save) if the user kept editing
+    // while the request was in flight — otherwise those edits were silently lost.
+    const editedSince = (current: Lead) => JSON.stringify(leadBody(current)) !== sentSnapshot;
     try {
       if (!lead._saved) {
         const res = await fetch('/api/sales-leads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();
-        if (!data.ok) throw new Error(data.message || 'Failed');
-        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, id: data.lead.id, _saved: true, _dirty: false, _committing: false, createdAt: data.lead.createdAt, updatedAt: data.lead.updatedAt } : l));
+        if (!res.ok || !data.ok) throw new Error(data.message || 'Failed');
+        const newId: string = data.lead.id;
+        let needsResave = false;
+        setLeads(prev => prev.map(l => {
+          if (l.id !== lead.id) return l;
+          needsResave = editedSince(l);
+          return { ...l, id: newId, _saved: true, _dirty: needsResave, _committing: false, createdAt: data.lead.createdAt, updatedAt: data.lead.updatedAt };
+        }));
+        // The draft's temporary id is gone — repoint the open drawer at the saved row,
+        // otherwise every further edit in the drawer targets an id that no longer exists.
+        setDrawerLead(prev => prev && prev.id === lead.id
+          ? { ...prev, id: newId, _saved: true, _committing: false, createdAt: data.lead.createdAt, updatedAt: data.lead.updatedAt }
+          : prev);
+        if (needsResave) scheduleAutoSaveRef.current(newId);
         if (data.duplicate) {
           toast.warning(`Possible duplicate ${data.duplicate.matchedField}: "${data.duplicate.leadName}" already added by ${data.duplicate.ownerName}`);
         }
       } else {
         const res = await fetch(`/api/sales-leads/${lead.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();
-        if (!data.ok) throw new Error(data.message || 'Failed');
-        setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, _dirty: false, _committing: false, updatedAt: data.lead.updatedAt } : l));
+        if (!res.ok || !data.ok) throw new Error(data.message || 'Failed');
+        let needsResave = false;
+        setLeads(prev => prev.map(l => {
+          if (l.id !== lead.id) return l;
+          needsResave = editedSince(l);
+          return { ...l, _dirty: needsResave, _committing: false, updatedAt: data.lead.updatedAt };
+        }));
+        if (needsResave) scheduleAutoSaveRef.current(lead.id);
       }
     } catch (err: any) {
-      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, _committing: false } : l));
+      // Leave the row dirty so the failed save is retried on the next edit/sync instead of
+      // looking saved when it isn't.
+      setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, _committing: false, _dirty: l._saved ? true : l._dirty } : l));
       toast.error(err.message || 'Failed to save');
     }
   }, []);
@@ -1180,11 +1227,14 @@ export function SalesDashboard() {
     if (saveTimers.current[id]) clearTimeout(saveTimers.current[id]);
     saveTimers.current[id] = setTimeout(() => {
       const lead = leadsRef.current.find(l => l.id === id);
-      if (!lead || lead._committing) return;
+      if (!lead) return;
+      // A save is already in flight — try again shortly instead of dropping this edit.
+      if (lead._committing) { scheduleAutoSaveRef.current(id); return; }
       if (lead._saved && lead._dirty) { persistLead(lead); return; }
       if (!lead._saved && lead.name.trim()) persistLead(lead);
     }, 1500);
   }, [persistLead]);
+  scheduleAutoSaveRef.current = scheduleAutoSave;
 
   const updateLead = useCallback((id: string, patch: Partial<Lead>) => {
     setLeads(prev => prev.map(l => l.id === id ? { ...l, ...patch, _dirty: l._saved ? true : l._dirty } : l));
@@ -1204,8 +1254,15 @@ export function SalesDashboard() {
     if (saveTimers.current[id]) { clearTimeout(saveTimers.current[id]); delete saveTimers.current[id]; }
     setLeads(prev => prev.filter(l => l.id !== id));
     if (!lead?._saved) return;
-    try { await fetch(`/api/sales-leads/${id}`, { method: 'DELETE' }); toast.success('Lead deleted'); }
-    catch { toast.error('Failed to delete'); }
+    try {
+      const res = await fetch(`/api/sales-leads/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      toast.success('Lead deleted');
+    } catch {
+      // Server refused (or network failed) — put the row back instead of pretending it's gone.
+      setLeads(prev => prev.some(l => l.id === id) ? prev : [...prev, lead]);
+      toast.error('Failed to delete');
+    }
   }, []);
 
   const toggleGroup = (id: string) => setCollapsedGroups(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -1233,10 +1290,10 @@ export function SalesDashboard() {
       l.name, l.company, l.status, l.priority || '—', l.email, l.phone, l.profileUrl, l.postUrl, l.socials,
       l.instagram ? 'Yes' : 'No', l.facebook ? 'Yes' : 'No', l.linkedin ? 'Yes' : 'No', l.twitter ? 'Yes' : 'No', l.tiktok ? 'Yes' : 'No',
       l.value ?? '', l.source,
-      `"${parseActivities(l.metadata?.__activities).map(a => `${a.type} @ ${new Date(a.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}${a.location ? ` (${a.location})` : ''}`).join('; ')}"`,
-      `"${l.notes.replace(/"/g, '""')}"`,
+      parseActivities(l.metadata?.__activities).map(a => `${a.type} @ ${new Date(a.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}${a.location ? ` (${a.location})` : ''}`).join('; '),
+      l.notes,
     ]);
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
@@ -1424,18 +1481,10 @@ export function SalesDashboard() {
         onClose={() => setMassEmailModal(false)}
         onSent={() => {
           setSelectedLeads(new Set());
-          (async () => {
-            const res = await fetch('/api/sales-leads');
-            const data = await res.json();
-            if (data.ok) setLeads(data.leads.map(dbLeadToLocal));
-          })();
+          loadDashboardData({ silent: true });
         }} />
       <ImportLeadsDialog open={showImportDialog} onOpenChange={setShowImportDialog}
-        onImported={async () => {
-          const res = await fetch('/api/sales-leads', { credentials: 'include' });
-          const data = await res.json();
-          if (data.ok) setLeads(data.leads.map(dbLeadToLocal));
-        }} />
+        onImported={() => loadDashboardData({ silent: true })} />
     </div>
   );
 }

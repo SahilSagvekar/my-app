@@ -125,7 +125,7 @@ export async function POST(
     });
 
     // ── Invalidate cache ───────────────────────────────────────────────────
-    await redis.del('clients:all');
+    try { await redis?.del('clients:all'); } catch (e) { console.warn('[Convert Lead] Cache invalidation failed:', e); }
 
     // ── Onboarding: Slack channel + welcome email (non-blocking). This
     // route has no UI for choosing welcome-email vs magic-link (unlike

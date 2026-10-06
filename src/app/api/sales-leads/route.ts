@@ -13,6 +13,14 @@ function getTokenFromCookies(req: Request) {
   return match ? match[1] : null;
 }
 
+// Client sends `value: null` for blank cells; parseFloat(null) is NaN, which used to be
+// written straight into the Float column. Normalise anything non-numeric to null.
+function parseDealValue(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[$,\s]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
 // GET /api/sales-leads — sales user fetches their own rows
 export async function GET(req: NextRequest) {
   const db = getDbHttp();
@@ -104,7 +112,7 @@ export async function POST(req: NextRequest) {
       tiktok: !!body.tiktok,
       status: body.status ?? 'NEW',
       source: body.source ?? '',
-      value: body.value !== undefined ? parseFloat(body.value) : null,
+      value: parseDealValue(body.value),
       priority: body.priority ?? '',
       meetingBooked: !!body.meetingBooked,
       emailed: !!body.emailed,

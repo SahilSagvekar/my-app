@@ -36,7 +36,9 @@ interface ImportRow {
   tiktok?: boolean | string;
 }
 
-const VALID_STATUSES = ['NEW', 'CONTACTED', 'INTERESTED', 'PROPOSAL', 'WON', 'LOST', 'FOLLOW_UP'];
+// Must match the status columns the Sales dashboard actually renders — a lead whose status
+// isn't one of these is filtered out of every group and becomes invisible.
+const VALID_STATUSES = ['NEW', 'CONTACTED', 'WORKING', 'QUALIFIED', 'WON', 'LOST', 'NOT_INTERESTED'];
 
 function toBoolean(v: any): boolean {
   if (typeof v === 'boolean') return v;
@@ -45,18 +47,24 @@ function toBoolean(v: any): boolean {
   return false;
 }
 
+function parseValue(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[$,\s]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
 function normaliseStatus(raw: string | undefined): string {
   if (!raw) return 'NEW';
-  const upper = raw.toUpperCase().trim().replace(/\s+/g, '_');
-  // Fuzzy match
-  if (upper.includes('NEW')) return 'NEW';
-  if (upper.includes('CONTACT')) return 'CONTACTED';
-  if (upper.includes('INTEREST')) return 'INTERESTED';
-  if (upper.includes('PROPOSAL') || upper.includes('QUOT')) return 'PROPOSAL';
+  const upper = raw.toUpperCase().trim().replace(/[\s-]+/g, '_');
+  if (VALID_STATUSES.includes(upper)) return upper;
+  // Fuzzy match — order matters ("NOT INTERESTED" must not fall into a positive bucket)
+  if (upper.includes('NOT_INTEREST') || upper.includes('UNINTEREST') || upper.includes('DECLINE')) return 'NOT_INTERESTED';
+  if (upper.includes('LOST') || upper.includes('DEAD')) return 'LOST';
   if (upper.includes('WON') || upper.includes('CLOSED') || upper.includes('SIGNED')) return 'WON';
-  if (upper.includes('LOST') || upper.includes('DECLINE')) return 'LOST';
-  if (upper.includes('FOLLOW')) return 'FOLLOW_UP';
-  return VALID_STATUSES.includes(upper) ? upper : 'NEW';
+  if (upper.includes('QUALIF') || upper.includes('INTEREST') || upper.includes('PROPOSAL') || upper.includes('QUOT')) return 'QUALIFIED';
+  if (upper.includes('WORK') || upper.includes('FOLLOW')) return 'WORKING';
+  if (upper.includes('CONTACT')) return 'CONTACTED';
+  return 'NEW';
 }
 
 export async function POST(req: NextRequest) {
@@ -123,7 +131,7 @@ export async function POST(req: NextRequest) {
           status: normaliseStatus(row.status),
           source: (row.source || '').trim(),
           notes: (row.notes || '').trim(),
-          value: row.value != null && row.value !== '' ? parseFloat(String(row.value)) : null,
+          value: parseValue(row.value),
           priority: (row.priority || '').trim(),
           instagram: toBoolean(row.instagram),
           facebook: toBoolean(row.facebook),
