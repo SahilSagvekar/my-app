@@ -1268,21 +1268,15 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         <span className="text-xs text-[var(--review-text-muted)]">{newTexts.titles.length} / {TITLE_CHAR_LIMIT}</span>
                                     </div>
 
-                                    {/* Titles render as white pill chips (same look as the client hashtag chips) */}
-                                    <div className="flex flex-wrap gap-2 mt-3">
+                                    <div className="space-y-2 mt-3">
                                         {p.postingTitles.length === 0 ? (
-                                            <div className="w-full text-center py-4 text-[var(--review-text-muted)]">
+                                            <div className="text-center py-4 text-[var(--review-text-muted)]">
                                                 <p className="text-xs opacity-70">No titles yet</p>
                                             </div>
                                         ) : p.postingTitles.map(item => (
                                             <div
                                                 key={item.id}
-                                                className={editingId === item.id
-                                                    ? 'group w-full rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5'
-                                                    : 'group inline-flex max-w-full items-center gap-1 rounded-3xl py-2 pl-4 pr-2 transition-opacity hover:opacity-95'}
-                                                style={editingId === item.id
-                                                    ? undefined
-                                                    : { background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }}
+                                                className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
                                             >
                                                 {editingId === item.id ? (
                                                     <div className="space-y-1.5">
@@ -1303,12 +1297,12 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <>
-                                                        <span className="min-w-0 break-words text-sm font-bold leading-snug">{item.text}</span>
-                                                        <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                                    <div className="flex items-start gap-2">
+                                                        <p className="flex-1 text-xs text-white leading-relaxed break-words min-w-0">{item.text}</p>
+                                                        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <button
                                                                 onClick={() => startEdit(item.id, item.text)}
-                                                                className="p-1 rounded-full hover:bg-black/10 text-black/50 hover:text-black transition-colors"
+                                                                className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
                                                                 title="Edit title"
                                                             >
                                                                 <PenLine className="h-3 w-3" />
@@ -1318,7 +1312,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                                     <button
                                                                         onClick={() => deleteItem('titles', item.id)}
                                                                         disabled={p.userRole === 'client' && p.postingTitles.length <= 1}
-                                                                        className="p-1 rounded-full hover:bg-red-500/15 text-black/50 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-black/50"
+                                                                        className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--review-text-muted)]"
                                                                         title="Delete title"
                                                                     >
                                                                         <X className="h-3 w-3" />
@@ -1331,7 +1325,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                                 )}
                                                             </Tooltip>
                                                         </div>
-                                                    </>
+                                                    </div>
                                                 )}
                                             </div>
                                         ))}

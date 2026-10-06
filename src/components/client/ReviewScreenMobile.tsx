@@ -749,19 +749,13 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                         </div>
 
                                         {/* Items */}
-                                        {/* Titles render as white pill chips (same look as the client hashtag chips) */}
-                                        <div className={type === 'titles' ? 'px-3 py-3 flex flex-wrap gap-2' : 'px-3 py-2 space-y-2'}>
+                                        <div className="px-3 py-2 space-y-2">
                                             {list.length === 0 ? (
-                                                <p className="w-full text-xs text-[var(--review-text-muted)] text-center py-3 opacity-70">No {singular}s yet</p>
-                                            ) : list.map(item => {
-                                                const isChip = type === 'titles' && !(mobileEditId === item.id && mobileEditType === type);
-                                                return (
+                                                <p className="text-xs text-[var(--review-text-muted)] text-center py-3 opacity-70">No {singular}s yet</p>
+                                            ) : list.map(item => (
                                                 <div
                                                     key={item.id}
-                                                    className={isChip
-                                                        ? 'inline-flex max-w-full items-center rounded-3xl py-2 pl-4 pr-2'
-                                                        : 'w-full rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5'}
-                                                    style={isChip ? { background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' } : undefined}
+                                                    className="rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5"
                                                 >
                                                     {mobileEditId === item.id && mobileEditType === type ? (
                                                         <div className="space-y-1.5">
@@ -781,25 +775,19 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <div className={`flex gap-2 ${isChip ? 'items-center' : 'items-start'}`}>
-                                                            <p className={isChip
-                                                                ? 'min-w-0 break-words text-sm font-bold leading-snug'
-                                                                : `flex-1 text-sm ${type === 'titles' ? 'text-white' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
-                                                            <div className="flex gap-0.5 shrink-0">
+                                                        <div className="flex items-start gap-2">
+                                                            <p className={`flex-1 text-sm ${type === 'titles' ? 'text-white' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
+                                                            <div className="flex gap-1 shrink-0">
                                                                 <button
                                                                     onClick={() => startMobileEdit(type, item.id, item.text)}
-                                                                    className={isChip
-                                                                        ? 'p-1.5 rounded-full hover:bg-black/10 text-black/50 hover:text-black transition-colors'
-                                                                        : 'p-1.5 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors'}
+                                                                    className="p-1.5 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
                                                                 >
                                                                     <PenLine className="h-3.5 w-3.5" />
                                                                 </button>
                                                                 <button
                                                                     onClick={() => deleteMobileItem(type, item.id)}
                                                                     disabled={type === 'titles' && p.userRole === 'client' && list.length <= 1}
-                                                                    className={isChip
-                                                                        ? 'p-1.5 rounded-full hover:bg-red-500/15 text-black/50 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed'
-                                                                        : 'p-1.5 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed'}
+                                                                    className="p-1.5 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                                                 >
                                                                     <X className="h-3.5 w-3.5" />
                                                                 </button>
@@ -807,8 +795,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                                         </div>
                                                     )}
                                                 </div>
-                                                );
-                                            })}
+                                            ))}
                                         </div>
                                     </div>
                                 );

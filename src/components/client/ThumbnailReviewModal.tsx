@@ -1033,22 +1033,13 @@ export function ThumbnailReviewModal({
                                                     </div>
 
                                                     {/* List items */}
-                                                    {/* Titles render as white pill chips (same look as the client hashtag chips) */}
-                                                    <div className={type === 'titles' ? 'px-3 flex flex-wrap gap-2 mt-2' : 'px-3 space-y-2 mt-2'}>
+                                                    <div className="px-3 space-y-2 mt-2">
                                                         {currentList.length === 0 ? (
-                                                            <div className="w-full text-center py-4 text-[var(--review-text-muted)]">
+                                                            <div className="text-center py-4 text-[var(--review-text-muted)]">
                                                                 <p className="text-xs opacity-70">No {singular}s yet</p>
                                                             </div>
-                                                        ) : currentList.map(item => {
-                                                            const isChip = type === 'titles' && editingId !== item.id;
-                                                            return (
-                                                            <div
-                                                                key={item.id}
-                                                                className={isChip
-                                                                    ? 'group inline-flex max-w-full items-center rounded-3xl py-2 pl-4 pr-2'
-                                                                    : 'group w-full rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5'}
-                                                                style={isChip ? { background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' } : undefined}
-                                                            >
+                                                        ) : currentList.map(item => (
+                                                            <div key={item.id} className="group rounded-lg border border-[var(--review-border)] bg-[var(--review-bg-tertiary)] p-2.5">
                                                                 {editingId === item.id ? (
                                                                     <div className="space-y-1.5">
                                                                         <Input
@@ -1067,16 +1058,12 @@ export function ThumbnailReviewModal({
                                                                         </div>
                                                                     </div>
                                                                 ) : (
-                                                                    <div className={`flex gap-2 ${isChip ? 'items-center' : 'items-start'}`}>
-                                                                        <p className={isChip
-                                                                            ? 'min-w-0 break-words text-sm font-bold leading-snug'
-                                                                            : `flex-1 text-xs ${type === 'titles' ? 'text-white' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
-                                                                        <div className="flex gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                                                    <div className="flex items-start gap-2">
+                                                                        <p className={`flex-1 text-xs ${type === 'titles' ? 'text-white' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
+                                                                        <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <button
                                                                                 onClick={() => startEdit(item.id, item.text)}
-                                                                                className={isChip
-                                                                                    ? 'p-1 rounded-full hover:bg-black/10 text-black/50 hover:text-black transition-colors'
-                                                                                    : 'p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors'}
+                                                                                className="p-1 rounded hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white transition-colors"
                                                                                 title={`Edit ${singular}`}
                                                                             >
                                                                                 <PenLine className="h-3 w-3" />
@@ -1084,9 +1071,7 @@ export function ThumbnailReviewModal({
                                                                             <button
                                                                                 onClick={() => deleteItem(type, item.id)}
                                                                                 disabled={type === 'titles' && userRole === 'client' && currentList.length <= 1}
-                                                                                className={isChip
-                                                                                    ? 'p-1 rounded-full hover:bg-red-500/15 text-black/50 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed'
-                                                                                    : 'p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed'}
+                                                                                className="p-1 rounded hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                                                                 title={`Delete ${singular}`}
                                                                             >
                                                                                 <X className="h-3 w-3" />
@@ -1095,8 +1080,7 @@ export function ThumbnailReviewModal({
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            );
-                                                        })}
+                                                        ))}
                                                     </div>
                                                 </div>
                                             );
