@@ -7,13 +7,11 @@ import {
   Send,
   Download,
   Check,
-  Image as ImageIcon,
 } from 'lucide-react';
 import {
   getTaskCardThumbnailUrl,
   taskThumbnailFallbackLabel,
 } from '@/lib/task-thumbnail';
-import { getDeliverableBadge } from '@/lib/deliverable-badge';
 
 interface TaskFile {
   id: string;
@@ -95,37 +93,11 @@ function getTaskLatestVersion(files?: TaskFile[]): number {
   return maxVer;
 }
 
-// Same count the QC cards show next to the image icon: image / thumbnail /
-// tile / cover files, falling back to the total file count.
-function getImageFilesCount(files?: TaskFile[]): number {
-  const list = files || [];
-  const images = list.filter(
-    (f) =>
-      (f.mimeType || '').startsWith('image/') ||
-      f.folderType === 'thumbnails' ||
-      f.folderType === 'tiles' ||
-      f.folderType === 'covers' ||
-      (f.name && /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name))
-  ).length;
-  return images || list.length;
-}
-
 function formatCardDate(dateVal?: string | null): string {
   if (!dateVal) return '';
   const d = new Date(dateVal);
   if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function getRawDeliverableType(task: ClientTask): string {
-  const t =
-    task.deliverableType ||
-    task.monthlyDeliverable?.type ||
-    task.oneOffDeliverable?.type ||
-    '';
-  if (t) return t;
-  // Text posts only carry their type on taskType.
-  return (task.taskType || '').toLowerCase().includes('text post') ? 'text post' : '';
 }
 
 export const ClientTaskCard = memo(function ClientTaskCard({
@@ -150,9 +122,6 @@ export const ClientTaskCard = memo(function ClientTaskCard({
 
   // Footer info (same as the QC review cards)
   const contentName = task.title || cardTitle;
-  const deliverableBadge = getDeliverableBadge(getRawDeliverableType(task), task.title);
-  const latestVersion = getTaskLatestVersion(task.files);
-  const imageFilesCount = getImageFilesCount(task.files);
   const dateLabel = formatCardDate(task.dueDate || task.createdAt);
 
   // Desktop app check for local cached files
@@ -233,30 +202,6 @@ export const ClientTaskCard = memo(function ClientTaskCard({
             <span className="shrink-0">{dateLabel}</span>
           </div>
         )}
-
-        {/* Row 3: Deliverable type, version & media count */}
-        <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/70 mt-1">
-          <div className="flex items-center gap-1.5 min-w-0">
-            {deliverableBadge && (
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold tracking-wide uppercase shrink-0 ${deliverableBadge.colorClass}`}
-              >
-                {deliverableBadge.label}
-              </span>
-            )}
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold bg-[#27272a] text-zinc-300 shrink-0">
-              V{latestVersion}
-            </span>
-          </div>
-
-          <div
-            className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 shrink-0"
-            title={`${imageFilesCount} file(s)`}
-          >
-            <ImageIcon className="h-3.5 w-3.5 stroke-[1.75]" />
-            <span>{imageFilesCount}</span>
-          </div>
-        </div>
 
         {/* Primary Action Button: Review */}
         <Button
