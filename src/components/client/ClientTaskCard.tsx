@@ -2,6 +2,7 @@
 
 import { memo, useState, useEffect } from 'react';
 import { Button } from '../ui/button';
+import { getDeliverableBadge } from '@/lib/deliverable-badge';
 import {
   Eye,
   Send,
@@ -100,6 +101,23 @@ function formatCardDate(dateVal?: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// Raw deliverable type for the label ("Review Short Form", "Review Hard Post"...).
+function getRawDeliverableType(task: ClientTask): string {
+  const t =
+    task.deliverableType ||
+    task.monthlyDeliverable?.type ||
+    task.oneOffDeliverable?.type ||
+    '';
+  if (t) return t;
+  // Text posts only carry their type on taskType.
+  return (task.taskType || '').toLowerCase().includes('text post') ? 'text post' : '';
+}
+
+// "SHORT FORM" -> "Short Form"
+function toTitleCase(label: string): string {
+  return label.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export const ClientTaskCard = memo(function ClientTaskCard({
   task,
   isSelected,
@@ -123,6 +141,8 @@ export const ClientTaskCard = memo(function ClientTaskCard({
   // Footer info (same as the QC review cards)
   const contentName = task.title || cardTitle;
   const dateLabel = formatCardDate(task.dueDate || task.createdAt);
+  const typeBadge = getDeliverableBadge(getRawDeliverableType(task), task.title);
+  const reviewLabel = typeBadge ? `Review ${toTitleCase(typeBadge.label)}` : 'Review';
 
   // Desktop app check for local cached files
   const [isFullyDownloaded, setIsFullyDownloaded] = useState(false);
@@ -213,7 +233,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
           }}
         >
           <Eye className="h-4 w-4 stroke-[2.2]" />
-          Review
+          {reviewLabel}
         </Button>
 
         {/* Secondary Actions Row: Share & Download */}
