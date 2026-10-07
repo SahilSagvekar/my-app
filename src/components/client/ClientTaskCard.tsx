@@ -94,13 +94,6 @@ function getTaskLatestVersion(files?: TaskFile[]): number {
   return maxVer;
 }
 
-function formatCardDate(dateVal?: string | null): string {
-  if (!dateVal) return '';
-  const d = new Date(dateVal);
-  if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 // Raw deliverable type for the label ("Review Short Form", "Review Hard Post"...).
 function getRawDeliverableType(task: ClientTask): string {
   const t =
@@ -140,7 +133,6 @@ export const ClientTaskCard = memo(function ClientTaskCard({
 
   // Footer info (same as the QC review cards)
   const contentName = task.title || cardTitle;
-  const dateLabel = formatCardDate(task.dueDate || task.createdAt);
   const typeBadge = getDeliverableBadge(getRawDeliverableType(task), task.title);
   const reviewLabel = typeBadge ? `Review ${toTitleCase(typeBadge.label)}` : 'Review';
 
@@ -215,13 +207,6 @@ export const ClientTaskCard = memo(function ClientTaskCard({
         >
           {contentName}
         </h4>
-
-        {/* Row 2: Date */}
-        {dateLabel && (
-          <div className="flex items-center text-xs text-zinc-400 font-normal leading-none">
-            <span className="shrink-0">{dateLabel}</span>
-          </div>
-        )}
 
         {/* Primary Action Button: Review */}
         <Button
