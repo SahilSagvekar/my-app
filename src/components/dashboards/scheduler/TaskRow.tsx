@@ -121,24 +121,24 @@ export function TaskRow({
     return (
         <React.Fragment>
             {/* Main Row */}
-            <tr className={`hover:bg-gray-50 transition-colors ${task.status === 'SCHEDULED' ? 'bg-green-50' : ''} ${isSelected ? 'bg-blue-50' : ''}`}>
+            <tr className={`border-t border-gray-100 hover:bg-gray-50/70 transition-colors ${isSelected ? 'bg-blue-50/60' : ''}`}>
 
                 {/* Checkbox */}
-                <td className="px-3 py-3">
+                <td className="px-4 py-5">
                     <Checkbox checked={isSelected} onCheckedChange={onSelect} />
                 </td>
 
                 {/* Expand */}
-                <td className="px-2 py-3">
-                    <button onClick={onToggle} className="p-1 hover:bg-gray-200 rounded">
+                <td className="px-1 py-5">
+                    <button onClick={onToggle} className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded">
                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                     </button>
                 </td>
 
                 {/* Title */}
-                <td className="px-3 py-3 max-w-[200px]">
+                <td className="px-3 py-5 max-w-[240px]">
                     <div className="flex items-center gap-1.5">
-                        <p className="font-medium truncate" title={task.title}>{task.title}</p>
+                        <p className="font-semibold text-gray-900 truncate" title={task.title}>{task.title}</p>
                         {task.isSponsored && (
                             <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded">
                                 ★ SPONS
@@ -155,6 +155,16 @@ export function TaskRow({
                             </span>
                         )}
                     </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500">
+                        <span className="truncate">{task.client?.companyName || task.client?.name || ''}</span>
+                        {(task.deliverableType || '').toLowerCase().includes('short form') && task.client?.requiresCoverImage && (
+                            task.files.some((f) => f.folderType === 'covers') ? (
+                                <span title="Cover image uploaded"><Check className="h-3.5 w-3.5 text-green-600" /></span>
+                            ) : (
+                                <span title="No cover image uploaded yet"><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /></span>
+                            )
+                        )}
+                    </div>
                     <div className="mt-1" onClick={(e) => e.stopPropagation()}>
                         <TagPicker
                             taskId={task.id}
@@ -166,14 +176,14 @@ export function TaskRow({
                 </td>
 
                 {/* Editor */}
-                <td className="px-3 py-3">
-                    <span className="text-sm truncate block max-w-[140px]" title={task.editor?.name || ''}>
+                <td className="px-3 py-5">
+                    <span className="text-sm text-gray-700 truncate block max-w-[140px]" title={task.editor?.name || ''}>
                         {task.editor?.name || <span className="text-muted-foreground">—</span>}
                     </span>
                 </td>
 
                 {/* Posted Date */}
-                <td className="px-3 py-3 relative">
+                <td className="px-3 py-5 relative">
                     {showDatePicker ? (
                         <div className="flex items-center gap-1">
                             <input
@@ -217,87 +227,15 @@ export function TaskRow({
                     )}
                 </td>
 
-                {/* Details: Client / Editor / Files */}
-                <td className="px-2 py-3 text-center">
-                    <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Client, editor & files">
-                                <Info className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" sideOffset={4} className="w-64" onCloseAutoFocus={(e) => e.preventDefault()}>
-                            <div className="px-2 py-1.5">
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Client</p>
-                                <p className="text-xs mt-0.5">{task.client?.companyName || task.client?.name || task.clientId}</p>
-                            </div>
-                            <div className="px-2 py-1.5">
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Editor</p>
-                                <p className="text-xs text-blue-600 mt-0.5">{task.editor?.name || '-'}</p>
-                            </div>
-                            <div className="px-2 py-1.5">
-                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Files</p>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                    {imageFiles.length > 0 && (
-                                        <div className="flex items-center gap-1 flex-wrap">
-                                            {imageFiles.map((file) => {
-                                                const url = getFileUrl(file);
-                                                return url ? (
-                                                    <button
-                                                        key={file.id}
-                                                        onClick={(e) => { e.stopPropagation(); onPreviewFile(file); }}
-                                                        className="w-8 h-8 rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-primary/40 transition-all flex-shrink-0"
-                                                        title={file.name}
-                                                    >
-                                                        <img src={url} alt={file.name} className="w-full h-full object-cover" />
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        key={file.id}
-                                                        onClick={(e) => { e.stopPropagation(); onPreviewFile(file); }}
-                                                        className="w-8 h-8 rounded border border-gray-200 bg-gray-50 flex items-center justify-center hover:ring-2 hover:ring-primary/40 transition-all flex-shrink-0"
-                                                        title={file.name}
-                                                    >
-                                                        <ImageIcon className="h-3 w-3 text-emerald-500" />
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                    {videoFiles.length > 0 && (
-                                        <Badge variant="outline" className="text-xs px-1.5">
-                                            <Video className="h-3 w-3 mr-1" />{videoFiles.length}
-                                        </Badge>
-                                    )}
-                                    {task.files.length === 0 && <span className="text-muted-foreground text-xs">-</span>}
-                                </div>
-                            </div>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </td>
-
-                {/* Cover image check — only meaningful for Short Form tasks on clients that require one */}
-                <td className="px-2 py-3 text-center">
-                    {(task.deliverableType || '').toLowerCase().includes('short form') && task.client?.requiresCoverImage ? (
-                        task.files.some((f) => f.folderType === 'covers') ? (
-                            <span title="Cover image uploaded" className="inline-flex items-center justify-center">
-                                <Check className="h-4 w-4 text-green-600" />
-                            </span>
-                        ) : (
-                            <span title="No cover image uploaded yet" className="inline-flex items-center justify-center">
-                                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                            </span>
-                        )
-                    ) : null}
-                </td>
-
                 {/* Posting Titles */}
-                <td className="px-3 py-3 max-w-[180px]">
+                <td className="px-3 py-5 max-w-[220px]">
                     {task.postingTitles && task.postingTitles.length > 0 ? (
                         <div className="space-y-1 min-w-0">
                             {task.postingTitles.map((t, i) => (
                                 <div key={t.id} className="flex items-center gap-1 min-w-0">
                                     <span className="flex-shrink-0 text-[10px] font-bold text-violet-600 w-4">{i + 1}.</span>
-                                    <span className="text-xs text-violet-900 truncate" title={t.text}>{t.text}</span>
+                                    <span className="text-xs text-gray-800 truncate" title={t.text}>{t.text}</span>
+                                    <button onClick={() => onCopyTitle(t.text)} className="flex-shrink-0 text-gray-400 hover:text-gray-700" title="Copy title"><Copy className="h-3 w-3" /></button>
                                 </div>
                             ))}
                         </div>
@@ -333,11 +271,11 @@ export function TaskRow({
                     const isPlatformInDeliverable = deliverablePlatforms.length === 0 || deliverablePlatforms.includes(key.toLowerCase());
 
                     return (
-                        <td key={key} className="px-2 py-3 text-center">
+                        <td key={key} className="px-1.5 py-5 text-center">
                             {linkUrl ? (
                                 <button
                                     onClick={() => window.open(linkUrl, '_blank')}
-                                    className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${platform.bgColor} ${platform.color} border border-current opacity-80 hover:opacity-100 transition-opacity`}
+                                    className={`inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-900 text-white hover:bg-gray-700 transition-colors`}
                                     title={`View ${key} post`}
                                 >
                                     <Icon className="h-4 w-4" />
@@ -345,7 +283,7 @@ export function TaskRow({
                             ) : isPlatformInDeliverable ? (
                                 <button
                                     onClick={() => onAddLink(key as PlatformKey)}
-                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-50 text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors border border-dashed border-gray-300"
+                                    className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white text-gray-400 hover:text-gray-700 hover:border-gray-500 transition-colors border border-dashed border-gray-300"
                                     title={`Add ${key} link`}
                                 >
                                     <Plus className="h-3 w-3" />
@@ -360,15 +298,15 @@ export function TaskRow({
                 })}
 
                 {/* Status */}
-                <td className="px-3 py-3 text-center">
+                <td className="px-4 py-5 text-center">
                     <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                             {task.status === 'SCHEDULED' ? (
-                                <Button variant="ghost" className="h-7 text-xs bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1 px-2">
+                                <Button variant="ghost" className="h-9 text-sm bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 gap-1.5 px-3 rounded-md">
                                     ✓ Scheduled <ChevronDown className="h-3 w-3 opacity-50" />
                                 </Button>
                             ) : (
-                                <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                                <Button variant="outline" size="sm" className="h-9 text-sm gap-1.5 px-3 rounded-md border-gray-300 bg-white">
                                     Pending <ChevronDown className="h-3 w-3 opacity-50" />
                                 </Button>
                             )}
@@ -394,7 +332,7 @@ export function TaskRow({
             {/* Expanded Row */}
             {isExpanded && (
                 <tr className="bg-gray-50">
-                    <td colSpan={16} className="px-6 py-4">
+                    <td colSpan={14} className="px-6 py-4">
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                             {/* Files Section */}

@@ -148,23 +148,38 @@ export function SchedulerSpreadsheetView() {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <PageHeader
-                title="Scheduling Queue"
-                actions={
-                <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-5">
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900">Scheduling Queue</h1>
+                <div className="flex items-center gap-3">
                     {selectedRows.size > 0 && (
-                        <Button onClick={bulkMarkAsScheduled} size="sm">
+                        <Button onClick={bulkMarkAsScheduled} size="sm" className="h-10 bg-gray-900 hover:bg-gray-800 text-white">
                             <Check className="h-4 w-4 mr-2" />
                             Mark Selected ({selectedRows.size})
                         </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={() => loadTasks()}>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Refresh
+                    <div className="inline-flex items-center rounded-full border border-gray-200 bg-white p-1">
+                        {([
+                            ['all', 'All', statusFilter === 'all' ? totalTasks : null],
+                            ['pending', 'Pending', statusFilter === 'pending' ? totalTasks : statusFilter === 'all' ? tasks.filter(t => t.status !== 'SCHEDULED').length : null],
+                            ['scheduled', 'Scheduled', statusFilter === 'scheduled' ? totalTasks : statusFilter === 'all' ? tasks.filter(t => t.status === 'SCHEDULED').length : null],
+                        ] as [string, string, number | null][]).map(([val, label, count]) => (
+                            <button
+                                key={val}
+                                type="button"
+                                onClick={() => setStatusFilter(val as any)}
+                                className={`h-9 px-4 rounded-full text-sm font-medium transition-colors ${
+                                    statusFilter === val ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                {label}{count !== null && <span className={`ml-1.5 ${statusFilter === val ? 'text-gray-300' : 'text-gray-400'}`}>{count}</span>}
+                            </button>
+                        ))}
+                    </div>
+                    <Button variant="outline" size="icon" className="h-10 w-10 rounded-lg border-gray-300" onClick={() => loadTasks()} title="Refresh">
+                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                     </Button>
                 </div>
-                }
-            />
+            </div>
 
             <FilterBar 
                 searchTerm={searchTerm}
@@ -190,11 +205,11 @@ export function SchedulerSpreadsheetView() {
             />
 
             {/* Spreadsheet Table */}
-            <div className="bg-white border rounded-lg overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         {/* Header */}
-                        <thead className="bg-gray-50 border-b sticky top-0 z-10">
+                        <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10 text-[11px] uppercase tracking-wider text-gray-500">
                             <tr>
                                 <th className="w-10 px-3 py-3 text-left">
                                     <Checkbox
@@ -214,7 +229,7 @@ export function SchedulerSpreadsheetView() {
                                     onClick={() => handleSort('title')}
                                 >
                                     <div className="flex items-center gap-1">
-                                        Task Title
+                                        Task
                                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                     </div>
                                 </th>
@@ -230,18 +245,7 @@ export function SchedulerSpreadsheetView() {
                                         <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
                                     </div>
                                 </th>
-                                <th className="w-10 px-2 py-3 text-center font-semibold">
-                                    Details
-                                </th>
-                                <th className="w-10 px-2 py-3 text-center font-semibold" title="Cover image (Short Form)">
-                                    Cover
-                                </th>
-                                <th className="px-3 py-3 text-center font-semibold">
-                                    <div className="flex items-center justify-center gap-1">
-                                        <Sparkles className="h-4 w-4 text-yellow-500" />
-                                        AI Title
-                                    </div>
-                                </th>
+                                <th className="px-3 py-3 text-left font-semibold">Title</th>
                                 {/* Platform columns */}
                                 {Object.entries(PLATFORMS).map(([key, platform]) => (
                                     <th key={key} className="px-2 py-3 text-center font-semibold w-12">
@@ -263,7 +267,7 @@ export function SchedulerSpreadsheetView() {
                         <tbody className={`divide-y ${loading && !isInitialLoad ? 'opacity-50 pointer-events-none' : ''}`}>
                             {tasks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={16} className="px-6 py-12 text-center text-muted-foreground">
+                                    <td colSpan={14} className="px-6 py-12 text-center text-muted-foreground">
                                         {loading ? (
                                             <div className="flex flex-col items-center justify-center">
                                                 <RefreshCw className="h-8 w-8 animate-spin mb-4 text-primary" />
@@ -329,7 +333,7 @@ export function SchedulerSpreadsheetView() {
                 </div>
 
                 {/* Load More Controls */}
-                <div className="mt-6 flex flex-col items-center gap-4 border-t pt-6 px-2">
+                <div className="flex flex-col items-center gap-4 border-t border-gray-200 py-5 px-2">
                     <div className="text-sm text-muted-foreground">
                         Showing <span className="font-medium text-foreground">{tasks.length}</span> of <span className="font-medium text-foreground">{totalTasks}</span> tasks
                     </div>

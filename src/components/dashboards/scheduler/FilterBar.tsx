@@ -52,7 +52,7 @@ export function FilterBar({
     availableTags,
 }: FilterBarProps) {
     return (
-        <div className="flex flex-wrap items-center gap-4 bg-white border rounded-lg p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-2xl p-4">
             {/* Search */}
             <div className="flex-1 min-w-[200px] relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -60,13 +60,13 @@ export function FilterBar({
                     placeholder="Search by title, client or ID..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-secondary/30 h-10 border-transparent focus-visible:ring-1 focus-visible:ring-primary/20 transition-all rounded-full"
+                    className="pl-10 bg-white h-10 border-gray-300 rounded-lg focus-visible:ring-1 focus-visible:ring-gray-400"
                 />
             </div>
             
             {/* Date Selection */}
-            <div className="flex items-center gap-2 border-l pl-4">
-                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 font-medium flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5" />
                     Window:
                 </span>
@@ -74,7 +74,7 @@ export function FilterBar({
                     value={dateRange}
                     onValueChange={setDateRange}
                     placeholder="Range"
-                    className="h-9 w-[120px] text-xs"
+                    className="h-10 w-[120px] text-sm rounded-lg border-gray-300"
                     options={[
                         { value: "7d", label: "Last 7 Days" },
                         { value: "30d", label: "Last 30 Days" },
@@ -84,37 +84,9 @@ export function FilterBar({
                 />
             </div>
 
-            {/* Status Toggle */}
-            <div className="flex items-center gap-1 border-l pl-4">
-                <Button
-                    variant={statusFilter === 'all' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setStatusFilter('all')}
-                    className={`h-9 px-3 text-xs ${statusFilter === 'all' ? 'bg-slate-900 text-white' : ''}`}
-                >
-                    All
-                </Button>
-                <Button
-                    variant={statusFilter === 'pending' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setStatusFilter('pending')}
-                    className={`h-9 px-3 text-xs ${statusFilter === 'pending' ? 'bg-indigo-600 text-white' : ''}`}
-                >
-                    Pending
-                </Button>
-                <Button
-                    variant={statusFilter === 'scheduled' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setStatusFilter('scheduled')}
-                    className={`h-9 px-3 text-xs ${statusFilter === 'scheduled' ? 'bg-emerald-600 text-white' : ''}`}
-                >
-                    Scheduled
-                </Button>
-            </div>
-
             {/* Client Filter */}
-            <div className="flex items-center gap-2 border-l pl-4">
-                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 font-medium flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5" />
                     Client:
                 </span>
@@ -122,7 +94,7 @@ export function FilterBar({
                     value={clientFilter}
                     onValueChange={handleClientFilterChange}
                     placeholder="All Clients"
-                    className="h-9 w-[150px] text-xs"
+                    className="h-10 w-[150px] text-sm rounded-lg border-gray-300"
                     contentClassName="max-h-[300px]"
                     options={[
                         { value: "all", label: "All Clients" },
@@ -132,8 +104,8 @@ export function FilterBar({
             </div>
 
             {/* Deliverable Type Filter */}
-            <div className="flex items-center gap-2 border-l pl-4">
-                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 font-medium flex items-center gap-1.5">
                     <Package className="h-3.5 w-3.5" />
                     Type:
                 </span>
@@ -141,7 +113,7 @@ export function FilterBar({
                     value={deliverableFilter}
                     onValueChange={handleDeliverableFilterChange}
                     placeholder="All Types"
-                    className="h-9 w-[130px] text-xs"
+                    className="h-10 w-[130px] text-sm rounded-lg border-gray-300"
                     options={[
                         { value: "all", label: "All Types" },
                         ...uniqueDeliverables.map((type) => ({ value: type, label: type })),
@@ -150,8 +122,8 @@ export function FilterBar({
             </div>
 
             {/* Editor Filter */}
-            <div className="flex items-center gap-2 border-l pl-4">
-                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 font-medium flex items-center gap-1.5">
                     <UserCog className="h-3.5 w-3.5" />
                     Editor:
                 </span>
@@ -159,7 +131,7 @@ export function FilterBar({
                     value={editorFilter}
                     onValueChange={handleEditorFilterChange}
                     placeholder="All Editors"
-                    className="h-9 w-[150px] text-xs"
+                    className="h-10 w-[150px] text-sm rounded-lg border-gray-300"
                     contentClassName="max-h-[300px]"
                     options={[
                         { value: "all", label: "All Editors" },
@@ -169,8 +141,8 @@ export function FilterBar({
             </div>
 
             {/* Tag Filter */}
-            <div className="flex items-center gap-2 border-l pl-4">
-                <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 font-medium flex items-center gap-1.5">
                     <TagIcon className="h-3.5 w-3.5" />
                     Tag:
                 </span>
@@ -178,7 +150,7 @@ export function FilterBar({
                     value={tagFilter}
                     onValueChange={setTagFilter}
                     placeholder="All Tags"
-                    className="h-9 w-[130px] text-xs"
+                    className="h-10 w-[130px] text-sm rounded-lg border-gray-300"
                     options={[
                         { value: "all", label: "All Tags" },
                         ...availableTags.map((tag) => ({ value: tag, label: tag })),
@@ -187,11 +159,11 @@ export function FilterBar({
             </div>
 
             {/* Sponsored Filter */}
-            <div className="border-l pl-4">
+            <div>
                 <button
                     type="button"
                     onClick={() => setSponsoredOnly(!sponsoredOnly)}
-                    className={`h-9 px-3 text-xs font-medium rounded-md border transition-colors whitespace-nowrap ${
+                    className={`h-10 px-4 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap ${
                         sponsoredOnly
                             ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
                             : 'bg-transparent text-muted-foreground border-input hover:border-yellow-300 hover:text-yellow-700'
