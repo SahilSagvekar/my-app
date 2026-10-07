@@ -15,8 +15,9 @@
 // server-side Submit-to-QC gate in /api/tasks/[id]/status, which must
 // compute this identically.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   Plus,
@@ -114,20 +115,85 @@ export function TaskActionsMenu({
   const [lfExpanded, setLfExpanded] = useState(false);
   const [savingNoAction, setSavingNoAction] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  // Fixed-position box for the popover, measured from the trigger. The popover
+  // is portaled to <body> because the kanban column it lives in is
+  // `overflow-y-auto` — rendered inline, a short column clipped the menu to a
+  // tiny scroll area (only ~3 rows visible).
+  const [pos, setPos] = useState<{
+    left: number;
+    width: number;
+    top?: number;
+    bottom?: number;
+    maxHeight: number;
+  } | null>(null);
 
   const tags = (task.tags || []).map((t) => t.name);
   const actionCount = computeTaskActionCount(task);
 
-  // Close dropdown when clicking outside
+  const updatePosition = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const GAP = 6;
+    const MARGIN = 12;
+    const spaceBelow = window.innerHeight - r.bottom - GAP - MARGIN;
+    const spaceAbove = r.top - GAP - MARGIN;
+    // Prefer opening downward; flip up only when there isn't room and up has more.
+    const openUp = spaceBelow < 300 && spaceAbove > spaceBelow;
+    setPos(
+      openUp
+        ? {
+            left: r.left,
+            width: r.width,
+            bottom: window.innerHeight - r.top + GAP,
+            maxHeight: Math.max(160, spaceAbove),
+          }
+        : {
+            left: r.left,
+            width: r.width,
+            top: r.bottom + GAP,
+            maxHeight: Math.max(160, spaceBelow),
+          },
+    );
+  }, []);
+
+  // Measure before paint when opening, and keep the popover attached to the
+  // trigger while the page, the column, or the window scrolls/resizes.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open, updatePosition]);
+
+  // Close dropdown when clicking outside (trigger wrapper OR the portaled popover)
+  // or pressing Escape.
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      const insideTrigger = menuRef.current?.contains(target);
+      const insidePopover = popoverRef.current?.contains(target);
+      if (!insideTrigger && !insidePopover) setOpen(false);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [open]);
 
   const handleToggleNoActionRequired = async () => {
@@ -158,6 +224,7 @@ export function TaskActionsMenu({
     <div ref={menuRef} className="relative">
       {/* Trigger Button */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={(e) => {
           e.stopPropagation();
@@ -176,10 +243,19 @@ export function TaskActionsMenu({
         <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform absolute right-4 ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Floating Popover Overlay */}
-      {open && (
+      {/* Floating Popover Overlay — portaled to <body> so the column's overflow can't clip it */}
+      {open && pos && typeof document !== 'undefined' && createPortal(
         <div
-          className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-gray-100 shadow-2xl p-2 space-y-1 animate-in fade-in-0 zoom-in-95 duration-100"
+          ref={popoverRef}
+          style={{
+            position: 'fixed',
+            left: pos.left,
+            width: pos.width,
+            top: pos.top,
+            bottom: pos.bottom,
+            maxHeight: pos.maxHeight,
+          }}
+          className="z-50 overflow-y-auto bg-white rounded-2xl border border-gray-100 shadow-2xl p-2 space-y-1 animate-in fade-in-0 zoom-in-95 duration-100"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 1. Add tag */}
@@ -267,7 +343,8 @@ export function TaskActionsMenu({
             onClick={handleToggleNoActionRequired}
             highlighted={!!task.noActionRequired}
           />
-        </div>
+        </div>,
+        document.body,
       )}
 
       <AddTagDialog
