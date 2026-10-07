@@ -3677,3 +3677,34 @@ export const announcementRead = pgTable("AnnouncementRead", {
 			name: "AnnouncementRead_userId_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 ]);
+
+// Three-strike discipline (see src/lib/strikes.ts). Active strikes = revokedAt IS NULL.
+export const strike = pgTable("Strike", {
+	id: text().primaryKey().notNull(),
+	recipientId: integer().notNull(),
+	senderId: integer().notNull(),
+	reason: text().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	triggeredTermination: boolean().default(false).notNull(),
+	revokedAt: timestamp({ precision: 3, mode: 'string' }),
+	revokedById: integer(),
+	revokeReason: text(),
+}, (table) => [
+	index("Strike_recipientId_revokedAt_idx").using("btree", table.recipientId.asc().nullsLast().op("int4_ops"), table.revokedAt.asc().nullsLast().op("timestamp_ops")),
+	index("Strike_senderId_idx").using("btree", table.senderId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.recipientId],
+			foreignColumns: [user.id],
+			name: "Strike_recipientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.senderId],
+			foreignColumns: [user.id],
+			name: "Strike_senderId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.revokedById],
+			foreignColumns: [user.id],
+			name: "Strike_revokedById_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);

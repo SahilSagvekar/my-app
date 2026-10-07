@@ -39,6 +39,7 @@ import {
   Wallet,
   Bug,
   Megaphone,
+  ShieldAlert,
 } from 'lucide-react';
 
 export const NAVIGATION_ITEMS = {
@@ -60,6 +61,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
     { id: 'feedback', label: 'Feedback', icon: MessageSquare },
     { id: 'announcements', label: 'Announcements', icon: Megaphone },
+    { id: 'strikes', label: 'Strikes', icon: ShieldAlert },
     { id: 'repair-folders', label: 'Folder Repair', icon: MessageSquare },
     { id: 'script-links', label: 'Script Links', icon: FileText },
     { id: 'nas-backup', label: 'NAS Backup', icon: HardDrive },
@@ -134,6 +136,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'production-tracker', label: 'Production Tracker', icon: Target },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Calendar },
     { id: 'equipment', label: 'Equipment', icon: SettingsIcon },
+    { id: 'strikes', label: 'Strikes', icon: ShieldAlert },
     { id: 'training', label: 'Training', icon: Layout },
     { id: 'employment-info', label: 'Employment Information', icon: Briefcase },
     

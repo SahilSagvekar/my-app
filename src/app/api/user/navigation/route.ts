@@ -143,7 +143,9 @@ export async function GET(req: NextRequest) {
             // Brand-new videographer nav item — existing RolePermission rows predate it.
             (role === 'videographer' && item.id === 'posting-tracker') ||
             // Announcements: new admin nav id — existing admin RolePermission rows predate it.
-            (role === 'admin' && item.id === 'announcements')
+            (role === 'admin' && item.id === 'announcements') ||
+            // Strikes: new nav id for admin + videographer — existing RolePermission rows predate it.
+            ((role === 'admin' || role === 'videographer') && item.id === 'strikes')
         );
 
         return NextResponse.json(filteredItems);

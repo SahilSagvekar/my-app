@@ -42,6 +42,7 @@ import Image from 'next/image';
 import { useAuth } from './auth/AuthContext';
 import { useViewAsRole } from './auth/ViewAsRoleContext';
 import { TimeClockButton } from './TimeClockButton';
+import { StrikeIndicator } from './StrikeIndicator';
 import { SCDigitalClock } from './SCDigitalClock';
 
 function MenuToggleIcon({ isCollapsed, className }: { isCollapsed?: boolean; className?: string }) {
@@ -363,6 +364,7 @@ export function LayoutShell({
                 (including an admin previewing a client via role switch). */}
             {currentRole?.toLowerCase() !== 'client' && (
               <>
+                <StrikeIndicator />
                 <TimeClockButton />
                 {!isAdminPortal && <SCDigitalClock />}
               </>
