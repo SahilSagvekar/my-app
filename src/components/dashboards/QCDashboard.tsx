@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -10,13 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { PageHeader } from "../ui/page-header";
-import { FilterSelect } from "../ui/filter-select";
 // import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw } from 'lucide-react';
 import { ShareDialog } from '../review/ShareDialog';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
-import { ScriptReviewModal } from '../client/ScriptReviewModal';
+import { TextPostReviewModal } from '../client/TextPostReviewModal';
 import { TagPicker } from '../workflow/TagPicker';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { useAuth } from '../auth/AuthContext';
@@ -24,17 +22,11 @@ import { TaskGuidelinesButton } from './TaskGuidelinesButton';
 import { toast } from 'sonner';
 import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
-import { sortTaskImages } from '@/lib/task-image-order';
-import { Share2, Send, CheckCircle, Check, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Folder, Music } from 'lucide-react';
+import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '../ui/input';
+import { formatDeliverableType } from '@/lib/deliverable-labels';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
-import {
-  // autoThumbnailKeyForVideo,
-  getTaskCardThumbnailUrl,
-  taskThumbnailFallbackLabel,
-} from '@/lib/task-thumbnail';
-import { uploadService } from '@/lib/upload-service';
 
 type TaskDestination = 'editor' | 'client' | 'scheduler';
 
@@ -52,14 +44,11 @@ interface TaskFile {
   isActive?: boolean;
   replacedAt?: string;
   replacedBy?: string;
-  s3Key?: string;
   revisionNote?: string;
+  s3Key?: string;
   codec?: string;
   optimizationStatus?: string;
   optimizationError?: string | null;
-  proxyUrl?: string | null;
-  reviewDriveUrl?: string | null;
-  youtubeVideoId?: string | null;
 }
 
 interface EnhancedWorkflowTask {
@@ -107,17 +96,9 @@ interface EnhancedWorkflowTask {
 
 
 // 🔥 Color coding for deliverable types
-const getDeliverableTypeColor = (deliverableType?: string | null): { bg: string; border: string; ring: string } => {
-  const type = deliverableType?.toLowerCase().trim() || '';
+const getDeliverableTypeColor = (deliverableType: string): { bg: string; border: string; ring: string } => {
+  const type = deliverableType?.toLowerCase() || '';
   
-  // Beta Short Form (teal) - must check before Short Form
-  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form' || type.includes('beta')) {
-    return { 
-      bg: 'bg-teal-50', 
-      border: 'border-teal-200', 
-      ring: 'ring-teal-300' 
-    };
-  }
   // Short Form Videos (green)
   if (type.includes('short form') || type === 'sf' || type === 'short_form') {
     return { 
@@ -126,8 +107,16 @@ const getDeliverableTypeColor = (deliverableType?: string | null): { bg: string;
       ring: 'ring-emerald-300' 
     };
   }
-  // SQF - Square Form (cyan)
-  if (type === 'sqf' || type.includes('sqf') || type.includes('square form') || type.includes('super quick')) {
+  // Beta Short Form (teal)
+  if (type.includes('beta short form') || type === 'bsf' || type === 'beta_short_form') {
+    return { 
+      bg: 'bg-teal-50', 
+      border: 'border-teal-200', 
+      ring: 'ring-teal-300' 
+    };
+  }
+  // SQF - Super Quick Form (cyan)
+  if (type === 'sqf' || type.includes('sqf') || type.includes('super quick')) {
     return { 
       bg: 'bg-cyan-50', 
       border: 'border-cyan-200', 
@@ -150,8 +139,8 @@ const getDeliverableTypeColor = (deliverableType?: string | null): { bg: string;
       ring: 'ring-blue-300' 
     };
   }
-  // Thumbnails/Images/Hard Post (purple)
-  if (type.includes('thumbnail') || type.includes('image') || type === 'hp' || type.includes('hard post') || type.includes('graphic image')) {
+  // Thumbnails/Images (purple)
+  if (type.includes('thumbnail') || type.includes('image')) {
     return { 
       bg: 'bg-purple-50', 
       border: 'border-purple-200', 
@@ -166,18 +155,10 @@ const getDeliverableTypeColor = (deliverableType?: string | null): { bg: string;
       ring: 'ring-orange-300' 
     };
   }
-  // Text Post (indigo)
-  if (type.includes('text post')) {
-    return { 
-      bg: 'bg-indigo-50', 
-      border: 'border-indigo-200', 
-      ring: 'ring-indigo-300' 
-    };
-  }
   // Default
   return { 
     bg: 'bg-white', 
-    border: 'border-zinc-200', 
+    border: 'border-zinc-100', 
     ring: 'ring-zinc-200' 
   };
 };
@@ -187,45 +168,30 @@ const persistQCResult = async ({
   approved,
   feedback,
   requiresClientReview,
-  bypassClientReview,
   postingTitles,
   postingDescriptions,
   postingTags,
   viewingAsRole,
-  folderType,
 }: {
   taskId: string;
   approved: boolean;
   feedback?: string;
   requiresClientReview?: boolean;
-  // QC explicitly skips client review for this approval (the "Bypass Client
-  // Review" button). Sent as its own flag because the server otherwise sends
-  // any client with requiresClientReview=true to client review regardless.
-  bypassClientReview?: boolean;
   postingTitles?: { id: string; text: string }[];
   postingDescriptions?: { id: string; text: string }[];
   postingTags?: { id: string; text: string }[];
   viewingAsRole?: string | null;
-  // Which deliverable this rejection is about — lets the Slack notification
-  // tag the video editor vs the (possibly different) thumbnail editor.
-  folderType?: 'main' | 'thumbnails';
 }) => {
-  const newStatus = approved ? "COMPLETED" : "REJECTED_BY_QC";
+  const newStatus = approved ? "COMPLETED" : "REJECTED";
   const metaBody: any = {};
-  if (!approved && folderType) metaBody.folderType = folderType;
 
   if (approved && feedback) metaBody.feedback = feedback;
   if (!approved && feedback) metaBody.qcNotes = feedback;
 
   if (approved) {
     metaBody.qcResult = "APPROVED";
-    if (bypassClientReview && !requiresClientReview) {
-      metaBody.route = "scheduler";
-      metaBody.bypassClientReview = true;
-    } else {
-      metaBody.route = requiresClientReview ? "client_then_scheduler" : "scheduler";
-      if (requiresClientReview) metaBody.forceClientReview = true;
-    }
+    metaBody.route = requiresClientReview ? "client_then_scheduler" : "scheduler";
+    if (requiresClientReview) metaBody.forceClientReview = true;
   } else {
     metaBody.qcResult = "REJECTED";
     metaBody.route = "editor";
@@ -290,25 +256,6 @@ export function QCDashboard() {
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
   const [availableTags, setAvailableTags] = useState<string[]>([]);
-
-  // 🔥 Paged queue: the API returns QC_PAGE_SIZE tasks at a time (oldest-first
-  // ordering is decided server-side) plus totals and filter options for the
-  // WHOLE queue, so counts/filters stay correct with only one page loaded.
-  const QC_PAGE_SIZE = 10;
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [pageInfo, setPageInfo] = useState({ total: 0, totalPending: 0, hasMore: false });
-  const [facetClients, setFacetClients] = useState<{ id: string; name: string }[]>([]);
-  const [facetTypes, setFacetTypes] = useState<string[]>([]);
-  // loadQCTasks is captured by long-lived listeners (task-updated, polling),
-  // so it reads the live filters/loaded-count through refs, not closures.
-  const filtersRef = useRef({ type: "all", client: "all", tag: "all" });
-  const loadedCountRef = useRef(0);
-  const viewingAsRef = useRef<string | null | undefined>(viewingAsRole);
-  // Set right before the loader replaces the list, so the effect below can tell
-  // "server refreshed the list" apart from "a card was approved/removed locally".
-  const serverSetRef = useRef(false);
-  const prevLenRef = useRef(0);
-  const filtersMountedRef = useRef(false);
   const [selectedTaskTags, setSelectedTaskTags] = useState<string[]>([]);
 
   useEffect(() => {
@@ -356,113 +303,6 @@ useEffect(() => {
   const [showBulkRejectDialog, setShowBulkRejectDialog] = useState(false);
   const [bulkRejectFeedback, setBulkRejectFeedback] = useState("");
 
-  // 🔥 Still upload state & helpers for task cards
-  const [uploadingStillTaskId, setUploadingStillTaskId] = useState<string | null>(null);
-  // Active thumbnail carousel slide index per task
-  const [taskThumbIndices, setTaskThumbIndices] = useState<Record<string, number>>({});
-
-  const handleStillUpload = async (task: EnhancedWorkflowTask, file: File) => {
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file for the still');
-      return;
-    }
-    try {
-      setUploadingStillTaskId(task.id);
-      toast.loading(`Uploading still for ${task.title}...`, { id: `upload-${task.id}` });
-      await uploadService.startUpload(file, task, 'thumbnails', undefined, 'outputs');
-      toast.success('Still uploaded successfully!', { id: `upload-${task.id}` });
-      await loadQCTasks();
-    } catch (err: any) {
-      console.error('Failed to upload still:', err);
-      toast.error(err?.message || 'Failed to upload still', { id: `upload-${task.id}` });
-    } finally {
-      setUploadingStillTaskId(null);
-    }
-  };
-
-  const formatCardDate = (dateVal: any) => {
-    if (!dateVal) return "";
-    const d = new Date(dateVal);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const getDeliverableBadge = (rawType?: string | null, taskTitle?: string) => {
-    let lower = (rawType || "").toLowerCase().trim();
-    const t = (taskTitle || "").toLowerCase();
-
-    // Check taskTitle for deliverable codes, giving priority to BSF/SQF over generic SF
-    if (/(?:^|[_\-\s])bsf\d*(?:[_\-\s]|$)/i.test(t) || t.includes('beta short form')) {
-      lower = 'bsf';
-    } else if (/(?:^|[_\-\s])sqf\d*(?:[_\-\s]|$)/i.test(t) || t.includes('square form') || t.includes('super quick')) {
-      lower = 'sqf';
-    } else if (!lower && /(?:^|[_\-\s])lf\d*(?:[_\-\s]|$)/i.test(t)) {
-      lower = 'lf';
-    } else if (!lower && /(?:^|[_\-\s])sf\d*(?:[_\-\s]|$)/i.test(t)) {
-      lower = 'sf';
-    }
-
-    if (!lower || lower === "other") return null;
-    let label = (rawType || "").toUpperCase();
-    if (lower === 'bsf' || lower.includes('beta')) {
-      label = 'BETA SHORT FORM';
-    } else if (lower === 'sqf' || lower.includes('square') || lower.includes('super quick')) {
-      label = 'SQUARE FORM';
-    } else if (lower === 'sf' || lower === 'short form' || lower === 'short form videos' || lower.includes('short form')) {
-      label = 'SHORT FORM';
-    } else if (lower === 'lf' || lower === 'long form' || lower === 'long form videos' || lower.includes('long form')) {
-      label = 'LONG FORM';
-    } else if (lower === 'hp' || lower.includes('hard post') || lower.includes('graphic image')) {
-      label = 'HARD POST';
-    } else if (lower.includes('text post')) {
-      label = 'TEXT POST';
-    } else if (lower.includes('snap')) {
-      label = 'SNAPCHAT';
-    } else if (lower.includes('podcast') || lower.includes('audio')) {
-      label = 'PODCAST';
-    } else if (lower.includes('thumb') || lower.includes('image')) {
-      label = 'THUMBNAIL';
-    }
-
-    let colorClass = 'bg-[#dcfce7] text-[#15803d]';
-    if (lower.includes('beta') || lower.includes('bsf')) {
-      colorClass = 'bg-[#ccfbf1] text-[#0f766e]';
-    } else if (lower.includes('long') || lower === 'lf') {
-      colorClass = 'bg-[#dbeafe] text-[#1d4ed8]';
-    } else if (lower.includes('snap')) {
-      colorClass = 'bg-[#fef9c3] text-[#a16207]';
-    } else if (lower.includes('thumb') || lower.includes('image') || lower === 'hp' || lower.includes('hard post')) {
-      colorClass = 'bg-[#f3e8ff] text-[#7e22ce]';
-    } else if (lower.includes('audio') || lower.includes('podcast')) {
-      colorClass = 'bg-[#ffedd5] text-[#c2410c]';
-    } else if (lower.includes('text post')) {
-      colorClass = 'bg-[#e0e7ff] text-[#4338ca]';
-    }
-
-    return { label, colorClass };
-  };
-
-  const getEditorName = (task: EnhancedWorkflowTask) => {
-    return task.user?.name || (task as any).assignee?.name || (task as any).editor?.name || "";
-  };
-
-  const getTaskLatestVersion = (task: EnhancedWorkflowTask): number => {
-    const latestVideo = task.files
-      ?.filter(f => f.mimeType?.startsWith('video/'))
-      .sort((a, b) => {
-        if (a.isActive && !b.isActive) return -1;
-        if (!a.isActive && b.isActive) return 1;
-        return (b.version || 1) - (a.version || 1);
-      })[0];
-    if (latestVideo?.version) return latestVideo.version;
-
-    let maxVer = 1;
-    for (const f of task.files || []) {
-      if (f.version && f.version > maxVer) maxVer = f.version;
-    }
-    return maxVer;
-  };
-
   const { user } = useAuth();
   const isAdmin = user?.role?.toLowerCase() === 'admin';
 
@@ -482,47 +322,8 @@ useEffect(() => {
 
   // 🔥 Initial load - run once on mount
   useEffect(() => {
-    loadQCTasks({ reset: true });
+    loadQCTasks();
   }, []);
-
-  // Keep the refs the loader reads in sync with current state.
-  useEffect(() => {
-    filtersRef.current = { type: deliverableTypeFilter, client: clientFilter, tag: tagFilter };
-  }, [deliverableTypeFilter, clientFilter, tagFilter]);
-  // The role switcher can update viewingAsRole AFTER this screen mounts, so the
-  // first fetch may go out without the x-viewing-as header (→ only the user's
-  // own assigned tasks and a one-client dropdown until a hard reload). Reload
-  // whenever the effective role actually changes.
-  useEffect(() => {
-    const changed = viewingAsRef.current !== viewingAsRole;
-    viewingAsRef.current = viewingAsRole;
-    if (changed) loadQCTasks({ reset: true });
-  }, [viewingAsRole]);
-  useEffect(() => {
-    loadedCountRef.current = qcTasks.length;
-    // A card was removed locally (approved / sent back / reassigned): keep the
-    // header counts honest until the next server refresh.
-    const removed = prevLenRef.current - qcTasks.length;
-    if (!serverSetRef.current && removed > 0) {
-      setPageInfo((p) => ({
-        ...p,
-        total: Math.max(0, p.total - removed),
-        totalPending: Math.max(0, p.totalPending - removed),
-      }));
-    }
-    serverSetRef.current = false;
-    prevLenRef.current = qcTasks.length;
-  }, [qcTasks.length]);
-
-  // Filters are applied by the server now → changing one starts over at page 1.
-  useEffect(() => {
-    if (!filtersMountedRef.current) {
-      filtersMountedRef.current = true;
-      return;
-    }
-    filtersRef.current = { type: deliverableTypeFilter, client: clientFilter, tag: tagFilter };
-    loadQCTasks({ reset: true });
-  }, [deliverableTypeFilter, clientFilter, tagFilter]);
 
   // 🔥 Polling effect - only check for active optimization jobs
   useEffect(() => {
@@ -549,50 +350,33 @@ useEffect(() => {
     return () => window.removeEventListener('task-updated', handleTaskGlobalUpdate);
   }, []);
 
+  // 🔥 Bulk selection is admin-only (viewing as QC). If this ever stops being
+  // true mid-session — a real QC user, or an admin switching back to their
+  // own role — force-exit selection mode so the feature can't linger.
   useEffect(() => {
-    setSelectedTaskIds(new Set());
-    setSelectionMode(false);
-  }, [viewingAsRole]);
+    if (!isViewingAsOther && (selectionMode || selectedTaskIds.size > 0)) {
+      setSelectionMode(false);
+      setSelectedTaskIds(new Set());
+    }
+  }, [isViewingAsOther]);
 
-  const loadQCTasks = useCallback(async (opts: { reset?: boolean; append?: boolean } = {}) => {
-    const { reset = false, append = false } = opts;
+  const loadQCTasks = useCallback(async () => {
     try {
-      if (append) setLoadingMore(true);
-      else if (reset) setLoading(true);
-
-      const f = filtersRef.current;
-      const loaded = loadedCountRef.current;
-      // append → next page after what's already loaded.
-      // reset  → back to the first page (filters changed / first load).
-      // else   → silent refresh: re-fetch everything currently on screen so
-      //          a background update doesn't collapse the list to page 1.
-      const offset = append ? loaded : 0;
-      const limit = append || reset ? QC_PAGE_SIZE : Math.min(Math.max(loaded, QC_PAGE_SIZE), 500);
-
-      const params = new URLSearchParams({
-        status: "READY_FOR_QC",
-        order: "queue",
-        limit: String(limit),
-        offset: String(offset),
-      });
-      if (!append) params.set("facets", "1");
-      if (f.type !== "all") params.set("deliverableType", f.type);
-      if (f.client !== "all") params.set("clientId", f.client);
-      if (f.tag !== "all") params.set("tag", f.tag);
-
-      const viewingAs = viewingAsRef.current;
-      const res = await fetch(`/api/tasks?${params.toString()}`, {
-        method: "GET",
-        credentials: "include",
-        headers: viewingAs && viewingAs !== user?.role
-          ? { "x-viewing-as": viewingAs }
-          : {},
-      });
+      setLoading(true);
+      // 🔥 Fetch PENDING tasks (READY_FOR_QC status)
+      const res = await fetch("/api/tasks?status=READY_FOR_QC", {
+  method: "GET",
+  credentials: "include",
+  headers: viewingAsRole && viewingAsRole !== user?.role
+    ? { "x-viewing-as": viewingAsRole }
+    : {},
+});
 
       if (!res.ok) throw new Error("Failed fetching QC tasks");
 
-      const payload = await res.json();
-      const data = payload?.tasks ?? payload;
+      let data = await res.json();
+
+      if (data.tasks) data = data.tasks;
       if (!Array.isArray(data)) {
         console.error("QC API returned non-array:", data);
         return;
@@ -606,73 +390,39 @@ useEffect(() => {
         nextDestination: task.nextDestination || "client",
         requiresClientReview: task.requiresClientReview ?? false,
         files: task.files || [],
-        // 🔧 FIX: was discarding the API's real task.deliverableType (the
-        // short code, e.g. "hp") whenever the task had no linked
-        // monthlyDeliverable/oneOffDeliverable, forcing it to "Other" —
-        // which broke isHardPostTask() for most hard-post tasks on this
-        // dashboard specifically.
-        deliverableType: task.deliverableType || task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "Other",
+        deliverableType: task.monthlyDeliverable?.type || task.oneOffDeliverable?.type || "Other",
         clientName: task.client?.companyName || task.client?.name || "Unknown Client",
       }));
 
-      // The server already returns the queue in display order — don't re-sort
-      // here or rows would shuffle across page boundaries.
-      serverSetRef.current = true;
-      if (append) {
-        setQCTasks((prev) => {
-          const seen = new Set(prev.map((t) => t.id));
-          return [...prev, ...normalized.filter((t: any) => !seen.has(t.id))];
-        });
-      } else {
-        setQCTasks(normalized);
-      }
+      const sorted = normalized.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() -
+          new Date(b.createdAt).getTime()
+      );
 
-      const paging = payload?.paging;
-      if (paging) {
-        setPageInfo((prev) => ({
-          total: paging.total ?? prev.total,
-          totalPending: paging.totalPending ?? prev.totalPending,
-          hasMore: !!paging.hasMore,
-        }));
-        if (paging.facets) {
-          setFacetClients(paging.facets.clients || []);
-          setFacetTypes(paging.facets.deliverableTypes || []);
-        }
-      }
+      setQCTasks(sorted);
     } catch (err) {
       console.error("QC load error:", err);
       toast.error("Failed to load QC tasks");
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   }, []);
 
-  // `opts.sendToClient` is passed directly by the "Send to Client Review" /
-  // "Bypass Client Review" buttons. It must not travel through
-  // forceClientReviewOverride state: the buttons used to set that state and
-  // approve in the same tick, so this handler could still see the old value.
-  // When opts is omitted (plain Approve), the state value is used as before.
-  const handleSendToClient = async (asset: any, opts?: { sendToClient?: boolean }) => {
+  const handleSendToClient = async (asset: any) => {
     if (!selectedTask) return;
-    const sendToClient = opts?.sendToClient ?? forceClientReviewOverride;
-    const bypass = opts?.sendToClient === false;
     try {
       await persistQCResult({
         taskId: selectedTask.id,
         approved: true,
-        requiresClientReview: sendToClient,
-        bypassClientReview: bypass,
+        requiresClientReview: forceClientReviewOverride,
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
         viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
-      toast(
-        bypass ? "✅ Approved – Client Review Bypassed" : "✅ Approved – Sent to Client",
-        { description: "Content has been moved to the next stage." },
-      );
+      toast("✅ Approved – Sent to Client", { description: "Content has been moved to the next stage." });
       setShowVideoReview(false);
       setSelectedFile(null);
       setSelectedTask(null);
@@ -697,7 +447,6 @@ useEffect(() => {
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
         viewingAsRole,
-        folderType: 'main',
       });
 
       setQCTasks((prev) =>
@@ -737,19 +486,11 @@ useEffect(() => {
   // two without closing the review screen.
   const getPrimaryVideoFile = (task: typeof selectedTask) => {
     if (!task) return null;
-    // Latest main video, ordered exactly like the "Review Content" list
-    // (version desc, then upload date desc). A plain .find() returned the
-    // first file in raw order — V1 — so switching from thumbnails back to
-    // video reopened the oldest version instead of the newest.
-    const videos = (task.files || []).filter(
-      (f) => getMimeType(f).startsWith('video/') && (f.folderType || 'main') === 'main'
+    return (
+      task.files?.find(
+        (f) => getMimeType(f).startsWith('video/') && (f.folderType || 'main') === 'main'
+      ) || null
     );
-    if (videos.length === 0) return null;
-    return [...videos].sort((a, b) => {
-      const versionDiff = (b.version || 1) - (a.version || 1);
-      if (versionDiff !== 0) return versionDiff;
-      return new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime();
-    })[0];
   };
 
   const getPrimaryThumbnailFile = (task: typeof selectedTask) => {
@@ -759,28 +500,20 @@ useEffect(() => {
     );
   };
 
-  // `opts.sendToClient` comes from the modal's "Send to Client Review" (true)
-  // and "Bypass Client Review" (false) buttons; the plain Approve button omits
-  // it and keeps the task's own requiresClientReview setting.
-  const handleThumbnailApprove = async (file: TaskFile, opts?: { sendToClient?: boolean }) => {
+  const handleThumbnailApprove = async (file: TaskFile) => {
     if (!selectedTask) return;
-    const bypass = opts?.sendToClient === false;
     try {
       await persistQCResult({
         taskId: selectedTask.id,
         approved: true,
-        requiresClientReview: opts?.sendToClient ?? selectedTask.requiresClientReview,
-        bypassClientReview: bypass,
+        requiresClientReview: selectedTask.requiresClientReview,
         postingTitles: qcPostingTitles,
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
         viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
-      toast(
-        bypass ? "✅ Thumbnail Approved – Client Review Bypassed" : "✅ Thumbnail Approved",
-        { description: "Task has been moved to the next stage." },
-      );
+      toast("✅ Thumbnail Approved", { description: "Task has been moved to the next stage." });
       setShowThumbnailReview(false);
       setSelectedFile(null);
       setSelectedTask(null);
@@ -836,7 +569,6 @@ useEffect(() => {
         postingDescriptions: qcPostingDescriptions,
         postingTags: qcPostingTags,
         viewingAsRole,
-        folderType: 'thumbnails',
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
       toast('📝 Revisions Requested', { description: 'Feedback has been sent back to the editor.' });
@@ -892,7 +624,6 @@ useEffect(() => {
         url: f.url,
         proxyUrl: f.proxyUrl || null,
         reviewDriveUrl: f.reviewDriveUrl || null,
-        youtubeVideoId: f.youtubeVideoId || null,
         sizeBytes: f.size,
       }));
 
@@ -903,7 +634,6 @@ useEffect(() => {
       videoUrl: file.url,
       proxyUrl: file.proxyUrl || null,
       reviewDriveUrl: file.reviewDriveUrl || null,
-      youtubeVideoId: file.youtubeVideoId || null,
       thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?w=400&h=225&fit=crop',
       runtime: '2:30',
       status: 'in_qc' as const,
@@ -944,18 +674,17 @@ useEffect(() => {
   const getFolderTypeInfo = (folderType?: string) => {
     switch (folderType) {
       case 'main':
-        return { label: 'Main Files', icon: '📁', iconComponent: <Folder className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { label: 'Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
       case 'thumbnails':
-        return { label: 'Thumbnails', icon: '🖼️', iconComponent: <ImageIcon className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-green-100 text-green-800 border-green-200' };
+        return { label: 'Thumbnails', icon: '🖼️', color: 'bg-green-100 text-green-800 border-green-200' };
       case 'tiles':
-        return { label: 'Tiles (Snapchat)', icon: '🎨', iconComponent: <Palette className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-purple-100 text-purple-800 border-purple-200' };
-      case 'music':
+        return { label: 'Tiles (Snapchat)', icon: '🎨', color: 'bg-purple-100 text-purple-800 border-purple-200' };
       case 'music-license':
-        return { label: 'Music License', icon: '🎵', iconComponent: <Music className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-orange-100 text-orange-800 border-orange-200' };
+        return { label: 'Music License', icon: '🎵', color: 'bg-orange-100 text-orange-800 border-orange-200' };
       case 'covers':
-        return { label: 'Covers', icon: '📔', iconComponent: <FileText className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-pink-100 text-pink-800 border-pink-200' };
+        return { label: 'Covers', icon: '📔', color: 'bg-pink-100 text-pink-800 border-pink-200' };
       default:
-        return { label: 'Main Files', icon: '📁', iconComponent: <Folder className="h-4 w-4 text-zinc-700 stroke-[1.75]" />, color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { label: 'Main Task Files', icon: '📁', color: 'bg-blue-100 text-blue-800 border-blue-200' };
     }
   };
 
@@ -964,7 +693,7 @@ useEffect(() => {
     const groups: Record<string, TaskFile[]> = {};
 
     files.forEach(file => {
-      const folderType = (file.folderType === 'music' ? 'music-license' : file.folderType) || 'main';
+      const folderType = file.folderType || 'main';
       if (!groups[folderType]) {
         groups[folderType] = [];
       }
@@ -1082,109 +811,27 @@ useEffect(() => {
     }
   };
 
-  // const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
-  //   return getTaskCardThumbnailUrl(task.files, {
-  //     buildAutoThumbUrl: (videoS3Key) => `/api/thumbnail-urls?key=${encodeURIComponent(autoThumbnailKeyForVideo(videoS3Key))}`,
-  //   });
-  // };
-
   const getTaskThumbnail = (task: EnhancedWorkflowTask) => {
-    return getTaskCardThumbnailUrl(task.files);
-  };
-
-  const getTaskThumbnails = (task: EnhancedWorkflowTask): { url: string; file?: TaskFile }[] => {
-    if (!task.files || task.files.length === 0) return [];
-    const active = (f: TaskFile) => f.isActive !== false;
-
-    // 1. Files specifically in 'thumbnails' or 'tiles' folder
-    const thumbFiles = task.files
-      .filter((f) => (f.folderType === 'thumbnails' || f.folderType === 'tiles') && active(f) && !!f.url)
-      .sort((a, b) => {
-        const verDiff = (b.version || 1) - (a.version || 1);
-        if (verDiff !== 0) return verDiff;
-        return new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime();
-      });
-
-    let candidates: { url: string; file?: TaskFile }[] = [];
-
-    if (thumbFiles.length > 0) {
-      candidates = thumbFiles.map((f) => ({ url: f.url, file: f }));
-    } else {
-      // 2. Any other image files (e.g. hard posts, covers)
-      const imageFiles = task.files
-        .filter((f) => {
-          const mime = getMimeType(f);
-          return (
-            (mime.startsWith('image/') ||
-              f.folderType === 'covers' ||
-              (f.name && /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name))) &&
-            active(f) &&
-            !!f.url
-          );
-        })
-        .sort((a, b) => new Date(b.uploadedAt || 0).getTime() - new Date(a.uploadedAt || 0).getTime());
-
-      if (imageFiles.length > 0) {
-        candidates = imageFiles.map((f) => ({ url: f.url, file: f }));
-      } else {
-        // 3. Fallback video previewUrl
-        const videoWithPreview = task.files.find(
-          (f) => active(f) && f.mimeType?.startsWith('video/') && f.previewUrl
-        );
-        if (videoWithPreview?.previewUrl) {
-          candidates = [{ url: videoWithPreview.previewUrl, file: videoWithPreview }];
-        } else {
-          const single = getTaskCardThumbnailUrl(task.files);
-          if (single) {
-            candidates = [{ url: single }];
-          }
-        }
-      }
-    }
-
-    // Deduplicate by URL
-    const seen = new Set<string>();
-    return candidates.filter((item) => {
-      if (!item.url || seen.has(item.url)) return false;
-      seen.add(item.url);
-      return true;
-    });
-  };
-
-  const isLongFormTask = (task: EnhancedWorkflowTask) => {
-    const deliverableTypeRaw = ((task as any).deliverableType || task.taskCategory || '').toLowerCase().trim();
-    if (
-      deliverableTypeRaw.includes('long form') ||
-      deliverableTypeRaw === 'lf' ||
-      deliverableTypeRaw.includes('long_form') ||
-      deliverableTypeRaw.includes('long-form')
-    ) {
-      return true;
-    }
-    const title = (task.title || '').toLowerCase();
-    return /(?:^|[_\-\s])lf\d*(?:[_\-\s]|$)/i.test(title);
+    if (!task.files || task.files.length === 0) return null;
+    // 1. Try to find an active thumbnail
+    const thumbFile = task.files.find(f => f.folderType === 'thumbnails' && f.mimeType?.startsWith('image/') && f.isActive !== false);
+    if (thumbFile) return thumbFile.url;
+    // 2. Try to find any active image
+    const activeImage = task.files.find(f => f.mimeType?.startsWith('image/') && f.isActive !== false);
+    if (activeImage) return activeImage.url;
+    // 3. Fallback to any image
+    const anyImage = task.files.find(f => f.mimeType?.startsWith('image/'));
+    return anyImage?.url || null;
   };
 
   const isHardPostTask = (task: EnhancedWorkflowTask) => {
-    const type = ((task as any).deliverableType || (task as any).monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || task.taskType || '').toLowerCase().trim();
-    // deliverableType is stored as the short code ("hp"), not the long phrase.
-    return type === 'hp' || type.includes('hard post') || type.includes('graphic image');
+    const type = ((task as any).deliverableType || task.taskType || '').toLowerCase();
+    return type.includes('hard post') || type.includes('graphic image');
   };
 
   const isTextPostTask = (task: EnhancedWorkflowTask) => {
-    const type = ((task as any).deliverableType || (task as any).monthlyDeliverable?.type || (task as any).oneOffDeliverable?.type || task.taskType || '').toLowerCase();
+    const type = ((task as any).deliverableType || task.taskType || '').toLowerCase();
     return type.includes('text post');
-  };
-
-  // File to open straight away when a task is clicked (skips the file list).
-  const pickDirectReviewFile = (task: EnhancedWorkflowTask): TaskFile | null => {
-    const video = getPrimaryVideoFile(task);
-    if (video && video.isActive !== false) {
-      const busy = video.optimizationStatus === 'PROCESSING' || video.optimizationStatus === 'PENDING';
-      return busy ? null : video;
-    }
-    const thumb = getPrimaryThumbnailFile(task);
-    return thumb && thumb.isActive !== false ? thumb : null;
   };
 
   const handleTaskClick = (task: EnhancedWorkflowTask) => {
@@ -1206,28 +853,19 @@ useEffect(() => {
 
     // Hard post tasks → open ThumbnailReviewModal directly with sequential images
     if (isHardPostTask(task)) {
-      const activeImages = (task.files || [])
+      const images = (task.files || [])
         .filter(f => {
           const mime = getMimeType(f);
           return (mime.startsWith('image/png') || mime.startsWith('image/jpeg') || mime.startsWith('image/jpg') || mime.startsWith('image/webp') || mime.startsWith('image/'))
             && f.isActive !== false;
-        });
-      const images = sortTaskImages(activeImages, (task as any)?.attachments?.imageOrder);
+        })
+        .sort((a, b) => new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime());
 
       if (images.length > 0) {
         setSelectedFile(images[0]);
         setShowThumbnailReview(true);
         return;
       }
-    }
-
-    // Open the review screen directly on the latest main video (or the
-    // thumbnail when there's no video). The file list is only a fallback —
-    // e.g. nothing reviewable yet, or the video is still being optimized.
-    const direct = pickDirectReviewFile(task);
-    if (direct) {
-      handleFileSelect(direct);
-      return;
     }
 
     setShowFileSelector(true);
@@ -1252,7 +890,6 @@ useEffect(() => {
   };
 
   const handleSelectAllFiltered = () => {
-    if (!isAdmin) return; // admin-only, also guarded in the UI
     setSelectedTaskIds((prev) => {
       const allSelected = filteredTasks.length > 0 && filteredTasks.every((t) => prev.has(t.id));
       if (allSelected) return new Set();
@@ -1415,31 +1052,6 @@ useEffect(() => {
     }
   };
 
-  const handleDownloadAllFiles = async (task: EnhancedWorkflowTask) => {
-    if (!task?.files || task.files.length === 0) {
-      toast.error('No files to download');
-      return;
-    }
-    toast.loading(`Downloading ${task.files.length} file(s)...`, { id: 'download-all-files' });
-    try {
-      for (const file of task.files) {
-        if (file.url) {
-          const a = document.createElement('a');
-          a.href = file.url;
-          a.download = file.name;
-          a.target = '_blank';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          await new Promise((r) => setTimeout(r, 300));
-        }
-      }
-      toast.success('Download started', { id: 'download-all-files' });
-    } catch {
-      toast.error('Failed to download files', { id: 'download-all-files' });
-    }
-  };
-
   const handleDownload = async (file: TaskFile) => {
     try {
       toast.loading('Preparing download...', { id: 'download-file' });
@@ -1468,12 +1080,34 @@ useEffect(() => {
   };
 
   // 🔥 DERIVED DATA FOR FILTERING
-  // Filter options + totals come from the server (whole queue, not one page).
-  const availableDeliverableTypes = facetTypes;
-  const availableClients = facetClients;
+  const availableDeliverableTypes = useMemo(() => {
+    const types = new Set<string>();
+    qcTasks.forEach((task: any) => {
+      if (task.deliverableType) types.add(task.deliverableType);
+    });
+    return Array.from(types).sort();
+  }, [qcTasks]);
 
-  // The server already applied the filters and the queue order.
-  const filteredTasks = qcTasks;
+  const availableClients = useMemo(() => {
+    const clients = new Map<string, string>();
+    qcTasks.forEach((task: any) => {
+      if (task.clientId && task.clientName) {
+        clients.set(task.clientId, task.clientName);
+      }
+    });
+    return Array.from(clients.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [qcTasks]);
+
+  const filteredTasks = useMemo(() => {
+    return qcTasks.filter(task => {
+      const matchType = deliverableTypeFilter === "all" || (task as any).deliverableType === deliverableTypeFilter;
+      const matchClient = clientFilter === "all" || task.clientId === clientFilter;
+      const matchTag = tagFilter === "all" || ((task as any).tags || []).some((t: any) => t.name === tagFilter);
+      return matchType && matchClient && matchTag;
+    });
+  }, [qcTasks, deliverableTypeFilter, clientFilter, tagFilter]);
 
   const clearAllFilters = () => {
     setDeliverableTypeFilter("all");
@@ -1482,9 +1116,8 @@ useEffect(() => {
   };
 
   const hasActiveFilters = deliverableTypeFilter !== "all" || clientFilter !== "all" || tagFilter !== "all";
-  const pendingReviews = pageInfo.total;
-  const totalPending = pageInfo.totalPending;
-  const remainingToLoad = Math.max(0, pageInfo.total - qcTasks.length);
+  const pendingReviews = filteredTasks.length;
+  const totalPending = qcTasks.length;
 
   // Counterpart files for the review-modal switch buttons — only set (and
   // thus only rendered) when the task actually has both a video and a
@@ -1495,135 +1128,122 @@ useEffect(() => {
   return (
     <>
       <div className="flex flex-col h-full space-y-6">
-        <PageHeader
-          title="Content Review"
-          description="Review submitted work and approve or reject with feedback"
-          actions={
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-6 border-b border-gray-200">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Content Review</h1>
+            <p className="text-muted-foreground mt-1 text-lg">
+              Review submitted work and approve or reject with feedback
+            </p>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
             {/* Dashboard Filters */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-              <div className="flex items-center gap-1.5 mr-0.5">
-                <Filter className="h-4 w-4 text-zinc-400 stroke-[1.75]" />
-                <span className="text-xs sm:text-sm font-medium text-zinc-500">Filter:</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 mr-1">
+                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Filter:</span>
               </div>
 
-              <FilterSelect
-                value={deliverableTypeFilter}
-                onValueChange={setDeliverableTypeFilter}
-                placeholder="All Deliverables"
-                options={[
-                  { value: 'all', label: 'All Deliverables' },
-                  ...availableDeliverableTypes.map((type) => ({ value: type, label: type })),
-                ]}
-              />
+              <Select value={deliverableTypeFilter} onValueChange={setDeliverableTypeFilter}>
+                <SelectTrigger className="h-9 w-[160px] text-xs">
+                  <SelectValue placeholder="Deliverable Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Deliverables</SelectItem>
+                  {availableDeliverableTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {formatDeliverableType(type)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-              <FilterSelect
-                value={clientFilter}
-                onValueChange={setClientFilter}
-                placeholder="All Clients"
-                options={[
-                  { value: 'all', label: 'All Clients' },
-                  ...availableClients.map((client) => ({ value: client.id, label: client.name })),
-                ]}
-              />
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="h-9 w-[160px] text-xs">
+                  <SelectValue placeholder="All Clients" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients</SelectItem>
+                  {availableClients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-              <FilterSelect
-                value={tagFilter}
-                onValueChange={setTagFilter}
-                placeholder="All Tags"
-                options={[
-                  { value: 'all', label: 'All Tags' },
-                  ...availableTags.map((tag) => ({ value: tag, label: tag })),
-                ]}
-              />
+              <Select value={tagFilter} onValueChange={setTagFilter}>
+                <SelectTrigger className="h-9 w-[160px] text-xs">
+                  <SelectValue placeholder="All Tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tags</SelectItem>
+                  {availableTags.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               {hasActiveFilters && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={clearAllFilters}
-                  className="h-9 px-2.5 text-xs text-muted-foreground hover:text-zinc-900"
+                  className="h-9 px-2 text-xs text-muted-foreground hover:text-primary"
                 >
                   Clear
                 </Button>
               )}
 
-              <Button
-                variant={selectionMode ? "default" : "outline"}
-                size="sm"
-                onClick={handleToggleSelectionMode}
-                className={`h-9 px-3.5 text-xs sm:text-sm font-medium rounded-lg border border-zinc-200 shadow-none transition-colors ${
-                  selectionMode
-                    ? "bg-zinc-900 text-white hover:bg-zinc-800 border-zinc-900"
-                    : "bg-white text-zinc-800 hover:bg-zinc-50 hover:text-zinc-900"
-                }`}
-              >
-                {selectionMode ? (
-                  <>
-                    <X className="h-4 w-4 mr-1.5" />
-                    Cancel Selection
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-1.5 stroke-[2.2]" />
-                    Select Multiple
-                  </>
-                )}
-              </Button>
+              {isViewingAsOther && (
+                <Button
+                  variant={selectionMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={handleToggleSelectionMode}
+                  className="h-9 text-xs"
+                >
+                  {selectionMode ? (
+                    <>
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      Cancel Selection
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                      Select Multiple
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
 
             {/* Stats Badge */}
-            <div
-              className="shrink-0 select-none"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'baseline',
-                background: '#18181b',
-                color: '#ffffff',
-                borderRadius: '8px',
-                padding: '7px 14px',
-                gap: '8px',
-                fontFamily: 'Inter, var(--font-sans), sans-serif',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 800,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase' as const,
-                  lineHeight: 1,
-                  position: 'relative',
-                  top: '-2px',
-                }}
-              >
-                {hasActiveFilters ? 'Filtered' : 'Pending'}
-              </span>
-              <span
-                style={{
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  lineHeight: 1,
-                }}
-              >
-                {pendingReviews}
-              </span>
+            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-zinc-100 shadow-sm">
+              <div className="flex flex-col items-center text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 leading-none mb-1">
+                  {hasActiveFilters ? 'Filtered' : 'Pending'}
+                </span>
+                <span className="text-xl font-bold text-zinc-900 leading-none">
+                  {pendingReviews}
+                </span>
+              </div>
+              <div className="ml-4 h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center border border-blue-100">
+                <Clock className="h-4 w-4 text-blue-500" />
+              </div>
             </div>
           </div>
-          }
-        />
+        </div>
 
-        {selectionMode && (
+        {selectionMode && isViewingAsOther && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-violet-50 border border-violet-200 rounded-xl">
             <div className="flex items-center gap-3">
-              {/* "Select all" is admin-only; everyone else picks cards one by one */}
-              {isAdmin && (
-                <Checkbox
-                  checked={filteredTasks.length > 0 && filteredTasks.every((t) => selectedTaskIds.has(t.id))}
-                  onCheckedChange={handleSelectAllFiltered}
-                  aria-label="Select all visible tasks"
-                />
-              )}
+              <Checkbox
+                checked={filteredTasks.length > 0 && filteredTasks.every((t) => selectedTaskIds.has(t.id))}
+                onCheckedChange={handleSelectAllFiltered}
+                aria-label="Select all visible tasks"
+              />
               <span className="text-sm font-medium text-violet-900">
                 {selectedTaskIds.size === 0
                   ? "Select tasks to approve or reject in bulk"
@@ -1677,140 +1297,42 @@ useEffect(() => {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
-              {filteredTasks.map((task) => {
-                const thumbnails = getTaskThumbnails(task);
-                const currentThumbIndex = taskThumbIndices[task.id] || 0;
-                const safeThumbIndex = currentThumbIndex < thumbnails.length ? currentThumbIndex : 0;
-                const currentThumb = thumbnails[safeThumbIndex];
-                const hasThumbnails = thumbnails.length > 0;
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+              {filteredTasks.map((task, index) => {
+                const thumbnail = getTaskThumbnail(task);
+                const deliverableColors = getDeliverableTypeColor((task as any).deliverableType);
                 const isChecked = selectedTaskIds.has(task.id);
-                const latestVideoVersion = getTaskLatestVersion(task);
-                const deliverableTypeRaw = (task as any).deliverableType || task.taskCategory;
-                const deliverableColors = getDeliverableTypeColor(deliverableTypeRaw);
-                const isLongForm = isLongFormTask(task);
-                const deliverableBadge = getDeliverableBadge(deliverableTypeRaw, task.title);
-                const editorName = getEditorName(task);
-                const dueDateFormatted = formatCardDate(task.dueDate || task.createdAt);
-
-                const imageFilesCount = task.files?.filter(f => {
-                  const mime = getMimeType(f);
-                  return mime.startsWith('image/') || f.folderType === 'thumbnails' || f.folderType === 'tiles' || f.folderType === 'covers' || (f.name && /\.(jpe?g|png|webp|gif|avif)$/i.test(f.name));
-                }).length || (task.files?.length || 0);
-
                 return (
-                  <div
+                  <Card
                     key={task.id}
-                    className={`group cursor-pointer rounded-2xl transition-all duration-200 overflow-hidden flex flex-col h-full bg-[#0e0f12] border border-zinc-800/90 hover:border-zinc-700 shadow-md hover:shadow-xl ${
-                      isLongForm
-                        ? "col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-2 xl:col-span-2"
-                        : "col-span-1"
-                    } ${
-                      selectedTask?.id === task.id ? "ring-2 ring-primary" : ""
-                    } ${isChecked ? "ring-2 ring-violet-500" : ""}`}
+                    className={`group cursor-pointer shadow-sm transition-all duration-300 rounded-[1.25rem] overflow-hidden flex flex-col h-full hover:shadow-md ${deliverableColors.bg} ${deliverableColors.border} border hover:${deliverableColors.ring} ${selectedTask?.id === task.id ? "ring-2 ring-primary" : ""} ${isChecked ? "ring-2 ring-violet-500" : ""}`}
                     onClick={() => handleTaskClick(task)}
                   >
                     {/* Visual Header / Thumbnail Area */}
-                    <div
-                      className={`w-full ${
-                        isLongForm ? "aspect-video" : "aspect-[4/5]"
-                      } flex-1 min-h-0 relative flex items-center justify-center bg-[#14151a] overflow-hidden select-none`}
-                    >
-                      {hasThumbnails && currentThumb ? (
-                        <>
-                          <img
-                            key={currentThumb.url}
-                            src={currentThumb.url}
-                            alt={task.title}
-                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 z-10"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.opacity = '0';
-                            }}
-                          />
-                          <div className="absolute inset-0 bg-black/10 z-10 pointer-events-none" />
+                    <div className="h-44 relative flex items-center justify-center bg-zinc-50 transition-colors overflow-hidden font-bold">
+                      {thumbnail && (
+                        <img
+                          src={thumbnail}
+                          alt={task.title}
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 z-10"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.opacity = '0';
+                          }}
+                        />
+                      )}
+                      <div className="text-zinc-300 text-[10px] font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
+                        No thumbnail
+                      </div>
 
-                          {/* Left and Right Slider Arrows if more than 1 thumbnail */}
-                          {thumbnails.length > 1 && (
-                            <>
-                              <button
-                                type="button"
-                                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center backdrop-blur-md shadow-md transition-all hover:scale-110 active:scale-95 focus:outline-none border border-white/10"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTaskThumbIndices((prev) => ({
-                                    ...prev,
-                                    [task.id]: safeThumbIndex > 0 ? safeThumbIndex - 1 : thumbnails.length - 1,
-                                  }));
-                                }}
-                                title="Previous thumbnail"
-                                aria-label="Previous thumbnail"
-                              >
-                                <ChevronLeft className="h-4 w-4 stroke-[2.5]" />
-                              </button>
-
-                              <button
-                                type="button"
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center backdrop-blur-md shadow-md transition-all hover:scale-110 active:scale-95 focus:outline-none border border-white/10"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTaskThumbIndices((prev) => ({
-                                    ...prev,
-                                    [task.id]: safeThumbIndex < thumbnails.length - 1 ? safeThumbIndex + 1 : 0,
-                                  }));
-                                }}
-                                title="Next thumbnail"
-                                aria-label="Next thumbnail"
-                              >
-                                <ChevronRight className="h-4 w-4 stroke-[2.5]" />
-                              </button>
-
-                              {/* Carousel Dots Indicator */}
-                              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md shadow-sm border border-white/10">
-                                {thumbnails.map((_, idx) => (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    className={`rounded-full transition-all duration-200 focus:outline-none ${
-                                      idx === safeThumbIndex
-                                        ? "w-3.5 h-1.5 bg-white"
-                                        : "w-1.5 h-1.5 bg-white/45 hover:bg-white/80"
-                                    }`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setTaskThumbIndices((prev) => ({
-                                        ...prev,
-                                        [task.id]: idx,
-                                      }));
-                                    }}
-                                    title={`Thumbnail ${idx + 1} of ${thumbnails.length}`}
-                                    aria-label={`Go to thumbnail ${idx + 1}`}
-                                  />
-                                ))}
-                              </div>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <div
-                          className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center select-none bg-[#14151a] z-10"
-                        >
-                          <ImageIcon className="h-7 w-7 text-zinc-600 stroke-[1.5] mb-1.5" />
-                          <span className="text-xs font-medium text-zinc-500">No thumbnail</span>
-                        </div>
+                      {thumbnail && (
+                        <div className="absolute inset-0 bg-black/5 z-10 pointer-events-none" />
                       )}
 
-                      {uploadingStillTaskId === task.id && (
-                        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 z-30">
-                          <Loader2 className="h-6 w-6 animate-spin text-white" />
-                          <span className="text-xs font-medium text-zinc-200">Uploading still...</span>
-                        </div>
-                      )}
-
-                      {/* Top Left: Multi-select checkbox when selection mode is active */}
-                      {selectionMode && (
+                      {selectionMode && isViewingAsOther ? (
+                        /* Selection Checkbox - Top Left */
                         <div className="absolute top-3 left-3 z-20">
                           <div
-                            className="h-8 w-8 rounded-full bg-black/60 backdrop-blur-md border border-white/20 shadow-sm flex items-center justify-center"
+                            className="h-8 w-8 rounded-full bg-white/90 backdrop-blur-sm border border-zinc-200/50 shadow-sm flex items-center justify-center"
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleTaskSelection(task.id);
@@ -1819,294 +1341,343 @@ useEffect(() => {
                             <Checkbox checked={isChecked} aria-label={`Select ${task.title}`} />
                           </div>
                         </div>
+                      ) : (
+                        /* Share + Reassign Buttons - Top Left */
+                        <div className="absolute top-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex gap-1.5">
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-primary"
+                            onClick={(e) => handleShare(e, task)}
+                          >
+                            <Share2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="secondary"
+                            title="Reassign to another QC"
+                            className="h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-zinc-200/50 shadow-sm text-zinc-700 hover:text-orange-500"
+                            onClick={(e) => handleOpenReassign(e, task)}
+                          >
+                            <UserCheck className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       )}
 
+                      {/* File Count - Top Right */}
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded bg-white/80 text-zinc-700 text-[11px] font-semibold border border-zinc-200/50 shadow-sm backdrop-blur-sm z-20">
+                        <FileText className="h-3 w-3" />
+                        {task.files?.length || 0}
+                      </div>
                     </div>
 
                     {/* Card Body */}
-                    <div className="p-4 pt-3 pb-3.5 flex flex-col gap-2 bg-[#0e0f12] shrink-0 mt-auto">
-                      {/* Row 1: Task Title & Guidelines Button */}
-                      <div className="flex items-center justify-between gap-2">
-                        <h4
-                          className="text-[13px] font-bold text-white truncate leading-snug tracking-tight"
-                          title={task.title}
-                        >
+                    <div className="p-4 flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="flex-1 min-w-0 text-zinc-900 font-bold text-sm line-clamp-1">
                           {task.title}
                         </h4>
                         <TaskGuidelinesButton
                           clientId={task.clientId}
                           clientName={task.client?.companyName || task.client?.name || null}
                           role="qc"
-                          buttonClassName="h-5 w-5 rounded-full bg-[#f05a28] hover:bg-[#ea580c] text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm transition-colors"
                         />
                       </div>
 
-                      {/* Row 2: Editor / Creator & Date */}
-                      <div className="flex items-center justify-between text-xs text-zinc-400 font-normal leading-none">
-                        <span className="truncate max-w-[65%]">
-                          {editorName || "Unassigned"}
-                        </span>
-                        <span className="shrink-0">
-                          {dueDateFormatted}
-                        </span>
+                      {/* Deliverable Type Badge */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {(task as any).deliverableType && (task as any).deliverableType !== "Other" && (
+                          <Badge
+                            variant="outline"
+                            className={`w-fit text-[10px] h-5 px-2 font-medium ${
+                              (() => {
+                                const dt = ((task as any).deliverableType || '').toLowerCase();
+                                if (dt.includes('short form') || dt === 'sf') return 'bg-emerald-100 text-emerald-700 border-emerald-300';
+                                if (dt.includes('beta') || dt === 'bsf') return 'bg-teal-100 text-teal-700 border-teal-300';
+                                if (dt === 'sqf' || dt.includes('sqf') || dt.includes('super quick')) return 'bg-cyan-100 text-cyan-700 border-cyan-300';
+                                if (dt.includes('snapchat') || dt === 'snap') return 'bg-yellow-100 text-yellow-700 border-yellow-300';
+                                if (dt.includes('long form') || dt === 'lf') return 'bg-blue-100 text-blue-700 border-blue-300';
+                                if (dt.includes('thumbnail') || dt.includes('image')) return 'bg-purple-100 text-purple-700 border-purple-300';
+                                if (dt.includes('podcast') || dt.includes('audio')) return 'bg-orange-100 text-orange-700 border-orange-300';
+                                return 'bg-zinc-100 text-zinc-600 border-zinc-200';
+                              })()
+                            }`}
+                          >
+                            {(task as any).deliverableType}
+                          </Badge>
+                        )}
+                        {task.oneOffDeliverableId && (
+                          <Badge variant="outline" className="w-fit text-[10px] h-5 px-2 bg-yellow-50 text-yellow-700 border-yellow-200">
+                            One-Off
+                          </Badge>
+                        )}
                       </div>
 
-                      {/* Row 3: Deliverable Badge, Version Badge & Action Icons */}
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/70 mt-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {deliverableBadge ? (
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-bold tracking-wide uppercase shrink-0 ${deliverableBadge.colorClass}`}
-                            >
-                              {deliverableBadge.label}
-                            </span>
-                          ) : (
-                            <span />
-                          )}
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold bg-[#27272a] text-zinc-300 shrink-0">
-                            V{latestVideoVersion}
+                      {/* Editor & Date Row */}
+                      <div className="flex items-center justify-between text-zinc-500 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5" />
+                          <span>Editor: {task.user?.name || ""}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span>
+                            {new Date(task.dueDate).toLocaleDateString(
+                              undefined,
+                              { month: "short", day: "numeric" },
+                            )}
                           </span>
                         </div>
+                      </div>
 
-                        {/* Right Icons: Media Count, Share, Reassign */}
-                        <div className="flex items-center gap-2.5 text-zinc-400 shrink-0">
-                          <div className="flex items-center gap-1 text-[11px] font-medium text-zinc-400" title={`${imageFilesCount} file(s)`}>
-                            <ImageIcon className="h-3.5 w-3.5 stroke-[1.75]" />
-                            <span>{imageFilesCount}</span>
-                          </div>
-                          <button
-                            type="button"
-                            className="text-zinc-400 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800/80 focus:outline-none"
-                            onClick={(e) => handleShare(e, task)}
-                            title="Share review link"
-                          >
-                            <Send className="h-3.5 w-3.5 -rotate-45 stroke-[1.75]" />
-                          </button>
-                          <button
-                            type="button"
-                            className="text-zinc-400 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800/80 focus:outline-none"
-                            onClick={(e) => handleOpenReassign(e, task)}
-                            title="Reassign to another QC"
-                          >
-                            <User className="h-3.5 w-3.5 stroke-[1.75]" />
-                          </button>
-                        </div>
+                      {/* Badges Row */}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {task.qcResult === "APPROVED" && task.qcReviewer ? (
+                          <Badge className="bg-green-50 text-green-600 hover:bg-green-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                            ✅ Approved by {task.qcReviewer.name}
+                          </Badge>
+                        ) : task.qcResult === "REJECTED" && task.qcReviewer ? (
+                          <Badge className="bg-red-50 text-red-600 hover:bg-red-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                            ❌ Rejected by {task.qcReviewer.name}
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-blue-50 text-blue-600 hover:bg-blue-100 border-none rounded-full px-3 py-0.5 text-[10px] font-bold">
+                            Pending
+                          </Badge>
+                        )}
+
+                        {/* Non-H.264 Badge */}
+                        {(() => {
+                          const latestVideo = task.files
+                            ?.filter(f => f.mimeType?.startsWith('video/'))
+                            .sort((a, b) => {
+                              if (a.isActive && !b.isActive) return -1;
+                              if (!a.isActive && b.isActive) return 1;
+                              return (b.version || 1) - (a.version || 1);
+                            })[0];
+
+                          if (latestVideo && latestVideo.codec && !latestVideo.codec.toLowerCase().includes('h.264') && !latestVideo.codec.toLowerCase().includes('avc1')) {
+                            return (
+                              <Badge className="bg-amber-100 text-amber-700 border-amber-200 rounded-full px-2 py-0.5 text-[10px] font-bold animate-pulse">
+                                ⚠️ Non-H.264
+                              </Badge>
+                            );
+                          }
+                          return null;
+                        })()}
+
+                        {/* No Thumbnails Badge */}
+                        {(() => {
+                          const hasThumbnails = task.files?.some(f => f.folderType === 'thumbnails');
+                          if (!hasThumbnails) {
+                            return (
+                              <Badge className="bg-gray-100 text-gray-500 border-gray-200 rounded-full px-2 py-0.5 text-[10px] font-medium">
+                                🖼️ No Thumbnails
+                              </Badge>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
-            </div>
-          )}
-
-          {!loading && filteredTasks.length > 0 && (
-            <div className="flex flex-col items-center gap-2 py-6">
-              <p className="text-xs text-zinc-500">
-                Showing {filteredTasks.length} of {pageInfo.total}
-              </p>
-              {pageInfo.hasMore && (
-                <Button
-                  variant="outline"
-                  onClick={() => loadQCTasks({ append: true })}
-                  disabled={loadingMore}
-                  className="h-9 px-5 text-sm font-medium"
-                >
-                  {loadingMore ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    `Load more (${Math.min(QC_PAGE_SIZE, remainingToLoad)} of ${remainingToLoad} remaining)`
-                  )}
-                </Button>
-              )}
             </div>
           )}
         </div>
 
         {selectedTask && (
           <Dialog open={showFileSelector} onOpenChange={setShowFileSelector}>
-            <DialogContent className="w-[95vw] max-w-xl sm:max-w-2xl max-h-[90vh] p-6 sm:p-7 rounded-2xl bg-white shadow-2xl flex flex-col gap-4 overflow-hidden border border-zinc-200">
-              <DialogHeader className="p-0 pb-1 text-left">
-                <DialogTitle className="flex items-center gap-2.5 text-xl font-bold text-zinc-950 tracking-tight">
-                  <Eye className="h-5 w-5 text-zinc-950 stroke-[2.4]" />
-                  Review Content
+            <DialogContent className="w-[80vw] max-w-[80vw] sm:!max-w-[80vw] max-h-[85vh]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Eye className="h-5 w-5" />
+                  Review Files by Section
                 </DialogTitle>
-                <DialogDescription className="text-zinc-500 text-sm font-normal mt-1">
-                  Review files and approve or request revisions.
-                </DialogDescription>
               </DialogHeader>
 
-              <div className="overflow-y-auto max-h-[62vh] pr-0.5 space-y-3.5">
+              <TagPicker
+                taskId={selectedTask.id}
+                tags={selectedTaskTags}
+                onChange={setSelectedTaskTags}
+                canRemove={isAdmin}
+              />
+
+              <div className="overflow-y-auto max-h-[65vh] pr-2">
                 {selectedTask.files && selectedTask.files.length > 0 ? (
-                  groupFilesByFolderType(selectedTask.files).map((group) => (
-                    <div
-                      key={group.folderType}
-                      className="border border-zinc-200 rounded-2xl overflow-hidden bg-white shadow-2xs"
-                    >
-                      {/* Section Header */}
-                      <div className="px-4 py-3 bg-zinc-100/70 border-b border-zinc-200/80 flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          {group.info.iconComponent}
-                          <span className="font-bold text-sm text-zinc-900">{group.info.label}</span>
-                        </div>
-                        <span className="rounded-full bg-zinc-200/70 text-zinc-700 text-xs font-semibold px-2.5 py-0.5">
-                          {group.files.length} file{group.files.length !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-
-                      {/* Files List */}
-                      {group.files.length === 0 ? (
-                        <div className="p-5 text-center text-zinc-400 text-xs font-medium">
-                          No files uploaded for this section
-                        </div>
-                      ) : (
-                        <div className="divide-y divide-zinc-100">
-                          {(expandedFileGroups.has(group.folderType) ? group.files : group.files.slice(0, 1)).map((file) => (
-                            <div
-                              key={file.id}
-                              className={`p-4 flex items-center justify-between gap-4 transition-colors hover:bg-zinc-50/50 ${
-                                file.isActive === false ? "opacity-60 bg-zinc-50/30" : ""
-                              }`}
+                  <div className="border rounded-lg overflow-hidden divide-y">
+                    {groupFilesByFolderType(selectedTask.files).map((group) => (
+                      <div key={group.folderType}>
+                        {/* Section Header */}
+                        <div className={`px-4 py-3 ${group.info.color} border-b flex items-center justify-between`}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{group.info.icon}</span>
+                            <h4 className="font-semibold text-sm">{group.info.label}</h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {group.files.length} file{group.files.length !== 1 ? "s" : ""}
+                            </Badge>
+                          </div>
+                          {group.folderType === 'thumbnails' && group.files.length > 1 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="bg-white/50 hover:bg-white text-xs h-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setComparisonFiles(group.files);
+                                setShowComparison(true);
+                              }}
                             >
-                              <div className="min-w-0 flex-1">
-                                <h5 className="font-bold text-sm text-zinc-900 truncate mb-1.5" title={file.name}>
-                                  {file.name}
-                                </h5>
-                                <div className="flex items-center gap-1.5 mb-1">
-                                  <span className="bg-black text-white text-[11px] font-bold px-2 py-0.5 rounded-md leading-none flex items-center justify-center">
-                                    V{file.version || 1}
-                                  </span>
-                                  <span className="bg-zinc-100 text-zinc-700 border border-zinc-200/80 text-[11px] font-semibold px-2 py-0.5 rounded-md leading-none flex items-center justify-center">
-                                    {getFileTypeLabel(file.mimeType)}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-zinc-400 font-normal">
-                                  {formatFileSize(file.size)} · Uploaded {new Date(file.uploadedAt).toLocaleDateString('en-US')}
-                                </p>
-                              </div>
+                              <History className="h-3.5 w-3.5 mr-1.5" />
+                              Compare Versions
+                            </Button>
+                          )}
+                          {group.folderType !== 'thumbnails' && group.files.some((f) => (f.version || 1) > 1) && (
+                            <Badge variant="outline" className="text-xs">
+                              Multiple versions
+                            </Badge>
+                          )}
+                        </div>
 
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {file.mimeType?.startsWith("video/") ? (
-                                  file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
-                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
-                                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                      <span>Optimizing...</span>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleFileSelect(file);
-                                      }}
-                                      className="bg-black hover:bg-zinc-800 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
-                                    >
-                                      <Play className="h-3.5 w-3.5 fill-white" />
-                                      <span>Review</span>
-                                    </button>
-                                  )
-                                ) : file.mimeType?.startsWith("image/") ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleFileSelect(file);
-                                    }}
-                                    className="bg-black hover:bg-zinc-800 text-white font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-2 transition-colors cursor-pointer shadow-xs"
-                                  >
-                                    <Play className="h-3.5 w-3.5 fill-white" />
-                                    <span>Review</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleFileSelect(file);
-                                    }}
-                                    className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 font-semibold text-xs px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                                  >
-                                    <ExternalLink className="h-3.5 w-3.5 text-zinc-700" />
-                                    <span>View</span>
-                                  </button>
-                                )}
-                              </div>
+                        {/* Files */}
+                        <div className="divide-y">
+                          {group.files.length === 0 ? (
+                            <div className="p-6 text-center text-muted-foreground">
+                              <span className="text-2xl mb-2 block">🖼️</span>
+                              <p className="text-sm font-medium">No {group.info.label.toLowerCase()}</p>
+                              <p className="text-xs mt-1">No files uploaded for this section</p>
                             </div>
-                          ))}
+                          ) : (
+                            (expandedFileGroups.has(group.folderType) ? group.files : group.files.slice(0, 1)).map((file, index) => (
+                              <div
+                                key={file.id}
+                                className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${file.isActive === false ? "opacity-60 bg-muted/20" : ""}`}
+                                onClick={() => handleFileSelect(file)}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className={`p-3 rounded-lg flex-shrink-0 ${file.mimeType?.startsWith("video/") ? "bg-blue-100" : file.mimeType?.startsWith("image/") ? "bg-green-100" : "bg-gray-100"}`}>
+                                    {getFileIcon(file.mimeType)}
+                                  </div>
 
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <p className="font-medium text-sm truncate max-w-[300px]">{file.name}</p>
+                                      <Badge variant={file.isActive !== false ? "default" : "secondary"} className="text-xs">
+                                        V{file.version || 1}
+                                      </Badge>
+                                      {file.isActive !== false && index === 0 && (
+                                        <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                          Latest
+                                        </Badge>
+                                      )}
+                                      {file.isActive === false && (
+                                        <Badge variant="outline" className="text-xs text-muted-foreground">
+                                          Replaced
+                                        </Badge>
+                                      )}
+                                      <Badge variant="secondary" className="text-xs">
+                                        {getFileTypeLabel(file.mimeType)}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                      <span>{formatFileSize(file.size)}</span>
+                                      <span>•</span>
+                                      <span>Uploaded {new Date(file.uploadedAt).toLocaleDateString()}</span>
+                                      {file.revisionNote && (
+                                        <>
+                                          <span>•</span>
+                                          <span className="text-orange-600" title={file.revisionNote}>
+                                            📝 Has revision note
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {file.mimeType?.startsWith("video/") ? (
+                                      <div className="flex items-center gap-2">
+                                        {file.optimizationStatus === 'PROCESSING' || file.optimizationStatus === 'PENDING' ? (
+                                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 text-blue-600 border border-blue-100 text-xs animate-pulse">
+                                            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                            <span>Optimizing...</span>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                              <Play className="h-4 w-4 mr-2" />
+                                              Review
+                                            </Button>
+                                            <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download Video" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                              <Download className="h-4 w-4" />
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
+                                    ) : file.mimeType?.startsWith('image/') ? (
+                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" variant="default" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                          <Eye className="h-4 w-4 mr-2" />
+                                          Review
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleFileSelect(file); }}>
+                                          <ExternalLink className="h-4 w-4 mr-2" />
+                                          View
+                                        </Button>
+                                        <Button size="sm" variant="outline" className="h-9 w-9 p-0" title="Download File" onClick={(e) => { e.stopPropagation(); handleDownload(file); }}>
+                                          <Download className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
                           {group.files.length > 1 && (
-                            <div className="py-2 text-center border-t border-zinc-100 bg-zinc-50/50">
-                              <button
-                                type="button"
-                                className="text-xs text-zinc-500 hover:text-zinc-800 font-medium inline-flex items-center gap-1 cursor-pointer"
+                            <div className="p-2.5 text-center bg-muted/20">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs h-7 text-muted-foreground hover:text-foreground"
                                 onClick={() => toggleFileGroupExpanded(group.folderType)}
                               >
                                 {expandedFileGroups.has(group.folderType) ? (
                                   <>
-                                    <ChevronUp className="h-3.5 w-3.5" />
+                                    <ChevronUp className="h-3.5 w-3.5 mr-1" />
                                     Show less
                                   </>
                                 ) : (
                                   <>
-                                    <ChevronDown className="h-3.5 w-3.5" />
+                                    <ChevronDown className="h-3.5 w-3.5 mr-1" />
                                     Read more ({group.files.length - 1} older version{group.files.length - 1 !== 1 ? "s" : ""})
                                   </>
                                 )}
-                              </button>
+                              </Button>
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  ))
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <div className="text-center py-12 text-zinc-400">
-                    <FileText className="h-12 w-12 mx-auto mb-3 opacity-40" />
-                    <p className="text-sm font-medium">No files found in this task</p>
-                    <p className="text-xs mt-1">Files will appear here once they are uploaded by the editor.</p>
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="h-16 w-16 mx-auto mb-4 opacity-40" />
+                    <p className="text-lg font-medium">No files found in this task</p>
+                    <p className="text-sm mt-1">Files will appear here once they are uploaded by the editor.</p>
                   </div>
                 )}
               </div>
-
-              {/* Action Buttons Footer */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={(e) => handleShare(e, selectedTask)}
-                  disabled={isSharing}
-                  className="bg-[#f05a28] hover:bg-[#ea580c] active:bg-[#c94519] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-base shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Send className="h-4 w-4 -rotate-45 stroke-[2.4]" />
-                  <span>Share</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDownloadAllFiles(selectedTask)}
-                  className="bg-[#2563eb] hover:bg-[#1d4ed8] active:bg-[#1e40af] text-white font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-base shadow-sm transition-all cursor-pointer"
-                >
-                  <Download className="h-4 w-4 stroke-[2.4]" />
-                  <span>Download Files</span>
-                </button>
-              </div>
             </DialogContent>
           </Dialog>
-        )}
-
-        {selectedTask && (
-          <ShareDialog
-            open={showShareDialog}
-            onOpenChange={setShowShareDialog}
-            shareLink={shareLink}
-            copied={copied}
-            onCopy={() => {
-              navigator.clipboard.writeText(shareLink);
-              setCopied(true);
-              toast.success("Copied to clipboard");
-              setTimeout(() => setCopied(false), 3000);
-            }}
-          />
         )}
 
         {selectedTask && selectedFile && selectedFile.mimeType?.startsWith("video/") && (
@@ -2124,22 +1695,11 @@ useEffect(() => {
             onApprove={() => { }}
             onRequestRevisions={() => { }}
             userRole="qc"
-            // // 🔀 Switch to thumbnail review without leaving the modal — only
-            // // offered when this task actually has a thumbnail to review.
-            // onSwitchToThumbnail={
-            //   switchToThumbnailFile ? () => handleFileSelect(switchToThumbnailFile) : undefined
-            // }
-            // onSendToClient={handleSendToClient}
-
-                        // 🔀 Switch to thumbnail review without leaving the modal — only
+            // 🔀 Switch to thumbnail review without leaving the modal — only
             // offered when this task actually has a thumbnail to review.
             onSwitchToThumbnail={
               switchToThumbnailFile ? () => handleFileSelect(switchToThumbnailFile) : undefined
             }
-            // 🧭 Step wizard: Comments → Titles → (Thumbnails, if this task
-            // has one) — same mechanic as ClientDashboard's video review.
-            enableStepWizard
-            hasThumbnailStep={!!switchToThumbnailFile}
             onSendToClient={handleSendToClient}
             onSendBackToEditor={handleSendBackToEditor}
             forceClientReviewOverride={forceClientReviewOverride}
@@ -2188,20 +1748,11 @@ useEffect(() => {
             onPostingTitlesChange={setQcPostingTitles}
             onPostingDescriptionsChange={setQcPostingDescriptions}
             onPostingTagsChange={setQcPostingTags}
-            taskAttachments={(selectedTask as any)?.attachments}
-            onImageOrderChange={(newOrder) => {
-              if (selectedTask) {
-                (selectedTask as any).attachments = {
-                  ...((selectedTask as any).attachments || {}),
-                  imageOrder: newOrder,
-                };
-              }
-            }}
           />
         )}
 
         {selectedTask && isTextPostTask(selectedTask) && (
-          <ScriptReviewModal
+          <TextPostReviewModal
             open={showTextPostReview}
             onOpenChange={(open: boolean) => {
               setShowTextPostReview(open);
@@ -2215,7 +1766,6 @@ useEffect(() => {
             textContent={(selectedTask as any).textContent || ''}
             onApprove={() => handleThumbnailApprove(null as any)}
             onRequestRevisions={(items) => handleThumbnailRequestRevisions(null as any, items)}
-            userRole="qc"
           />
         )}
 
