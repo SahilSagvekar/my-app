@@ -4,26 +4,12 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import "@/lib/bigint-fix";
-import { getDbHttp } from "@/lib/db";
-import {
-  task as taskTable,
-  client as clientTable,
-  user as userTable,
-  monthlyDeliverable as monthlyDeliverableTable,
-  oneOffDeliverable as oneOffDeliverableTable,
-  shootDetail as shootDetailTable,
-  editorClientPermission as editorClientPermissionTable,
-  file as fileTable,
-  mediaPreview,
-} from "@/lib/db/schema";
-import { createId } from "@/lib/db/id";
-import { and, or, eq, inArray, isNull, isNotNull, ne, desc, asc, count, getTableColumns, sql as drizzleSql } from "drizzle-orm";
+import { prisma } from "@/lib/prisma";
 import { uploadBufferToS3, addSignedUrlsToFiles } from "@/lib/s3";
 // import { TaskStatus } from "@prisma/client";
 import { ClientRequest } from "http";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateMonthlyTasksFromTemplate } from "@/lib/recurring/generateMonthly";
-import { getClientTaskSlug } from "@/lib/client-task-name";
 import { createAuditLog, AuditAction, getRequestMetadata } from '@/lib/audit-logger';
 import { notifyUser, notifyEditorTaskAssignment } from "@/lib/notify";
 import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
@@ -133,67 +119,109 @@ function sanitizeBigInt(obj: any): any {
   return obj;
 }
 
-const buildRoleWhereQuery = async (role: string | null, userId: number, clientIdOverride?: string | null) => {
+const buildRoleWhereQuery = async (role: string | null, userId: number): Promise<any> => {
   if (!role) {
-    return undefined;
+    return {};
   }
 
   switch (role.toLowerCase()) {
     case "editor":
-      // An editor sees a task if they're either the main (video) editor OR
-      // the separately-assigned thumbnail editor for it.
-      return and(
-        or(eq(taskTable.assignedTo, userId), eq(taskTable.thumbnailEditor, userId)),
-        inArray(taskTable.status, ["PENDING", "IN_PROGRESS", "READY_FOR_QC", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] as any)
-      );
+      return {
+        AND: [
+          { assignedTo: userId },
+          {
+            status: {
+              in: [
+                "PENDING",
+                "IN_PROGRESS",
+                "READY_FOR_QC",
+                "REJECTED",
+              ],
+            },
+          },
+        ],
+      };
 
     case "qc":
-      return and(
-        eq(taskTable.qcSpecialist, userId),
-        inArray(taskTable.status, ["READY_FOR_QC", "COMPLETED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT", "CLIENT_REVIEW"] as any)
-      );
+      return {
+        AND: [
+          { qc_specialist: userId },
+          {
+            status: {
+              in: ["READY_FOR_QC", "COMPLETED", "REJECTED", "CLIENT_REVIEW"],
+            },
+          },
+        ],
+      };
 
     case "scheduler":
       // Schedulers see tasks assigned to them OR unassigned tasks (scheduler: null)
-      return and(
-        or(eq(taskTable.scheduler, userId), isNull(taskTable.scheduler)),
-        inArray(taskTable.status, ["COMPLETED", "SCHEDULED"] as any)
-      );
+      return {
+        AND: [
+          {
+            OR: [
+              { scheduler: userId },
+              { scheduler: null }
+            ]
+          },
+          {
+            status: {
+              in: ["COMPLETED", "SCHEDULED"],
+            },
+          },
+        ],
+      };
 
     case "client": {
       // 🔥 FIX: Resolve the actual clientId (via linkedClientId or fallback)
-      // so ALL users linked to the same client see the same tasks.
-      //
-      // clientIdOverride: used when an admin/manager is previewing a
-      // SPECIFIC client's portal via the switch-role dropdown (e.g. eric
-      // viewing "The Drew Meyers"). The admin's own userId has no real
-      // client link, so resolveClientIdForUser(userId) would fail — the
-      // caller passes the target client's ID explicitly instead, already
-      // authorized upstream in GET() before this function is called.
-      const resolvedClientId = clientIdOverride || (await resolveClientIdForUser(userId));
-      const clientStatuses = ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] as any;
+      // so ALL users linked to the same client see the same tasks
+      const resolvedClientId = await resolveClientIdForUser(userId);
 
       if (resolvedClientId) {
         // Filter by clientId — all users linked to this client see the same tasks
-        return and(eq(taskTable.clientId, resolvedClientId), inArray(taskTable.status, clientStatuses));
+        return {
+          AND: [
+            { clientId: resolvedClientId },
+            {
+              status: {
+                in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED"],
+              },
+            },
+          ],
+        };
       }
 
       // Fallback: if no client link found, use old clientUserId filter (safety net)
-      return and(eq(taskTable.clientUserId, Number(userId)), inArray(taskTable.status, clientStatuses));
+      return {
+        AND: [
+          { clientUserId: Number(userId) },
+          {
+            status: {
+              in: ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED"],
+            },
+          },
+        ],
+      };
     }
 
     case "videographer":
-      return and(
-        eq(taskTable.videographer, userId),
-        inArray(taskTable.status, ["VIDEOGRAPHER_ASSIGNED"] as any)
-      );
+      return {
+        AND: [
+          { videographer: userId },
+          {
+            status: {
+              in: ["VIDEOGRAPHER_ASSIGNED"],
+            },
+          },
+        ],
+      };
 
     case "manager":
     case "admin":
-      return undefined;
+      return {};
 
     default:
-      return eq(taskTable.assignedTo, userId);
+      return { assignedTo: userId };
   }
 };
 
@@ -210,7 +238,6 @@ const WEEKDAY_MAP: Record<string, number> = {
 
 
 export async function GET(req: any) {
-  const db = getDbHttp();
   try {
     const user = await getCurrentUser2(req);
     if (!user) {
@@ -240,92 +267,39 @@ const authorizedSwitchRoles = new Set<string>([
     ? DEFAULT_ADMIN_SWITCH_ROLES
     : []),
   ...(baseRole === "admin" ? DEFAULT_ADMIN_SWITCH_ROLES : []),
-  // 🔥 "client" is deliberately NOT in DEFAULT_ADMIN_SWITCH_ROLES above —
-  // unlike qc/sales/scheduler, previewing "client" needs a specific target
-  // client, not just the role name. Any admin/manager MAY switch into it,
-  // but only once they also supply ?clientId= (see below) — the frontend
-  // only offers this via ViewAsRoleContext's CLIENT_PREVIEW_MAP, which is
-  // scoped per-email, so in practice only accounts explicitly granted a
-  // client to preview will ever send this combination.
-  ...((baseRole === "admin" || baseRole === "manager") ? ["client"] : []),
 ]);
+
+// Viewing as QC (from any authorized base role — editor, scheduler, etc.)
+// is treated as admin-level access so the viewer sees ALL QC tasks, not
+// just tasks assigned to them personally in their normal role.
+const effectiveRole =
+  viewingAs && viewingAs !== baseRole && authorizedSwitchRoles.has(viewingAs)
+    ? (viewingAs === "qc" ? "admin" : viewingAs)
+    : role;
 
 const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get("status") as string | null;
     const clientIdFilter = searchParams.get("clientId") as string | null;
     const monthFilter = searchParams.get("monthFolder") as string | null;
 
-// Viewing as QC (from any authorized base role — editor, scheduler, etc.)
-// is treated as admin-level access so the viewer sees ALL QC tasks, not
-// just tasks assigned to them personally in their normal role. Viewing as
-// "client" additionally requires a clientId — without one there's no
-// client to scope to, so it's ignored and the real role is used instead.
-const effectiveRole =
-  viewingAs && viewingAs !== baseRole && authorizedSwitchRoles.has(viewingAs) && (viewingAs !== "client" || !!clientIdFilter)
-    ? (viewingAs === "qc" ? "admin" : viewingAs)
-    : role;
+    // Build role-based where query
+    let where: any = await buildRoleWhereQuery(effectiveRole, Number(userId));
 
-    // 🔥 Row-count safety cap — default 100, caller can request more via
-    // ?limit=, but never more than 200 (prevents ?limit=99999 from
-    // recreating the unfiltered-3000+-rows memory problem this replaces).
-    const requestedLimit = parseInt(searchParams.get("limit") || "", 10);
-    const taskLimit = Number.isFinite(requestedLimit) && requestedLimit > 0
-      ? Math.min(requestedLimit, 500)
-      : 100;
-
-    // 🔥 Paged "queue" mode (used by the QC review queue).
-    //   ?order=queue          → same order the QC screen shows: highest video
-    //                           version first, then latest due date, then id
-    //                           (id makes paging stable when two tasks tie).
-    //   ?offset=N             → skip the first N rows (for "Load more").
-    //   ?deliverableType=, ?tag= → server-side filters (the screen only holds
-    //                           one page, so it can no longer filter locally).
-    //   ?facets=1             → also return counts + filter dropdown options
-    //                           computed over the WHOLE queue, not just a page.
-    // Without these params the endpoint behaves exactly as before.
-    const queueMode = searchParams.get("order") === "queue";
-    const requestedOffset = parseInt(searchParams.get("offset") || "", 10);
-    const taskOffset = Number.isFinite(requestedOffset) && requestedOffset > 0 ? requestedOffset : 0;
-    const deliverableTypeFilter = searchParams.get("deliverableType");
-    const tagFilter = searchParams.get("tag");
-    const wantFacets = searchParams.get("facets") === "1";
-
-    // 🔥 Light mode (?light=1) — used by the client Content Review screen.
-    // That screen never reads feedback threads, shoot details, tags, the
-    // thumbnail-editor / QC-reviewer users, or the distinct-months list, and
-    // it falls back to /api/files/:id/download when a file has no
-    // `downloadUrl`. Skipping all of that removes 5 relation joins from the
-    // main query, one presign per file, and an unscoped
-    // SELECT DISTINCT over the whole Task table. Opt-in only: every other
-    // caller (QC, editor, admin, scheduler…) keeps the full response.
-    const lightMode = searchParams.get("light") === "1";
-
-    // Same "effective deliverable type" the QC screen used client-side.
-    const deliverableTypeExpr = drizzleSql`coalesce(nullif(${taskTable.deliverableType}, ''), (select m."type" from "MonthlyDeliverable" m where m."id" = ${taskTable.monthlyDeliverableId}), (select o."type" from "OneOffDeliverable" o where o."id" = ${taskTable.oneOffDeliverableId}), 'Other')`;
-    const latestVersionExpr = drizzleSql`coalesce((select max(f."version") from "File" f where f."taskId" = ${taskTable.id} and f."mimeType" like 'video/%'), (select max(f."version") from "File" f where f."taskId" = ${taskTable.id}), 1)`;
-
-    // Build role-based where query. When previewing "client", pass the
-    // requested clientId through as the override (see buildRoleWhereQuery) —
-    // for a real client user this is undefined and it falls back to
-    // resolveClientIdForUser as before.
-    const roleWhere = await buildRoleWhereQuery(
-      effectiveRole,
-      Number(userId),
-      effectiveRole === "client" ? clientIdFilter : undefined
-    );
-    const conditions: any[] = roleWhere ? [roleWhere] : [];
-
-    // 🔥 ADD CLIENT FILTER - For filtering tasks by client. Skipped when
-    // effectiveRole is already "client", since buildRoleWhereQuery just
-    // applied the same clientId scoped to client-visible statuses only —
-    // adding it again here would be redundant and (harmlessly) duplicate
-    // the condition.
-    if (clientIdFilter && effectiveRole !== "client") {
-      conditions.push(eq(taskTable.clientId, clientIdFilter));
+    // 🔥 ADD CLIENT FILTER - For filtering tasks by client
+    if (clientIdFilter) {
+      if (where.AND) {
+        where.AND.push({ clientId: clientIdFilter });
+      } else if (Object.keys(where).length > 0) {
+        where = {
+          AND: [where, { clientId: clientIdFilter }],
+        };
+      } else {
+        where = { clientId: clientIdFilter };
+      }
     }
 
     // 🔥 ADD STATUS FILTER - ALLOW COMMA SEPARATED STATUSES
-    const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT", "PENDING", "IN_PROGRESS", "CLIENT_REVIEW", "SCHEDULED", "VIDEOGRAPHER_ASSIGNED", "POSTED"];
+    const ALLOWED_STATUSES = ["READY_FOR_QC", "COMPLETED", "REJECTED", "PENDING", "IN_PROGRESS", "CLIENT_REVIEW", "SCHEDULED", "VIDEOGRAPHER_ASSIGNED", "POSTED"];
 
     if (statusFilter) {
       const statuses = statusFilter.split(",").map((s) => s.trim().toUpperCase());
@@ -338,43 +312,46 @@ const effectiveRole =
         );
       }
 
-      conditions.push(inArray(taskTable.status, statuses as any));
+      if (where.AND) {
+        where.AND.push({
+          status: {
+            in: statuses,
+          },
+        });
+      } else {
+        where = {
+          AND: [
+            where,
+            {
+              status: {
+                in: statuses,
+              },
+            },
+          ],
+        };
+      }
     }
 
     // 🔥 ADD MONTH FILTER - Filter by monthFolder (e.g., "March-2026")
     if (monthFilter && monthFilter !== "all") {
-      conditions.push(eq(taskTable.monthFolder, monthFilter));
+      if (where.AND) {
+        where.AND.push({ monthFolder: monthFilter });
+      } else if (Object.keys(where).length > 0) {
+        where = {
+          AND: [where, { monthFolder: monthFilter }],
+        };
+      } else {
+        where = { monthFolder: monthFilter };
+      }
     }
-
-    // Everything above = the "whole queue" (used for totals + filter options).
-    const baseWhere = conditions.length ? and(...conditions) : undefined;
-
-    if (queueMode && deliverableTypeFilter && deliverableTypeFilter !== "all") {
-      conditions.push(drizzleSql`${deliverableTypeExpr} = ${deliverableTypeFilter}`);
-    }
-    if (queueMode && tagFilter && tagFilter !== "all") {
-      conditions.push(
-        drizzleSql`exists (select 1 from "_TagToTask" tt join "Tag" tg on tg."id" = tt."A" where tt."B" = ${taskTable.id} and tg."name" = ${tagFilter})`
-      );
-    }
-
-    const where = conditions.length ? and(...conditions) : undefined;
-
-    const queueOrderBy = [
-      desc(latestVersionExpr),
-      desc(drizzleSql`coalesce(${taskTable.dueDate}, ${taskTable.createdAt})`),
-      asc(taskTable.id),
-    ];
 
     let tasks: any[];
     try {
       // ✅ NO PAGINATION - Fetch all tasks matching the query
-      const rawTasks = await db.query.task.findMany({
+      tasks = await (prisma.task as any).findMany({
         where,
-        orderBy: queueMode ? queueOrderBy : desc(taskTable.createdAt),
-        limit: taskLimit,
-        ...(taskOffset ? { offset: taskOffset } : {}),
-        columns: {
+        orderBy: { createdAt: "desc" },
+        select: {
           id: true,
           title: true,
           description: true,
@@ -382,53 +359,11 @@ const effectiveRole =
           status: true,
           dueDate: true,
           assignedTo: true,
-          thumbnailEditor: true,
           createdBy: true,
           clientId: true,
           clientUserId: true,
-          driveLinks: true,
-          createdAt: true,
-          priority: true,
-          taskCategory: true,
-          nextDestination: true,
-          requiresClientReview: true,
-          workflowStep: true,
-          folderType: true,
-          monthFolder: true,
-          qcNotes: true,
-          feedback: true,
-          deliverableType: true,
-          textContent: true,
-          monthlyDeliverableId: true,
-          oneOffDeliverableId: true,
-          isExtra: true,
-          extraSequence: true,
-          socialMediaLinks: true,
-          suggestedTitles: true,
-          postingTitle: true,
-          titleSetByQc: true,
-          titleSetByClient: true,
-          postingTitles: true,
-          postingDescriptions: true,
-          postingTags: true,
-          updatedAt: true,
-          qcReviewedBy: true,
-          qcReviewedAt: true,
-          qcResult: true,
-          shootScriptRef: true,
-          // 🔥 Task Actions feature — these were missing from this allow-list
-          // entirely, so isSponsored/linkedRawFootagePaths/relatedTaskId only
-          // ever appeared correct via optimistic client state and silently
-          // reverted to blank on every real reload. Needed now for the
-          // Task Actions count to be accurate on load, not just post-toggle.
-          isSponsored: true,
-          linkedRawFootagePaths: true,
-          relatedTaskId: true,
-          noActionRequired: true,
-        },
-        with: {
           files: {
-            columns: {
+            select: {
               id: true,
               name: true,
               url: true,
@@ -440,171 +375,191 @@ const effectiveRole =
               folderType: true,
               version: true,
               isActive: true,
-              replacedAt: true,
-              replacedBy: true,
               codec: true,
               proxyUrl: true,
               reviewDriveUrl: true,
               youtubeVideoId: true,
             },
           },
-          ...(lightMode ? {} : { shootDetails: true }),
+          driveLinks: true,
+          createdAt: true,
+          priority: true,
+          taskCategory: true,
+          nextDestination: true,
+          requiresClientReview: true,
+          workflowStep: true,
+          folderType: true,
+          monthFolder: true,
+          qcNotes: true,
+          feedback: true,
+          shootDetail: true,
+          deliverableType: true,
+          textContent: true,
+          tags: true,
+          monthlyDeliverableId: true,
           monthlyDeliverable: true,
+          oneOffDeliverableId: true,
           oneOffDeliverable: true,
-          ...(lightMode ? {} : { tagToTasks: { with: { tag: true } } }),
+          isExtra: true,
+          extraSequence: true,
+          socialMediaLinks: true,
+          suggestedTitles: true,
+          postingTitle: true,
+          titleSetByQC: true,
+          titleSetByClient: true,
+          postingTitles: true,
+          postingDescriptions: true,
+          postingTags: true,
+          updatedAt: true,
           client: {
-            columns: {
+            select: {
               name: true,
               companyName: true,
               requiresClientReview: true,
               clientReviewDeliverableTypes: true,
             }
           },
-          user_assignedTo: {
-            columns: {
+          user: {
+            select: {
               name: true,
               role: true,
             },
           },
-          // Heavy relations below are skipped in light mode (see lightMode above).
-          ...(lightMode ? {} : {
-            user_thumbnailEditor: {
-              columns: {
-                id: true,
-                name: true,
-                role: true,
-              },
+          qcReviewedBy: true,
+          qcReviewedAt: true,
+          qcResult: true,
+          qcReviewer: {
+            select: {
+              id: true,
+              name: true,
             },
-            user_qcReviewedBy: {
-              columns: {
-                id: true,
-                name: true,
-              },
-            },
-            taskFeedbacks: {
-              columns: {
-                id: true,
-                fileId: true,
-                folderType: true,
-                feedback: true,
-                status: true,
-                timestamp: true,
-                category: true,
-                createdAt: true,
-                resolvedAt: true,
-                acknowledgedAt: true,
-                acknowledgedBy: true,
-              },
-              with: {
-                file: {
-                  columns: {
-                    version: true,
-                    name: true,
-                  },
-                },
-                user: {
-                  columns: {
-                    id: true,
-                    name: true,
-                    role: true,
-                  },
+          },
+          taskFeedback: {
+            select: {
+              id: true,
+              fileId: true,
+              folderType: true,
+              feedback: true,
+              status: true,
+              timestamp: true,
+              category: true,
+              createdAt: true,
+              resolvedAt: true,
+              acknowledgedAt: true,
+              acknowledgedBy: true,
+              file: {
+                select: {
+                  version: true,
+                  name: true,
                 },
               },
-              orderBy: (tf: any, { desc }: any) => desc(tf.createdAt),
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  role: true,
+                },
+              },
             },
-          }),
+            orderBy: { createdAt: 'desc' as const },
+          },
         },
       });
-
-      // Rename relation keys back to the shape the rest of this handler
-      // (and the frontend) expects, since Drizzle's relational query API
-      // keys results by the relation name in relations.ts, not the FK name.
-      tasks = rawTasks.map((t: any) => {
-        const { user_assignedTo, user_thumbnailEditor, user_qcReviewedBy, taskFeedbacks, shootDetails, tagToTasks, ...rest } = t;
-        return {
-          ...rest,
-          user: user_assignedTo,
-          thumbnailEditorUser: user_thumbnailEditor,
-          qcReviewer: user_qcReviewedBy,
-          taskFeedback: taskFeedbacks,
-          shootDetail: shootDetails?.[0] ?? null,
-          tags: (tagToTasks ?? []).map((tt: any) => tt.tag),
-        };
-      });
     } catch (e: any) {
-      console.warn("⚠️ Structured task query failed, falling back to raw SQL...", e.message);
+      if (e.message?.includes("Expected TaskStatus") || e.code === "P2009" || e.message?.includes("validation")) {
+        console.warn("⚠️ findMany failed due to enum mismatch. Falling back to queryRaw...", e?.message);
 
-      // 🔒 IMPORTANT: this fallback used to run a completely unscoped
-      // `SELECT t.* ... LIMIT` with no WHERE clause at all — it ignored the
-      // same `where` (role + status + client + month filters) built above.
-      // For an editor, that meant the global most-recent-N tasks across the
-      // ENTIRE company, almost never including her own — the dashboard
-      // rendered "No tasks" everywhere until a reload retried the primary
-      // query. For a client session, the same gap meant potentially seeing
-      // other clients' unscoped task rows. Always reuse `where` here so a
-      // fallback degrades gracefully instead of silently changing scope.
-      const rawRows = await db
-        .select({
-          ...getTableColumns(taskTable),
-          clientName: clientTable.name,
-          clientCompanyName: clientTable.companyName,
-          userName: userTable.name,
-          userRole: userTable.role,
-        })
-        .from(taskTable)
-        .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
-        .leftJoin(userTable, eq(taskTable.assignedTo, userTable.id))
-        .where(where)
-        .orderBy(...(queueMode ? queueOrderBy : [desc(taskTable.createdAt)]))
-        .limit(taskLimit)
-        .offset(taskOffset);
+        // 🔒 The fallback MUST be scoped exactly like the Prisma query above.
+        // It used to select EVERY task in the database for every role, which
+        // (a) leaked other people's tasks and (b) returned a payload so large
+        // that editor dashboards appeared empty / never finished loading.
+        // Status is compared as text so an unknown enum value in the DB can't
+        // break the query again.
+        const rawParams: any[] = [];
+        const rawWhere: string[] = [];
+        const addParam = (v: any) => {
+          rawParams.push(v);
+          return `$${rawParams.length}`;
+        };
+        const statusIn = (list: string[]) =>
+          `t."status"::text = ANY(${addParam(list)}::text[])`;
 
-      const taskIds = rawRows.map(t => t.id);
-      const allFiles: any[] = taskIds.length > 0
-        ? await db.select().from(fileTable).where(inArray(fileTable.taskId, taskIds))
-        : [];
+        switch ((effectiveRole || "").toLowerCase()) {
+          case "editor":
+            rawWhere.push(`t."assignedTo" = ${addParam(Number(userId))}`);
+            rawWhere.push(statusIn(["PENDING", "IN_PROGRESS", "READY_FOR_QC", "REJECTED"]));
+            break;
+          case "qc":
+            rawWhere.push(`t."qc_specialist" = ${addParam(Number(userId))}`);
+            rawWhere.push(statusIn(["READY_FOR_QC", "COMPLETED", "REJECTED", "CLIENT_REVIEW"]));
+            break;
+          case "scheduler": {
+            const p = addParam(Number(userId));
+            rawWhere.push(`(t."scheduler" = ${p} OR t."scheduler" IS NULL)`);
+            rawWhere.push(statusIn(["COMPLETED", "SCHEDULED"]));
+            break;
+          }
+          case "videographer":
+            rawWhere.push(`t."videographer" = ${addParam(Number(userId))}`);
+            rawWhere.push(statusIn(["VIDEOGRAPHER_ASSIGNED"]));
+            break;
+          case "client": {
+            const resolvedClientId = await resolveClientIdForUser(Number(userId));
+            if (resolvedClientId) {
+              rawWhere.push(`t."clientId" = ${addParam(resolvedClientId)}`);
+            } else {
+              rawWhere.push(`t."clientUserId" = ${addParam(Number(userId))}`);
+            }
+            rawWhere.push(statusIn(["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED"]));
+            break;
+          }
+          case "admin":
+          case "manager":
+            break; // unscoped, same as buildRoleWhereQuery
+          default:
+            rawWhere.push(`t."assignedTo" = ${addParam(Number(userId))}`);
+        }
 
-      const thumbnailEditorIds = Array.from(new Set(rawRows.map(t => t.thumbnailEditor).filter((v): v is number => !!v)));
-      const thumbnailEditors = thumbnailEditorIds.length > 0
-        ? await db.select({ id: userTable.id, name: userTable.name, role: userTable.role }).from(userTable).where(inArray(userTable.id, thumbnailEditorIds))
-        : [];
-      const thumbnailEditorMap = new Map(thumbnailEditors.map(u => [u.id, u]));
+        if (clientIdFilter) rawWhere.push(`t."clientId" = ${addParam(clientIdFilter)}`);
+        if (monthFilter && monthFilter !== "all") rawWhere.push(`t."monthFolder" = ${addParam(monthFilter)}`);
+        if (statusFilter) {
+          rawWhere.push(
+            statusIn(statusFilter.split(",").map((s) => s.trim().toUpperCase()))
+          );
+        }
 
-      tasks = rawRows.map(t => ({
-        ...t,
-        client: { name: t.clientName, companyName: t.clientCompanyName },
-        user: { name: t.userName, role: t.userRole },
-        thumbnailEditorUser: t.thumbnailEditor ? thumbnailEditorMap.get(t.thumbnailEditor) ?? null : null,
-        files: allFiles.filter(f => f.taskId === t.id),
-        taskFeedback: []
-      }));
-    }
+        tasks = await prisma.$queryRawUnsafe(
+          `
+          SELECT t.*,
+                 c.name as "clientName", c."companyName" as "clientCompanyName",
+                 u.name as "userName", u.role as "userRole"
+          FROM "Task" t
+          LEFT JOIN "Client" c ON t."clientId" = c.id
+          LEFT JOIN "User" u ON t."assignedTo" = u.id
+          ${rawWhere.length ? `WHERE ${rawWhere.join(" AND ")}` : ""}
+          ORDER BY t."createdAt" DESC
+        `,
+          ...rawParams
+        );
 
-    // Attach only READY generated previews. The browser receives a same-origin
-    // image route rather than a storage URL, and task-card resolution decides
-    // whether this video preview is superseded by an editor thumbnail.
-    const videoKeys = [...new Set(tasks.flatMap((task: any) =>
-      (task.files || [])
-        .filter((file: any) => file.isActive !== false && file.mimeType?.startsWith('video/') && file.s3Key)
-        .map((file: any) => file.s3Key as string)
-    ))];
-    if (videoKeys.length) {
-      const previews = await db
-        .select({ s3Key: mediaPreview.s3Key, previewS3Key: mediaPreview.previewS3Key })
-        .from(mediaPreview)
-        .where(and(inArray(mediaPreview.s3Key, videoKeys), eq(mediaPreview.status, 'READY')));
-      const previewUrls = new Map(
-        previews
-          .filter(preview => !!preview.previewS3Key)
-          .map(preview => [preview.s3Key, `/api/media-previews/image?key=${encodeURIComponent(preview.previewS3Key!)}`]),
-      );
-      tasks = tasks.map((task: any) => ({
-        ...task,
-        files: (task.files || []).map((file: any) => ({
-          ...file,
-          previewUrl: file.s3Key ? previewUrls.get(file.s3Key) || null : null,
-        })),
-      }));
+        const taskIds = (tasks as any[]).map(t => t.id);
+        const allFiles: any[] = taskIds.length > 0
+          ? await prisma.$queryRawUnsafe(
+              `SELECT * FROM "File" WHERE "taskId" = ANY($1::text[])`,
+              taskIds
+            )
+          : [];
+
+        tasks = tasks.map(t => ({
+          ...t,
+          client: { name: t.clientName, companyName: t.clientCompanyName },
+          user: { name: t.userName, role: t.userRole },
+          files: allFiles.filter(f => f.taskId === t.id),
+          taskFeedback: []
+        }));
+      } else {
+        throw e;
+      }
     }
 
     const extractSortParts = (title: string | null) => {
@@ -625,9 +580,7 @@ const effectiveRole =
     };
 
     // Sort: company → date → prefix → number
-    // In queue mode the database order IS the page order — re-sorting here
-    // would shuffle rows across page boundaries.
-    const sortedTasks = queueMode ? tasks : tasks.sort((a: any, b: any) => {
+    const sortedTasks = tasks.sort((a: any, b: any) => {
       const taskA = extractSortParts(a.title);
       const taskB = extractSortParts(b.title);
 
@@ -652,7 +605,7 @@ const effectiveRole =
     const tasksWithSignedUrls = await Promise.all(
       sortedTasks.map(async (task) => {
         if (task.files && task.files.length > 0) {
-          const signedFiles = await addSignedUrlsToFiles(task.files, { includeDownloadUrl: !lightMode });
+          const signedFiles = await addSignedUrlsToFiles(task.files);
           return { ...task, files: signedFiles };
         }
         return task;
@@ -706,69 +659,16 @@ const effectiveRole =
       return { ...task, requiresClientReview: allowedTypes.includes(taskType) };
     });
 
-    // 🔥 Get distinct monthFolder values for the filter dropdown.
-    // Skipped in queue mode: the QC screen doesn't use it, and it scans the
-    // whole Task table on every request.
-    let availableMonths: string[] = [];
-    if (!queueMode && !lightMode) {
-      const distinctMonths = await db
-        .selectDistinct({ monthFolder: taskTable.monthFolder })
-        .from(taskTable)
-        .where(isNotNull(taskTable.monthFolder))
-        .orderBy(desc(taskTable.monthFolder));
-      availableMonths = distinctMonths
-        .map((t: any) => t.monthFolder as string)
-        .filter(Boolean);
-    }
-
-    // 🔥 Queue totals + filter options over the whole queue (cheap: no files,
-    // no feedback — just ids, client and deliverable type).
-    let paging: Record<string, any> | undefined;
-    if (queueMode) {
-      const [{ value: filteredTotal }] = await db
-        .select({ value: count() })
-        .from(taskTable)
-        .where(where);
-      paging = {
-        total: Number(filteredTotal),
-        offset: taskOffset,
-        limit: taskLimit,
-        hasMore: taskOffset + tasksWithEffectiveReview.length < Number(filteredTotal),
-      };
-
-      if (wantFacets) {
-        const facetRows = await db
-          .selectDistinct({
-            clientId: taskTable.clientId,
-            clientName: clientTable.name,
-            clientCompanyName: clientTable.companyName,
-            deliverableType: deliverableTypeExpr.as("effective_deliverable_type"),
-          })
-          .from(taskTable)
-          .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
-          .where(baseWhere);
-        const [{ value: totalPending }] = await db
-          .select({ value: count() })
-          .from(taskTable)
-          .where(baseWhere);
-
-        const clientMap = new Map<string, string>();
-        const typeSet = new Set<string>();
-        for (const r of facetRows as any[]) {
-          if (r.clientId) {
-            clientMap.set(r.clientId, r.clientCompanyName || r.clientName || "Unknown Client");
-          }
-          if (r.deliverableType) typeSet.add(String(r.deliverableType));
-        }
-        paging.totalPending = Number(totalPending);
-        paging.facets = {
-          clients: Array.from(clientMap.entries())
-            .map(([id, name]) => ({ id, name }))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-          deliverableTypes: Array.from(typeSet).sort(),
-        };
-      }
-    }
+    // 🔥 Get distinct monthFolder values for the filter dropdown
+    const distinctMonths = await prisma.task.findMany({
+      where: { monthFolder: { not: null } },
+      select: { monthFolder: true },
+      distinct: ['monthFolder'],
+      orderBy: { monthFolder: 'desc' },
+    });
+    const availableMonths = distinctMonths
+      .map((t: any) => t.monthFolder as string)
+      .filter(Boolean);
 
     // ✅ Return all tasks without pagination
     // return NextResponse.json({
@@ -793,7 +693,6 @@ const finalTasks = isClientRole
 return NextResponse.json({
   tasks: finalTasks,
   availableMonths,
-  ...(paging ? { paging } : {}),
 }, { status: 200 });
   } catch (err: any) {
     console.error("❌ GET /api/tasks error:", err);
@@ -810,7 +709,6 @@ return NextResponse.json({
 }
 
 export async function POST(req: any) {
-  const db = getDbHttp();
   try {
     // 🔒 AUTH
     const user = await getCurrentUser2(req);
@@ -852,9 +750,9 @@ export async function POST(req: any) {
       if (!clientId || (!oneOffDeliverableId && !(isExtra && monthlyDeliverableId))) {
         return NextResponse.json({ message: "clientId and a valid deliverable are required" }, { status: 400 });
       }
-      const [perm] = await db.select().from(editorClientPermissionTable)
-        .where(and(eq(editorClientPermissionTable.editorId, Number(userId)), eq(editorClientPermissionTable.clientId, clientId)))
-        .limit(1);
+      const perm = await (prisma as any).editorClientPermission.findUnique({
+        where: { editorId_clientId: { editorId: Number(userId), clientId } },
+      });
       if (!perm) {
         return NextResponse.json({ message: "You do not have permission to create tasks for this client" }, { status: 403 });
       }
@@ -881,17 +779,19 @@ export async function POST(req: any) {
     const effectiveFolderType = folderType || 'rawFootage';
 
     // 📁 GET CLIENT FOLDERS FROM DB
-    const [client] = await db.select({
-      name: clientTable.name,
-      companyName: clientTable.companyName,
-      taskNamePrefix: clientTable.taskNamePrefix,
-      rawFootageFolderId: clientTable.rawFootageFolderId,
-      essentialsFolderId: clientTable.essentialsFolderId,
-      requiresClientReview: clientTable.requiresClientReview,
-      requiresVideographer: clientTable.requiresVideographer,
-      isTrial: clientTable.isTrial,
-      userId: clientTable.userId,
-    }).from(clientTable).where(eq(clientTable.id, clientId)).limit(1);
+    const client = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: {
+        name: true,
+        companyName: true,
+        rawFootageFolderId: true,
+        essentialsFolderId: true,
+        requiresClientReview: true,
+        requiresVideographer: true,
+        isTrial: true,
+        userId: true,
+      },
+    });
 
     if (!client)
       return NextResponse.json(
@@ -906,11 +806,10 @@ export async function POST(req: any) {
     let extraMonthlyDeliverable: { id: string; type: string } | null = null;
 
     if (isExtraMonthlyTask) {
-      const [md] = await db.select({ id: monthlyDeliverableTable.id, type: monthlyDeliverableTable.type })
-        .from(monthlyDeliverableTable)
-        .where(and(eq(monthlyDeliverableTable.id, monthlyDeliverableId), eq(monthlyDeliverableTable.clientId, clientId)))
-        .limit(1);
-      extraMonthlyDeliverable = md ?? null;
+      extraMonthlyDeliverable = await prisma.monthlyDeliverable.findFirst({
+        where: { id: monthlyDeliverableId, clientId },
+        select: { id: true, type: true },
+      });
 
       if (!extraMonthlyDeliverable) {
         return NextResponse.json(
@@ -919,13 +818,13 @@ export async function POST(req: any) {
         );
       }
 
-      const [{ value: existingMonthlyTaskCount }] = await db.select({ value: count() })
-        .from(taskTable)
-        .where(and(
-          eq(taskTable.clientId, clientId),
-          eq(taskTable.monthlyDeliverableId, monthlyDeliverableId),
-          eq(taskTable.monthFolder, currentMonth),
-        ));
+      const existingMonthlyTaskCount = await prisma.task.count({
+        where: {
+          clientId,
+          monthlyDeliverableId,
+          monthFolder: currentMonth,
+        },
+      });
       extraSequence = existingMonthlyTaskCount + 1;
     }
 
@@ -968,47 +867,47 @@ export async function POST(req: any) {
     if (isExtraMonthlyTask && extraMonthlyDeliverable) {
       resolvedDeliverableType = getDeliverableShortCode(extraMonthlyDeliverable.type);
     } else if (monthlyDeliverableId) {
-      const [mdForType] = await db.select({ type: monthlyDeliverableTable.type })
-        .from(monthlyDeliverableTable)
-        .where(and(eq(monthlyDeliverableTable.id, monthlyDeliverableId), eq(monthlyDeliverableTable.clientId, clientId)))
-        .limit(1);
+      const mdForType = await prisma.monthlyDeliverable.findFirst({
+        where: { id: monthlyDeliverableId, clientId },
+        select: { type: true },
+      });
       if (mdForType) resolvedDeliverableType = getDeliverableShortCode(mdForType.type);
     } else if (oneOffDeliverableId) {
-      const [odForType] = await db.select({ type: oneOffDeliverableTable.type })
-        .from(oneOffDeliverableTable)
-        .where(eq(oneOffDeliverableTable.id, oneOffDeliverableId))
-        .limit(1);
+      const odForType = await prisma.oneOffDeliverable.findUnique({
+        where: { id: oneOffDeliverableId },
+        select: { type: true },
+      });
       if (odForType) resolvedDeliverableType = getDeliverableShortCode(odForType.type);
     }
 
     // 📝 CREATE TASK FIRST
-    const [task] = await db.insert(taskTable).values({
-      id: createId(),
-      title: "",
-      description: description || "",
-      dueDate: new Date(dueDate).toISOString(),
-      assignedTo,
-      qcSpecialist: qc_specialist,
-      scheduler,
-      videographer,
-      createdBy: userId,
-      clientId: clientId,
-      clientUserId: client?.userId,
-      monthlyDeliverableId: monthlyDeliverableId || null,
-      oneOffDeliverableId: oneOffDeliverableId || null,
-      driveLinks: uploadedLinks,
-      folderType: effectiveFolderType,
-      monthFolder: currentMonth,
-      requiresClientReview: client.requiresClientReview,
-      isTrial: client.isTrial ?? false,
-      isExtra: isExtraMonthlyTask,
-      extraSequence,
-      deliverableType: resolvedDeliverableType,
-      status: (client.requiresVideographer || shootLocation || shootCamera)
-        ? "VIDEOGRAPHER_ASSIGNED"
-        : "PENDING",
-      updatedAt: new Date().toISOString(),
-    }).returning();
+    const task = await prisma.task.create({
+      data: {
+        title: "",
+        description: description || "",
+        dueDate: new Date(dueDate),
+        assignedTo,
+        qc_specialist,
+        scheduler,
+        videographer,
+        createdBy: userId,
+        clientId: clientId,
+        clientUserId: client?.userId,
+        monthlyDeliverableId: monthlyDeliverableId || null,
+        oneOffDeliverableId: oneOffDeliverableId || null,
+        driveLinks: uploadedLinks,
+        folderType: effectiveFolderType,
+        monthFolder: currentMonth,
+        requiresClientReview: client.requiresClientReview,
+        isTrial: client.isTrial ?? false,
+        isExtra: isExtraMonthlyTask,
+        extraSequence,
+        deliverableType: resolvedDeliverableType,
+        status: (client.requiresVideographer || shootLocation || shootCamera)
+          ? "VIDEOGRAPHER_ASSIGNED"
+          : "PENDING",
+      },
+    });
 
     console.log("Created task:", JSON.stringify(task));
 
@@ -1025,12 +924,14 @@ export async function POST(req: any) {
       },
     });
 
-    // 🔔 Notification moved to after each branch below sets the real title —
-    // see the "🔔 Notify" comments near each return statement. Calling this
-    // here (right after insert, when title is still "") is exactly why the
-    // Slack "You've been assigned 1 task: Untitled" bug happened: this task
-    // row's title isn't filled in until the extra/monthly/one-off title
-    // logic runs further down, well after this point.
+    // 🔔 Notify the assigned editor (in-app + grouped Slack message)
+    if (assignedTo) {
+      try {
+        await notifyEditorTaskAssignment(assignedTo, [task.id]);
+      } catch (err) {
+        console.error("Failed to send assignment notification:", err);
+      }
+    }
 
     // 📤 UPLOAD FILES TO S3
     for (const file of files) {
@@ -1045,19 +946,23 @@ export async function POST(req: any) {
 
       uploadedLinks.push(uploaded.url);
 
-      await db.insert(fileTable).values({
-        id: createId(),
-        taskId: task.id,
-        name: file.name,
-        url: uploaded.url,
-        mimeType: file.type,
-        size: buffer.length,
-        uploadedBy: userId,
+      await prisma.file.create({
+        data: {
+          taskId: task.id,
+          name: file.name,
+          url: uploaded.url,
+          mimeType: file.type,
+          size: BigInt(buffer.length),
+          uploadedBy: userId,
+        },
       });
     }
 
     // 🆙 UPDATE TASK WITH FILE LINKS
-    await db.update(taskTable).set({ driveLinks: uploadedLinks, updatedAt: new Date().toISOString() }).where(eq(taskTable.id, task.id));
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { driveLinks: uploadedLinks },
+    });
 
     // 🔥 CREATE SHOOT DETAIL IF PROVIDED
     if (shootLocation || shootDate || shootCamera || shootReferenceLinks) {
@@ -1065,41 +970,42 @@ export async function POST(req: any) {
         ? shootReferenceLinks.split(',').map(l => l.trim()).filter(Boolean)
         : [];
 
-      await db.insert(shootDetailTable).values({
-        id: createId(),
-        taskId: task.id,
-        location: shootLocation || null,
-        shootDate: shootDate ? new Date(shootDate).toISOString() : null,
-        camera: shootCamera || null,
-        quality: shootQuality || null,
-        frameRate: shootFrameRate || null,
-        lighting: shootLighting || null,
-        exclusions: shootExclusions || null,
-        referenceLinks: referenceLinksArray,
-        videographerId: videographer || null,
-        updatedAt: new Date().toISOString(),
+      await (prisma as any).shootDetail.create({
+        data: {
+          taskId: task.id,
+          location: shootLocation || null,
+          shootDate: shootDate ? new Date(shootDate) : null,
+          camera: shootCamera || null,
+          quality: shootQuality || null,
+          frameRate: shootFrameRate || null,
+          lighting: shootLighting || null,
+          exclusions: shootExclusions || null,
+          referenceLinks: referenceLinksArray,
+          videographerId: videographer || null
+        }
       });
     }
 
     // 🔁 AUTO GENERATE TASKS (Only if it's a monthly deliverable)
     if (isExtraMonthlyTask && extraMonthlyDeliverable && extraSequence) {
       const companyName = client.companyName || client.name;
-      const companyNameSlug = getClientTaskSlug(client);
+      const companyNameSlug = companyName.replace(/\s/g, '');
       const deliverableSlug = getDeliverableShortCode(extraMonthlyDeliverable.type);
-      const taskCreatedAt = new Date(task.createdAt);
-      const createdAtStr = formatDateMMDDYYYY(taskCreatedAt);
+      const createdAtStr = formatDateMMDDYYYY(task.createdAt);
       const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${extraSequence}`;
       const taskFolderPath = await createTaskFolderStructure(companyName, title, currentMonth);
-      const recurringMonthLabel = `${taskCreatedAt.getFullYear()}-${String(taskCreatedAt.getMonth() + 1).padStart(2, "0")}`;
+      const recurringMonthLabel = `${task.createdAt.getFullYear()}-${String(task.createdAt.getMonth() + 1).padStart(2, "0")}`;
 
-      const [updatedExtra] = await db.update(taskTable).set({
-        title,
-        outputFolderId: taskFolderPath,
-        recurringMonth: recurringMonthLabel,
-        isExtra: true,
-        extraSequence,
-        updatedAt: new Date().toISOString(),
-      }).where(eq(taskTable.id, task.id)).returning();
+      const updatedExtra = await prisma.task.update({
+        where: { id: task.id },
+        data: {
+          title,
+          outputFolderId: taskFolderPath,
+          recurringMonth: recurringMonthLabel,
+          isExtra: true,
+          extraSequence,
+        },
+      });
 
       const createdExtraTasks = [updatedExtra];
 
@@ -1112,48 +1018,36 @@ export async function POST(req: any) {
           currentMonth
         );
 
-        const [extraTask] = await db.insert(taskTable).values({
-          id: createId(),
-          title: nextTitle,
-          description: description || "",
-          dueDate: new Date(dueDate).toISOString(),
-          assignedTo,
-          qcSpecialist: qc_specialist,
-          scheduler,
-          videographer,
-          createdBy: userId,
-          clientId,
-          clientUserId: client?.userId,
-          monthlyDeliverableId,
-          driveLinks: [],
-          folderType: effectiveFolderType,
-          monthFolder: currentMonth,
-          outputFolderId: nextTaskFolderPath,
-          recurringMonth: recurringMonthLabel,
-          requiresClientReview: client.requiresClientReview,
-          isTrial: client.isTrial ?? false,
-          isExtra: true,
-          extraSequence: nextSequence,
-          deliverableType: resolvedDeliverableType,
-          status: (client.requiresVideographer || shootLocation || shootCamera)
-            ? "VIDEOGRAPHER_ASSIGNED"
-            : "PENDING",
-          updatedAt: new Date().toISOString(),
-        }).returning();
+        const extraTask = await prisma.task.create({
+          data: {
+            title: nextTitle,
+            description: description || "",
+            dueDate: new Date(dueDate),
+            assignedTo,
+            qc_specialist,
+            scheduler,
+            videographer,
+            createdBy: userId,
+            clientId,
+            clientUserId: client?.userId,
+            monthlyDeliverableId,
+            driveLinks: [],
+            folderType: effectiveFolderType,
+            monthFolder: currentMonth,
+            outputFolderId: nextTaskFolderPath,
+            recurringMonth: recurringMonthLabel,
+            requiresClientReview: client.requiresClientReview,
+            isTrial: client.isTrial ?? false,
+            isExtra: true,
+            extraSequence: nextSequence,
+            deliverableType: resolvedDeliverableType,
+            status: (client.requiresVideographer || shootLocation || shootCamera)
+              ? "VIDEOGRAPHER_ASSIGNED"
+              : "PENDING",
+          },
+        });
 
         createdExtraTasks.push(extraTask);
-      }
-
-      // 🔔 Notify the assigned editor now that every extra task has its
-      // real title (createdExtraTasks was built above with the final
-      // title/folder already set) — one grouped Slack message covering
-      // the whole batch instead of the old single premature "Untitled" one.
-      if (assignedTo) {
-        try {
-          await notifyEditorTaskAssignment(assignedTo, createdExtraTasks.map((t: any) => t.id));
-        } catch (err) {
-          console.error("Failed to send assignment notification:", err);
-        }
       }
 
       return NextResponse.json(
@@ -1166,33 +1060,25 @@ export async function POST(req: any) {
       );
     } else if (monthlyDeliverableId) {
       await generateMonthlyTasksFromTemplate(task.id, monthlyDeliverableId);
-
-      // 🔔 Notify now that generateMonthlyTasksFromTemplate has set the
-      // real title on this template task (task.id) — see STEP 6 in
-      // src/lib/recurring/generateMonthly.ts.
-      if (assignedTo) {
-        try {
-          await notifyEditorTaskAssignment(assignedTo, [task.id]);
-        } catch (err) {
-          console.error("Failed to send assignment notification:", err);
-        }
-      }
     } else if (oneOffDeliverableId) {
       // 🔥 HANDLE ONE-OFF TASK NAMING AND FOLDERS
-      const [deliverable] = await db.select().from(oneOffDeliverableTable)
-        .where(eq(oneOffDeliverableTable.id, oneOffDeliverableId)).limit(1);
+      const deliverable = await prisma.oneOffDeliverable.findUnique({
+        where: { id: oneOffDeliverableId }
+      });
 
       if (deliverable) {
         // 🔥 Count existing tasks for this deliverable to get the next number
-        const [{ value: existingCount }] = await db.select({ value: count() }).from(taskTable).where(and(
-          eq(taskTable.clientId, clientId),
-          eq(taskTable.oneOffDeliverableId, deliverable.id),
-        ));
+        const existingCount = await prisma.task.count({
+          where: {
+            clientId,
+            oneOffDeliverableId: deliverable.id,
+          }
+        });
 
         const companyName = client.companyName || client.name;
-        const companyNameSlug = getClientTaskSlug(client);
+        const companyNameSlug = companyName.replace(/\s/g, '');
         const deliverableSlug = getDeliverableShortCode(deliverable.type);
-        const createdAtStr = formatDateMMDDYYYY(new Date(task.createdAt));
+        const createdAtStr = formatDateMMDDYYYY(task.createdAt);
         // existingCount already includes the current task
         const title = `${companyNameSlug}_${createdAtStr}_${deliverableSlug}${existingCount}`;
 
@@ -1201,24 +1087,15 @@ export async function POST(req: any) {
         const taskFolderPath = await createTaskFolderStructure(companyName, title, currentMonth);
 
         // Update task with title and folder
-        const [updatedOneOff] = await db.update(taskTable).set({
-          title,
-          outputFolderId: taskFolderPath,
-          updatedAt: new Date().toISOString(),
-        }).where(eq(taskTable.id, task.id)).returning();
+        const updatedOneOff = await prisma.task.update({
+          where: { id: task.id },
+          data: {
+            title,
+            outputFolderId: taskFolderPath
+          }
+        });
 
         console.log(`✅ One-off task updated: ${title}`);
-
-        // 🔔 Notify the assigned editor now that the task has its real
-        // title (updatedOneOff, just set above) instead of the "" it had
-        // when it was first inserted.
-        if (assignedTo) {
-          try {
-            await notifyEditorTaskAssignment(assignedTo, [updatedOneOff.id]);
-          } catch (err) {
-            console.error("Failed to send assignment notification:", err);
-          }
-        }
 
         // 🔥 NOTIFY CLIENT SLACK CHANNEL (Editor One-off only)
         if (isEditorCreate) {
@@ -1243,19 +1120,10 @@ export async function POST(req: any) {
 
     // For monthly tasks, we should fetch the task again as generateMonthlyTasksFromTemplate updates it
     if (monthlyDeliverableId) {
-      const [updatedMonthly] = await db.select().from(taskTable).where(eq(taskTable.id, task.id)).limit(1);
+      const updatedMonthly = await prisma.task.findUnique({
+        where: { id: task.id }
+      });
       return NextResponse.json(updatedMonthly || task, { status: 201 });
-    }
-
-    // 🔔 Plain task path (no monthly/one-off/extra deliverable link) — title
-    // genuinely stays blank for these, so "Untitled" here is accurate, not
-    // a timing bug like the other branches.
-    if (assignedTo) {
-      try {
-        await notifyEditorTaskAssignment(assignedTo, [task.id]);
-      } catch (err) {
-        console.error("Failed to send assignment notification:", err);
-      }
     }
 
     return NextResponse.json(task, { status: 201 });
