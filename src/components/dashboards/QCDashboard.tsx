@@ -24,6 +24,7 @@ import { LinkedSfTasks } from '../tasks/LinkedSfTasks';
 import { useViewAsRole } from '../auth/ViewAsRoleContext';
 import { Share2, CheckCircle, XCircle, Clock, AlertCircle, FileText, Eye, Calendar, User, Play, ArrowRight, Video, Palette, UserCheck, Image as ImageIcon, File, Download, ExternalLink, X, ZoomIn, History, Filter, RefreshCw, Sparkles, PenLine, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Input } from '../ui/input';
+import { formatDeliverableType } from '@/lib/deliverable-labels';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
 
@@ -1151,7 +1152,7 @@ useEffect(() => {
                   <SelectItem value="all">All Deliverables</SelectItem>
                   {availableDeliverableTypes.map((type) => (
                     <SelectItem key={type} value={type}>
-                      {type}
+                      {formatDeliverableType(type)}
                     </SelectItem>
                   ))}
                 </SelectContent>

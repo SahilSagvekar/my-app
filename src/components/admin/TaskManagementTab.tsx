@@ -30,6 +30,7 @@ import {
   DialogFooter, DialogHeader, DialogTitle,
 } from '../ui/dialog';
 import { Label } from '../ui/label';
+import { formatDeliverableType } from '@/lib/deliverable-labels';
 import { TagPicker } from '../workflow/TagPicker';
 
 // ─────────────────────────────────────────
@@ -605,7 +606,7 @@ export function TaskManagementTab() {
                     <SelectTrigger className="h-9"><SelectValue placeholder="All Types" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
-                      {availableDeliverableTypes.map(t => <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')}</SelectItem>)}
+                      {availableDeliverableTypes.map(t => <SelectItem key={t} value={t}>{formatDeliverableType(t)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
