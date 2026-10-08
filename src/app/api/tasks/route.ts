@@ -467,20 +467,87 @@ const { searchParams } = new URL(req.url);
       });
     } catch (e: any) {
       if (e.message?.includes("Expected TaskStatus") || e.code === "P2009" || e.message?.includes("validation")) {
-        console.warn("⚠️ findMany failed due to enum mismatch. Falling back to queryRaw...");
-        tasks = await prisma.$queryRawUnsafe(`
-          SELECT t.*, 
+        console.warn("⚠️ findMany failed due to enum mismatch. Falling back to queryRaw...", e?.message);
+
+        // 🔒 The fallback MUST be scoped exactly like the Prisma query above.
+        // It used to select EVERY task in the database for every role, which
+        // (a) leaked other people's tasks and (b) returned a payload so large
+        // that editor dashboards appeared empty / never finished loading.
+        // Status is compared as text so an unknown enum value in the DB can't
+        // break the query again.
+        const rawParams: any[] = [];
+        const rawWhere: string[] = [];
+        const addParam = (v: any) => {
+          rawParams.push(v);
+          return `$${rawParams.length}`;
+        };
+        const statusIn = (list: string[]) =>
+          `t."status"::text = ANY(${addParam(list)}::text[])`;
+
+        switch ((effectiveRole || "").toLowerCase()) {
+          case "editor":
+            rawWhere.push(`t."assignedTo" = ${addParam(Number(userId))}`);
+            rawWhere.push(statusIn(["PENDING", "IN_PROGRESS", "READY_FOR_QC", "REJECTED"]));
+            break;
+          case "qc":
+            rawWhere.push(`t."qc_specialist" = ${addParam(Number(userId))}`);
+            rawWhere.push(statusIn(["READY_FOR_QC", "COMPLETED", "REJECTED", "CLIENT_REVIEW"]));
+            break;
+          case "scheduler": {
+            const p = addParam(Number(userId));
+            rawWhere.push(`(t."scheduler" = ${p} OR t."scheduler" IS NULL)`);
+            rawWhere.push(statusIn(["COMPLETED", "SCHEDULED"]));
+            break;
+          }
+          case "videographer":
+            rawWhere.push(`t."videographer" = ${addParam(Number(userId))}`);
+            rawWhere.push(statusIn(["VIDEOGRAPHER_ASSIGNED"]));
+            break;
+          case "client": {
+            const resolvedClientId = await resolveClientIdForUser(Number(userId));
+            if (resolvedClientId) {
+              rawWhere.push(`t."clientId" = ${addParam(resolvedClientId)}`);
+            } else {
+              rawWhere.push(`t."clientUserId" = ${addParam(Number(userId))}`);
+            }
+            rawWhere.push(statusIn(["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED"]));
+            break;
+          }
+          case "admin":
+          case "manager":
+            break; // unscoped, same as buildRoleWhereQuery
+          default:
+            rawWhere.push(`t."assignedTo" = ${addParam(Number(userId))}`);
+        }
+
+        if (clientIdFilter) rawWhere.push(`t."clientId" = ${addParam(clientIdFilter)}`);
+        if (monthFilter && monthFilter !== "all") rawWhere.push(`t."monthFolder" = ${addParam(monthFilter)}`);
+        if (statusFilter) {
+          rawWhere.push(
+            statusIn(statusFilter.split(",").map((s) => s.trim().toUpperCase()))
+          );
+        }
+
+        tasks = await prisma.$queryRawUnsafe(
+          `
+          SELECT t.*,
                  c.name as "clientName", c."companyName" as "clientCompanyName",
                  u.name as "userName", u.role as "userRole"
           FROM "Task" t
           LEFT JOIN "Client" c ON t."clientId" = c.id
           LEFT JOIN "User" u ON t."assignedTo" = u.id
+          ${rawWhere.length ? `WHERE ${rawWhere.join(" AND ")}` : ""}
           ORDER BY t."createdAt" DESC
-        `);
+        `,
+          ...rawParams
+        );
 
         const taskIds = (tasks as any[]).map(t => t.id);
         const allFiles: any[] = taskIds.length > 0
-          ? await prisma.$queryRawUnsafe(`SELECT * FROM "File" WHERE "taskId" IN (${taskIds.map(id => `'${id}'`).join(',')})`)
+          ? await prisma.$queryRawUnsafe(
+              `SELECT * FROM "File" WHERE "taskId" = ANY($1::text[])`,
+              taskIds
+            )
           : [];
 
         tasks = tasks.map(t => ({
