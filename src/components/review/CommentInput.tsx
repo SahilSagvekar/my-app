@@ -603,16 +603,18 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                 ? (customCategory.trim() || 'Custom')
                 : category;
 
+            const asGeneral = mode !== 'thumbnail' && (isGeneral || category === 'general');
+
             const newComment: Omit<ReviewComment, 'id' | 'createdAt'> = {
                 taskId,
                 authorId,
                 authorName,
-                timestamp: mode === 'thumbnail' ? `#${thumbnailIndex ?? 1}` : (isGeneral ? 'General' : (useEndTimestamp ? startTimestamp : currentTimestamp)),
-                timestampSeconds: mode === 'thumbnail' ? (thumbnailIndex ?? 1) : (isGeneral ? 0 : startSecs),
+                timestamp: mode === 'thumbnail' ? `#${thumbnailIndex ?? 1}` : (asGeneral ? 'General' : (useEndTimestamp ? startTimestamp : currentTimestamp)),
+                timestampSeconds: mode === 'thumbnail' ? (thumbnailIndex ?? 1) : (asGeneral ? 0 : startSecs),
                 thumbnailIndex: mode === 'thumbnail' ? (thumbnailIndex ?? 1) : undefined,
-                endTimestamp: endSeconds ? endTimestampInput : undefined,
-                endTimestampSeconds: endSeconds ?? undefined,
-                isGeneral: isGeneral || undefined,
+                endTimestamp: !asGeneral && endSeconds ? endTimestampInput : undefined,
+                endTimestampSeconds: !asGeneral ? (endSeconds ?? undefined) : undefined,
+                isGeneral: asGeneral || undefined,
                 content: body,
                 category: [finalCategory as any],
                 screenshotUrl: finalScreenshotUrl,
@@ -702,7 +704,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                             {/* Timestamp display with optional range */}
                             <div className="flex items-center gap-1">
                                 <span className="review-comment-timestamp flex items-center gap-1">
-                                    {isGeneral
+                                    {isGeneral || category === 'general'
                                         ? 'General'
                                         : useEndTimestamp && rangeStartSeconds !== null
                                             ? formatSecondsToTimestamp(rangeStartSeconds)
@@ -757,7 +759,7 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
                                         )}
                                     </>
                                 )}
-                                {!hideInlineTools && !useEndTimestamp && !isGeneral && videoRef && (
+                                {!hideInlineTools && !useEndTimestamp && !isGeneral && category !== 'general' && videoRef && (
                                     <Button
                                         variant="ghost"
                                         size="sm"

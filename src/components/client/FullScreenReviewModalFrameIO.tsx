@@ -569,7 +569,7 @@ export function FullScreenReviewModalFrameIO({
                             content: fb.feedback,
                             timestamp: ts,
                             timestampSeconds: tsSeconds,
-                            isGeneral: fb.timestamp === 'General' || undefined,
+                            isGeneral: fb.timestamp === 'General' || (fb.category || '').split(',').includes('general') || undefined,
                             category: fb.category ? fb.category.split(',') : ['other'],
                             createdAt: new Date(fb.createdAt),
                             resolved: fb.status === 'resolved',
@@ -1066,9 +1066,10 @@ export function FullScreenReviewModalFrameIO({
                 // currently being reviewed, so an old rejected round's
                 // comments (now visible again above) don't bleed into
                 // this new rejection's message.
-                notes: sortedComments.filter(c => !c.resolved).map(c => `[${label} v${ver} @ ${c.timestamp}] ${c.content}`).join('\n\n'),
+                // General comments are notes only — they never go out as revisions.
+                notes: sortedComments.filter(c => !c.resolved && !c.isGeneral).map(c => `[${label} v${ver} @ ${c.timestamp}] ${c.content}`).join('\n\n'),
                 assignTo: 'editor',
-                entries: sortedComments.filter(c => !c.resolved).map(c => ({
+                entries: sortedComments.filter(c => !c.resolved && !c.isGeneral).map(c => ({
                     id: c.id,
                     timestamp: new Date().toLocaleTimeString(),
                     reason: (Array.isArray(c.category) ? c.category.join(', ') : c.category) as any,

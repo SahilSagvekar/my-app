@@ -45,7 +45,8 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
     /* ── Video aspect ratio detection ── */
     const [videoAspect, setVideoAspect] = useState<'portrait' | 'landscape' | 'unknown'>('unknown');
 
-    const unresolvedCount = p.sortedComments.filter(c => !c.resolved).length;
+    // General comments are notes — they never block approval or count as revisions.
+    const unresolvedCount = p.sortedComments.filter(c => !c.resolved && !c.isGeneral).length;
 
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);

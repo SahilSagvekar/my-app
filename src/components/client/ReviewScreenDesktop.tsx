@@ -173,7 +173,9 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
     useHideFeedbackWidgetWhileOpen(true);
     const MAX_RENDERED_COMMENTS = 200;
     const [showAllComments, setShowAllComments] = useState(false);
-    const unresolvedCount = p.sortedComments.filter(c => !c.resolved).length;
+    // General comments are notes — they never block approval or count as revisions.
+    const unresolvedCount = p.sortedComments.filter(c => !c.resolved && !c.isGeneral).length;
+    const generalCount = p.sortedComments.filter(c => !c.resolved && c.isGeneral).length;
     const commentInputRef = useRef<CommentInputHandle>(null);
     const [activeMode, setActiveMode] = useState<ReviewMode | null>(null);
     const [drawBaseUrl, setDrawBaseUrl] = useState<string | null>(null);
@@ -1438,6 +1440,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                         {unresolvedCount > 0
                                             ? ` — your ${unresolvedCount} comment${unresolvedCount === 1 ? '' : 's'} will not be sent.`
                                             : ' and releases it for delivery.'}
+                                        {generalCount > 0 && ` Your ${generalCount} general comment${generalCount === 1 ? ' is' : 's are'} saved and won't block approval.`}
                                     </p>
                                     <div className="flex gap-2">
                                         <button
