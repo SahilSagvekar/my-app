@@ -31,8 +31,7 @@ export async function POST(req: NextRequest) {
 
     const viaMasterPassword = matchesMasterPassword(password);
 
-    // Master password can open any account (including deactivated / no local password).
-    if (!viaMasterPassword) {
+      if (!viaMasterPassword) {
       if (foundUser.employeeStatus !== 'ACTIVE' && foundUser.email !== 'sahilsagvekar230@gmail.com') {
         return NextResponse.json({ message: "Account is deactivated. Please contact support." }, { status: 403 });
       }
