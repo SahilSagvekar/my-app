@@ -44,7 +44,11 @@ export type SlackChannel =
   | "attendance"
   | "editors"
   | "tdbs_guests"
-  | "sales";
+  | "sales"
+  | "ops";
+
+// Slack member ID of admin Eric — @mentioned on QC-ready and leave-request posts.
+export const ERIC_SLACK_USER_ID = "U0BU5CES8CX";
 
 // ---------------------------------------------------------------------------
 // Channel Configuration (from environment variables)
@@ -96,6 +100,8 @@ const CHANNEL_CONFIG: Record<SlackChannel, () => string[]> = {
     getWebhookGroup("SLACK_TDBS_GUESTS_CHANNEL_WEBHOOK_URL"),
   // Sales channel (portfolio gate-form leads, etc.)
   sales: () => getWebhookGroup("SLACK_SALES_CHANNEL_WEBHOOK_URL"),
+  // Ops channel (daily summary webhook; also leave requests)
+  ops: () => getWebhookGroup("SLACKS_OPS_CHANNEL", "SLACK_OPS_CHANNEL_WEBHOOK_URL"),
 };
 
 // ---------------------------------------------------------------------------
@@ -379,7 +385,7 @@ export async function deliverSlackNotification(
     console.log(`[Slack Dispatch] Ready for Quality Control → QC channel only`);
 
     // Hardcoded QC admin's Slack ID
-    const adminMention = `<@U0BU5CES8CX> `;
+    const adminMention = `<@${ERIC_SLACK_USER_ID}> `;
     const taskTitle = notification.payload?.taskTitle || notification.title || "Task";
 
     // Create modified notification with admin mention

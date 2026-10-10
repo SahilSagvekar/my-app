@@ -7,6 +7,7 @@ import { getDbHttp } from "@/lib/db";
 import { user as userTable } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { notifyUser } from "@/lib/notify";
+import { sendToChannel, ERIC_SLACK_USER_ID } from "@/lib/slack";
 import { sendRawEmail } from "@/lib/email";
 import { renderEmailShell } from "@/lib/email-shell";
 
@@ -70,8 +71,18 @@ export async function notifyAdminsOfLeaveRequest(leave: {
       </td></tr>`;
   const html = renderEmailShell({ previewText: body, contentHtml });
 
-  await Promise.allSettled(
-    admins.flatMap((admin) => {
+  // Ops channel post, @mentioning Eric — independent of the per-admin
+  // notifications below, so one failing never blocks the other.
+  const opsPost = sendToChannel("ops", {
+    type: "leave_requested",
+    message:
+      `<@${ERIC_SLACK_USER_ID}> 🌴 *New Leave Request*\n` +
+      `*${employeeName}* requested leave: ${range} (${days}).` +
+      `${leave.reason ? `\nReason: ${leave.reason}` : ""}` +
+      `\n<${link}|Open E8 App to review>`,
+  }).catch((err) => console.warn("[Leave] ops Slack post failed:", err));
+
+  await Promise.allSettled([opsPost, ...admins.flatMap((admin) => {
       const jobs: Promise<unknown>[] = [
         notifyUser({
           userId: admin.id,
@@ -87,6 +98,6 @@ export async function notifyAdminsOfLeaveRequest(leave: {
         );
       }
       return jobs;
-    })
+    })]
   );
 }

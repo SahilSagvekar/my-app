@@ -57,6 +57,11 @@ function mapStatus(status: string) {
   return "pending";
 }
 
+// A "General" client note: saved with timestamp 'General' and/or category 'general'.
+function isGeneralFeedback(fb: { timestamp?: string | null; category?: string | null }): boolean {
+  return fb.timestamp === 'General' || (fb.category || '').split(',').includes('general');
+}
+
 function isHardPostTask(task: WorkflowTask): boolean {
   // deliverableType is stored as the short code ("hp"), not the long phrase.
   const type = ((task as any).deliverableType || (task as any).taskType || '').toLowerCase().trim();
@@ -669,6 +674,11 @@ export function SchedulerDashboard() {
                       <h4 className="font-medium flex items-center gap-1.5">
                         <MessageSquare className="h-4 w-4" />
                         Revision Comments ({visibleComments.length})
+                        {visibleComments.some(isGeneralFeedback) && (
+                          <span className="text-xs font-normal text-purple-700">
+                            · {visibleComments.filter(isGeneralFeedback).length} general
+                          </span>
+                        )}
                       </h4>
                       {allVersions.length > 1 && (
                         <select
@@ -698,16 +708,24 @@ export function SchedulerDashboard() {
                                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 capitalize">
                                   {fb.folderType}
                                 </Badge>
-                                {fb.category && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 capitalize">
-                                    {fb.category}
+                                {isGeneralFeedback(fb) ? (
+                                  <Badge className="text-[10px] px-1.5 py-0 h-5 bg-purple-100 text-purple-700 hover:bg-purple-100">
+                                    General note
                                   </Badge>
-                                )}
-                                {fb.timestamp && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-blue-50">
-                                    <Clock className="h-2.5 w-2.5 mr-0.5" />
-                                    {fb.timestamp}
-                                  </Badge>
+                                ) : (
+                                  <>
+                                    {fb.category && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 capitalize">
+                                        {fb.category}
+                                      </Badge>
+                                    )}
+                                    {fb.timestamp && (
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-blue-50">
+                                        <Clock className="h-2.5 w-2.5 mr-0.5" />
+                                        {fb.timestamp}
+                                      </Badge>
+                                    )}
+                                  </>
                                 )}
                                 {fb.status === 'resolved' && (
                                   <Badge className="text-[10px] px-1.5 py-0 h-5 bg-green-100 text-green-700">
