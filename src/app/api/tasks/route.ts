@@ -494,6 +494,13 @@ const effectiveRole =
                 resolvedAt: true,
                 acknowledgedAt: true,
                 acknowledgedBy: true,
+                // Snip / drawing screenshot, voice note and file attachments
+                // saved with the comment — the Editor portal renders these.
+                screenshotUrl: true,
+                annotations: true,
+                voiceUrl: true,
+                voiceDurationSec: true,
+                attachments: true,
               },
               with: {
                 file: {

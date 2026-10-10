@@ -57,6 +57,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useViewAsRole } from "../auth/ViewAsRoleContext";
 import { useRouter } from "next/navigation";
 import { FilePreviewModal } from "../FileViewerModal";
+import { RevisionMedia, hasRevisionMedia } from "../review/RevisionMedia";
 import { toast } from "sonner";
 import { EditorCreateTaskDialog } from "../tasks/EditorCreateTaskDialog";
 import { RequestRawsButton } from "../editor/RequestRawsButton";
@@ -379,6 +380,11 @@ interface TaskFeedbackItem {
   fileName?: string;
   authorName?: string | null;
   authorRole?: string | null; // 'qc' | 'client' | other
+  // Review-screen media saved with the comment (Snip / Drawing, voice, files)
+  screenshotUrl?: string | null;
+  voiceUrl?: string | null;
+  voiceDurationSec?: number | null;
+  attachments?: { url: string; name: string; mimeType?: string; size?: number }[] | null;
 }
 
 interface WorkflowTask {
@@ -641,7 +647,7 @@ function TaskCard({
   onStartTask: (taskId: string) => void;
   onDragStart: (e: DragEvent<HTMLDivElement>, task: WorkflowTask) => void;
   isDragging: boolean;
-  onPreview: (file: TaskFile) => void;
+  onPreview: (file: TaskFile, startAtSeconds?: number) => void;
   onDownload?: (file: TaskFile) => void;
   isQuotaComplete?: boolean;
   onToggleSponsored: (taskId: string, value: boolean) => void;
@@ -668,6 +674,17 @@ function TaskCard({
   const [selectedVersionTab, setSelectedVersionTab] = useState<number | 'all'>('all');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<'all' | 'client' | 'qc'>('all');
   const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+
+  // Opens the video the comment was left on, seeked to the comment's timestamp.
+  const seekToRevision = (fb: TaskFeedbackItem, seconds: number) => {
+    const files = (task.files || []) as TaskFile[];
+    const target =
+      files.find((f) => f.id === fb.fileId) ||
+      [...files]
+        .filter((f) => (f.folderType || 'main') === 'main' && f.mimeType?.startsWith('video/'))
+        .sort((a, b) => (b.version || 1) - (a.version || 1))[0];
+    if (target) onPreview(target, seconds);
+  };
 
   // Gather all revisions across all versions, QC and Client
   const allRevisions: TaskFeedbackItem[] = useMemo(() => {
@@ -1964,6 +1981,13 @@ function TaskCard({
                             <p className="text-[12px] text-gray-800 leading-snug break-words line-clamp-3">
                               {fb.feedback}
                             </p>
+                            <RevisionMedia
+                              media={fb}
+                              timestamp={fb.timestamp}
+                              compact
+                              authorLine={`${fb.authorName || 'Reviewer'} · ${fb.createdAt ? new Date(fb.createdAt).toLocaleString() : ''}`}
+                              onSeek={(s) => seekToRevision(fb, s)}
+                            />
                           </div>
                         );
                       })
@@ -2141,6 +2165,13 @@ function TaskCard({
                   {selectedFeedback.feedback}
                 </p>
 
+                <RevisionMedia
+                  media={selectedFeedback}
+                  timestamp={selectedFeedback.timestamp}
+                  authorLine={`${selectedFeedback.authorName || 'Reviewer'} · ${selectedFeedback.createdAt ? new Date(selectedFeedback.createdAt).toLocaleString() : ''}`}
+                  onSeek={(s) => seekToRevision(selectedFeedback, s)}
+                />
+
                 {selectedFeedback.fileName && (
                   <p className="text-xs text-gray-500 pt-1 flex items-center gap-1 truncate" title={selectedFeedback.fileName}>
                     📎 {selectedFeedback.fileName}
@@ -2234,6 +2265,16 @@ function TaskCard({
                           <p className="text-[13.5px] text-gray-900 leading-relaxed font-normal mt-2.5 break-words whitespace-pre-wrap">
                             {fb.feedback}
                           </p>
+                          {hasRevisionMedia(fb) && (
+                            <div className="mt-2.5">
+                              <RevisionMedia
+                                media={fb}
+                                timestamp={fb.timestamp}
+                                authorLine={`${fb.authorName || 'Reviewer'} · ${fb.createdAt ? new Date(fb.createdAt).toLocaleString() : ''}`}
+                                onSeek={(s) => seekToRevision(fb, s)}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2566,6 +2607,7 @@ export function EditorDashboard() {
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewStartAt, setPreviewStartAt] = useState<number | null>(null);
 
   // Desktop app download progress — window.e8 only exists inside the
   const [eodReportOpen, setEodReportOpen] = useState(false);
@@ -2753,6 +2795,10 @@ export function EditorDashboard() {
                   fileName: matchedFile?.name || fb.fileName || null,
                   authorName: fb.user?.name || (fb.user?.role === 'qc' ? 'QC Reviewer' : (t.clientName || 'Client')),
                   authorRole: fb.user?.role || fb.authorRole || 'client',
+                  screenshotUrl: fb.screenshotUrl || null,
+                  voiceUrl: fb.voiceUrl || null,
+                  voiceDurationSec: fb.voiceDurationSec ?? null,
+                  attachments: fb.attachments || null,
                 };
               });
 
@@ -3314,8 +3360,9 @@ export function EditorDashboard() {
     );
   }, [viewingAsHeaders]);
 
-  const handlePreview = useCallback((file: any) => {
+  const handlePreview = useCallback((file: any, startAtSeconds?: number) => {
     setPreviewFile(file);
+    setPreviewStartAt(startAtSeconds ?? null);
     setIsPreviewOpen(true);
   }, []);
 
@@ -3560,6 +3607,7 @@ export function EditorDashboard() {
         file={previewFile}
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}
+        startAtSeconds={previewStartAt}
       />
 
       {/* EOD Report Dialog Modal */}

@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 export function FilePreviewModal({
   file,
   open,
-  onOpenChange
+  onOpenChange,
+  startAtSeconds,
 }: {
   file: any | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Seek videos to this time once loaded (e.g. a revision comment's timestamp). */
+  startAtSeconds?: number | null;
 }) {
 
   if (!file) return null;
@@ -77,11 +80,14 @@ export function FilePreviewModal({
           {isVideo && (
             <div className="w-full h-full flex items-center justify-center bg-black">
               <video
-                key={videoSrc}
+                key={`${videoSrc}-${startAtSeconds ?? 0}`}
                 src={videoSrc}
                 controls
                 className="max-w-full max-h-full"
                 preload="metadata"
+                onLoadedMetadata={(e) => {
+                  if (startAtSeconds && startAtSeconds > 0) e.currentTarget.currentTime = startAtSeconds;
+                }}
                 playsInline
                 autoPlay
               />

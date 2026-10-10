@@ -8,6 +8,7 @@ import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
 import { Calendar, ChevronLeft, ChevronRight, Clock, Users, MapPin, CheckCircle, FileText, Eye, ArrowLeft, AlertTriangle, MessageSquare, User as UserIcon, Download } from 'lucide-react';
 import { useTaskWorkflow, WorkflowTask, TaskFeedbackItem } from '../workflow/TaskWorkflowEngine';
+import { RevisionMedia } from '../review/RevisionMedia';
 import { FilePreviewModal } from '../FileViewerModal';
 import { toast } from 'sonner';
 import { sortTaskImages } from '@/lib/task-image-order';
@@ -311,6 +312,10 @@ export function SchedulerDashboard() {
             authorId: fb.user?.id,
             authorName: fb.user?.name || 'Unknown',
             authorRole: fb.user?.role || null,
+            screenshotUrl: fb.screenshotUrl || null,
+            voiceUrl: fb.voiceUrl || null,
+            voiceDurationSec: fb.voiceDurationSec ?? null,
+            attachments: fb.attachments || null,
           })),
           files: (t.files || [])
             .filter((f: any) => f.isActive !== false)
@@ -740,6 +745,13 @@ export function SchedulerDashboard() {
                             <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words mb-1.5">
                               {fb.feedback}
                             </p>
+                            <div className="mb-1.5">
+                              <RevisionMedia
+                                media={fb}
+                                timestamp={isGeneralFeedback(fb) ? null : fb.timestamp}
+                                authorLine={`${fb.authorName || 'Reviewer'} · ${fb.createdAt ? new Date(fb.createdAt).toLocaleString() : ''}`}
+                              />
+                            </div>
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
                               <UserIcon className="h-3 w-3" />
                               <span className="font-medium">{fb.authorName}</span>

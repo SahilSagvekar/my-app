@@ -17,6 +17,10 @@ export interface TaskFeedbackItem {
     authorId?: number;
     authorName?: string;
     authorRole?: string;
+    screenshotUrl?: string | null;
+    voiceUrl?: string | null;
+    voiceDurationSec?: number | null;
+    attachments?: { url: string; name: string; mimeType?: string; size?: number }[] | null;
 }
 
 export interface SchedulerTask {

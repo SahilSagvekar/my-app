@@ -181,6 +181,10 @@ export async function GET(req: Request) {
             resolvedAt: true,
             acknowledgedAt: true,
             acknowledgedBy: true,
+            screenshotUrl: true,
+            voiceUrl: true,
+            voiceDurationSec: true,
+            attachments: true,
           },
           with: {
             file: {
@@ -303,6 +307,10 @@ export async function GET(req: Request) {
             authorId: fb.user?.id,
             authorName: fb.user?.name || 'Unknown',
             authorRole: fb.user?.role || null,
+            screenshotUrl: fb.screenshotUrl || null,
+            voiceUrl: fb.voiceUrl || null,
+            voiceDurationSec: fb.voiceDurationSec ?? null,
+            attachments: fb.attachments || null,
           })),
           titlingJob: (t as any).titlingJob || null,
           deliverable: rawDeliverable ? {
