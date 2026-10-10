@@ -5,6 +5,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getMediaPreviewStream } from '@/lib/file-server';
 import { getDbHttp } from '@/lib/db';
 import { mediaPreview } from '@/lib/db/schema';
+import type { R2BucketLike } from '@/lib/drive/r2';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,30 @@ export async function GET(req: NextRequest) {
   if (!knownPreview) return new NextResponse('Preview not found', { status: 404 });
 
   try {
+    // Read the image straight from the Worker's R2 binding. This used to go
+    // through the file server first, which woke an 8 GiB container (billed
+    // for the following 45 minutes) for every preview image the UI showed —
+    // just to relay a small .webp out of the same bucket. Same bytes, same
+    // three response headers. Anything unexpected here (no binding, object
+    // missing, a read error) falls through to the original chain below,
+    // which is unchanged.
+    try {
+      const { env } = getCloudflareContext();
+      const bucket = (env as any)?.R2_VIDEOS as R2BucketLike | undefined;
+      if (bucket) {
+        const object = await bucket.get(key);
+        if (object) {
+          const headers = new Headers();
+          headers.set('Content-Type', object.httpMetadata?.contentType || 'image/webp');
+          headers.set('Cache-Control', 'private, max-age=3600');
+          if (object.size) headers.set('Content-Length', String(object.size));
+          return new NextResponse(object.body, { status: 200, headers });
+        }
+      }
+    } catch (bindingError: unknown) {
+      // Fall through to the file server, then the presigned URL fetch
+    }
+
     try {
       const { env } = getCloudflareContext();
       if (env?.FILE_SERVER) {

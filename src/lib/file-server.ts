@@ -8,8 +8,28 @@
 // restriction. The hostname in the URL passed to a binding's fetch() is
 // never resolved — Cloudflare routes it straight to the bound Worker — so
 // "https://e8-file-server" below is a placeholder, only the path/query matter.
+//
+// EXCEPTION — URL signing and multipart control (presignUpload,
+// presignDownload, initiateMultipart, getPartUrl, completeMultipart,
+// abortMultipart): these are not heavy at all (a signature, or one small R2
+// API call), so the Worker now does them itself and only falls back to the
+// file server if that fails. See src/lib/r2-signing.ts for the why, the
+// safety net and the R2_SIGNING=container kill switch. Callers of this file
+// see no difference: same arguments, same return shapes, same errors.
 
 import jwt from 'jsonwebtoken';
+import {
+  DefinitiveSigningError,
+  abortMultipartInWorker,
+  canSignInWorker,
+  completeMultipartInWorker,
+  getPartUrlInWorker,
+  initiateMultipartInWorker,
+  mayNeedThumbnail,
+  noteWorkerSigningFailure,
+  presignDownloadInWorker,
+  presignUploadInWorker,
+} from '@/lib/r2-signing';
 
 const FILE_SERVER_SECRET = process.env.FILE_SERVER_SECRET || '';
 const FILE_SERVER_ORIGIN = 'https://e8-file-server';
@@ -65,6 +85,32 @@ async function fsRequest(
   return env.FILE_SERVER.fetch(url.toString(), options);
 }
 
+/**
+ * Run a signing/multipart operation in the Worker when it can, otherwise (or
+ * if the Worker attempt fails for any reason) through the file server exactly
+ * as before. `backend: 'backup'` always goes to the file server — the backup
+ * upload system is the file server's business and is left untouched.
+ */
+async function workerFirst<T>(
+  op: string,
+  backend: 'r2' | 'backup' | undefined,
+  inWorker: () => Promise<T>,
+  viaFileServer: () => Promise<T>,
+): Promise<T> {
+  if (backend !== 'backup' && (await canSignInWorker())) {
+    try {
+      return await inWorker();
+    } catch (err: any) {
+      // An answer the file server would give too (e.g. USE_SINGLE_PUT) —
+      // surface it unchanged instead of asking the container the same thing.
+      if (err instanceof DefinitiveSigningError) throw err;
+      console.warn(`[file-server] ${op} in Worker failed, falling back to file server: ${err?.message || err}`);
+      noteWorkerSigningFailure();
+    }
+  }
+  return viaFileServer();
+}
+
 export async function getStructure(env: CloudflareEnv, userId: number | string, role: string, prefix: string) {
   const res = await fsRequest(env, 'GET', '/structure', userId, role, undefined, { prefix, role });
   if (!res.ok) {
@@ -80,16 +126,34 @@ export async function searchFiles(env: CloudflareEnv, userId: number | string, r
   return res.json();
 }
 
-export async function presignUpload(env: CloudflareEnv, userId: number | string, role: string, key: string, contentType: string, backend?: 'r2' | 'backup') {
+async function presignUploadViaFileServer(env: CloudflareEnv, userId: number | string, role: string, key: string, contentType: string, backend?: 'r2' | 'backup') {
   const res = await fsRequest(env, 'POST', '/presign-upload', userId, role, { key, contentType, backend });
   if (!res.ok) throw new Error(`File server error: ${res.status}`);
   return res.json() as Promise<{ uploadUrl: string; fileUrl: string; key: string }>;
 }
 
-export async function presignDownload(env: CloudflareEnv, userId: number | string, role: string, s3Key: string, fileName?: string) {
+export async function presignUpload(env: CloudflareEnv, userId: number | string, role: string, key: string, contentType: string, backend?: 'r2' | 'backup') {
+  return workerFirst(
+    'presign-upload',
+    backend,
+    () => presignUploadInWorker(key, contentType),
+    () => presignUploadViaFileServer(env, userId, role, key, contentType, backend),
+  );
+}
+
+async function presignDownloadViaFileServer(env: CloudflareEnv, userId: number | string, role: string, s3Key: string, fileName?: string) {
   const res = await fsRequest(env, 'POST', '/presign-download', userId, role, { s3Key, fileName });
   if (!res.ok) throw new Error(`File server error: ${res.status}`);
   return res.json() as Promise<{ downloadUrl: string }>;
+}
+
+export async function presignDownload(env: CloudflareEnv, userId: number | string, role: string, s3Key: string, fileName?: string) {
+  return workerFirst(
+    'presign-download',
+    undefined,
+    () => presignDownloadInWorker(s3Key, fileName),
+    () => presignDownloadViaFileServer(env, userId, role, s3Key, fileName),
+  );
 }
 
 export interface MediaPreviewGenerationRequest {
@@ -291,7 +355,7 @@ async function fetchWithRetry(
   throw lastError || new Error(`File server unreachable after ${maxAttempts} attempts: ${path}`);
 }
 
-export async function initiateMultipart(
+async function initiateMultipartViaFileServer(
   env: CloudflareEnv,
   userId: number | string,
   role: string,
@@ -318,7 +382,24 @@ export async function initiateMultipart(
   return res.json();
 }
 
-export async function getPartUrl(
+export async function initiateMultipart(
+  env: CloudflareEnv,
+  userId: number | string,
+  role: string,
+  key: string,
+  fileType: string,
+  fileSize?: number,
+  backend?: 'r2' | 'backup',
+): Promise<{ uploadId: string; key: string }> {
+  return workerFirst(
+    'multipart/initiate',
+    backend,
+    () => initiateMultipartInWorker(key, fileType, fileSize),
+    () => initiateMultipartViaFileServer(env, userId, role, key, fileType, fileSize, backend),
+  );
+}
+
+async function getPartUrlViaFileServer(
   env: CloudflareEnv,
   userId: number | string,
   role: string,
@@ -343,7 +424,24 @@ export async function getPartUrl(
   return res.json();
 }
 
-export async function completeMultipart(
+export async function getPartUrl(
+  env: CloudflareEnv,
+  userId: number | string,
+  role: string,
+  key: string,
+  uploadId: string,
+  partNumber: number,
+  backend?: 'r2' | 'backup',
+): Promise<{ presignedUrl: string }> {
+  return workerFirst(
+    'multipart/part-url',
+    backend,
+    () => getPartUrlInWorker(key, uploadId, partNumber),
+    () => getPartUrlViaFileServer(env, userId, role, key, uploadId, partNumber, backend),
+  );
+}
+
+async function completeMultipartViaFileServer(
   env: CloudflareEnv,
   userId: number | string,
   role: string,
@@ -373,7 +471,56 @@ export async function completeMultipart(
   return res.json();
 }
 
-export async function abortMultipart(
+/**
+ * The file server's /multipart/complete also queued a thumbnail job for
+ * raw-footage videos and for output videos without a thumbnail. When the
+ * Worker completes the upload itself, it asks the file server for that same
+ * job here (POST /thumbnail/retry runs the file server's own eligibility
+ * check and enqueue, unchanged). Never throws — same rule as on the file
+ * server: thumbnailing must not be able to fail an upload.
+ */
+async function requestThumbnailJob(env: CloudflareEnv, userId: number | string, role: string, key: string): Promise<void> {
+  try {
+    const res = await env.FILE_SERVER.fetch(`${FILE_SERVER_ORIGIN}/thumbnail/retry`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${makeToken(userId, role)}`,
+      },
+      body: JSON.stringify({ key }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    // 400 = "not eligible" (e.g. the task already has a real thumbnail image) — expected.
+    if (!res.ok && res.status !== 400) {
+      console.warn(`[file-server] thumbnail request for ${key} returned ${res.status} — upload still succeeds`);
+    }
+  } catch (err: any) {
+    console.warn(`[file-server] thumbnail request for ${key} failed — upload still succeeds: ${err?.message || err}`);
+  }
+}
+
+export async function completeMultipart(
+  env: CloudflareEnv,
+  userId: number | string,
+  role: string,
+  key: string,
+  uploadId: string,
+  parts: Array<{ ETag: string; PartNumber: number }>,
+  backend?: 'r2' | 'backup',
+): Promise<{ success: boolean; etag?: string; location?: string }> {
+  return workerFirst(
+    'multipart/complete',
+    backend,
+    async () => {
+      const result = await completeMultipartInWorker(key, uploadId, parts);
+      if (mayNeedThumbnail(key)) await requestThumbnailJob(env, userId, role, key);
+      return result;
+    },
+    () => completeMultipartViaFileServer(env, userId, role, key, uploadId, parts, backend),
+  );
+}
+
+async function abortMultipartViaFileServer(
   env: CloudflareEnv,
   userId: number | string,
   role: string,
@@ -394,6 +541,22 @@ export async function abortMultipart(
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `File server abort failed: ${res.status}`);
   }
+}
+
+export async function abortMultipart(
+  env: CloudflareEnv,
+  userId: number | string,
+  role: string,
+  key: string,
+  uploadId: string,
+  backend?: 'r2' | 'backup',
+): Promise<void> {
+  return workerFirst(
+    'multipart/abort',
+    backend,
+    () => abortMultipartInWorker(key, uploadId),
+    () => abortMultipartViaFileServer(env, userId, role, key, uploadId, backend),
+  );
 }
 // ─── Drive Mirror Queue ───────────────────────────────────────────────────────
 
