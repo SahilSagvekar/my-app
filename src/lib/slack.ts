@@ -45,7 +45,8 @@ export type SlackChannel =
   | "editors"
   | "tdbs_guests"
   | "sales"
-  | "ops";
+  | "ops"
+  | "e8app_dev";
 
 // Slack member ID of admin Eric — @mentioned on QC-ready and leave-request posts.
 export const ERIC_SLACK_USER_ID = "U0BU5CES8CX";
@@ -102,6 +103,8 @@ const CHANNEL_CONFIG: Record<SlackChannel, () => string[]> = {
   sales: () => getWebhookGroup("SLACK_SALES_CHANNEL_WEBHOOK_URL"),
   // Ops channel (daily summary webhook; also leave requests)
   ops: () => getWebhookGroup("SLACKS_OPS_CHANNEL", "SLACK_OPS_CHANNEL_WEBHOOK_URL"),
+  // #e8app-dev — new Dev Portal tickets
+  e8app_dev: () => getWebhookGroup("SLACK_E8APP_DEV_CHANNEL_WEBHOOK_URL"),
 };
 
 // ---------------------------------------------------------------------------

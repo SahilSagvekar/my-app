@@ -10,6 +10,8 @@ import { getDbHttp } from "@/lib/db";
 import { client as clientTable, devTicket, devTicketAttachment, user as userTable } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { notifyUser } from "@/lib/notify";
+import { sendToChannel } from "@/lib/slack";
+import { keepAlive } from "@/lib/keep-alive";
 import {
   DEV_PORTAL_EMAILS,
   LOOM_URL_RE,
@@ -178,5 +180,50 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Post every new ticket (internal or client) to #e8app-dev. Fire-and-forget
+  // so a Slack hiccup never fails ticket creation.
+  keepAlive(
+    notifyDevChannelOfTicket({
+      ticketId: ticket.id,
+      title,
+      type,
+      description,
+      loomUrl,
+      source: isClient ? "CLIENT" : "INTERNAL",
+      clientName,
+      reporterId: auth.userId,
+    }).catch((err) => console.warn("[DevPortal] #e8app-dev Slack post failed:", err))
+  );
+
   return NextResponse.json({ ok: true, ticket });
+}
+
+async function notifyDevChannelOfTicket(t: {
+  ticketId: string;
+  title: string;
+  type: string;
+  description: string | null;
+  loomUrl: string | null;
+  source: "CLIENT" | "INTERNAL";
+  clientName: string | null;
+  reporterId: number;
+}) {
+  const db = getDbHttp();
+  const [reporter] = await db
+    .select({ name: userTable.name, email: userTable.email })
+    .from(userTable)
+    .where(eq(userTable.id, t.reporterId))
+    .limit(1);
+  const reporterName = reporter?.name || reporter?.email || `User #${t.reporterId}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "https://e8productions.com";
+
+  const from = t.source === "CLIENT" ? `Client: ${t.clientName || reporterName}` : `Reported by ${reporterName}`;
+  const excerpt = t.description ? `\n>${t.description.slice(0, 300).replace(/\n/g, "\n>")}${t.description.length > 300 ? "…" : ""}` : "";
+  const message =
+    `🎫 *New Dev Ticket* — ${t.type}${t.source === "CLIENT" ? " 🚨 (client-reported)" : ""}\n` +
+    `*${t.title}*\n${from}${excerpt}` +
+    `${t.loomUrl ? `\n<${t.loomUrl}|Loom recording>` : ""}` +
+    `\n<${appUrl}|Open E8 App>`;
+
+  await sendToChannel("e8app_dev", { type: "dev_ticket_created", message, payload: { ticketId: t.ticketId } });
 }
