@@ -26,9 +26,18 @@ async function describe(key: string) {
   `);
   const row = (res as any).rows?.[0];
   if (!row) return { status: 'unknown' as const, enabled: isDrivePreviewsEnabled() };
+  // With previews switched off, a row left 'queued' or 'processing' from
+  // before will never finish — report it as 'none' so the player plays the
+  // original straight away and stops polling (and never wakes the file-server
+  // container asking for transcode progress).
+  const enabled = isDrivePreviewsEnabled();
+  const status =
+    !enabled && (row.previewStatus === 'queued' || row.previewStatus === 'processing')
+      ? 'none'
+      : row.previewStatus;
   const out: Record<string, unknown> = {
-    status: row.previewStatus,
-    enabled: isDrivePreviewsEnabled(),
+    status,
+    enabled,
     storageTier: row.storageTier,
     durationSeconds: row.durationSeconds ?? null,
     width: row.width ?? null,
@@ -37,7 +46,7 @@ async function describe(key: string) {
   };
   if (row.previewStatus === 'ready' && row.previewPrefix) {
     Object.assign(out, await signedHlsUrls(key, row.previewPrefix));
-  } else if (row.previewStatus === 'processing') {
+  } else if (enabled && row.previewStatus === 'processing') {
     try {
       const { env } = getCloudflareContext();
       const s = await getHlsJobStatus(env, key);

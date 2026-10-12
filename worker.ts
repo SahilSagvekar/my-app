@@ -17,7 +17,6 @@
 // @ts-ignore — .open-next/worker.js is generated at build time
 import { default as handler } from './.open-next/worker.js';
 import { deliverSlackJobNow, deliverEmailJobNow, NotificationJob } from './src/lib/notification-queue';
-import { deliverZipJob, ZipJobMessage } from './src/lib/zip-jobs-queue';
 import { applyR2Events, R2EventMessage } from './src/lib/drive/index-store';
 import { blockHostFromInternalApi } from './src/lib/host-api-guard';
 
@@ -165,7 +164,7 @@ const workerHandlers = {
     }
   },
 
-  // Consumer for the `notifications`, `zip-jobs` and `drive-events` Cloudflare Queues
+  // Consumer for the `notifications` and `drive-events` Cloudflare Queues
   // (see wrangler.toml's [[queues.consumers]]) — Cloudflare routes a batch
   // from whichever queue triggered this invocation; `batch.queue` tells us
   // which one so a single handler can serve both.
@@ -176,13 +175,10 @@ const workerHandlers = {
   // HTTPS, fine on Workers); email jobs are relayed to e8-file-server,
   // since Workers can't open raw SMTP sockets.
   //
-  // zip-jobs: "Download All" zip-build jobs, enqueued via
-  // src/lib/zip-jobs-queue.ts's enqueueZipJob(). deliverZipJob() awaits
-  // the file-server's full response, which can legitimately take HOURS
-  // for a 100GB folder — safe here specifically because Cloudflare Queue
-  // consumer invocations have no wall-time limit, unlike a plain HTTP
-  // fetch handler. Never call deliverZipJob() from an API route directly.
-  async queue(batch: MessageBatch<NotificationJob | ZipJobMessage | R2EventMessage>, env: any, ctx: ExecutionContext) {
+  // zip-jobs: the "Download All" zip feature was removed (Containers cost).
+  // Its consumer is gone from wrangler.toml; any stray message that still
+  // arrives is acked and dropped below rather than misread as a notification.
+  async queue(batch: MessageBatch<NotificationJob | R2EventMessage>, env: any, ctx: ExecutionContext) {
     // drive-events: R2 event notifications (object-create / object-delete on
     // e8-app-r2-prod) that keep the Files & Drive index in Postgres current.
     // Applied as one batch — applyR2Events is idempotent and tolerates
@@ -199,19 +195,7 @@ const workerHandlers = {
     }
 
     if (batch.queue === 'zip-jobs') {
-      for (const message of batch.messages) {
-        try {
-          await deliverZipJob(message.body as ZipJobMessage, env);
-          message.ack();
-        } catch (err: any) {
-          console.error(`[worker.ts] Zip job failed (jobId=${(message.body as ZipJobMessage).jobId}):`, err?.message || err);
-          // Not retried: a failed multi-hour job re-running from scratch on
-          // the same queue-retry backoff is rarely what the user wants —
-          // the frontend already surfaces the failure and offers a fresh
-          // "Download All" click, which enqueues a brand-new job.
-          message.ack();
-        }
-      }
+      batch.ackAll();
       return;
     }
 

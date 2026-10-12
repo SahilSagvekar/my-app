@@ -32,7 +32,6 @@ import {
   FolderOpen,
   CheckSquare,
   Square,
-  FolderDown,
   PackageOpen,
   LayoutGrid,
   List,
@@ -364,25 +363,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   // ─── Multi-select & bulk download state ───────────────────────────────────
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
-  const [isZipping, setIsZipping] = useState(false);
-  const [zipProgress, setZipProgress] = useState<string>('');
-
-  // ─── Download job modal (async "Download All" zip build) ──────────────────
-  interface ZipJobState {
-    jobId: string;
-    status: 'queued' | 'processing' | 'done' | 'failed';
-    zipName: string;
-    totalFiles: number;
-    processedFiles: number;
-    totalBytes: number;
-    processedBytes: number;
-    error: string | null;
-    downloadUrl: string | null;
-  }
-  const [zipJob, setZipJob] = useState<ZipJobState | null>(null);
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const zipPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const zipDownloadTriggeredRef = useRef(false);
 
   // Share states
   const [shareLink, setShareLink] = useState("");
@@ -1703,17 +1683,10 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
   };
 
   // ─── Download helpers ────────────────────────────────────────────────────────
-  // "Download All" builds a real zip server-side (streamed through the file
-  // server into R2, never buffered in full — see e8-file-server's
-  // zipWorker.js) as a background job, and the browser just polls for
-  // progress and downloads the single finished file once ready.
-  //
-  // Previously this fetched presigned per-file R2 URLs and triggered
-  // individual browser downloads in a loop — that silently broke past ~6
-  // files, since Chrome blocks a page from auto-triggering more than a
-  // handful of downloads without explicit permission. A single zip means a
-  // single download, so that limit no longer applies, and it also works
-  // for folders far too large to ever hand-list (100GB+).
+  // Folder downloads ("Download folder" / selecting folders) used the async
+  // server-side zip ("Download All") feature, which was removed to cut
+  // Cloudflare Containers cost. Individual files — one or many selected —
+  // still download directly from R2.
 
   // Trigger a single file download via <a> click.
   //
@@ -1741,102 +1714,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
     document.body.removeChild(a);
   };
 
-  const stopZipPolling = () => {
-    if (zipPollRef.current) {
-      clearInterval(zipPollRef.current);
-      zipPollRef.current = null;
-    }
-  };
-
-  const pollZipJob = (jobId: string, zipFileName: string) => {
-    stopZipPolling();
-    zipDownloadTriggeredRef.current = false;
-    zipPollRef.current = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/drive/zip-jobs/${jobId}`);
-        const data = await res.json();
-
-        if (data.status === 'queued') {
-          setZipJob(prev => (prev ? { ...prev, status: 'queued' } : prev));
-          return;
-        }
-        if (data.status === 'failed') {
-          stopZipPolling();
-          setZipJob(prev => (prev ? { ...prev, status: 'failed', error: data.error || 'Zip build failed' } : prev));
-          toast.error(data.error || 'Download failed');
-          return;
-        }
-
-        setZipJob({
-          jobId,
-          status: data.status,
-          zipName: zipFileName,
-          totalFiles: data.totalFiles || 0,
-          processedFiles: data.processedFiles || 0,
-          totalBytes: data.totalBytes || 0,
-          processedBytes: data.processedBytes || 0,
-          error: null,
-          downloadUrl: data.downloadUrl || null,
-        });
-
-        if (data.status === 'done' && data.downloadUrl && !zipDownloadTriggeredRef.current) {
-          zipDownloadTriggeredRef.current = true;
-          stopZipPolling();
-          triggerSingleDownload(data.downloadUrl, zipFileName);
-        }
-      } catch (err) {
-        // Transient network blip on a single poll — just try again next tick.
-        console.warn('[zip poll] failed, will retry:', err);
-      }
-    }, 3000);
-  };
-
-  // Starts the async zip-build job and opens the progress modal. Does NOT
-  // wait for the zip to finish — see /api/drive/download-zip's own comment
-  // for why (folders can take hours to zip; the browser never holds that
-  // connection open).
-  const downloadFilesFromUrls = async (
-    body: { folderPrefix?: string; keys?: string[]; zipName?: string },
-    label: string,
-  ) => {
-    setIsZipping(true);
-    setZipProgress(`Starting "${label}"…`);
-    try {
-      const res = await fetch('/api/drive/download-zip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({ error: 'Failed' }));
-        throw new Error(e.error || `Server error (${res.status})`);
-      }
-      const data = await res.json() as { jobId: string };
-      const zipFileName = `${(body.zipName || label).replace(/\.zip$/, '')}.zip`;
-
-      setZipJob({
-        jobId: data.jobId,
-        status: 'queued',
-        zipName: zipFileName,
-        totalFiles: 0, processedFiles: 0, totalBytes: 0, processedBytes: 0,
-        error: null, downloadUrl: null,
-      });
-      setShowDownloadModal(true);
-      pollZipJob(data.jobId, zipFileName);
-    } catch (err: any) {
-      toast.error(err.message || 'Download failed');
-    } finally {
-      setIsZipping(false);
-      setZipProgress('');
-    }
-  };
-
-  const handleDownloadFolder = async (item: DriveItem) => {
-    const s3Key = item.s3Key || getS3Key(item);
-    const folderPrefix = s3Key.endsWith('/') ? s3Key : `${s3Key}/`;
-    await downloadFilesFromUrls({ folderPrefix, zipName: item.name }, item.name);
-  };
-
   const handleDownloadSelected = async () => {
     const keys = Array.from(checkedItems);
     if (keys.length === 0) return;
@@ -1847,11 +1724,13 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
       .map(key => filteredItems.find(i => (i.s3Key || getS3Key(i)) === key))
       .filter((i): i is DriveItem => !!i);
 
-    // Whole folders still zip — a folder's contents can be far larger than
-    // anything worth firing off as individual browser downloads.
-    for (const key of folderKeys) {
-      const item = filteredItems.find(i => (i.s3Key || getS3Key(i)) === key);
-      if (item) await downloadFilesFromUrls({ folderPrefix: key.endsWith('/') ? key : `${key}/` }, item.name);
+    // Whole-folder (zip) download was removed — tell the user instead of
+    // silently skipping the folders they picked.
+    if (folderKeys.length > 0) {
+      toast.info(
+        `Folder download isn't available — open the folder and select the files instead.` +
+          (fileItems.length > 0 ? ' Downloading the selected files.' : ''),
+      );
     }
 
     // Selected individual files: download each one directly, same as
@@ -3008,16 +2887,8 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
               )}
             </div>
 
-            {/* Right: Download All, Select, View toggle, Refresh */}
+            {/* Right: Select, View toggle, Refresh */}
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-
-              {/* Zip progress indicator */}
-              {isZipping && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span className="hidden sm:inline">{zipProgress || 'Preparing downloads…'}</span>
-                </div>
-              )}
 
               {/* Selection mode active: show count + actions */}
               {isSelectionMode && checkedItems.size > 0 && (
@@ -3030,7 +2901,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                     variant="default"
                     className="gap-1.5 h-9"
                     onClick={handleDownloadSelected}
-                    disabled={isZipping}
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Download</span>
@@ -3056,7 +2926,7 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       variant="destructive"
                       className="gap-1.5 h-9"
                       onClick={handleBulkDeleteClick}
-                      disabled={isZipping || isBulkDeleting}
+                      disabled={isBulkDeleting}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                       <span className="hidden sm:inline">Delete</span>
@@ -3476,13 +3346,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                       <DropdownMenuContent align="end">
                         {item.type === "folder" && (
                           <>
-                            <DropdownMenuItem
-                              onClick={(e) => { e.stopPropagation(); handleDownloadFolder(item); }}
-                              disabled={isZipping}
-                            >
-                              <FolderDown className="h-4 w-4 mr-2" />
-                              Download folder
-                            </DropdownMenuItem>
                             {isInsideRawFootage(item) && (
                               <>
                                 <DropdownMenuItem
@@ -3740,13 +3603,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
                           <DropdownMenuContent align="end">
                             {item.type === "folder" && (
                               <>
-                                <DropdownMenuItem
-                                  onClick={(e) => { e.stopPropagation(); handleDownloadFolder(item); }}
-                                  disabled={isZipping}
-                                >
-                                  <FolderDown className="h-4 w-4 mr-2" />
-                                  Download folder
-                                </DropdownMenuItem>
                                 {isInsideRawFootage(item) && (
                                   <>
                                     <DropdownMenuItem
@@ -3876,60 +3732,6 @@ export function DriveExplorer({ role }: DriveExplorerProps) {
         </ScrollArea>
       </div>
     </div>
-
-      {/* ─── Download Job Modal ────────────────────────────────────────────── */}
-      <Dialog open={showDownloadModal} onOpenChange={(open) => {
-        if (!open) stopZipPolling();
-        setShowDownloadModal(open);
-      }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              {zipJob?.zipName || 'Download'}
-            </DialogTitle>
-            <DialogDescription>
-              {!zipJob || zipJob.status === 'queued'
-                ? 'Starting up…'
-                : zipJob.status === 'processing'
-                  ? zipJob.totalFiles > 0
-                    ? `Zipping… ${zipJob.processedFiles}/${zipJob.totalFiles} files (${formatBytes(zipJob.processedBytes)} / ${formatBytes(zipJob.totalBytes)})`
-                    : 'Listing files…'
-                  : zipJob.status === 'done'
-                    ? 'Download ready — it should start automatically.'
-                    : `Failed: ${zipJob.error || 'Unknown error'}`}
-            </DialogDescription>
-          </DialogHeader>
-
-          {zipJob?.status === 'processing' && zipJob.totalBytes > 0 && (
-            <div className="w-full bg-muted rounded-full h-1.5">
-              <div
-                className="bg-primary h-1.5 rounded-full transition-all"
-                style={{ width: `${Math.min(100, (zipJob.processedBytes / zipJob.totalBytes) * 100)}%` }}
-              />
-            </div>
-          )}
-
-          {(!zipJob || zipJob.status === 'queued' || zipJob.status === 'processing') && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              This can take a while for large folders — feel free to close this and check back later.
-            </div>
-          )}
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => { stopZipPolling(); setShowDownloadModal(false); }}>
-              Close
-            </Button>
-            {zipJob?.status === 'done' && zipJob.downloadUrl && (
-              <Button onClick={() => triggerSingleDownload(zipJob.downloadUrl!, zipJob.zipName)}>
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                Download again
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <DrivePreviewModal
         item={previewItem}

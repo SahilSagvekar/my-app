@@ -65,8 +65,15 @@ export function isDriveTrashEnabled(): boolean {
 }
 
 /** 720p HLS previews + scrub sprites, transcoded on the file server. Opt-in (CPU cost). */
+// Video previews (720p HLS transcodes on the file-server container) are
+// switched OFF in code to cut Cloudflare Containers cost: transcoding ran
+// ffmpeg on a standard-3 instance for nearly every uploaded video. With this
+// off, the player streams the original file, no new transcodes are queued
+// or started, and previews that were already built keep playing from R2.
+// To bring the feature back, restore the env check below:
+//   return process.env.DRIVE_PREVIEWS_ENABLED === 'true';
 export function isDrivePreviewsEnabled(): boolean {
-  return process.env.DRIVE_PREVIEWS_ENABLED === 'true';
+  return false;
 }
 
 export const TRASH_RETENTION_DAYS = 30;

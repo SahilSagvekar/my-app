@@ -1342,7 +1342,7 @@ function PortfolioContent() {
                         <div className="max-w-4xl mx-auto">
                             <div className="relative w-full aspect-video rounded-2xl overflow-hidden shadow-xl shadow-black/10 bg-black">
                                 <iframe
-                                    src="https://www.youtube.com/embed/3OaMtTJs6dw"
+                                    src="https://www.youtube.com/embed/7dka9tcQ79Q"
                                     className="absolute inset-0 w-full h-full"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen

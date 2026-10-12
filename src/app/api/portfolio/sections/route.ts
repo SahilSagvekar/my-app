@@ -150,6 +150,26 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ ok: false, message: 'Invalid data format' }, { status: 400 });
         }
 
+        // Persist the How It Works toggle first, over the stateless HTTP driver, so it
+        // doesn't depend on the (Workers-flaky) WebSocket transaction below succeeding.
+        if (settings && typeof settings.howItWorksVisible === 'boolean') {
+            try {
+                await writeSettings(getDbHttp(), {
+                    howItWorksVisible: settings.howItWorksVisible,
+                });
+            } catch (settingsErr) {
+                console.error('[PATCH /api/portfolio/sections] settings write failed', settingsErr);
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        message:
+                            'How It Works setting failed to save. Create the PortfolioUiSetting table (see scripts/sql/create-portfolio-ui-setting.sql) and try again.',
+                    },
+                    { status: 500 }
+                );
+            }
+        }
+
         // NOTE: Prisma's transaction { timeout, maxWait } options have no
         // direct Drizzle equivalent (interactive transactions here run over
         // the neon-serverless WebSocket driver) — dropped, atomicity preserved.
@@ -203,24 +223,6 @@ export async function PATCH(req: NextRequest) {
                 }
             }
         });
-
-        if (settings && typeof settings.howItWorksVisible === 'boolean') {
-            try {
-                await writeSettings(getDbHttp(), {
-                    howItWorksVisible: settings.howItWorksVisible,
-                });
-            } catch (settingsErr) {
-                console.error('[PATCH /api/portfolio/sections] settings write failed', settingsErr);
-                return NextResponse.json(
-                    {
-                        ok: false,
-                        message:
-                            'Sections saved, but How It Works setting failed. Create the PortfolioUiSetting table (see scripts/sql/create-portfolio-ui-setting.sql) and try again.',
-                    },
-                    { status: 500 }
-                );
-            }
-        }
 
         return NextResponse.json({ ok: true });
     } catch (err) {
