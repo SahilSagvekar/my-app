@@ -656,10 +656,19 @@ const effectiveRole =
     });
 
     // ✅ Add signed URLs to files
+    //
+    // The pre-signed per-file `downloadUrl` (an extra SigV4 signature per
+    // file) is skipped for the editor board: EditorDashboard never reads it —
+    // its Download button always goes through /api/files/:id/download, which
+    // signs one link on click. For an editor with hundreds of open tasks this
+    // removed thousands of wasted signatures per poll, which was pushing the
+    // request past the Worker CPU limit (33s → 503). Viewing/playback URLs
+    // (url / proxyUrl) are still signed exactly as before.
+    const includeDownloadUrl = !lightMode && effectiveRole !== "editor";
     const tasksWithSignedUrls = await Promise.all(
       sortedTasks.map(async (task) => {
         if (task.files && task.files.length > 0) {
-          const signedFiles = await addSignedUrlsToFiles(task.files, { includeDownloadUrl: !lightMode });
+          const signedFiles = await addSignedUrlsToFiles(task.files, { includeDownloadUrl });
           return { ...task, files: signedFiles };
         }
         return task;

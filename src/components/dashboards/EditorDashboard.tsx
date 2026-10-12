@@ -2694,7 +2694,25 @@ export function EditorDashboard() {
   const router = useRouter();
 
   /* ---------------------------- FETCH REAL DATA ---------------------------- */
+  // 🔥 Overlap guard. A slow /api/tasks (an editor with a big backlog can
+  // take 30s+) used to get a second and third copy fired on top of it by the
+  // 30s poll and the 15s optimization poll, piling up until the Worker hit
+  // its CPU limit and everything 503'd.
+  //   - Background polls (pollTasks) simply SKIP if a load is still running.
+  //   - Any other call (initial load, month-filter change, after an upload or
+  //     status change) is remembered and run ONCE more as soon as the current
+  //     load finishes, using the latest filters — so a user action is never
+  //     lost, it just doesn't run concurrently.
+  const tasksLoadInFlightRef = useRef(false);
+  const tasksReloadQueuedRef = useRef(false);
+  const latestLoadTasksRef = useRef<() => Promise<void>>(async () => {});
+
   const loadTasks = useCallback(async () => {
+    if (tasksLoadInFlightRef.current) {
+      tasksReloadQueuedRef.current = true;
+      return;
+    }
+    tasksLoadInFlightRef.current = true;
     try {
       const params = new URLSearchParams();
       // if (monthFilter !== "all") params.set("month", monthFilter);
@@ -2709,10 +2727,19 @@ export function EditorDashboard() {
       // without reintroducing the old company-wide unscoped-query problem.
       params.set("limit", "500");
       const queryString = params.toString();
+      // 60s timeout so a hung request can't hold the overlap guard forever
+      // (which would stop every later refresh). A timed-out load is just
+      // logged; the next poll tries again.
       const res = await fetch(`/api/tasks${queryString ? `?${queryString}` : ""}`, {
         credentials: "include",
         headers: viewingAsHeaders,
+        signal: AbortSignal.timeout(60_000),
       });
+      if (!res.ok) {
+        // e.g. a 503 error page — keep the tasks already on screen instead
+        // of trying to parse HTML as JSON.
+        throw new Error(`/api/tasks responded ${res.status}`);
+      }
       const data = await res.json();
 
       console.log("🔄 Fetching tasks for editor:", JSON.stringify(data));
@@ -2848,8 +2875,22 @@ export function EditorDashboard() {
       setTasks(formatted);
     } catch (err) {
       console.error("Failed to load tasks:", err);
+    } finally {
+      tasksLoadInFlightRef.current = false;
+      if (tasksReloadQueuedRef.current) {
+        tasksReloadQueuedRef.current = false;
+        void latestLoadTasksRef.current();
+      }
     }
   }, [currentUser.id, monthFilter, viewingAsRole]);
+
+  latestLoadTasksRef.current = loadTasks;
+
+  // Used by the background polls only — skips instead of queueing.
+  const pollTasks = useCallback(() => {
+    if (tasksLoadInFlightRef.current) return;
+    void loadTasks();
+  }, [loadTasks]);
 
   // 🔥 Initial load - run once on mount
   // useEffect(() => {
@@ -2875,11 +2916,11 @@ export function EditorDashboard() {
 
   const interval = setInterval(() => {
     console.log("🔄 Polling for new tasks...");
-    loadTasks();
+    pollTasks();
   }, 30000);
 
   return () => clearInterval(interval);
-}, [loadTasks, currentUser.id]);
+}, [pollTasks, currentUser.id]);
 
   // 🔥 Faster polling when active optimization jobs exist
   // useEffect(() => {
@@ -2906,10 +2947,10 @@ export function EditorDashboard() {
 
   if (hasActiveJobs) {
     console.log("⏱️ Active optimization detected, starting fast poll...");
-    const interval = setInterval(loadTasks, 15000);
+    const interval = setInterval(pollTasks, 15000);
     return () => clearInterval(interval);
   }
-}, [tasks, loadTasks, currentUser.id]);
+}, [tasks, pollTasks, currentUser.id]);
 
   // Global listener for background task updates
   useEffect(() => {
