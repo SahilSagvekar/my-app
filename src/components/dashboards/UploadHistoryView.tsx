@@ -106,9 +106,10 @@ function folderLabel(folderType: string): string {
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   READY_FOR_QC: { label: 'Quality Control', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
   COMPLETED:    { label: 'QC Approved', cls: 'bg-green-100 text-green-700 border-green-200' },
-  REJECTED:     { label: 'Rejected by QC',    cls: 'bg-red-100 text-red-700 border-red-200' },
   REJECTED_BY_QC: { label: 'Rejected by QC', cls: 'bg-red-100 text-red-700 border-red-200' },
   REJECTED_BY_CLIENT: { label: 'Rejected by Client', cls: 'bg-rose-100 text-rose-700 border-rose-200' },
+  // Legacy value — kept so any unmigrated rows still render a readable pill
+  REJECTED:     { label: 'Rejected by QC',    cls: 'bg-red-100 text-red-700 border-red-200' },
   SCHEDULED:    { label: 'Scheduled',   cls: 'bg-purple-100 text-purple-700 border-purple-200' },
   POSTED:       { label: 'Posted',      cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   IN_PROGRESS:  { label: 'In Progress', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
