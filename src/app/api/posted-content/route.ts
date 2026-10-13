@@ -4,7 +4,7 @@ import { postedContent } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
 import { and, eq, gte, lte, ilike, or, count as countFn, desc } from "drizzle-orm";
 import { verifyToken } from "@/lib/auth";
-import { getCurrentUser2 } from "@/lib/auth";
+import { getCurrentUser2, resolveClientIdForUser } from "@/lib/auth";
 import { cached, invalidatePostedContentCache } from "@/lib/redis";
 
 // GET - Fetch posted content for a client
@@ -28,10 +28,13 @@ export async function GET(req: NextRequest) {
     let clientId = requestedClientId;
 
     if (isClient) {
-      if (!user.linkedClientId) {
+      // Support both current multi-user links (User.linkedClientId) and the
+      // legacy one-to-one link (Client.userId), matching /api/tasks.
+      const resolvedClientId = await resolveClientIdForUser(Number(user.id));
+      if (!resolvedClientId) {
         return NextResponse.json({ message: "No client account linked to your user." }, { status: 403 });
       }
-      clientId = user.linkedClientId;
+      clientId = resolvedClientId;
     }
 
     // Build where clause
