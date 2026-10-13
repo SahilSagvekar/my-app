@@ -1179,7 +1179,9 @@ export function ClientDashboard() {
     pendingReviews: tasks.filter(task => task.status === 'CLIENT_REVIEW').length,
     approvedCount: tasks.filter(task => task.status === 'COMPLETED').length,
     postedCount: tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length,
-    rejectedCount: tasks.filter(task => task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED').length,
+    rejectedCount: tasks.filter(task =>
+      task.status === 'REJECTED_BY_CLIENT' || task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED'
+    ).length,
     overdueReviews: tasks.filter(task => isOverdue(task)).length,
   }), [tasks]);
 
@@ -1213,7 +1215,7 @@ export function ClientDashboard() {
         return task.status === 'POSTED' || task.status === 'SCHEDULED';
       }
       if (currentFilter === 'rejected') {
-        return task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED';
+        return task.status === 'REJECTED_BY_CLIENT' || task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED';
       }
       return true;
     });
