@@ -400,6 +400,22 @@ export async function PATCH(
         UPDATE "Task" SET "status" = ${finalStatus}, "updatedAt" = ${new Date().toISOString()} WHERE "id" = ${id}
       `);
 
+      // The raw status fallback bypasses enum parsing. Preserve any metadata
+      // sent with the same request (including QC/client posting titles) by
+      // retrying those non-status fields through Drizzle separately.
+      const fallbackUpdateData: any = { ...updateData };
+      if ('qcReviewedAt' in fallbackUpdateData) {
+        fallbackUpdateData.qcReviewedAt = fallbackUpdateData.qcReviewedAt.toISOString();
+      }
+      if (Object.keys(fallbackUpdateData).length > 0) {
+        try {
+          await db.update(taskTable).set(fallbackUpdateData).where(eq(taskTable.id, id));
+        } catch (metadataErr: any) {
+          console.error('[Status] Raw status fallback succeeded, but accompanying task metadata could not be saved:', metadataErr);
+          throw metadataErr;
+        }
+      }
+
       // Try to fetch the updated record.
       // If the structured read also fails because it can't parse the new enum value, return raw data.
       try {

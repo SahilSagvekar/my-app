@@ -7,6 +7,9 @@ export default function ContactForm() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
+  const [transactionalSmsConsent, setTransactionalSmsConsent] = useState(false);
+  const [promotionalSmsConsent, setPromotionalSmsConsent] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -20,6 +23,14 @@ export default function ContactForm() {
       setStatus({ type: 'error', message: 'Please fill out all fields.' });
       return;
     }
+    if ((transactionalSmsConsent || promotionalSmsConsent) && !phone.trim()) {
+      setStatus({ type: 'error', message: 'Please enter a phone number to opt in to SMS messages.' });
+      return;
+    }
+    if (!acceptedTerms) {
+      setStatus({ type: 'error', message: 'Please accept the Terms of Service and Privacy Policy to continue.' });
+      return;
+    }
 
     setLoading(true);
 
@@ -27,7 +38,15 @@ export default function ContactForm() {
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.trim(), message: message.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          message: message.trim(),
+          transactionalSmsConsent,
+          promotionalSmsConsent,
+          acceptedTerms,
+        }),
       });
 
       const data = await res.json();
@@ -38,6 +57,9 @@ export default function ContactForm() {
         setEmail('');
         setPhone('');
         setMessage('');
+        setTransactionalSmsConsent(false);
+        setPromotionalSmsConsent(false);
+        setAcceptedTerms(false);
 
       } else {
         setStatus({ type: 'error', message: data.error || 'Failed to send message. Try again later.' });
@@ -121,6 +143,24 @@ export default function ContactForm() {
         />
       </div>
 
+      <fieldset className="space-y-4 rounded-xl border border-black/10 p-4 sm:p-5">
+        <legend className="px-1 text-sm font-semibold text-black/80">Communication preferences</legend>
+
+        <label className="flex items-start gap-3 text-sm leading-relaxed text-black/70">
+          <input type="checkbox" checked={transactionalSmsConsent} onChange={(e) => setTransactionalSmsConsent(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-black" />
+          <span>By checking, you are allowing to receive transactional/informational SMS communications regarding account notifications, customer care, etc., from <strong className="font-semibold text-black">E8 Productions, LLC</strong>. Message frequency may vary. Message and data rates may apply. Reply HELP for help or STOP to opt out.</span>
+        </label>
+
+        <label className="flex items-start gap-3 text-sm leading-relaxed text-black/70">
+          <input type="checkbox" checked={promotionalSmsConsent} onChange={(e) => setPromotionalSmsConsent(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-black" />
+          <span>By checking, you are allowing to receive promotional/marketing SMS communications from <strong className="font-semibold text-black">E8 Productions, LLC</strong>. Message frequency may vary. Message and data rates may apply. Reply HELP for help or STOP to opt out.</span>
+        </label>
+
+        <label className="flex items-start gap-3 text-sm leading-relaxed text-black/70">
+          <input type="checkbox" checked={acceptedTerms} onChange={(e) => setAcceptedTerms(e.target.checked)} required className="mt-1 h-4 w-4 shrink-0 accent-black" />
+          <span>By checking, I accept the{' '}<a href="https://e8productions.com/terms" className="font-medium text-black underline underline-offset-2 hover:text-black/70">Terms of Service</a>{' '}and{' '}<a href="https://e8productions.com/privacy" className="font-medium text-black underline underline-offset-2 hover:text-black/70">Privacy Policy</a>.</span>
+        </label>
+      </fieldset>
 
       <button
         type="submit"

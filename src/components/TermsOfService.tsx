@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 
 const TermsOfService = () => {
-  const lastUpdated = "March 31, 2026";
+  const lastUpdated = "October 13, 2026";
   const companyName = "E8 Productions";
   const companyAddress = "Horry County, South Carolina, United States";
   const contactEmail = "legal@e8productions.com";
@@ -375,6 +375,41 @@ const TermsOfService = () => {
             Meta&apos;s Platform Terms and Developer Data Use Policy.
           </p>
         </>
+      ),
+    },
+    {
+      title: "SMS / Text Messaging Terms",
+      content: (
+        <p>
+          By providing your mobile number and opting in, you consent to receive
+          recurring SMS/text messages from E8 Productions, LLC, such as
+          appointment reminders, estimates, invoices, and account or service
+          updates. Consent is not a condition of any purchase. Message frequency
+          varies, and message and data rates may apply. Reply STOP to cancel at
+          any time, or HELP for help, or contact us at{" "}
+          <a
+            href="tel:+18088958905"
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            (808) 895-8905
+          </a>{" "}/{" "}
+          <a
+            href="mailto:eric@e8productions.com"
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            eric@e8productions.com
+          </a>
+          . Carriers are not liable for delayed or undelivered messages. For
+          details on how we handle your data — including that mobile opt-in
+          information is never shared with third parties — see our{" "}
+          <Link
+            href="/privacy"
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            Privacy Policy
+          </Link>
+          .
+        </p>
       ),
     },
     {

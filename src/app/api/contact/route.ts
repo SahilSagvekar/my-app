@@ -55,6 +55,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { name, email, message } = body || {};
     const phone = typeof body?.phone === 'string' ? body.phone.trim().slice(0, 30) : '';
+    const transactionalSmsConsent = body?.transactionalSmsConsent === true;
+    const promotionalSmsConsent = body?.promotionalSmsConsent === true;
+    const acceptedTerms = body?.acceptedTerms === true;
 
     if (!name || !email || !message) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -67,6 +70,12 @@ export async function POST(req: NextRequest) {
 
     if (phone && !/^[0-9+()\-.\s]{5,30}$/.test(phone)) {
       return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
+    }
+    if (!acceptedTerms) {
+      return NextResponse.json({ error: 'Please accept the Terms of Service and Privacy Policy.' }, { status: 400 });
+    }
+    if ((transactionalSmsConsent || promotionalSmsConsent) && !phone) {
+      return NextResponse.json({ error: 'A phone number is required to opt in to SMS messages.' }, { status: 400 });
     }
 
     // Rate-limiting per IP
@@ -92,6 +101,7 @@ export async function POST(req: NextRequest) {
 
     const recipient = 'i@needediting.com';
     const transporter = createTransporter();
+    const consentRecordedAt = new Date().toISOString();
 
     const mailOptions = {
       from: `"E8 Productions Contact" <${process.env.SMTP_USER}>`,
@@ -135,6 +145,10 @@ body { margin: 0; padding: 0; }
           ${phone ? `<tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Phone</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;"><a href="tel:${escapeHtml(phone)}" style="color:#0a0a0b;">${escapeHtml(phone)}</a></td></tr>` : ''}
           <tr><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Location</td><td style="padding:12px 16px;border-bottom:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${locationString}${googleMapsUrl ? ` <a href="${googleMapsUrl}" style="color:#0a0a0b;">(Map)</a>` : ''}</td></tr>
           <tr><td style="padding:12px 16px;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">IP Address</td><td style="padding:12px 16px;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${ip}</td></tr>
+          <tr><td style="padding:12px 16px;border-top:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Transactional / informational SMS consent</td><td style="padding:12px 16px;border-top:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${transactionalSmsConsent ? 'Yes' : 'No'}</td></tr>
+          <tr><td style="padding:12px 16px;border-top:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Promotional / marketing SMS consent</td><td style="padding:12px 16px;border-top:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${promotionalSmsConsent ? 'Yes' : 'No'}</td></tr>
+          <tr><td style="padding:12px 16px;border-top:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">SMS consent captured at</td><td style="padding:12px 16px;border-top:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${consentRecordedAt}</td></tr>
+          <tr><td style="padding:12px 16px;border-top:1px solid #e7e7e9;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b6b72;">Terms / Privacy accepted</td><td style="padding:12px 16px;border-top:1px solid #e7e7e9;text-align:right;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#0a0a0b;">${acceptedTerms ? 'Yes' : 'No'} · ${consentRecordedAt}</td></tr>
         </table>
       </td></tr>
       <tr><td class="px" style="padding:16px 40px 0 40px;">

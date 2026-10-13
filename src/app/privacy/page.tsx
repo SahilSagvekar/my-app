@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 
 const PrivacyPolicy = () => {
-  const lastUpdated = "March 31, 2026";
+  const lastUpdated = "October 13, 2026";
   const companyName = "E8 Productions";
   const companyAddress = "Horry County, South Carolina, United States";
   const contactEmail = "privacy@e8productions.com";
@@ -317,6 +317,34 @@ const PrivacyPolicy = () => {
             We do not share Google or Meta user data with third parties for
             advertising, profiling, or any purpose unrelated to the direct
             operation of the Service.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: "SMS / Text Messaging & Mobile Opt-In",
+      content: (
+        <>
+          <p>
+            If you provide your mobile phone number on our website, you may
+            separately opt in to receive text messages from E8 Productions,
+            LLC at the number you provide, in either or both of the following
+            categories: (1) transactional/informational SMS/text messages (such
+            as account notifications, appointment reminders, estimates,
+            invoices, payment reminders, project updates, and customer care); and
+            (2) promotional/marketing SMS/text messages. Each opt-in is
+            optional, is not pre-selected, and consent to receive text messages
+            is not a condition of purchasing any goods or services. Message
+            frequency varies. Message and data rates may apply. You can opt out
+            at any time by replying STOP, and reply HELP for help.
+          </p>
+          <p>
+            No mobile information will be shared with third parties or
+            affiliates for marketing or promotional purposes. All categories
+            mentioned above exclude text messaging originator opt-in data and
+            consent; this information will not be shared with, sold to, or
+            rented to any third parties under any circumstances. SMS opt-in
+            consent is never shared with anyone for any purpose.
           </p>
         </>
       ),
