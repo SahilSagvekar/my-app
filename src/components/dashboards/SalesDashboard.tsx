@@ -19,6 +19,8 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ImportLeadsDialog } from './sales/ImportLeadsDialog';
 import { SalesPipelineToolbar } from './sales/SalesPipelineToolbar';
+import { TeamLeaderboard } from './sales/TeamLeaderboard';
+import { SalesHeader } from './sales/SalesHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1050,7 +1052,7 @@ const LeadRow = memo(function LeadRow({ lead, isSelected, activeColumns, customC
 // MAIN COMPONENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function SalesDashboard() {
+export function SalesDashboard({ embedded = false }: { embedded?: boolean }) {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [customColumns, setCustomColumns] = useState<SalesColumn[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1281,9 +1283,8 @@ export function SalesDashboard() {
 
   return (
     <div className="space-y-4" style={{ fontFamily: "'Figtree', 'Inter', system-ui, sans-serif" }}>
+      {!embedded && <SalesHeader />}
       <SalesPipelineToolbar
-        title="Sales Pipeline"
-        subtitle="Auto-saves 1.5s after changes"
         search={search}
         onSearchChange={setSearch}
         actions={
@@ -1301,6 +1302,8 @@ export function SalesDashboard() {
           </>
         }
       />
+
+      <TeamLeaderboard />
 
       {/* Stats Bar */}
       <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3.5">
