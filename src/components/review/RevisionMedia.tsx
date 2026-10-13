@@ -18,6 +18,20 @@ export interface RevisionMediaItem {
   attachments?: { url: string; name: string; mimeType?: string; size?: number }[] | null;
 }
 
+/** Serve revision uploads through this app so their display does not depend on
+ * the bucket's public r2.dev hostname resolving in the viewer's network. */
+export function getRevisionMediaUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.endsWith('.r2.dev') && !parsed.hostname.endsWith('.r2.cloudflarestorage.com')) return url;
+    const key = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+    if (!key.startsWith('comments/')) return url;
+    return `/api/revision-media?key=${encodeURIComponent(key)}`;
+  } catch {
+    return url;
+  }
+}
+
 export function hasRevisionMedia(fb: RevisionMediaItem | null | undefined): boolean {
   return !!fb && !!(fb.screenshotUrl || fb.voiceUrl || (fb.attachments && fb.attachments.length > 0));
 }
@@ -51,6 +65,8 @@ export function RevisionMedia({
 
   const seconds = parseVideoTimestamp(timestamp);
   const canSeek = !!onSeek && seconds !== null;
+  const screenshotSrc = media.screenshotUrl ? getRevisionMediaUrl(media.screenshotUrl) : null;
+  const voiceSrc = media.voiceUrl ? getRevisionMediaUrl(media.voiceUrl) : null;
 
   return (
     <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -63,7 +79,7 @@ export function RevisionMedia({
             title="Click to view full size"
           >
             <img
-              src={media.screenshotUrl}
+              src={screenshotSrc!}
               alt={timestamp ? `Marked-up frame at ${timestamp}` : 'Marked-up frame'}
               className={`w-full h-auto object-contain ${compact ? 'max-h-32' : 'max-h-64'}`}
               loading="lazy"
@@ -86,10 +102,10 @@ export function RevisionMedia({
         </div>
       )}
 
-      {media.voiceUrl && (
+      {voiceSrc && (
         <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5">
           <Mic className="h-3.5 w-3.5 text-gray-500 shrink-0" />
-          <audio controls src={media.voiceUrl} className="h-8 w-full" />
+          <audio controls src={voiceSrc} className="h-8 w-full" />
           {!!media.voiceDurationSec && (
             <span className="text-[10px] text-gray-500 font-mono shrink-0">
               {Math.floor(media.voiceDurationSec / 60)}:{(media.voiceDurationSec % 60).toString().padStart(2, '0')}
@@ -104,18 +120,18 @@ export function RevisionMedia({
             att.mimeType?.startsWith('image/') ? (
               <a
                 key={`${att.url}-${idx}`}
-                href={att.url}
+                href={getRevisionMediaUrl(att.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={att.name}
                 className="block h-16 w-16 overflow-hidden rounded border border-gray-200 hover:border-gray-400"
               >
-                <img src={att.url} alt={att.name} className="h-full w-full object-cover" loading="lazy" />
+                <img src={getRevisionMediaUrl(att.url)} alt={att.name} className="h-full w-full object-cover" loading="lazy" />
               </a>
             ) : (
               <a
                 key={`${att.url}-${idx}`}
-                href={att.url}
+                href={getRevisionMediaUrl(att.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700 hover:border-gray-400"
@@ -136,13 +152,13 @@ export function RevisionMedia({
             </DialogTitle>
             <DialogDescription className="text-xs">{authorLine || 'Reviewer screenshot'}</DialogDescription>
             <img
-              src={media.screenshotUrl}
+              src={screenshotSrc!}
               alt={timestamp ? `Marked-up frame at ${timestamp}` : 'Marked-up frame'}
               className="max-h-[80vh] w-full object-contain rounded"
             />
             <div className="flex items-center justify-between">
               <a
-                href={media.screenshotUrl}
+                href={screenshotSrc!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs text-blue-600 hover:underline"

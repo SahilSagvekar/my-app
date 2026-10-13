@@ -2,6 +2,7 @@
 
 import { useState, memo } from 'react';
 import { ReviewComment as ReviewCommentType, COMMENT_CATEGORIES, CommentCategory, THUMBNAIL_CATEGORIES } from './types';
+import { getRevisionMediaUrl } from './RevisionMedia';
 import { MessageSquare, Check, Reply, MoreHorizontal, Trash2, Mic, File as FileIcon, Image as ImageIcon, Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -218,10 +219,10 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
             {comment.screenshotUrl && (
                 <div className="mb-4 rounded-lg overflow-hidden border border-white/5 bg-black/20 group cursor-zoom-in">
                     <img
-                        src={comment.screenshotUrl}
+                        src={getRevisionMediaUrl(comment.screenshotUrl)}
                         alt="Captured video frame"
                         className="w-full h-auto object-cover max-h-[200px] transition-transform duration-500 group-hover:scale-105"
-                        onClick={() => window.open(comment.screenshotUrl, '_blank')}
+                        onClick={() => window.open(getRevisionMediaUrl(comment.screenshotUrl!), '_blank')}
                     />
                 </div>
             )}
@@ -230,7 +231,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
             {comment.voiceUrl && (
                 <div className="mb-3 flex items-center gap-2 bg-black/20 border border-white/5 rounded-lg px-2 py-1.5">
                     <Mic className="h-3.5 w-3.5 text-[var(--review-v2-gray-300)] shrink-0" />
-                    <audio controls src={comment.voiceUrl} className="h-8 w-full" />
+                    <audio controls src={getRevisionMediaUrl(comment.voiceUrl)} className="h-8 w-full" />
                     {!!comment.voiceDurationSec && (
                         <span className="text-[10px] text-[var(--review-text-muted)] font-mono shrink-0">
                             {Math.floor(comment.voiceDurationSec / 60)}:{(comment.voiceDurationSec % 60).toString().padStart(2, '0')}
@@ -248,20 +249,20 @@ export const ReviewCommentCard = memo(function ReviewCommentCard({
                             return (
                                 <a
                                     key={`${att.url}-${idx}`}
-                                    href={att.url}
+                                    href={getRevisionMediaUrl(att.url)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="block w-16 h-16 rounded border border-white/10 overflow-hidden hover:border-[var(--review-v2-gray-500)] transition-colors"
                                     title={att.name}
                                 >
-                                    <img src={att.url} alt={att.name} className="w-full h-full object-cover" />
+                                    <img src={getRevisionMediaUrl(att.url)} alt={att.name} className="w-full h-full object-cover" />
                                 </a>
                             );
                         }
                         return (
                             <a
                                 key={`${att.url}-${idx}`}
-                                href={att.url}
+                                href={getRevisionMediaUrl(att.url)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-1.5 bg-black/20 border border-white/5 hover:border-[var(--review-v2-gray-500)] rounded-lg pl-2 pr-2 py-1 transition-colors"

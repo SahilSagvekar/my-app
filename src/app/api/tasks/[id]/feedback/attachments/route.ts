@@ -61,7 +61,9 @@ export async function POST(
     });
 
     return NextResponse.json({
-      url: upload.url,
+      // Keep revision media on the app origin; the UI also rewrites older
+      // persisted r2.dev URLs to this route when rendering them.
+      url: `/api/revision-media?key=${encodeURIComponent(upload.key)}`,
       name: file.name || safeName,
       mimeType: file.type || "application/octet-stream",
       size: file.size,
