@@ -144,6 +144,12 @@ export interface ReviewScreenProps {
     handleCommentEdit: (id: string, newContent: string) => void;
     handleStatusChange: (s: 'approved' | 'needs_changes', opts?: { sendToClient?: boolean }) => void;
     handleRejectWithComment?: (comment: string) => Promise<void>;
+    // Client portal: second button "Final Revision" (after QC approves the fix it
+    // skips the client portal and goes straight to the scheduler).
+    allowFinalRevision?: boolean;
+    onRequestFinalRevision?: () => void;
+    // QC: the client already used "Final Revision" — this task can't go back to the client.
+    finalRevisionLocked?: boolean;
 
     setShowCommentInput: (v: boolean) => void;
     setConfirmFinal: (v: boolean) => void;
@@ -1511,6 +1517,13 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
 
                                     {p.userRole === 'qc' ? (
                                         <div className="flex flex-col gap-2">
+                                            {p.finalRevisionLocked && (
+                                                <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300 leading-relaxed">
+                                                    <span className="font-semibold">Client's final revision.</span>{' '}
+                                                    The client already used their final revision on this task, so it can't be sent back to
+                                                    the client. Approving it sends it straight to the scheduler.
+                                                </div>
+                                            )}
                                             {/* Row 1: Approve & Send Back (Side by Side) */}
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
@@ -1553,9 +1566,9 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                         p.onForceClientReviewOverrideChange?.(true);
                                                         p.handleStatusChange('approved', { sendToClient: true });
                                                     }}
-                                                    disabled={p.savingFeedback || unresolvedCount > 0}
+                                                    disabled={p.savingFeedback || unresolvedCount > 0 || p.finalRevisionLocked}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#2563eb] hover:border-[#3b82f6] hover:text-white text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                    title="Send directly to client review"
+                                                    title={p.finalRevisionLocked ? "Blocked: the client chose Final Revision on this task, so it goes straight to the scheduler" : "Send directly to client review"}
                                                 >
                                                     <Send className="h-3.5 w-3.5" />
                                                     <span className="truncate">Send to Client Review</span>
@@ -1610,6 +1623,23 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 <span className="text-xs leading-normal text-center text-zinc-500">
                                                     Add at least one comment to send this version back.
                                                 </span>
+                                            )}
+                                            {p.allowFinalRevision && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (unresolvedCount === 0) {
+                                                            toast.error('Please add at least one comment before requesting a final revision');
+                                                            return;
+                                                        }
+                                                        p.onRequestFinalRevision?.();
+                                                    }}
+                                                    disabled={p.savingFeedback}
+                                                    className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-lg cursor-pointer transition-all border border-[#a6303a] text-red-300 bg-transparent hover:bg-[#a6303a]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title="Send back for one last round — it then goes straight to scheduling instead of returning to you"
+                                                >
+                                                    <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
+                                                    Final Revision
+                                                </button>
                                             )}
                                         </>
                                     )}

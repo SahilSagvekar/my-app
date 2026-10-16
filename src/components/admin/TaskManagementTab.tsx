@@ -40,6 +40,9 @@ interface Task {
   title: string | null;
   description: string;
   status: string;
+  clientRejectionCount?: number;
+  lastClientRejectedAt?: string | null;
+  isFinalRevision?: boolean;
   priority: string | null;
   dueDate: string | null;
   createdAt: string;
@@ -284,7 +287,10 @@ export function TaskManagementTab() {
     if (filters.scheduler !== 'all') p.set('scheduler', filters.scheduler);
     if (filters.videographer !== 'all') p.set('videographer', filters.videographer);
     if (filters.client !== 'all') p.set('client', filters.client);
-    if (filters.status !== 'all') p.set('status', filters.status);
+    // "Rejected by Client" is a persistent view (any current status, this month,
+    // until completed), so it maps to the clientRejected flag, not a raw status.
+    if (filters.status === 'REJECTED_BY_CLIENT') p.set('clientRejected', 'true');
+    else if (filters.status !== 'all') p.set('status', filters.status);
     if (filters.deliverableType !== 'all') p.set('deliverableType', filters.deliverableType);
     if (filters.month !== 'all') p.set('month', filters.month);
     if (filters.tag !== 'all') p.set('tag', filters.tag);
@@ -953,7 +959,17 @@ export function TaskManagementTab() {
                         </div>
                       </td>
                       <td className="px-4 py-3.5">
-                        <StatusBadge status={task.status} />
+                        <div className="flex items-center gap-1.5">
+                          <StatusBadge status={task.status} />
+                          {(task.clientRejectionCount ?? 0) > 0 && (
+                            <span
+                              title={`Rejected by client ${task.clientRejectionCount} time${task.clientRejectionCount === 1 ? '' : 's'}${task.isFinalRevision ? ' — Final Revision requested' : ''}`}
+                              className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[11px] font-semibold leading-none text-white ${task.isFinalRevision ? 'ring-2 ring-rose-900' : ''}`}
+                            >
+                              {task.clientRejectionCount}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3.5">
                         {task.monthFolder ? (

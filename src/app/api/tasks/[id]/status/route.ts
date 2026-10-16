@@ -60,7 +60,7 @@ export async function PATCH(
       status, feedback, qcNotes, route, schedulerFeedback, title: qcTitle,
       postingTitle, titleSetByQC, titleSetByClient, postingTitles,
       postingDescriptions, postingTags, forceClientReview, bypassClientReview,
-      imageOrder, folderType, shareToken, reviewerName,
+      imageOrder, folderType, shareToken, reviewerName, finalRevision,
     } = body;
 
     // Resolve the user from DB (authToken JWT *or* NextAuth session).
@@ -290,7 +290,30 @@ export async function PATCH(
     // client review. Only qc/admin reach this block, so other roles can't use it.
     const qcBypassesClientReview =
       bypassClientReview === true && forceClientReview !== true;
+
+    // 🔒 Final Revision: the client already chose "Final Revision" on this
+    // task, so after QC approval it goes straight to the scheduler and never
+    // returns to the client portal. An explicit push to CLIENT_REVIEW is refused
+    // (409); a normal approval just ignores any force/require-review flags and
+    // completes straight to the scheduler.
+    const isFinalRevisionTask = task.isFinalRevision === true;
     if (
+      isFinalRevisionTask &&
+      (effectiveRole === "qc" || effectiveRole === "admin") &&
+      status === "CLIENT_REVIEW"
+    ) {
+      return NextResponse.json(
+        {
+          code: "FINAL_REVISION_LOCKED",
+          message:
+            "This task can't be sent back to the client. The client chose \"Final Revision\" on it, so once it is approved it goes straight to the scheduler.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (
+      !isFinalRevisionTask &&
       (effectiveRole === "qc" || effectiveRole === "admin") &&
       (status === "COMPLETED" || status === "CLIENT_REVIEW") &&
       !qcBypassesClientReview &&
@@ -337,6 +360,16 @@ export async function PATCH(
       } else if (status === "POSTED") {
         finalStatus = "POSTED";
       }
+    }
+
+    // 🔴 Persistent client-rejection tracking — survives later status changes
+    // (e.g. editor moves it to IN_PROGRESS) so the task stays findable.
+    const isClientRejection = role === "client" && finalStatus === REJECTED_BY_CLIENT;
+    const newClientRejectionCount = (Number(task.clientRejectionCount) || 0) + 1;
+    if (isClientRejection) {
+      updateData.clientRejectionCount = drizzleSql`coalesce("clientRejectionCount", 0) + 1`;
+      updateData.lastClientRejectedAt = new Date().toISOString();
+      if (finalRevision === true) updateData.isFinalRevision = true;
     }
 
     // 🔥 Task Actions gate — an editor can't submit to QC until they've
@@ -574,7 +607,7 @@ export async function PATCH(
       //     payload: { taskId: task.id, clientId: task.clientId }
       //   });
       // }
-      else if (isRejectedStatus(finalStatus) && !isRejectedStatus(task.status)) {
+      else if (isRejectedStatus(finalStatus) && (!isRejectedStatus(task.status) || isClientRejection)) {
         // Route the notification to whichever editor actually owns the file
         // type this rejection is about — the thumbnail editor when this is
         // a thumbnail-specific rejection AND one is assigned, the main
@@ -610,6 +643,8 @@ export async function PATCH(
             reviewerName: viaShareLink ? reviewerNameTrimmed : null,
             // Lets slack.ts label the message "Video" vs "Thumbnail".
             folderType: isThumbnailRejection ? "thumbnails" : "main",
+            isFinalRevision: isClientRejection ? (finalRevision === true || isFinalRevisionTask) : false,
+            clientRejectionCount: isClientRejection ? newClientRejectionCount : null,
           },
         });
       } else if (
@@ -745,6 +780,7 @@ export async function PATCH(
               // actually approved it (e.g. another QC covering, or an
               // admin approving on someone else's behalf).
               approvedByUserId: userId,
+              isFinalRevision: isFinalRevisionTask,
             },
           });
         }

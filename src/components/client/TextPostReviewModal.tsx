@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { CheckCircle2, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
+import { FinalRevisionConfirmDialog } from './FinalRevisionConfirmDialog';
 
 interface TextPostReviewModalProps {
     open: boolean;
@@ -17,7 +18,12 @@ interface TextPostReviewModalProps {
     taskTitle: string;
     textContent: string;
     onApprove: () => void | Promise<void>;
-    onRequestRevisions: (feedbackItems: { feedback: string }[]) => void | Promise<void>;
+    onRequestRevisions: (
+        feedbackItems: { feedback: string }[],
+        options?: { finalRevision?: boolean }
+    ) => void | Promise<void>;
+    // Client portal only: adds a "Final Revision" button next to "Request Revisions".
+    allowFinalRevision?: boolean;
     onAddComment?: (feedback: string) => void | Promise<void>;
 }
 
@@ -30,11 +36,13 @@ export function TextPostReviewModal({
     onApprove,
     onRequestRevisions,
     onAddComment,
+    allowFinalRevision = false,
 }: TextPostReviewModalProps) {
     useHideFeedbackWidgetWhileOpen(open);
     void taskId;
     const [revisionNote, setRevisionNote] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [showFinalRevisionConfirm, setShowFinalRevisionConfirm] = useState(false);
     const [selectedVersion, setSelectedVersion] = useState<string>('');
     const scriptReview = useMemo(() => {
         try {
@@ -59,14 +67,14 @@ export function TextPostReviewModal({
         }
     };
 
-    const handleRequestRevisionsClick = async () => {
+    const handleRequestRevisionsClick = async (finalRevision = false) => {
         if (!revisionNote.trim()) {
             toast.error('Add a note describing what needs to change');
             return;
         }
         setSubmitting(true);
         try {
-            await onRequestRevisions([{ feedback: revisionNote.trim() }]);
+            await onRequestRevisions([{ feedback: revisionNote.trim() }], { finalRevision });
             onOpenChange(false);
         } finally {
             setSubmitting(false);
@@ -116,15 +124,34 @@ export function TextPostReviewModal({
                     <Button
                         variant="outline"
                         disabled={submitting}
-                        onClick={handleRequestRevisionsClick}
+                        onClick={() => handleRequestRevisionsClick(false)}
                     >
                         Request Revisions
                     </Button>
+                    {allowFinalRevision && (
+                        <Button
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50"
+                            disabled={submitting || !revisionNote.trim()}
+                            onClick={() => setShowFinalRevisionConfirm(true)}
+                        >
+                            Final Revision
+                        </Button>
+                    )}
                     <Button disabled={submitting} onClick={handleApproveClick}>
                         <CheckCircle2 className="h-4 w-4 mr-1.5" />
                         Approve
                     </Button>
                 </div>
+                <FinalRevisionConfirmDialog
+                    open={showFinalRevisionConfirm}
+                    onOpenChange={setShowFinalRevisionConfirm}
+                    loading={submitting}
+                    onConfirm={async () => {
+                        await handleRequestRevisionsClick(true);
+                        setShowFinalRevisionConfirm(false);
+                    }}
+                />
             </DialogContent>
         </Dialog>
     );

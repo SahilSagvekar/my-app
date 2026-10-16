@@ -13,7 +13,7 @@ import {
     tag as tagTable,
     tagToTask as tagToTaskTable,
 } from "@/lib/db/schema";
-import { and, or, eq, ne, gte, lte, lt, inArray, notInArray, isNotNull, ilike, desc, asc, count } from "drizzle-orm";
+import { and, or, eq, ne, gt, isNull, gte, lte, lt, inArray, notInArray, isNotNull, ilike, desc, asc, count } from "drizzle-orm";
 import { getCurrentUser2 } from '@/lib/auth';
 
 // 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts and
@@ -304,6 +304,7 @@ export async function GET(req: NextRequest) {
         const createdTo = searchParams.get("createdTo");
         const month = searchParams.get("month");
         const tag = searchParams.get("tag");
+        const clientRejected = searchParams.get("clientRejected") === "true";
 
         // Build where clause with AND logic
         const conditions: any[] = [];
@@ -355,6 +356,26 @@ export async function GET(req: NextRequest) {
                 db.select({ id: tagToTaskTable.b }).from(tagToTaskTable)
                     .innerJoin(tagTable, eq(tagToTaskTable.a, tagTable.id))
                     .where(eq(tagTable.name, tag))
+            ));
+        }
+
+        // "Rejected by Client" — persistent view: any task the client has ever
+        // rejected this month, whatever its current status, until it is done
+        // (COMPLETED / SCHEDULED / POSTED).
+        if (clientRejected) {
+            const now = new Date();
+            const monthFolderNow = `${now.toLocaleDateString("en-US", { month: "long" })}-${now.getFullYear()}`;
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+            // count>0 is the persistent marker; the status check also catches
+            // tasks rejected before the counter existed (until backfilled).
+            conditions.push(or(
+                gt(taskTable.clientRejectionCount, 0),
+                eq(taskTable.status, "REJECTED_BY_CLIENT" as any),
+            ));
+            conditions.push(notInArray(taskTable.status, ["COMPLETED", "SCHEDULED", "POSTED"] as any));
+            conditions.push(or(
+                eq(taskTable.monthFolder, monthFolderNow),
+                and(isNull(taskTable.monthFolder), gte(taskTable.createdAt, startOfMonth)),
             ));
         }
 
@@ -498,6 +519,9 @@ export async function GET(req: NextRequest) {
                     deliverableType: true,
                     monthFolder: true,
                     isExtra: true,
+                    clientRejectionCount: true,
+                    lastClientRejectedAt: true,
+                    isFinalRevision: true,
                     extraSequence: true,
                 },
                 with: {

@@ -288,8 +288,13 @@ export function QCCompletedPage() {
       if (!response.ok || !data.success) throw new Error(data.error || 'Failed to push tasks to client review');
 
       toast.success(
-        `✅ ${data.count} task(s) pushed to client review${data.skipped ? ` (${data.skipped} skipped — not Approved)` : ''}`
+        `✅ ${data.count} task(s) pushed to client review${data.skipped ? ` (${data.skipped} skipped — not Approved${data.finalRevisionLocked ? ' or client chose Final Revision' : ''})` : ''}`
       );
+      if (data.finalRevisionLocked) {
+        toast.info(
+          `${data.finalRevisionLocked} task(s) weren't sent to the client: the client chose "Final Revision" on them, so they go straight to the scheduler.`
+        );
+      }
 
       const refreshedData = await fetchCompletedTasks({
         page: currentPage,
@@ -315,7 +320,8 @@ export function QCCompletedPage() {
       setTotalMatchingTasks(refreshedData.pagination?.total || 0);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to push tasks to client review');
+      // Show the server's explanation (e.g. "client chose Final Revision") instead of a generic message
+      toast.error(err instanceof Error && err.message ? err.message : 'Failed to push tasks to client review');
     }
   };
 

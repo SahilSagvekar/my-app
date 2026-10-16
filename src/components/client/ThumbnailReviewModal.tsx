@@ -36,6 +36,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { ImageOrderModal } from './ImageOrderModal';
 import { ImageOrderPopover } from './ImageOrderPopover';
 import { sortTaskImages } from '@/lib/task-image-order';
+import { FinalRevisionConfirmDialog } from './FinalRevisionConfirmDialog';
 
 /* ─── Types ────────────────────────────────────────────────────── */
 export interface TaskFile {
@@ -67,7 +68,16 @@ interface ThumbnailReviewModalProps {
     // `opts.sendToClient` (QC only): true = force into client review, false =
     // bypass it, undefined = keep the task's own client-review setting.
     onApprove: (file: TaskFile, opts?: { sendToClient?: boolean }) => void | Promise<void>;
-    onRequestRevisions: (file: TaskFile, feedback: any[]) => void | Promise<void>;
+    onRequestRevisions: (
+        file: TaskFile,
+        feedback: any[],
+        options?: { finalRevision?: boolean }
+    ) => void | Promise<void>;
+    // Client portal only: shows a second "Final Revision" button next to "Send Back"
+    // (the task skips client review after QC approves the fix).
+    allowFinalRevision?: boolean;
+    // QC: the client already used "Final Revision" — this task can't go back to the client.
+    finalRevisionLocked?: boolean;
     onSwitchToVideo?: () => void;
     userRole?: 'client' | 'qc';
     imageLabel?: string;
@@ -95,6 +105,8 @@ export function ThumbnailReviewModal({
     taskTitle,
     onApprove,
     onRequestRevisions,
+    allowFinalRevision = false,
+    finalRevisionLocked = false,
     onSwitchToVideo,
     userRole = 'client',
     imageLabel = 'Thumbnails',
@@ -150,6 +162,7 @@ export function ThumbnailReviewModal({
         }, 2000);
     };
     const [viewMode, setViewMode] = useState<'single' | 'gallery'>('gallery');
+    const [showFinalRevisionConfirm, setShowFinalRevisionConfirm] = useState(false);
     const [showOrderModal, setShowOrderModal] = useState(false);
     const [isSavingOrder, setIsSavingOrder] = useState(false);
     // 🩹 CORS fallback — the single-image view loads with crossOrigin="anonymous"
@@ -473,7 +486,7 @@ export function ThumbnailReviewModal({
     const handleSendToClientReviewClick = () => submitApproval({ sendToClient: true });
     const handleBypassClientReviewClick = () => submitApproval({ sendToClient: false });
 
-    const handleRequestRevisionsClick = async () => {
+    const handleRequestRevisionsClick = async (finalRevision = false) => {
         if (!currentFile) return;
         if (unresolvedCount === 0) {
             toast.error('Please add at least one comment for revisions');
@@ -497,7 +510,7 @@ export function ThumbnailReviewModal({
             });
             if (!res.ok) throw new Error('Failed to save feedback');
             setShowRevisionSuccess(true);
-            onRequestRevisions(currentFile, feedbackItems);
+            onRequestRevisions(currentFile, feedbackItems, { finalRevision });
             scheduleCloseAfterSuccess(() => setShowRevisionSuccess(false));
         } catch (err) {
             console.error('Error requesting revisions:', err);
@@ -1197,7 +1210,7 @@ export function ThumbnailReviewModal({
                                                             toast.error('Please add at least one comment before sending back');
                                                             return;
                                                         }
-                                                        handleRequestRevisionsClick();
+                                                        handleRequestRevisionsClick(false);
                                                     }}
                                                     disabled={savingFeedback}
                                                     className={`w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 px-3 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed hover:bg-[#dc2626] hover:border-[#dc2626] hover:text-white ${
@@ -1215,13 +1228,19 @@ export function ThumbnailReviewModal({
                                                 </button>
                                             </div>
 
+                                            {finalRevisionLocked && (
+                                                <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300 leading-relaxed">
+                                                    <span className="font-semibold">Client's final revision.</span>{' '}
+                                                    This task can't be sent back to the client. Approving it sends it straight to the scheduler.
+                                                </div>
+                                            )}
                                             {/* Row 2: Send to Client Review & Bypass Client Review */}
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={handleSendToClientReviewClick}
-                                                    disabled={savingFeedback || unresolvedCount > 0}
+                                                    disabled={savingFeedback || unresolvedCount > 0 || finalRevisionLocked}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#2563eb] hover:border-[#3b82f6] hover:text-white text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                    title="Send directly to client review"
+                                                    title={finalRevisionLocked ? "Blocked: the client chose Final Revision on this task, so it goes straight to the scheduler" : "Send directly to client review"}
                                                 >
                                                     <Send className="h-3.5 w-3.5" />
                                                     <span className="truncate">Send to Client Review</span>
@@ -1255,7 +1274,7 @@ export function ThumbnailReviewModal({
                                                         toast.error('Please add at least one comment before sending back');
                                                         return;
                                                     }
-                                                    handleRequestRevisionsClick();
+                                                    handleRequestRevisionsClick(false);
                                                 }}
                                                 disabled={savingFeedback}
                                                 className={`w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed hover:bg-[#dc2626] hover:border-[#dc2626] hover:text-white ${
@@ -1275,6 +1294,23 @@ export function ThumbnailReviewModal({
                                                 <span className="text-xs leading-normal text-center text-zinc-500">
                                                     Add at least one comment to send this version back.
                                                 </span>
+                                            )}
+                                            {allowFinalRevision && userRole === 'client' && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (unresolvedCount === 0) {
+                                                            toast.error('Please add at least one comment before requesting a final revision');
+                                                            return;
+                                                        }
+                                                        setShowFinalRevisionConfirm(true);
+                                                    }}
+                                                    disabled={savingFeedback}
+                                                    className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-lg cursor-pointer transition-all border border-[#a6303a] text-red-300 bg-transparent hover:bg-[#a6303a]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title="Send back for one last round — it then goes straight to scheduling instead of returning to you"
+                                                >
+                                                    <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
+                                                    Final Revision
+                                                </button>
                                             )}
                                         </>
                                     )}
@@ -1298,6 +1334,15 @@ export function ThumbnailReviewModal({
                         isSaving={isSavingOrder}
                     />
                 </TooltipProvider>
+                <FinalRevisionConfirmDialog
+                    open={showFinalRevisionConfirm}
+                    onOpenChange={setShowFinalRevisionConfirm}
+                    loading={savingFeedback}
+                    onConfirm={async () => {
+                        await handleRequestRevisionsClick(true);
+                        setShowFinalRevisionConfirm(false);
+                    }}
+                />
             </DialogContent>
         </Dialog>
     );

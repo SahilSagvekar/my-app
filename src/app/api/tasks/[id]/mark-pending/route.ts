@@ -46,7 +46,10 @@ export async function PATCH(
         // Determine what the "Pending" status should be.
         // If client review was required, it might have been in CLIENT_REVIEW.
         // However, usually for scheduler, COMPLETED means ready to schedule.
-        const newStatus = foundTask.client?.requiresClientReview ? "CLIENT_REVIEW" : "COMPLETED";
+        const newStatus =
+            foundTask.client?.requiresClientReview && !foundTask.isFinalRevision
+                ? "CLIENT_REVIEW"
+                : "COMPLETED";
 
         const [updated] = await db.update(task).set({
             status: newStatus,

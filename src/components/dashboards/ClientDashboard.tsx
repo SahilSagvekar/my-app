@@ -38,6 +38,7 @@ import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { FullScreenReviewModalFrameIO } from '../client/FullScreenReviewModalFrameIO';
 import { ThumbnailComparisonModal } from '../client/ThumbnailComparisonModal';
 import { ThumbnailReviewModal } from '../client/ThumbnailReviewModal';
+import { FinalRevisionConfirmDialog } from '../client/FinalRevisionConfirmDialog';
 import { TextPostReviewModal } from '../client/TextPostReviewModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ShareDialog } from '../review/ShareDialog';
@@ -127,6 +128,7 @@ const persistClientResult = async ({
   postingDescriptions,
   postingTags,
   folderType,
+  finalRevision,
 }: {
   taskId: string;
   approved: boolean;
@@ -137,6 +139,8 @@ const persistClientResult = async ({
   // Which deliverable this rejection is about — lets the Slack notification
   // tag the video editor vs the (possibly different) thumbnail editor.
   folderType?: 'main' | 'thumbnails';
+  // Client picked "Final Revision": after the fix, QC approval goes straight to the scheduler
+  finalRevision?: boolean;
 }) => {
   const metaBody: any = {};
   if (!approved && folderType) metaBody.folderType = folderType;
@@ -157,6 +161,7 @@ const persistClientResult = async ({
       metaBody.rejectionReason = feedback;
       metaBody.feedback = feedback; // Ensure the API recognizes this as the primary feedback field
     }
+    if (finalRevision === true) metaBody.finalRevision = true;
   }
 
   // 🔥 Batch-send the three posting-content lists on every status update
@@ -229,6 +234,7 @@ export function ClientDashboard() {
   const [showThumbnailReview, setShowThumbnailReview] = useState(false);
   const [showTextPostReview, setShowTextPostReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
+  const [showInlineFinalRevisionConfirm, setShowInlineFinalRevisionConfirm] = useState(false);
   const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted' | 'rejected'>('pending');
   const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>('all');
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
@@ -518,7 +524,7 @@ export function ClientDashboard() {
 
   /* ------------------------- REQUEST REVISIONS HANDLER ---------------------- */
 
-  const handleRequestRevisions = async () => {
+  const handleRequestRevisions = async (finalRevision = false) => {
     if (!selectedTask) return;
 
     if (!revisionNotes.trim()) {
@@ -536,6 +542,7 @@ export function ClientDashboard() {
         postingTitles,
         postingDescriptions,
         postingTags,
+        finalRevision,
       });
 
       // Update task status or keep it?
@@ -552,9 +559,15 @@ export function ClientDashboard() {
 
       refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
-      toast.success("📝 Revision Requested – Sent to Editor", {
-        description: "Your feedback has been sent to the editor.",
-      });
+      if (finalRevision) {
+        toast.success("📝 Final Revision Requested", {
+          description: "Thank you! Once the changes are made and approved, your content goes straight to scheduling.",
+        });
+      } else {
+        toast.success("📝 Revision Requested – Sent to Editor", {
+          description: "Your feedback has been sent to the editor.",
+        });
+      }
 
       // Close modals and reset state — only if still on this task.
       if (isStillOnTask(selectedTask.id)) {
@@ -625,14 +638,21 @@ export function ClientDashboard() {
         postingDescriptions,
         postingTags,
         folderType: 'main',
+        finalRevision: revisionData?.finalRevision === true,
       });
 
       // Remove task from list - Revision requested tasks should disappear as they go back to the editor
       refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
-      toast.success("📝 Revision Requested – Sent to Editor", {
-        description: "Your feedback has been sent to the editor.",
-      });
+      if (revisionData?.finalRevision === true) {
+        toast.success("📝 Final Revision Requested", {
+          description: "Thank you! Once the changes are made and approved, your content goes straight to scheduling.",
+        });
+      } else {
+        toast.success("📝 Revision Requested – Sent to Editor", {
+          description: "Your feedback has been sent to the editor.",
+        });
+      }
 
       // Only close if the client is still on this task — if the reply was slow
       // and they've already opened the next video, leave that window alone.
@@ -683,7 +703,11 @@ export function ClientDashboard() {
     }
   };
 
-  const handleThumbnailRequestRevisions = async (file: TaskFile, feedback: any[]) => {
+  const handleThumbnailRequestRevisions = async (
+    file: TaskFile,
+    feedback: any[],
+    options?: { finalRevision?: boolean }
+  ) => {
     if (!selectedTask) return;
 
     // Summary of feedback
@@ -700,13 +724,20 @@ export function ClientDashboard() {
         postingDescriptions,
         postingTags,
         folderType: 'thumbnails',
+        finalRevision: options?.finalRevision === true,
       });
 
       refreshTasks((prev) => prev ? prev.filter((t) => t.id !== selectedTask.id) : prev, { revalidate: false });
 
-      toast.success("📝 Revisions Requested", {
-        description: "Your feedback on the thumbnail has been sent.",
-      });
+      if (options?.finalRevision === true) {
+        toast.success("📝 Final Revision Requested", {
+          description: "Thank you! Once the changes are made and approved, your content goes straight to scheduling.",
+        });
+      } else {
+        toast.success("📝 Revisions Requested", {
+          description: "Your feedback on the thumbnail has been sent.",
+        });
+      }
 
       if (isStillOnTask(selectedTask.id)) {
         setShowThumbnailReview(false);
@@ -1830,7 +1861,7 @@ export function ClientDashboard() {
                   </Button>
                   <Button
                     variant="destructive"
-                    onClick={handleRequestRevisions}
+                    onClick={() => handleRequestRevisions(false)}
                     disabled={isSubmitting || !revisionNotes.trim()}
                   >
                     {isSubmitting ? (
@@ -1840,8 +1871,25 @@ export function ClientDashboard() {
                     )}
                     Send Feedback
                   </Button>
+                  <Button
+                    variant="outline"
+                    className="border-red-300 text-red-600 hover:bg-red-50"
+                    onClick={() => setShowInlineFinalRevisionConfirm(true)}
+                    disabled={isSubmitting || !revisionNotes.trim()}
+                  >
+                    Final Revision
+                  </Button>
                 </div>
               </div>
+              <FinalRevisionConfirmDialog
+                open={showInlineFinalRevisionConfirm}
+                onOpenChange={setShowInlineFinalRevisionConfirm}
+                loading={isSubmitting}
+                onConfirm={async () => {
+                  await handleRequestRevisions(true);
+                  setShowInlineFinalRevisionConfirm(false);
+                }}
+              />
             </DialogContent>
           </Dialog>
         )}
@@ -1862,6 +1910,7 @@ export function ClientDashboard() {
               asset={videoAsset}
               onApprove={handleVideoApprove}
               onRequestRevisions={handleVideoRequestRevisions}
+              allowFinalRevision
               userRole="client"
               // 🔀 Switch to thumbnail review without leaving the modal — only
               // offered when this task actually has a thumbnail to review.
@@ -1924,6 +1973,7 @@ export function ClientDashboard() {
               taskTitle={selectedTask.title}
               onApprove={handleThumbnailApprove}
               onRequestRevisions={handleThumbnailRequestRevisions}
+              allowFinalRevision
               userRole="client"
               imageLabel={selectedTask && isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
               onSwitchToVideo={
@@ -1950,7 +2000,8 @@ export function ClientDashboard() {
             taskTitle={selectedTask.title}
             textContent={(selectedTask as any).textContent || ''}
             onApprove={() => handleThumbnailApprove(null as any)}
-            onRequestRevisions={(items) => handleThumbnailRequestRevisions(null as any, items)}
+            onRequestRevisions={(items, options) => handleThumbnailRequestRevisions(null as any, items, options)}
+            allowFinalRevision
           />
         )}
 

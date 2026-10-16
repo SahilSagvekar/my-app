@@ -17,12 +17,22 @@ export async function POST(request: NextRequest) {
 
     // Only already-approved (COMPLETED) tasks are eligible — this pushes
     // an already-QC'd video into client review after the fact.
-    const eligible = await db.select({ id: task.id }).from(task)
+    const approved = await db.select({ id: task.id, isFinalRevision: task.isFinalRevision }).from(task)
       .where(and(inArray(task.id, taskIds), eq(task.status, 'COMPLETED')));
+
+    // Tasks the client sent back as "Final Revision" never return to the client.
+    const finalRevisionLocked = approved.filter((t) => t.isFinalRevision).length;
+    const eligible = approved.filter((t) => !t.isFinalRevision);
 
     if (eligible.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'None of the selected tasks are eligible (must be Approved)' },
+        {
+          success: false,
+          finalRevisionLocked,
+          error: finalRevisionLocked > 0
+            ? "These tasks can't be sent back to the client: the client chose \"Final Revision\" on them, so they go straight to the scheduler."
+            : 'None of the selected tasks are eligible (must be Approved)',
+        },
         { status: 400 }
       );
     }
@@ -50,6 +60,7 @@ export async function POST(request: NextRequest) {
       success: true,
       count: succeeded,
       skipped: taskIds.length - eligible.length,
+      finalRevisionLocked,
       failed,
       message: `${succeeded} task(s) pushed to client review${failed ? `, ${failed} failed` : ''}`,
     });

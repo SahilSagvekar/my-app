@@ -232,6 +232,9 @@ model Task {
   postingDescriptions   Json?
   postingTags           Json?
   postingTitles         Json?
+  clientRejectionCount  Int                   @default(0)
+  lastClientRejectedAt  DateTime?
+  isFinalRevision       Boolean               @default(false)
   textContent           String?
   clientReviewStartedAt DateTime?
   lastReminderSentAt    DateTime?
@@ -273,6 +276,7 @@ model Task {
   @@index([clientId, monthlyDeliverableId, monthFolder])
   @@index([isExtra])
   @@index([clientReviewStartedAt])
+  @@index([clientRejectionCount, status])
 }
 
 model ShootDetail {

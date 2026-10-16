@@ -459,14 +459,22 @@ export async function deliverSlackNotification(
     const assetLabel = notification.payload?.folderType === "thumbnails" ? "Thumbnail" : "Video";
 
     let mentionedNotification;
+    const isFinalRevision = isClientRejection && notification.payload?.isFinalRevision === true;
+    const rejectionCount = Number(notification.payload?.clientRejectionCount) || 0;
     if (isClientRejection) {
       const comment = notification.payload?.revisionComment;
+      const countNote = rejectionCount > 1 ? `\n\n_This is rejection #${rejectionCount} by the client for this task._` : "";
+      const finalNote = isFinalRevision
+        ? `\n\n*This is the client's FINAL revision.* Once QC approves it, it goes straight to scheduling and will not return to the client portal.`
+        : "";
       mentionedNotification = {
         ...notification,
-        title: `❗ ${editorMention}Client Rejected — ${assetLabel} Needs Revisions`,
-        body: `Your ${assetLabel.toLowerCase()} for "${notification.payload?.taskTitle || "Task"}" was rejected by the client.${
+        title: isFinalRevision
+          ? `🚨 ${editorMention}Client Requested a FINAL REVISION — ${assetLabel} Needs Changes`
+          : `❗ ${editorMention}Client Rejected — ${assetLabel} Needs Revisions`,
+        body: `Your ${assetLabel.toLowerCase()} for "${notification.payload?.taskTitle || "Task"}" was ${isFinalRevision ? "sent back for a final revision" : "rejected"} by the client.${
           comment ? `\n\n*Revision comments:*\n${comment}` : ""
-        }${schedulerMention ? `\n\ncc${schedulerMention}` : ""}`,
+        }${finalNote}${countNote}${schedulerMention ? `\n\ncc${schedulerMention}` : ""}`,
       };
     } else {
       const revisionNote = taskId
@@ -481,10 +489,22 @@ export async function deliverSlackNotification(
     }
 
     // Send to client channel ONLY
-    await sendClientSlackWebhook(
+    const delivered = await sendClientSlackWebhook(
       notification.payload.clientId,
       mentionedNotification,
     );
+
+    // Fallback: if the client's own channel is disabled / has no webhook /
+    // failed, don't drop a client rejection silently — post it to the
+    // scheduling channel so someone still sees it.
+    if (!delivered && isClientRejection) {
+      console.warn(`[Slack Dispatch] Client channel unavailable for ${notification.payload.clientId}; falling back to scheduling channel`);
+      await sendToChannel("scheduling", {
+        ...mentionedNotification,
+        title: `⚠️ [client channel unavailable] ${mentionedNotification.title}`,
+        body: `${mentionedNotification.body}\n\n_Posted here because this client's Slack channel is disabled, missing a webhook, or failed._`,
+      });
+    }
     return;
   }
 
@@ -577,7 +597,9 @@ export async function deliverSlackNotification(
       }
       approvedByRole = approvedByRole || "qc";
 
-      if (approvedByRole === "client") {
+      if (notification.payload?.isFinalRevision === true && approvedByRole !== "client") {
+        approvedBy = "QC (client's final revision — sent straight to scheduling)";
+      } else if (approvedByRole === "client") {
         approvedBy = "Client";
       } else {
         approvedBy = "QC";

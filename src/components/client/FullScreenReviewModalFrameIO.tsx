@@ -10,6 +10,7 @@ import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibil
 import type { ReviewConnectionInsight } from './ReviewConnectionIndicator';
 import { ReviewScreenDesktop } from './ReviewScreenDesktop';
 import { ReviewScreenMobile } from './ReviewScreenMobile';
+import { FinalRevisionConfirmDialog } from './FinalRevisionConfirmDialog';
 import type { YoutubePlayerHandle } from '../review/YoutubePlayer';
 
 /* ─── Types ───────────────────────────────────────────────────── */
@@ -85,6 +86,11 @@ interface FullScreenReviewModalProps {
     onPostingTagsChange?: (items: { id: string; text: string }[]) => void;
     // 🔥 Client's template hashtags — shown as selectable chips in the tags tab
     templateHashtags?: string[];
+    // Client portal only: shows a "Final Revision" button next to "Request Revisions".
+    allowFinalRevision?: boolean;
+    // QC only: the client already used "Final Revision" on this task, so it can't be
+    // sent back to the client — approving sends it straight to the scheduler.
+    finalRevisionLocked?: boolean;
 }
 
 interface RevisionRequest {
@@ -93,6 +99,8 @@ interface RevisionRequest {
     referenceFile?: File;
     dueDate?: string;
     assignTo: 'editor' | 'pm';
+    // Set when the client picked "Final Revision" instead of "Request Revisions"
+    finalRevision?: boolean;
     entries: Array<{
         id: string;
         timestamp: string;
@@ -202,8 +210,15 @@ export function FullScreenReviewModalFrameIO({
     onPostingDescriptionsChange,
     onPostingTagsChange,
     templateHashtags = [],
+    allowFinalRevision = false,
+    finalRevisionLocked = false,
 }: FullScreenReviewModalProps) {
     const { user } = useAuth();
+
+    /* ── Final Revision (client portal) ── */
+    const [showFinalRevisionConfirm, setShowFinalRevisionConfirm] = useState(false);
+    // Read (and cleared) by the next needs_changes submission
+    const finalRevisionRef = useRef(false);
 
     /* ── View mode: auto-detect on mount, user can toggle ── */
     const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
@@ -1060,8 +1075,11 @@ export function FullScreenReviewModalFrameIO({
             if (!saved) { toast.error('Failed to save feedback. Please try again.'); return; }
             const label = currentFileSection?.folderType?.toUpperCase() || 'MAIN';
             const ver = currentFileSection?.version || 1;
+            const isFinalRevisionRequest = finalRevisionRef.current && userRole === 'client';
+            finalRevisionRef.current = false;
             const revisionData: RevisionRequest = {
                 reason: 'other',
+                finalRevision: isFinalRevisionRequest,
                 // sortedComments, not comments — scoped to the version
                 // currently being reviewed, so an old rejected round's
                 // comments (now visible again above) don't bleed into
@@ -1115,10 +1133,13 @@ export function FullScreenReviewModalFrameIO({
                 await saveFeedbackToDatabase(comments);
             }
 
+            const isFinalRevision = finalRevisionRef.current && userRole === 'client';
+            finalRevisionRef.current = false;
             const revisionData: RevisionRequest = {
                 reason: 'other',
                 notes: `[${label} v${ver}] ${commentText.trim()}`,
                 assignTo: 'editor',
+                finalRevision: isFinalRevision,
                 entries: [{
                     id: Date.now().toString(),
                     timestamp: new Date().toLocaleTimeString(),
@@ -1303,6 +1324,9 @@ export function FullScreenReviewModalFrameIO({
         onSwitchToMobile: () => setViewMode('mobile'),
         onSwitchToDesktop: () => setViewMode('desktop'),
         handleRejectWithComment,
+        allowFinalRevision: allowFinalRevision && userRole === 'client' && !shareToken,
+        onRequestFinalRevision: () => setShowFinalRevisionConfirm(true),
+        finalRevisionLocked: finalRevisionLocked && userRole === 'qc',
     };
 
     return (
@@ -1319,6 +1343,19 @@ export function FullScreenReviewModalFrameIO({
                 ) : (
                     <ReviewScreenMobile {...screenProps} />
                 )}
+
+                <FinalRevisionConfirmDialog
+                    open={showFinalRevisionConfirm}
+                    onOpenChange={setShowFinalRevisionConfirm}
+                    loading={savingFeedback}
+                    onConfirm={async () => {
+                        finalRevisionRef.current = true;
+                        setShowFinalRevisionConfirm(false);
+                        await handleStatusChange('needs_changes');
+                        // If saving failed above, don't leave the flag armed for a later plain "Request Revisions"
+                        finalRevisionRef.current = false;
+                    }}
+                />
             </DialogContent>
         </Dialog>
     );

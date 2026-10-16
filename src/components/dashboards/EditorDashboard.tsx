@@ -410,6 +410,10 @@ interface WorkflowTask {
   qcNotes?: string | null;
   rejectionReason?: string | null;
   feedback?: string | null;
+  // Client-rejection tracking: how many times the client sent this back, and whether
+  // the client chose "Final Revision" (it goes straight to the scheduler after QC).
+  clientRejectionCount?: number;
+  isFinalRevision?: boolean;
   taskFeedback?: TaskFeedbackItem[]; // 🔥 Version-tracked feedback
   // 🔥 NEW: For weekly task distribution
   monthlyDeliverableId?: string;
@@ -1353,6 +1357,21 @@ function TaskCard({
             <h4 className="font-bold text-[14px] text-gray-900 leading-snug break-words flex-1">
               {task.title || task.clientName || task.deliverableType}
             </h4>
+            {task.isFinalRevision ? (
+              <span
+                title="The client chose Final Revision — after QC approves this fix it goes straight to the scheduler"
+                className="shrink-0 rounded-full bg-red-700 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none text-white"
+              >
+                Final revision
+              </span>
+            ) : (task.clientRejectionCount ?? 0) > 0 ? (
+              <span
+                title={`Rejected by the client ${task.clientRejectionCount} time${task.clientRejectionCount === 1 ? '' : 's'}`}
+                className="shrink-0 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white"
+              >
+                {task.clientRejectionCount}
+              </span>
+            ) : null}
             {task.clientId && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -2792,6 +2811,8 @@ export function EditorDashboard() {
             qcNotes: t.qcNotes || null,
             rejectionReason: t.rejectionReason || null,
             feedback: t.feedback || null,
+            clientRejectionCount: t.clientRejectionCount || 0,
+            isFinalRevision: t.isFinalRevision === true,
             shootScriptRef: t.shootScriptRef || null,
             linkedRawFootagePaths: t.linkedRawFootagePaths || null,
             relatedTaskId: t.relatedTaskId || null,

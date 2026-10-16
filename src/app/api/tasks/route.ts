@@ -425,6 +425,9 @@ const effectiveRole =
           linkedRawFootagePaths: true,
           relatedTaskId: true,
           noActionRequired: true,
+          clientRejectionCount: true,
+          lastClientRejectedAt: true,
+          isFinalRevision: true,
         },
         with: {
           files: {

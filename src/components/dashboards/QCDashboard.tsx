@@ -655,8 +655,11 @@ useEffect(() => {
   // When opts is omitted (plain Approve), the state value is used as before.
   const handleSendToClient = async (asset: any, opts?: { sendToClient?: boolean }) => {
     if (!selectedTask) return;
-    const sendToClient = opts?.sendToClient ?? forceClientReviewOverride;
-    const bypass = opts?.sendToClient === false;
+    // 🔥 The client already used "Final Revision" on this task → it can never go back to the
+    // client. The server refuses a force-push, so never send one for these tasks.
+    const isFinalRevisionTask = (selectedTask as any).isFinalRevision === true;
+    const sendToClient = isFinalRevisionTask ? false : (opts?.sendToClient ?? forceClientReviewOverride);
+    const bypass = !isFinalRevisionTask && opts?.sendToClient === false;
     try {
       await persistQCResult({
         taskId: selectedTask.id,
@@ -669,10 +672,16 @@ useEffect(() => {
         viewingAsRole,
       });
       setQCTasks(prev => prev.filter(t => t.id !== selectedTask.id));
-      toast(
-        bypass ? "✅ Approved – Client Review Bypassed" : "✅ Approved – Sent to Client",
-        { description: "Content has been moved to the next stage." },
-      );
+      if (isFinalRevisionTask) {
+        toast("✅ Approved – Sent to Scheduler", {
+          description: "This was the client's final revision, so it skips client review and goes straight to the scheduler.",
+        });
+      } else {
+        toast(
+          bypass ? "✅ Approved – Client Review Bypassed" : "✅ Approved – Sent to Client",
+          { description: "Content has been moved to the next stage." },
+        );
+      }
       setShowVideoReview(false);
       setSelectedFile(null);
       setSelectedTask(null);
@@ -1833,6 +1842,21 @@ useEffect(() => {
                         >
                           {task.title}
                         </h4>
+                        {(task as any).isFinalRevision === true ? (
+                          <span
+                            title="The client chose Final Revision — approving this sends it straight to the scheduler (it can't go back to the client)"
+                            className="shrink-0 rounded-full bg-red-700 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none text-white"
+                          >
+                            Final revision
+                          </span>
+                        ) : ((task as any).clientRejectionCount ?? 0) > 0 ? (
+                          <span
+                            title={`Rejected by the client ${(task as any).clientRejectionCount} time(s)`}
+                            className="shrink-0 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white"
+                          >
+                            {(task as any).clientRejectionCount}
+                          </span>
+                        ) : null}
                         <TaskGuidelinesButton
                           clientId={task.clientId}
                           clientName={task.client?.companyName || task.client?.name || null}
@@ -2145,7 +2169,8 @@ useEffect(() => {
             forceClientReviewOverride={forceClientReviewOverride}
             onForceClientReviewOverrideChange={setForceClientReviewOverride}
             taskId={selectedTask.id}
-            requiresClientReview={selectedTask.requiresClientReview}
+            requiresClientReview={selectedTask.requiresClientReview && !(selectedTask as any).isFinalRevision}
+            finalRevisionLocked={(selectedTask as any).isFinalRevision === true}
             currentFileSection={{
               folderType: selectedFile.folderType || "main",
               fileId: selectedFile.id,
@@ -2177,6 +2202,7 @@ useEffect(() => {
             taskTitle={selectedTask.title}
             onApprove={handleThumbnailApprove}
             onRequestRevisions={handleThumbnailRequestRevisions}
+            finalRevisionLocked={(selectedTask as any).isFinalRevision === true}
             userRole="qc"
             imageLabel={isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
             onSwitchToVideo={
