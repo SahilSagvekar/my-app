@@ -4,17 +4,38 @@ import { techFeeFailure } from '@/lib/db/schema';
 import { createId } from '@/lib/db/id';
 import { eq, sql } from 'drizzle-orm';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
+// Lazy init: `next build` imports every route module while collecting page
+// data, and build environments (e.g. Cloudflare Workers Builds) don't have the
+// runtime secrets. Throwing at import time therefore fails the whole build, so
+// the key is checked on first real use instead. Runtime behaviour is unchanged:
+// a missing key still throws, just when Stripe is actually called.
+let _stripe: Stripe | null = null;
+
+function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
+    }
+    _stripe = new Stripe(key, {
+      apiVersion: '2024-12-18.acacia',
+      typescript: true,
+      // Cloudflare Workers has no Node socket API — Stripe's default HTTP client
+      // (Node's http/https module) fails there. Fetch-based client works on both
+      // Workers and normal Node, so it's safe to use unconditionally.
+      httpClient: Stripe.createFetchHttpClient(),
+    });
+  }
+  return _stripe;
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-12-18.acacia',
-  typescript: true,
-  // Cloudflare Workers has no Node socket API — Stripe's default HTTP client
-  // (Node's http/https module) fails there. Fetch-based client works on both
-  // Workers and normal Node, so it's safe to use unconditionally.
-  httpClient: Stripe.createFetchHttpClient(),
+// Same `stripe` export as before, so no call site changes.
+export const stripe: Stripe = new Proxy({} as Stripe, {
+  get(_, prop) {
+    const client = getStripe() as any;
+    const value = client[prop];
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
 });
 
 // Helper to format amount for display (cents to dollars)
