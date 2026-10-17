@@ -11,7 +11,7 @@
 //      which sets a short-lived, share-scoped signed cookie.
 //
 // Both GET /api/shared/file/[shareToken] and GET /api/shared/folder/[shareToken]
-// call checkShareAccess() before returning any content.
+// call checkShareAccess() before returning any content. tesrt
 
 import { NextRequest } from 'next/server';
 import jwt from 'jsonwebtoken';
