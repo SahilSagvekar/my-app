@@ -1,9 +1,9 @@
 "use client";
-
+import React  from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { toast } from "sonner";
-import { Bug, ExternalLink, ImagePlus, Loader2, MessageSquare, Plus, Trash2, Video, X } from "lucide-react";
+import { Bug, ChevronDown, ChevronUp, ExternalLink, ImagePlus, Loader2, MessageSquare, Plus, Trash2, Video, X, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -11,6 +11,7 @@ import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { PageHeader } from "../ui/page-header";
 
 // ── constants ─────────────────────────────────────────────────────────────
 const TYPES = [
@@ -107,6 +108,7 @@ export function DevPortalPage() {
   const [priority, setPriority] = useState("all");
   const [source, setSource] = useState("all");
   const [assignee, setAssignee] = useState("all");
+  const [sortBy, setSortBy] = useState("latest");
   const [openId, setOpenId] = useState<string | null>(null);
 
   const qs = new URLSearchParams();
@@ -122,30 +124,49 @@ export function DevPortalPage() {
   const { data: assigneeData } = useSWR<{ users: { id: number; name: string }[] }>("/api/dev-portal/assignees", fetcher);
 
   const tickets = useMemo(() => {
-    const list = data?.tickets ?? [];
-    return status === "active" ? list.filter((t) => t.status === "OPEN" || t.status === "IN_PROGRESS") : list;
-  }, [data, status]);
+    let list = data?.tickets ?? [];
+    if (status === "active") {
+      list = list.filter((t) => t.status === "OPEN" || t.status === "IN_PROGRESS");
+    }
+    // Sort by date
+    if (sortBy === "latest") {
+      list = [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else if (sortBy === "oldest") {
+      list = [...list].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }
+    return list;
+  }, [data, status, sortBy]);
 
   const clientOpen = tickets.filter((t) => t.source === "CLIENT" && (t.status === "OPEN" || t.status === "IN_PROGRESS")).length;
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Bug className="h-6 w-6" /> Dev Tickets
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Log problems, requests and ideas. Client reports are pinned to the top.
-          {clientOpen > 0 && <span className="font-medium text-red-600"> {clientOpen} open from clients.</span>}
-        </p>
-      </div>
+    <div className="space-y-6 px-4 sm:px-6 max-w-6xl mx-auto">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
+            <Bug className="h-6 w-6" /> Dev Tickets
+          </span>
+        }
+        description={
+          <>
+            Log problems, requests and ideas. Client reports are pinned to the top.
+            {clientOpen > 0 && <span className="font-medium text-red-600"> {clientOpen} open from clients.</span>}
+          </>
+        }
+        actions={
+          <Button variant="outline" size="sm" onClick={() => mutate()} className="gap-1.5 border-gray-300">
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </Button>
+        }
+      />
 
-      <QuickAdd onCreated={() => mutate()} />
+      <QuickAdd onCreated={() => mutate(undefined, { revalidate: true })} />
 
       <div className="flex flex-wrap gap-2">
         <FilterSelect value={status} onChange={setStatus} label="Status" options={[{ id: "active", label: "Active" }, { id: "all", label: "All" }, ...STATUSES]} />
         <FilterSelect value={priority} onChange={setPriority} label="Priority" options={[{ id: "all", label: "Any priority" }, ...PRIORITIES]} />
         <FilterSelect value={source} onChange={setSource} label="Source" options={[{ id: "all", label: "All sources" }, { id: "CLIENT", label: "Clients" }, { id: "INTERNAL", label: "Internal" }]} />
+        <FilterSelect value={sortBy} onChange={setSortBy} label="Sort by" options={[{ id: "latest", label: "Latest" }, { id: "oldest", label: "Oldest" }]} />
         <FilterSelect
           value={assignee}
           onChange={setAssignee}
@@ -209,6 +230,7 @@ function QuickAdd({ onCreated }: { onCreated: () => void }) {
   const [loomUrl, setLoomUrl] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const addImages = useCallback((incoming: File[]) => {
@@ -241,9 +263,12 @@ function QuickAdd({ onCreated }: { onCreated: () => void }) {
       });
       if (files.length) {
         try {
+          setUploading(true);
           await uploadScreenshots(ticket.id, files);
         } catch (err: any) {
           toast.error(`Ticket logged, but a screenshot failed: ${err.message}`);
+        } finally {
+          setUploading(false);
         }
       }
       toast.success("Logged");
@@ -256,39 +281,48 @@ function QuickAdd({ onCreated }: { onCreated: () => void }) {
     }
   };
 
+  // Auto-expand details when user starts typing in title
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+    if (!expanded && e.target.value.length > 0) {
+      setExpanded(true);
+    }
+  };
+
   return (
-    <Card>
-      <CardContent className="p-4 space-y-3" onPaste={onPaste}>
-        <div className="flex flex-wrap gap-2">
+    <Card className="border-2 border-gray-200">
+      <CardContent className="p-5 space-y-4" onPaste={onPaste}>
+        <div className="flex flex-wrap gap-3">
           <Input
-            className="flex-1 min-w-[220px]"
+            className="flex-1 min-w-[220px] h-10 border-gray-300 focus:border-gray-400"
             placeholder="What's wrong, or what do you need?"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={handleTitleChange}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
             maxLength={200}
           />
           <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[150px] h-10 border-gray-300"><SelectValue /></SelectTrigger>
             <SelectContent>
               {TYPES.map((t) => <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => setExpanded((v) => !v)} type="button">
-            {expanded ? "Less" : "Details"}
+          <Button variant="outline" onClick={() => setExpanded((v) => !v)} type="button" className="h-10 border-gray-300 gap-1.5">
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {expanded ? "Less" : "More"}
           </Button>
-          <Button onClick={submit} disabled={saving || !title.trim()} className="gap-1.5">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Log it
+          <Button onClick={submit} disabled={saving || !title.trim()} className="gap-1.5 h-10 bg-gray-900 hover:bg-gray-800">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Create ticket
           </Button>
         </div>
 
         {expanded && (
           <div className="space-y-3">
-            <Textarea placeholder="Steps to reproduce, what you expected, who's affected…" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
-            <Input placeholder="Loom link (optional) — https://www.loom.com/share/…" value={loomUrl} onChange={(e) => setLoomUrl(e.target.value)} />
+            <Textarea placeholder="Steps to reproduce, what you expected, who's affected…" rows={4} value={description} onChange={(e) => setDescription(e.target.value)} className="border-gray-300 focus:border-gray-400" />
+            <Input placeholder="Loom link (optional) — https://www.loom.com/share/…" value={loomUrl} onChange={(e) => setLoomUrl(e.target.value)} className="border-gray-300 focus:border-gray-400" />
             <div className="flex flex-wrap items-center gap-2">
               <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-              <Button variant="outline" size="sm" type="button" className="gap-1.5" onClick={() => fileRef.current?.click()}>
+              <Button variant="outline" size="sm" type="button" className="gap-1.5 border-gray-300" onClick={() => fileRef.current?.click()}>
                 <ImagePlus className="h-4 w-4" /> Add screenshots
               </Button>
               <span className="text-xs text-muted-foreground">or paste one (Ctrl/⌘+V). Up to 8.</span>
@@ -299,8 +333,13 @@ function QuickAdd({ onCreated }: { onCreated: () => void }) {
                   <div key={i} className="relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={previews[i]} alt={f.name} className="h-16 w-16 rounded-md object-cover border" />
-                    <button type="button" aria-label="Remove" className="absolute -top-1.5 -right-1.5 rounded-full bg-background border p-0.5" onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}>
-                      <X className="h-3 w-3" />
+                    {uploading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-md">
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-600" />
+                      </div>
+                    )}
+                    <button type="button" aria-label="Remove" className="absolute -top-1.5 -right-1.5 rounded-full bg-gray-200 border border-gray-300 p-1" onClick={() => setFiles((p) => p.filter((_, j) => j !== i))}>
+                      <X className="h-4 w-4 text-black" />
                     </button>
                   </div>
                 ))}
@@ -318,29 +357,60 @@ function TicketRow({ ticket: t, onClick }: { ticket: Ticket; onClick: () => void
   const pri = priorityOf(t.priority);
   const st = statusOf(t.status);
   const done = t.status === "DONE" || t.status === "WONT_FIX";
+
+  // Border color based on status
+  const getBorderColor = () => {
+    if (t.source === "CLIENT" && !done) return "border-red-300 ring-1 ring-red-100";
+    if (t.status === "OPEN") return "border-yellow-300";
+    if (t.status === "IN_PROGRESS") return "border-blue-300";
+    if (t.status === "DONE") return "border-green-300";
+    if (t.status === "WONT_FIX") return "border-gray-300";
+    return "border-gray-200";
+  };
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left rounded-xl border bg-card p-3 sm:p-4 hover:bg-muted/50 transition ${t.source === "CLIENT" && !done ? "border-red-300 ring-1 ring-red-100" : ""} ${done ? "opacity-60" : ""}`}
+      className={`w-full text-left rounded-lg border bg-white p-4 hover:bg-gray-50 transition ${getBorderColor()} ${done ? "opacity-60" : ""}`}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5 mb-1">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-2">
+          {/* Ticket title */}
+          <p className={`font-medium text-gray-900 ${done ? "line-through" : ""} flex-1`}>{t.title}</p>
+
+          {/* Assignee badge in right corner */}
+          {t.assigneeName ? (
+            <Badge variant="outline" className="bg-gray-100 border-gray-300 text-gray-700 shrink-0">
+              {t.assigneeName}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-400 shrink-0">
+              Unassigned
+            </Badge>
+          )}
+        </div>
+
+        {/* Tags and logged info in same flex row */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tags */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {t.source === "CLIENT" && <Badge className="bg-red-600 text-white">Client{t.clientName ? ` · ${t.clientName}` : ""}</Badge>}
             <Badge className={pri.style}>{pri.label}</Badge>
-            <Badge variant="outline">{TYPES.find((x) => x.id === t.type)?.label ?? t.type}</Badge>
+            <Badge variant="outline" className="border-gray-300">{TYPES.find((x) => x.id === t.type)?.label ?? t.type}</Badge>
             <Badge className={st.style}>{st.label}</Badge>
           </div>
-          <p className={`font-medium ${done ? "line-through" : ""}`}>{t.title}</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Logged {fmtLogged(t.createdAt)} by {t.reporterName ?? "unknown"}
-            {t.assigneeName ? ` · → ${t.assigneeName}` : " · unassigned"}
+
+          {/* Logged info */}
+          <p className="text-xs text-gray-500">
+            Logged <span className="font-bold text-black">{fmtLogged(t.createdAt)}</span> by {t.reporterName ?? "unknown"}
           </p>
-        </div>
-        <div className="flex items-center gap-3 text-muted-foreground text-xs shrink-0">
-          {t.attachmentCount > 0 && <span className="flex items-center gap-1"><ImagePlus className="h-3.5 w-3.5" />{t.attachmentCount}</span>}
-          {t.loomUrl && <Video className="h-3.5 w-3.5" />}
+
+          {/* Icons */}
+          <div className="flex items-center gap-3 text-gray-400 text-xs shrink-0 ml-auto">
+            {t.attachmentCount > 0 && <span className="flex items-center gap-1"><ImagePlus className="h-3.5 w-3.5" />{t.attachmentCount}</span>}
+            {t.loomUrl && <Video className="h-3.5 w-3.5" />}
+          </div>
         </div>
       </div>
     </button>
@@ -356,8 +426,70 @@ function TicketDialog({
   const [posting, setPosting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Track pending changes for triage controls
+  const [pendingPriority, setPendingPriority] = useState<string | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [pendingAssignee, setPendingAssignee] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Track uploading and deleting states
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
+  const [deletingAttachments, setDeletingAttachments] = useState<Set<string>>(new Set());
+  const [isUploading, setIsUploading] = useState(false);
+
   const t = data?.ticket;
   const canTriage = !!data?.me.canTriage;
+  // Mirrors the API: triagers can edit anything; the reporter can edit their own ticket while it is OPEN.
+  const canEditDetails = canTriage || (!!t && data?.me.userId === t.reporterId && t.status === "OPEN");
+
+  // Track description / loom editing
+  const [descriptionText, setDescriptionText] = useState(t?.description || "");
+  const [loomUrlText, setLoomUrlText] = useState(t?.loomUrl || "");
+  const [descriptionModified, setDescriptionModified] = useState(false);
+  const [loomUrlModified, setLoomUrlModified] = useState(false);
+
+  // Reset pending state when ticket data changes
+  React.useEffect(() => {
+    if (t) {
+      setPendingPriority(null);
+      setPendingStatus(null);
+      setPendingAssignee(null);
+      setDescriptionText(t.description || "");
+      setLoomUrlText(t.loomUrl || "");
+      setDescriptionModified(false);
+      setLoomUrlModified(false);
+    }
+  }, [t?.id, t?.priority, t?.status, t?.assigneeId, t?.description, t?.loomUrl]);
+
+  const hasUnsavedChanges = pendingPriority !== null || pendingStatus !== null || pendingAssignee !== null || descriptionModified || loomUrlModified;
+
+  const saveChanges = async () => {
+    if (!ticketId || !hasUnsavedChanges) return;
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {};
+      if (pendingPriority !== null) body.priority = pendingPriority;
+      if (pendingStatus !== null) body.status = pendingStatus;
+      if (pendingAssignee !== null) body.assigneeId = pendingAssignee === "none" ? null : Number(pendingAssignee);
+      if (descriptionModified) body.description = descriptionText || null;
+      if (loomUrlModified) body.loomUrl = loomUrlText || null;
+
+      await api(`/api/dev-portal/tickets/${ticketId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      await mutate();
+      onChanged();
+      toast.success("Saved");
+      setDescriptionModified(false);
+      setLoomUrlModified(false);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const patch = async (body: Record<string, unknown>) => {
     if (!ticketId) return;
@@ -394,23 +526,38 @@ function TicketDialog({
 
   const addFiles = async (files: File[]) => {
     if (!ticketId) return;
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) return;
+
+    setIsUploading(true);
     try {
-      await uploadScreenshots(ticketId, files.filter((f) => f.type.startsWith("image/")));
+      await uploadScreenshots(ticketId, imageFiles);
       await mutate();
       onChanged();
+      toast.success("Screenshots uploaded");
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setIsUploading(false);
     }
   };
 
   const removeAttachment = async (id: string) => {
     if (!ticketId) return;
+    setDeletingAttachments((prev) => new Set([...prev, id]));
     try {
       await api(`/api/dev-portal/tickets/${ticketId}/attachments?attachmentId=${id}`, { method: "DELETE" });
       await mutate();
       onChanged();
+      toast.success("Screenshot removed");
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setDeletingAttachments((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -430,7 +577,7 @@ function TicketDialog({
 
   return (
     <Dialog open={!!ticketId} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:w-[60vw] sm:max-w-[1200px]">
         {!t ? (
           <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin" /></div>
         ) : (
@@ -444,19 +591,51 @@ function TicketDialog({
             </DialogHeader>
 
             {/* Triage controls (admins) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <LabeledSelect label="Priority" value={t.priority} disabled={!canTriage} onChange={(v) => patch({ priority: v })} options={PRIORITIES} />
-              <LabeledSelect label="Status" value={t.status} disabled={!canTriage} onChange={(v) => patch({ status: v })} options={STATUSES} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <LabeledSelect label="Priority" value={pendingPriority ?? t.priority} disabled={!canTriage} onChange={setPendingPriority} options={PRIORITIES} />
+              <LabeledSelect label="Status" value={pendingStatus ?? t.status} disabled={!canTriage} onChange={setPendingStatus} options={STATUSES} />
               <LabeledSelect
                 label="Assignee"
-                value={t.assigneeId ? String(t.assigneeId) : "none"}
+                value={pendingAssignee ?? (t.assigneeId ? String(t.assigneeId) : "none")}
                 disabled={!canTriage}
-                onChange={(v) => patch({ assigneeId: v === "none" ? null : Number(v) })}
+                onChange={setPendingAssignee}
                 options={[{ id: "none", label: "Unassigned" }, ...assignees.map((u) => ({ id: String(u.id), label: u.name }))]}
               />
             </div>
 
-            {t.description && <p className="text-sm whitespace-pre-wrap">{t.description}</p>}
+            {/* Description */}
+            {canEditDetails ? (
+              <Textarea
+                placeholder="Steps to reproduce, what you expected, who's affected…"
+                value={descriptionText}
+                onChange={(e) => { setDescriptionText(e.target.value); setDescriptionModified(true); }}
+                className="border-gray-300 focus:border-gray-400"
+                rows={4}
+              />
+            ) : (
+              t.description && (
+                <p className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded-lg border border-gray-200">{t.description}</p>
+              )
+            )}
+
+            {/* Loom link (editors only; everyone else sees the embed below) */}
+            {canEditDetails && (
+              <Input
+                placeholder="Loom link (optional) — https://www.loom.com/share/…"
+                value={loomUrlText}
+                onChange={(e) => { setLoomUrlText(e.target.value); setLoomUrlModified(true); }}
+                className="border-gray-300 focus:border-gray-400"
+              />
+            )}
+
+            {/* Save button - only show when there are unsaved changes */}
+            {hasUnsavedChanges && (
+              <div className="flex justify-end">
+                <Button onClick={saveChanges} disabled={saving} className="gap-1.5 bg-gray-900 hover:bg-gray-800">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save changes
+                </Button>
+              </div>
+            )}
 
             {t.loomUrl && (
               <div className="space-y-2">
@@ -467,49 +646,65 @@ function TicketDialog({
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">Screenshots ({data!.attachments.length})</p>
+                <p className="text-sm font-medium text-gray-900">Screenshots ({data!.attachments.length})</p>
                 <>
                   <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileRef.current?.click()}>
-                    <ImagePlus className="h-3.5 w-3.5" /> Add
+                  <Button variant="outline" size="sm" className="gap-1.5 border-gray-300" onClick={() => fileRef.current?.click()} disabled={isUploading}>
+                    {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />} Add
                   </Button>
                 </>
               </div>
               {data!.attachments.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {data!.attachments.map((a) => (
-                    <div key={a.id} className="relative group">
-                      <a href={a.url} target="_blank" rel="noopener noreferrer">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={a.url} alt={a.fileName} className="w-full h-28 object-cover rounded-md border" />
-                      </a>
-                      <button
-                        type="button"
-                        aria-label="Remove screenshot"
-                        className="absolute top-1 right-1 rounded-full bg-background/90 border p-1 opacity-0 group-hover:opacity-100 transition"
-                        onClick={() => removeAttachment(a.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
+                <div className="relative">
+                  {isUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-lg z-10">
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+                        <p className="text-sm text-gray-600">Uploading...</p>
+                      </div>
                     </div>
-                  ))}
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {data!.attachments.map((a) => (
+                      <div key={a.id} className="relative group">
+                        <a href={a.url} target="_blank" rel="noopener noreferrer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={a.url} alt={a.fileName} className="w-full h-32 object-cover rounded-lg border border-gray-200" />
+                        </a>
+                        {deletingAttachments.has(a.id) && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded-lg">
+                            <Loader2 className="h-5 w-5 animate-spin text-gray-600" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          aria-label="Remove screenshot"
+                          className="absolute top-1.5 right-1.5 rounded-full bg-gray-200 border border-gray-300 p-1.5 opacity-0 group-hover:opacity-100 transition shadow-sm"
+                          onClick={() => removeAttachment(a.id)}
+                          disabled={deletingAttachments.has(a.id)}
+                        >
+                          <X className="h-4 w-4 text-black" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm font-medium flex items-center gap-1.5"><MessageSquare className="h-4 w-4" /> Comments ({data!.comments.length})</p>
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-gray-900 flex items-center gap-1.5"><MessageSquare className="h-4 w-4" /> Comments ({data!.comments.length})</p>
               {data!.comments.map((c) => (
-                <div key={c.id} className="rounded-lg bg-muted/50 p-2.5">
-                  <p className="text-xs text-muted-foreground">{c.authorName ?? "Someone"} · {fmtLogged(c.createdAt)}</p>
-                  <p className="text-sm whitespace-pre-wrap mt-0.5">{c.message}</p>
+                <div key={c.id} className="rounded-lg bg-gray-50 border border-gray-200 p-3">
+                  <p className="text-xs text-gray-500">{c.authorName ?? "Someone"} · {fmtLogged(c.createdAt)}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap mt-1">{c.message}</p>
                 </div>
               ))}
               <div className="flex gap-2">
-                <Textarea rows={2} placeholder="Add a comment…" value={comment} onChange={(e) => setComment(e.target.value)} />
-                <Button onClick={postComment} disabled={posting || !comment.trim()}>Post</Button>
+                <Textarea rows={2} placeholder="Add a comment…" value={comment} onChange={(e) => setComment(e.target.value)} className="border-gray-300 focus:border-gray-400" />
+                <Button onClick={postComment} disabled={posting || !comment.trim()} className="bg-gray-900 hover:bg-gray-800">Post</Button>
               </div>
             </div>
 
