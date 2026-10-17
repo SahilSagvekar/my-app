@@ -107,7 +107,7 @@ export default function LandingPage() {
             </div>
 
             <div className="flex-1 order-1 md:order-2 w-full md:w-auto">
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-black mb-3 sm:mb-4 text-center md:text-left">What E8 Does</h2>
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-black mb-3 sm:mb-4 text-center md:text-left">What E88 Does</h2>
               <p className="text-sm sm:text-base text-black/60 mb-5 sm:mb-6 text-center md:text-left leading-relaxed">
                 We provide end-to-end social media and content solutions for modern businesses. From strategy and video production to editing, posting, distribution, and ongoing management, we help brands grow through consistent, high-quality content and original shows.
               </p>
