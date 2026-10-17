@@ -1058,7 +1058,7 @@ export function ThumbnailReviewModal({
                                                                         <Input
                                                                             value={editingText}
                                                                             onChange={e => setEditingText(e.target.value)}
-                                                                            className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
+                                                                            className="text-xs h-8 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white selection:bg-[#8b5cf6] selection:text-white"
                                                                             autoFocus
                                                                             onKeyDown={e => {
                                                                                 if (e.key === 'Enter') commitEdit(type);

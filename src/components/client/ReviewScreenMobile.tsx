@@ -763,7 +763,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                                             <Input
                                                                 value={mobileEditText}
                                                                 onChange={e => setMobileEditText(e.target.value)}
-                                                                className="text-sm h-9 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white"
+                                                                className="text-sm h-9 bg-[var(--review-bg-secondary)] border-[var(--review-border)] text-white selection:bg-[#8b5cf6] selection:text-white"
                                                                 autoFocus
                                                                 onKeyDown={e => {
                                                                     if (e.key === 'Enter') commitMobileEdit();
