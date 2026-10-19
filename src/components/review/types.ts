@@ -119,8 +119,6 @@ export const COMMENT_CATEGORIES: CommentCategory[] = [
     { value: 'broll', label: 'Broll', color: '#6b7280' },
     { value: 'subtitles', label: 'Subtitles', color: '#3b82f2' },
     { value: 'audio', label: 'Audio', color: '#06b6d4' },
-    // Not tied to a time and never blocks approval — saved as an isGeneral comment.
-    { value: 'general', label: 'General', color: '#6b7280' },
 ];
 
 export interface ThumbnailCategory {
