@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Switch } from '../ui/switch';
 import { PageHeader } from '../ui/page-header';
@@ -186,6 +186,15 @@ const persistClientResult = async ({
 
   return res.json();
 };
+
+// Content Review status filters. 'rejected' is the internal status key; the
+// client-facing label is "For Revisions".
+const STATUS_FILTERS = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'posted', label: 'Posted' },
+  { key: 'rejected', label: 'For Revisions' },
+] as const;
 
 /* -------------------------------------------------------------------------- */
 /* 🔥 MAIN CLIENT DASHBOARD COMPONENT                                         */
@@ -1389,17 +1398,16 @@ export function ClientDashboard() {
         {/* Page Header & Filter Row */}
         <PageHeader
           title="Content Review"
-          description="Review submitted work and approve or reject with feedback"
+          description="Review submitted work and approve or request revisions with feedback"
           actions={
           <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
             {/* General note — not tied to a specific video */}
             <Button
               variant="outline"
-              size="sm"
-              className="shrink-0 gap-1.5"
+              className="h-10 shrink-0 gap-2 px-4 rounded-lg border-[#d3d3d6] bg-white text-[13px] font-medium text-[#0a0a0b] hover:bg-[#f4f4f5] hover:text-[#0a0a0b]"
               onClick={() => setShowGeneralCommentDialog(true)}
             >
-              <MessageSquare className="h-3.5 w-3.5" />
+              <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
               Send a note
             </Button>
 
@@ -1422,77 +1430,52 @@ export function ClientDashboard() {
               value={deliverableTypeFilter}
               onValueChange={setDeliverableTypeFilter}
               placeholder="All Deliverables"
-              className="w-[165px] sm:w-[175px]"
+              className="w-[165px] sm:w-[176px] rounded-lg border-[#d3d3d6] text-[#0a0a0b] hover:border-[#8a8a91] shadow-none"
               options={[
                 { value: 'all', label: 'All Deliverables' },
                 ...availableDeliverableTypes.map((type) => ({ value: type, label: type })),
               ]}
             />
 
-            {/* Status Filter Badges Track */}
-            <div className="flex items-center gap-0.5 sm:gap-1 p-1 sm:p-1.5 bg-[#f3f4f6] rounded-2xl border border-zinc-200/40 shrink-0">
-              <button
-                type="button"
-                onClick={() => setCurrentFilter('pending')}
-                className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-[13px] font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                  currentFilter === 'pending'
-                    ? 'bg-white text-[#c25e00] shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.04]'
-                    : 'text-[#c25e00] hover:bg-white/60'
-                }`}
-              >
-                <span>Pending</span>
-                <span className="px-1.5 sm:px-2 py-0.5 rounded-md text-[11px] sm:text-xs font-bold bg-[#fef3c7] text-[#92400e]">
-                  {pendingReviews}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCurrentFilter('approved')}
-                className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-[13px] font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                  currentFilter === 'approved'
-                    ? 'bg-white text-[#15803d] shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.04]'
-                    : 'text-[#15803d] hover:bg-white/60'
-                }`}
-              >
-                <span>Approved</span>
-                <span className="px-1.5 sm:px-2 py-0.5 rounded-md text-[11px] sm:text-xs font-bold bg-[#dcfce7] text-[#15803d]">
-                  {approvedCount}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCurrentFilter('posted')}
-                className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-[13px] font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                  currentFilter === 'posted'
-                    ? 'bg-white text-[#2563eb] shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.04]'
-                    : 'text-[#2563eb] hover:bg-white/60'
-                }`}
-              >
-                <span>Posted</span>
-                <span className="px-1.5 sm:px-2 py-0.5 rounded-md text-[11px] sm:text-xs font-bold bg-[#dbeafe] text-[#1e40af]">
-                  {postedCount}
-                </span>
-              </button>
-
-              {/* Subtle Vertical Divider */}
-              <div className="w-[1px] h-4 bg-zinc-300/80 mx-1 self-center shrink-0" />
-
-              <button
-                type="button"
-                onClick={() => setCurrentFilter('rejected')}
-                className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-[13px] font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                  currentFilter === 'rejected'
-                    ? 'bg-white text-[#dc2626] shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)] border border-black/[0.04]'
-                    : 'text-[#dc2626] hover:bg-white/60'
-                }`}
-              >
-                <span>Rejected</span>
-                <span className="px-1.5 sm:px-2 py-0.5 rounded-md text-[11px] sm:text-xs font-bold bg-[#fee2e2] text-[#991b1b]">
-                  {rejectedCount}
-                </span>
-              </button>
+            {/* Status Filter Segmented Control — E8 neutral palette: the active
+                state is signaled by weight + a black count chip, never by color. */}
+            <div className="flex items-center gap-1 p-1 bg-[#f4f4f5] ring-1 ring-inset ring-[#e7e7e9] rounded-xl shrink-0">
+              {STATUS_FILTERS.map(({ key, label }) => {
+                const isActive = currentFilter === key;
+                const count = {
+                  pending: pendingReviews,
+                  approved: approvedCount,
+                  posted: postedCount,
+                  rejected: rejectedCount,
+                }[key];
+                return (
+                  <Fragment key={key}>
+                    {/* Divider sets "For Revisions" apart from the forward-moving statuses */}
+                    {key === 'rejected' && (
+                      <div className="w-px h-4 bg-[#d3d3d6] mx-1 self-center shrink-0" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setCurrentFilter(key)}
+                      aria-pressed={isActive}
+                      className={`h-8 px-3 rounded-lg text-xs sm:text-[13px] flex items-center gap-2 transition-all cursor-pointer border ${
+                        isActive
+                          ? 'bg-white text-[#0a0a0b] font-semibold border-[#e7e7e9] shadow-[0_1px_2px_rgba(10,10,11,0.06)]'
+                          : 'text-[#6b6b72] font-medium border-transparent hover:text-[#0a0a0b]'
+                      }`}
+                    >
+                      <span>{label}</span>
+                      <span
+                        className={`min-w-6 h-5 px-1.5 rounded-md text-[11px] font-semibold tabular-nums inline-flex items-center justify-center ${
+                          isActive ? 'bg-[#0a0a0b] text-white' : 'bg-[#e7e7e9] text-[#38383d]'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  </Fragment>
+                );
+              })}
             </div>
           </div>
           }
@@ -1521,7 +1504,7 @@ export function ClientDashboard() {
                   ? 'None of the tasks loaded so far match this deliverable type'
                   : currentFilter === 'rejected'
                     ? "You haven't rejected any tasks"
-                    : `No tasks currently in ${currentFilter} status`}
+                    : `No tasks currently in ${STATUS_FILTERS.find((f) => f.key === currentFilter)?.label ?? currentFilter} status`}
               </p>
               {deliverableTypeFilter !== 'all' && activeTabState?.hasMore && (
                 <Button
