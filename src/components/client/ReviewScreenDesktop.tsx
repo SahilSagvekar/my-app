@@ -1599,7 +1599,8 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                 {approveLabel}
                                             </button>
 
-                                            <button
+                                            <div className="flex items-stretch gap-2">
+                                                <button
                                                 onClick={() => {
                                                     if (unresolvedCount === 0) {
                                                         toast.error('Please add at least one comment before sending back');
@@ -1608,7 +1609,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                     p.handleStatusChange('needs_changes');
                                                 }}
                                                 disabled={p.savingFeedback}
-                                                className={`w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed hover:bg-[#dc2626] hover:border-[#dc2626] hover:text-white ${
+                                                className={`flex-[1.4] min-w-0 whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium py-3 px-2 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed hover:bg-[#dc2626] hover:border-[#dc2626] hover:text-white ${
                                                     unresolvedCount > 0
                                                         ? 'bg-[#a6303a] border-[#a6303a] text-white'
                                                         : 'bg-[#18181b] border-[#38383d] text-zinc-300'
@@ -1619,11 +1620,6 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                     : <MessageSquare className="h-4 w-4" strokeWidth={1.5} />}
                                                 Send Back ({unresolvedCount} comment{unresolvedCount === 1 ? '' : 's'})
                                             </button>
-                                            {unresolvedCount === 0 && (
-                                                <span className="text-xs leading-normal text-center text-zinc-500">
-                                                    Add at least one comment to send this version back.
-                                                </span>
-                                            )}
                                             {p.allowFinalRevision && (
                                                 <button
                                                     onClick={() => {
@@ -1634,13 +1630,14 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                         p.onRequestFinalRevision?.();
                                                     }}
                                                     disabled={p.savingFeedback}
-                                                    className="w-full flex items-center justify-center gap-2 text-sm font-medium py-3 rounded-lg cursor-pointer transition-all border border-[#a6303a] text-red-300 bg-transparent hover:bg-[#a6303a]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    className="flex-1 min-w-0 whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium py-3 px-2 rounded-lg cursor-pointer transition-all border border-[#a6303a] text-red-300 bg-transparent hover:bg-[#a6303a]/20 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     title="Send back for one last round — it then goes straight to scheduling instead of returning to you"
                                                 >
                                                     <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
                                                     Final Revision
                                                 </button>
                                             )}
+                                            </div>
                                         </>
                                     )}
                                 </>
