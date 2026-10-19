@@ -48,31 +48,8 @@ interface ClientTaskCardProps {
   onShare: (e: React.MouseEvent, task: ClientTask) => void;
   onDownload: (task: ClientTask) => void;
   isSharing: boolean;
-  // Rejected tab: show where the task is now + how many times it was rejected.
+  // Rejected tab: view-only wording for tasks still being fixed + Final revision mark.
   showRejectionInfo?: boolean;
-}
-
-// Plain-language current stage for the Rejected tab, where a task can be in any
-// status (with the editor, in QC, back with the client, already approved...).
-function describeStage(status: string): { label: string; className: string } {
-  switch (status) {
-    case 'CLIENT_REVIEW':
-      return { label: 'Back for your review', className: 'bg-amber-500 text-white' };
-    case 'READY_FOR_QC':
-    case 'QC_IN_PROGRESS':
-      return { label: 'In quality check', className: 'bg-violet-500 text-white' };
-    case 'COMPLETED':
-      return { label: 'Approved', className: 'bg-emerald-600 text-white' };
-    case 'SCHEDULED':
-      return { label: 'Scheduled', className: 'bg-blue-500 text-white' };
-    case 'POSTED':
-      return { label: 'Posted', className: 'bg-blue-600 text-white' };
-    case 'ON_HOLD':
-      return { label: 'On hold', className: 'bg-zinc-500 text-white' };
-    default:
-      // PENDING, IN_PROGRESS, REJECTED_BY_CLIENT, REJECTED_BY_QC, VIDEOGRAPHER_ASSIGNED...
-      return { label: 'With our editor', className: 'bg-red-600 text-white' };
-  }
 }
 
 // Helper to format deliverable type names into singular form (e.g., "Long Form Videos" -> "Long Form Video")
@@ -167,8 +144,6 @@ export const ClientTaskCard = memo(function ClientTaskCard({
   const isAwaitingClient = task.status === 'CLIENT_REVIEW';
   const actionVerb = showRejectionInfo && !isAwaitingClient ? 'View' : 'Review';
   const reviewLabel = typeBadge ? `${actionVerb} ${toTitleCase(typeBadge.label)}` : actionVerb;
-  const stage = showRejectionInfo ? describeStage(task.status) : null;
-  const rejectionCount = task.clientRejectionCount ?? 0;
 
   // Desktop app check for local cached files
   const [isFullyDownloaded, setIsFullyDownloaded] = useState(false);
@@ -231,26 +206,11 @@ export const ClientTaskCard = memo(function ClientTaskCard({
           </div>
         )}
 
-        {/* Rejected tab: current stage + how many times it was rejected */}
-        {stage && (
-          <div className="absolute top-2 left-2 right-2 z-20 flex items-center justify-between gap-2 pointer-events-none">
-            <span className={`px-2 py-1 rounded-md text-[11px] font-bold shadow ${stage.className}`}>
-              {stage.label}
-            </span>
-            <span className="flex items-center gap-1.5">
-              {task.isFinalRevision && (
-                <span className="px-2 py-1 rounded-md text-[11px] font-bold bg-zinc-900/85 text-white shadow">
-                  Final revision
-                </span>
-              )}
-              {rejectionCount > 0 && (
-                <span
-                  title={`Rejected ${rejectionCount} time${rejectionCount === 1 ? '' : 's'}`}
-                  className="h-6 min-w-6 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center shadow"
-                >
-                  {rejectionCount}
-                </span>
-              )}
+        {/* Rejected tab: Final revision mark only */}
+        {showRejectionInfo && task.isFinalRevision && (
+          <div className="absolute top-2 right-2 z-20 pointer-events-none">
+            <span className="px-2 py-1 rounded-md text-[11px] font-bold bg-zinc-900/85 text-white shadow">
+              Final revision
             </span>
           </div>
         )}
