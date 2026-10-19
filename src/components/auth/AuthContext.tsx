@@ -94,11 +94,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshUser().catch((err) => {
-      console.warn("⚠️ Initial auth check failed:", err);
-    }).finally(() => {
-      setLoading(false);
+    // /api/auth/me can fail transiently (Worker 503 / network blip). That is not
+    // a sign-out, so retry a few times before giving up and showing the login form.
+    let cancelled = false;
+    (async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await refreshUser();
+          return;
+        } catch (err) {
+          console.warn(`⚠️ Initial auth check failed (attempt ${attempt + 1}):`, err);
+          if (cancelled || attempt === 2) return;
+          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+        }
+      }
+    })().finally(() => {
+      if (!cancelled) setLoading(false);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [refreshUser]);
 
   // Keep the hint in step with the real auth result (login, logout, expiry).

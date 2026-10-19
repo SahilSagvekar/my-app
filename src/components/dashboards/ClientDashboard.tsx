@@ -397,6 +397,44 @@ export function ClientDashboard() {
     }
   }, [selectedTask]);
 
+  // Browser Back on a review screen should close the review, not leave the
+  // portal (the portal is a single /dashboard URL, so without a history entry
+  // Back jumps to the previous site page / login). Push one entry while any
+  // review overlay is open and close the overlay when it is popped.
+  const reviewOpen = showVideoReview || showThumbnailReview || showTextPostReview;
+  const reviewHistoryPushed = useRef(false);
+
+  useEffect(() => {
+    if (!reviewOpen) return;
+    try {
+      window.history.pushState({ ...(window.history.state || {}), e8Review: true }, '');
+      reviewHistoryPushed.current = true;
+    } catch {
+      return;
+    }
+
+    const onPop = () => {
+      reviewHistoryPushed.current = false;
+      setShowVideoReview(false);
+      setShowThumbnailReview(false);
+      setShowTextPostReview(false);
+      setSelectedFile(null);
+      setSelectedTask(null);
+    };
+    window.addEventListener('popstate', onPop);
+
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      // Closed from inside the UI (not via Back): drop the entry we pushed.
+      if (reviewHistoryPushed.current) {
+        reviewHistoryPushed.current = false;
+        try {
+          if (window.history.state?.e8Review) window.history.back();
+        } catch {}
+      }
+    };
+  }, [reviewOpen]);
+
   // Only a task that is waiting for the client's review can be approved or sent
   // back. The Rejected tab lists every task the client has ever rejected, in any
   // status (with the editor, in QC, already approved...), and those are
