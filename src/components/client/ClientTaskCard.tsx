@@ -219,12 +219,12 @@ export const ClientTaskCard = memo(function ClientTaskCard({
       {/* Card Body */}
       <div className="p-4 pt-3 pb-3.5 flex flex-col gap-2 bg-[#0e0f12] mt-auto shrink-0">
         {/* Row 1: Content name */}
-        <h4
+        {/* <h4
           className="text-[13px] font-bold text-white truncate leading-snug tracking-tight"
           title={contentName}
         >
           {contentName}
-        </h4>
+        </h4> */}
 
         {/* Primary Action Button: Review */}
         <Button
