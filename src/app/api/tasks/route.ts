@@ -133,7 +133,17 @@ function sanitizeBigInt(obj: any): any {
   return obj;
 }
 
-const buildRoleWhereQuery = async (role: string | null, userId: number, clientIdOverride?: string | null) => {
+// clientAllStatuses: client role only. By default a client only sees tasks in
+// the CLIENT_VISIBLE list below. The "Rejected" tab is a permanent history of
+// everything the client ever rejected, so it needs the client's tasks in ANY
+// status (e.g. READY_FOR_QC while the editor's fix is being checked) — only
+// HIDDEN tasks stay out. Still scoped to this client either way.
+const buildRoleWhereQuery = async (
+  role: string | null,
+  userId: number,
+  clientIdOverride?: string | null,
+  clientAllStatuses: boolean = false,
+) => {
   if (!role) {
     return undefined;
   }
@@ -172,14 +182,17 @@ const buildRoleWhereQuery = async (role: string | null, userId: number, clientId
       // authorized upstream in GET() before this function is called.
       const resolvedClientId = clientIdOverride || (await resolveClientIdForUser(userId));
       const clientStatuses = ["CLIENT_REVIEW", "IN_PROGRESS", "SCHEDULED", "COMPLETED", "POSTED", "REJECTED_BY_QC", "REJECTED_BY_CLIENT"] as any;
+      const statusScope = clientAllStatuses
+        ? ne(taskTable.status, "HIDDEN" as any)
+        : inArray(taskTable.status, clientStatuses);
 
       if (resolvedClientId) {
         // Filter by clientId — all users linked to this client see the same tasks
-        return and(eq(taskTable.clientId, resolvedClientId), inArray(taskTable.status, clientStatuses));
+        return and(eq(taskTable.clientId, resolvedClientId), statusScope);
       }
 
       // Fallback: if no client link found, use old clientUserId filter (safety net)
-      return and(eq(taskTable.clientUserId, Number(userId)), inArray(taskTable.status, clientStatuses));
+      return and(eq(taskTable.clientUserId, Number(userId)), statusScope);
     }
 
     case "videographer":
@@ -265,6 +278,38 @@ const effectiveRole =
     ? (viewingAs === "qc" ? "admin" : viewingAs)
     : role;
 
+// 🔒 ?clientId= only means "preview this client" for an admin/manager who is
+// viewing as client. A real client account must never be able to point it at
+// another client — it is always scoped to their own linked client.
+const clientOverrideId =
+  effectiveRole === "client" && baseRole !== "client" ? clientIdFilter : undefined;
+
+    // 🔥 Client portal tab badges (?clientCounts=1) — one cheap grouped count
+    // over the client's tasks, no files / signed URLs. The tab lists are loaded
+    // page by page, so the badges can't be computed from what's on screen.
+    // Pending / Approved / Posted use the same status groups as the lists;
+    // Rejected counts every task the client has EVER rejected, in any status.
+    if (effectiveRole === "client" && searchParams.get("clientCounts") === "1") {
+      const scope = await buildRoleWhereQuery("client", Number(userId), clientOverrideId, true);
+      const [row] = await db
+        .select({
+          pending: drizzleSql<number>`count(*) filter (where ${taskTable.status} = 'CLIENT_REVIEW')`,
+          approved: drizzleSql<number>`count(*) filter (where ${taskTable.status} = 'COMPLETED')`,
+          posted: drizzleSql<number>`count(*) filter (where ${taskTable.status} in ('POSTED', 'SCHEDULED'))`,
+          rejected: drizzleSql<number>`count(*) filter (where ${taskTable.clientRejectionCount} > 0)`,
+        })
+        .from(taskTable)
+        .where(scope);
+      return NextResponse.json({
+        counts: {
+          pending: Number(row?.pending ?? 0),
+          approved: Number(row?.approved ?? 0),
+          posted: Number(row?.posted ?? 0),
+          rejected: Number(row?.rejected ?? 0),
+        },
+      }, { status: 200 });
+    }
+
     // 🔥 Row-count safety cap — default 100, caller can request more via
     // ?limit=, but never more than 200 (prevents ?limit=99999 from
     // recreating the unfiltered-3000+-rows memory problem this replaces).
@@ -308,12 +353,24 @@ const effectiveRole =
     // requested clientId through as the override (see buildRoleWhereQuery) —
     // for a real client user this is undefined and it falls back to
     // resolveClientIdForUser as before.
+    //
+    // 🔥 Client portal "Rejected" tab (?clientRejected=1, client role only):
+    // every task this client has EVER rejected (clientRejectionCount > 0), in
+    // ANY status, newest rejection first — it stays listed while the editor
+    // fixes it, while QC checks it, and after it is approved / posted.
+    // ?withTotal=1 adds `paging.total` so the tab can page with "Load more".
+    const clientRejectedMode = effectiveRole === "client" && searchParams.get("clientRejected") === "1";
+    const wantTotal = searchParams.get("withTotal") === "1";
     const roleWhere = await buildRoleWhereQuery(
       effectiveRole,
       Number(userId),
-      effectiveRole === "client" ? clientIdFilter : undefined
+      clientOverrideId,
+      clientRejectedMode,
     );
     const conditions: any[] = roleWhere ? [roleWhere] : [];
+    if (clientRejectedMode) {
+      conditions.push(drizzleSql`${taskTable.clientRejectionCount} > 0`);
+    }
 
     // 🔥 ADD CLIENT FILTER - For filtering tasks by client. Skipped when
     // effectiveRole is already "client", since buildRoleWhereQuery just
@@ -366,12 +423,26 @@ const effectiveRole =
       asc(taskTable.id),
     ];
 
+    // 🔥 Client portal paged tabs (?withTotal=1): the database order IS the page
+    // order (id breaks ties so "Load more" never repeats or skips a row), and
+    // the title re-sort further down is skipped so pages stay consistent.
+    // Rejected: most recently rejected first. Approved / Posted: newest first.
+    const clientPagedMode = effectiveRole === "client" && wantTotal;
+    const clientPagedOrderBy = clientRejectedMode
+      ? [desc(drizzleSql`coalesce(${taskTable.lastClientRejectedAt}, ${taskTable.createdAt})`), asc(taskTable.id)]
+      : [desc(taskTable.createdAt), asc(taskTable.id)];
+    const listOrderBy = queueMode
+      ? queueOrderBy
+      : clientPagedMode
+        ? clientPagedOrderBy
+        : [desc(taskTable.createdAt)];
+
     let tasks: any[];
     try {
       // ✅ NO PAGINATION - Fetch all tasks matching the query
       const rawTasks = await db.query.task.findMany({
         where,
-        orderBy: queueMode ? queueOrderBy : desc(taskTable.createdAt),
+        orderBy: listOrderBy,
         limit: taskLimit,
         ...(taskOffset ? { offset: taskOffset } : {}),
         columns: {
@@ -565,7 +636,7 @@ const effectiveRole =
         .leftJoin(clientTable, eq(taskTable.clientId, clientTable.id))
         .leftJoin(userTable, eq(taskTable.assignedTo, userTable.id))
         .where(where)
-        .orderBy(...(queueMode ? queueOrderBy : [desc(taskTable.createdAt)]))
+        .orderBy(...listOrderBy)
         .limit(taskLimit)
         .offset(taskOffset);
 
@@ -637,7 +708,7 @@ const effectiveRole =
     // Sort: company → date → prefix → number
     // In queue mode the database order IS the page order — re-sorting here
     // would shuffle rows across page boundaries.
-    const sortedTasks = queueMode ? tasks : tasks.sort((a: any, b: any) => {
+    const sortedTasks = (queueMode || clientPagedMode) ? tasks : tasks.sort((a: any, b: any) => {
       const taskA = extractSortParts(a.title);
       const taskB = extractSortParts(b.title);
 
@@ -743,7 +814,7 @@ const effectiveRole =
     // 🔥 Queue totals + filter options over the whole queue (cheap: no files,
     // no feedback — just ids, client and deliverable type).
     let paging: Record<string, any> | undefined;
-    if (queueMode) {
+    if (queueMode || clientPagedMode) {
       const [{ value: filteredTotal }] = await db
         .select({ value: count() })
         .from(taskTable)

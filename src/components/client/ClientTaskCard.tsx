@@ -36,6 +36,8 @@ interface ClientTask {
   files?: TaskFile[];
   monthlyDeliverable?: any;
   oneOffDeliverable?: any;
+  clientRejectionCount?: number;
+  isFinalRevision?: boolean;
 }
 
 interface ClientTaskCardProps {
@@ -46,6 +48,31 @@ interface ClientTaskCardProps {
   onShare: (e: React.MouseEvent, task: ClientTask) => void;
   onDownload: (task: ClientTask) => void;
   isSharing: boolean;
+  // Rejected tab: show where the task is now + how many times it was rejected.
+  showRejectionInfo?: boolean;
+}
+
+// Plain-language current stage for the Rejected tab, where a task can be in any
+// status (with the editor, in QC, back with the client, already approved...).
+function describeStage(status: string): { label: string; className: string } {
+  switch (status) {
+    case 'CLIENT_REVIEW':
+      return { label: 'Back for your review', className: 'bg-amber-500 text-white' };
+    case 'READY_FOR_QC':
+    case 'QC_IN_PROGRESS':
+      return { label: 'In quality check', className: 'bg-violet-500 text-white' };
+    case 'COMPLETED':
+      return { label: 'Approved', className: 'bg-emerald-600 text-white' };
+    case 'SCHEDULED':
+      return { label: 'Scheduled', className: 'bg-blue-500 text-white' };
+    case 'POSTED':
+      return { label: 'Posted', className: 'bg-blue-600 text-white' };
+    case 'ON_HOLD':
+      return { label: 'On hold', className: 'bg-zinc-500 text-white' };
+    default:
+      // PENDING, IN_PROGRESS, REJECTED_BY_CLIENT, REJECTED_BY_QC, VIDEOGRAPHER_ASSIGNED...
+      return { label: 'With our editor', className: 'bg-red-600 text-white' };
+  }
 }
 
 // Helper to format deliverable type names into singular form (e.g., "Long Form Videos" -> "Long Form Video")
@@ -119,6 +146,7 @@ export const ClientTaskCard = memo(function ClientTaskCard({
   onShare,
   onDownload,
   isSharing,
+  showRejectionInfo = false,
 }: ClientTaskCardProps) {
   const displayThumbnail = thumbnail || getTaskThumbnailFromFiles(task.files);
 
@@ -134,7 +162,13 @@ export const ClientTaskCard = memo(function ClientTaskCard({
   // Footer info (same as the QC review cards)
   const contentName = task.title || cardTitle;
   const typeBadge = getDeliverableBadge(getRawDeliverableType(task), task.title);
-  const reviewLabel = typeBadge ? `Review ${toTitleCase(typeBadge.label)}` : 'Review';
+  // A task still being fixed can't be approved or sent back again, so on the
+  // Rejected tab it is "View", not "Review".
+  const isAwaitingClient = task.status === 'CLIENT_REVIEW';
+  const actionVerb = showRejectionInfo && !isAwaitingClient ? 'View' : 'Review';
+  const reviewLabel = typeBadge ? `${actionVerb} ${toTitleCase(typeBadge.label)}` : actionVerb;
+  const stage = showRejectionInfo ? describeStage(task.status) : null;
+  const rejectionCount = task.clientRejectionCount ?? 0;
 
   // Desktop app check for local cached files
   const [isFullyDownloaded, setIsFullyDownloaded] = useState(false);
@@ -194,6 +228,30 @@ export const ClientTaskCard = memo(function ClientTaskCard({
         ) : (
           <div className="text-zinc-500 text-xs font-bold uppercase tracking-wider absolute inset-0 flex items-center justify-center">
             {taskThumbnailFallbackLabel(task.files)}
+          </div>
+        )}
+
+        {/* Rejected tab: current stage + how many times it was rejected */}
+        {stage && (
+          <div className="absolute top-2 left-2 right-2 z-20 flex items-center justify-between gap-2 pointer-events-none">
+            <span className={`px-2 py-1 rounded-md text-[11px] font-bold shadow ${stage.className}`}>
+              {stage.label}
+            </span>
+            <span className="flex items-center gap-1.5">
+              {task.isFinalRevision && (
+                <span className="px-2 py-1 rounded-md text-[11px] font-bold bg-zinc-900/85 text-white shadow">
+                  Final revision
+                </span>
+              )}
+              {rejectionCount > 0 && (
+                <span
+                  title={`Rejected ${rejectionCount} time${rejectionCount === 1 ? '' : 's'}`}
+                  className="h-6 min-w-6 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center shadow"
+                >
+                  {rejectionCount}
+                </span>
+              )}
+            </span>
           </div>
         )}
       </div>
@@ -269,6 +327,9 @@ export const ClientTaskCard = memo(function ClientTaskCard({
     prevProps.task.files?.length === nextProps.task.files?.length &&
     prevProps.task.deliverableType === nextProps.task.deliverableType &&
     prevProps.task.dueDate === nextProps.task.dueDate &&
+    prevProps.task.clientRejectionCount === nextProps.task.clientRejectionCount &&
+    prevProps.task.isFinalRevision === nextProps.task.isFinalRevision &&
+    prevProps.showRejectionInfo === nextProps.showRejectionInfo &&
     getTaskLatestVersion(prevProps.task.files) === getTaskLatestVersion(nextProps.task.files) &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.thumbnail === nextProps.thumbnail &&

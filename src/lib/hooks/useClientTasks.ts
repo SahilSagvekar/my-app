@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR, { type KeyedMutator } from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import { preconnectToUrlOrigin } from '../../components/workflow/VideoUrlHelper';
 
 interface TaskFile {
@@ -58,90 +59,220 @@ interface ClientTask {
     name: string;
     role: string;
   };
+  // 🔴 Persistent client-rejection tracking (see Task.clientRejectionCount)
+  clientRejectionCount?: number;
+  lastClientRejectedAt?: string | null;
+  isFinalRevision?: boolean;
 }
 
-// The client Content Review screen used to fetch EVERY task the client has
-// (up to 100, all statuses) with all nested data in one request, and only
-// then showed the default "pending" tab. It's now split in two:
+// ─────────────────────────────────────────────────────────────────────────────
+// Content Review tabs
 //
-//   1. 'pending' — CLIENT_REVIEW tasks only. This is the first thing on
-//      screen, so it loads alone and fast.
-//   2. 'others'  — everything else (approved / posted / rejected tab counts
-//      and lists). Starts only after (1) has settled so it can't compete
-//      with it, and the two are merged back into one `tasks` array so the
-//      dashboard keeps working unchanged.
+//   Pending  — CLIENT_REVIEW tasks. Loaded first and on its own, one request.
+//   Approved — COMPLETED tasks, loaded a page at a time ("Load more").
+//   Posted   — POSTED + SCHEDULED tasks, a page at a time.
+//   Rejected — EVERY task the client has ever rejected (clientRejectionCount
+//              > 0), in ANY status, a page at a time. A rejected task stays
+//              here while the editor fixes it, while QC checks it, and after
+//              it is approved / posted again.
 //
-// Both use ?light=1, which makes the server skip data this screen never
+// Why this replaced the old "pending + one big 'others' request" split: the
+// old second request mixed Approved, Posted and Rejected (plus statuses no tab
+// shows) under one hard 100-row cap, so older tasks silently vanished, the tab
+// counts undercounted, and if that request failed all three tabs just showed 0
+// with no error. Now each tab has its own paged request, the badges come from a
+// separate cheap count request (so they are exact), and every failure is
+// exposed so the screen can show it with a retry.
+//
+// All requests use ?light=1, which makes the server skip data this screen never
 // reads (feedback threads, shoot details, tags, per-file download URLs, the
 // distinct-months scan). See `lightMode` in src/app/api/tasks/route.ts.
-type TaskGroup = 'pending' | 'others';
+// ─────────────────────────────────────────────────────────────────────────────
+export type ClientTab = 'pending' | 'approved' | 'posted' | 'rejected';
+export type PagedClientTab = Exclude<ClientTab, 'pending'>;
+export type ClientTabCounts = Record<ClientTab, number | null>;
 
-const GROUP_STATUSES: Record<TaskGroup, string> = {
-  pending: 'CLIENT_REVIEW',
-  others: 'IN_PROGRESS,SCHEDULED,COMPLETED,POSTED,REJECTED_BY_QC,REJECTED_BY_CLIENT',
-};
+export const CLIENT_TAB_PAGE_SIZE = 24;
 
-// Sort: Pending first, then Approved, then Posted, then by due date
-function sortTasks(tasks: ClientTask[]): ClientTask[] {
-  const getOrder = (status: string) => {
-    if (status === 'POSTED') return 3;
-    if (status === 'COMPLETED' || status === 'SCHEDULED') return 2;
-    return 1;
-  };
+const PAGED_TABS: PagedClientTab[] = ['approved', 'posted', 'rejected'];
 
-  return [...tasks].sort((a, b) => {
-    const orderA = getOrder(a.status);
-    const orderB = getOrder(b.status);
-
-    if (orderA !== orderB) return orderA - orderB;
-
-    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-  });
+interface TabPage {
+  tasks: ClientTask[];
+  total: number;
+  hasMore: boolean;
 }
 
-// SWR fetcher with error handling. clientIdOverride is set only when an
-// admin/manager is previewing a specific client's portal (see
-// useEffectiveClientId) — it's sent both as ?clientId= (which the backend
-// uses to scope the query) and as the x-viewing-as header (which the
-// backend requires alongside it before it'll treat the caller as "client"
-// rather than their real role). A real client user needs neither — the
-// backend resolves their own linkedClientId from the session as before.
-const fetcher = async ([url, clientIdOverride, group]: [string, string | null, TaskGroup]): Promise<ClientTask[]> => {
-  const params = new URLSearchParams();
-  params.set('status', GROUP_STATUSES[group]);
-  params.set('light', '1');
+export interface ClientTabState {
+  /** First page is loading (nothing to show yet). */
+  isLoading: boolean;
+  /** A further page is loading after "Load more". */
+  isLoadingMore: boolean;
+  /** Set when a request failed and there is nothing loaded to show. */
+  error: Error | null;
+  hasMore: boolean;
+  /** Total tasks in this tab on the server (not just the pages loaded). */
+  total: number | null;
+  loadMore: () => void;
+  retry: () => void;
+}
+
+// Sort used for the Pending tab only: by due date. The paged tabs keep the
+// order the server returns them in, so pages never repeat or skip a row.
+function sortPendingTasks(tasks: ClientTask[]): ClientTask[] {
+  return [...tasks].sort(
+    (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+  );
+}
+
+function dedupeById(tasks: ClientTask[]): ClientTask[] {
+  const byId = new Map<string, ClientTask>();
+  for (const t of tasks) byId.set(t.id, t);
+  return Array.from(byId.values());
+}
+
+// Shared request helper. clientIdOverride is set only when an admin/manager is
+// previewing a specific client's portal (see useEffectiveClientId) — it's sent
+// both as ?clientId= (which the backend uses to scope the query) and as the
+// x-viewing-as header (which the backend requires alongside it before it'll
+// treat the caller as "client" rather than their real role). A real client user
+// needs neither — the backend resolves their own client from the session.
+async function requestTasks(
+  params: URLSearchParams,
+  clientIdOverride: string | null,
+): Promise<any> {
   if (clientIdOverride) params.set('clientId', clientIdOverride);
 
-  const res = await fetch(`${url}?${params.toString()}`, {
+  const res = await fetch(`/api/tasks?${params.toString()}`, {
     method: 'GET',
     credentials: 'include',
     headers: clientIdOverride ? { 'x-viewing-as': 'client' } : undefined,
   });
 
   if (!res.ok) {
-    const error = new Error('Failed to fetch tasks');
-    throw error;
+    throw new Error('Failed to fetch tasks');
   }
+  return res.json();
+}
 
-  const responseData = await res.json();
-  let data = responseData.tasks || responseData;
+function normalizeTasks(responseData: any): ClientTask[] {
+  const data = responseData?.tasks || responseData;
 
   if (!Array.isArray(data)) {
     console.error('Client API returned non-array:', data);
     return [];
   }
 
-  // Normalize tasks
-  const normalized = data.map((task: any) => ({
+  return data.map((task: any) => ({
     ...task,
     status: task.status,
     priority: task.priority || 'medium',
     taskCategory: task.taskCategory || 'design',
     files: task.files || [],
   }));
+}
 
-  return sortTasks(normalized);
+// Pending tab: CLIENT_REVIEW tasks, one request, no paging.
+const pendingFetcher = async ([, clientIdOverride]: [string, string | null, 'pending']): Promise<ClientTask[]> => {
+  const params = new URLSearchParams();
+  params.set('status', 'CLIENT_REVIEW');
+  params.set('light', '1');
+  return sortPendingTasks(normalizeTasks(await requestTasks(params, clientIdOverride)));
 };
+
+// Approved / Posted / Rejected tabs: one page per request.
+const tabPageFetcher = async ([, clientIdOverride, tab, offset]: readonly [
+  string,
+  string | null,
+  PagedClientTab,
+  number,
+]): Promise<TabPage> => {
+  const params = new URLSearchParams();
+  params.set('light', '1');
+  params.set('withTotal', '1');
+  params.set('limit', String(CLIENT_TAB_PAGE_SIZE));
+  if (offset > 0) params.set('offset', String(offset));
+
+  if (tab === 'approved') params.set('status', 'COMPLETED');
+  else if (tab === 'posted') params.set('status', 'POSTED,SCHEDULED');
+  else params.set('clientRejected', '1');
+
+  const responseData = await requestTasks(params, clientIdOverride);
+  const tasks = normalizeTasks(responseData);
+  const paging = responseData?.paging;
+  return {
+    tasks,
+    total: typeof paging?.total === 'number' ? paging.total : tasks.length,
+    hasMore: !!paging?.hasMore,
+  };
+};
+
+// Tab badge counts: one cheap grouped count on the server, no task rows.
+const countsFetcher = async ([, clientIdOverride]: [string, string | null]): Promise<Record<ClientTab, number>> => {
+  const params = new URLSearchParams();
+  params.set('clientCounts', '1');
+  const responseData = await requestTasks(params, clientIdOverride);
+  const c = responseData?.counts ?? {};
+  return {
+    pending: Number(c.pending ?? 0),
+    approved: Number(c.approved ?? 0),
+    posted: Number(c.posted ?? 0),
+    rejected: Number(c.rejected ?? 0),
+  };
+};
+
+// One paged tab. Lazy: nothing is requested until `enabled` is true.
+function useTabPages(
+  tab: PagedClientTab,
+  enabled: boolean,
+  clientIdOverride: string | null,
+  swrOptions: Record<string, any>,
+) {
+  const getKey = (pageIndex: number, previous: TabPage | null) => {
+    if (!enabled) return null;
+    if (previous && !previous.hasMore) return null; // last page already loaded
+    return ['client-tab', clientIdOverride, tab, pageIndex * CLIENT_TAB_PAGE_SIZE] as const;
+  };
+
+  const swr = useSWRInfinite<TabPage>(getKey as any, tabPageFetcher as any, {
+    ...swrOptions,
+    // After an approve / reject / post the same task can move between pages, so
+    // reload every loaded page instead of just the first one.
+    revalidateAll: true,
+    revalidateFirstPage: true,
+    // Keep the loaded pages across tab switches.
+    persistSize: true,
+  });
+
+  const { data: pages, error, isLoading, isValidating, size, setSize, mutate } = swr;
+
+  const tasks = useMemo(
+    () => dedupeById((pages ?? []).flatMap((p) => p.tasks)),
+    [pages],
+  );
+  const lastPage = pages && pages.length > 0 ? pages[pages.length - 1] : undefined;
+
+  const loadMore = useCallback(() => {
+    setSize((s) => s + 1);
+  }, [setSize]);
+
+  const retry = useCallback(() => {
+    mutate();
+  }, [mutate]);
+
+  const state: ClientTabState = {
+    isLoading: enabled && isLoading && !pages,
+    isLoadingMore: !!pages && size > 1 && isValidating && typeof pages[size - 1] === 'undefined',
+    // Only surface an error when there is nothing to show — a failed background
+    // refresh keeps the already-loaded tasks on screen instead of blanking them.
+    error: !pages || pages.length === 0 ? ((error as Error | undefined) ?? null) : null,
+    hasMore: !!lastPage?.hasMore,
+    total: lastPage ? lastPage.total : null,
+    loadMore,
+    retry,
+  };
+
+  return { tasks, state, mutate: mutate as (...args: any[]) => Promise<any> };
+}
 
 interface UseClientTasksOptions {
   refreshInterval?: number;
@@ -151,6 +282,9 @@ interface UseClientTasksOptions {
   // ClientDashboard's "Content Review" / approvals tab). Undefined/null
   // for a real client user — the backend falls back to their own session.
   clientIdOverride?: string | null;
+  // The tab currently on screen. Approved / Posted / Rejected are only
+  // requested once the client has opened them.
+  activeTab?: ClientTab;
 }
 
 export function useClientTasks(options: UseClientTasksOptions = {}) {
@@ -158,6 +292,7 @@ export function useClientTasks(options: UseClientTasksOptions = {}) {
     refreshInterval = 0, // No auto-refresh by default
     revalidateOnFocus = true,
     clientIdOverride = null,
+    activeTab = 'pending',
   } = options;
 
   const swrOptions = {
@@ -170,77 +305,136 @@ export function useClientTasks(options: UseClientTasksOptions = {}) {
     errorRetryInterval: 5000,
   };
 
+  // Tabs the client has opened stay loaded (and refreshed) for the session.
+  const [visited, setVisited] = useState<Set<ClientTab>>(() => new Set<ClientTab>([activeTab]));
+  useEffect(() => {
+    setVisited((prev) => (prev.has(activeTab) ? prev : new Set(prev).add(activeTab)));
+  }, [activeTab]);
+  const isOpen = (tab: ClientTab) => tab === activeTab || visited.has(tab);
+
   const pending = useSWR<ClientTask[]>(
-    ['/api/tasks', clientIdOverride, 'pending'] as [string, string | null, TaskGroup],
-    fetcher,
-    swrOptions
+    ['/api/tasks', clientIdOverride, 'pending'] as [string, string | null, 'pending'],
+    pendingFetcher,
+    swrOptions,
   );
 
-  // Wait for the pending list to settle (success OR error) before starting
-  // the second request, so the screen the user is looking at always gets
-  // the server and database to itself first.
+  // Wait for the pending list to settle (success OR error) before starting the
+  // count request, so the screen the user is looking at always gets the server
+  // and database to itself first.
   const pendingSettled = pending.data !== undefined || !!pending.error;
-  const others = useSWR<ClientTask[]>(
-    pendingSettled ? (['/api/tasks', clientIdOverride, 'others'] as [string, string | null, TaskGroup]) : null,
-    fetcher,
-    swrOptions
+  const countsSwr = useSWR<Record<ClientTab, number>>(
+    pendingSettled ? (['client-tab-counts', clientIdOverride] as [string, string | null]) : null,
+    countsFetcher,
+    swrOptions,
   );
 
-  const pendingData = pending.data;
-  const othersData = others.data;
+  const approved = useTabPages('approved', isOpen('approved'), clientIdOverride, swrOptions);
+  const posted = useTabPages('posted', isOpen('posted'), clientIdOverride, swrOptions);
+  const rejected = useTabPages('rejected', isOpen('rejected'), clientIdOverride, swrOptions);
 
-  // Merge both lists back into the single array the dashboard expects. If a
-  // task briefly shows up in both (it changed status between the two
-  // fetches), the 'others' copy wins — tasks move forward out of review.
-  const data = useMemo(() => {
-    if (!pendingData && !othersData) return undefined;
-    const byId = new Map<string, ClientTask>();
-    for (const t of pendingData ?? []) byId.set(t.id, t);
-    for (const t of othersData ?? []) byId.set(t.id, t);
-    return sortTasks(Array.from(byId.values()));
-  }, [pendingData, othersData]);
+  const pendingTasks = pending.data ?? [];
+
+  const tabTasks: Record<ClientTab, ClientTask[]> = {
+    pending: pendingTasks,
+    approved: approved.tasks,
+    posted: posted.tasks,
+    rejected: rejected.tasks,
+  };
+
+  const tabs: Record<PagedClientTab, ClientTabState> = {
+    approved: approved.state,
+    posted: posted.state,
+    rejected: rejected.state,
+  };
+
+  // Every task loaded so far, de-duplicated, for the parts of the screen that
+  // look across tabs (deliverable-type filter options, desktop auto-download).
+  const tasks = useMemo(
+    () => dedupeById([...rejected.tasks, ...posted.tasks, ...approved.tasks, ...pendingTasks]),
+    [rejected.tasks, posted.tasks, approved.tasks, pendingTasks],
+  );
+
+  // Exact server counts. Until they arrive, fall back to what we can know.
+  const serverCounts = countsSwr.data;
+  const counts: ClientTabCounts = {
+    pending: serverCounts?.pending ?? (pending.data ? pending.data.length : null),
+    approved: serverCounts?.approved ?? approved.state.total,
+    posted: serverCounts?.posted ?? posted.state.total,
+    rejected: serverCounts?.rejected ?? rejected.state.total,
+  };
 
   // Same call signature as SWR's own bound mutate, so existing callers —
   // refreshTasks(), refreshTasks(updaterFn), refreshTasks(fn, { revalidate })
-  // — keep working. An updater function is applied to each list (they all
-  // match tasks by id, so it's a no-op on the list that doesn't hold the
-  // task), and a plain refresh revalidates both.
+  // — keep working. An updater function is applied to the Pending list and to
+  // every loaded page of every other tab (they all match tasks by id, so it's a
+  // no-op where the task isn't). Whenever a task changes status (approved,
+  // rejected, posted) the tab counts and the other tabs change too, so those
+  // are always re-fetched, even when the caller asked to skip revalidation of
+  // the Pending list.
   const mutatePending = pending.mutate;
-  const mutateOthers = others.mutate;
+  const mutateCounts = countsSwr.mutate;
+  const mutateApproved = approved.mutate;
+  const mutatePosted = posted.mutate;
+  const mutateRejected = rejected.mutate;
   const mutate = useCallback(
-    (async (...args: Parameters<KeyedMutator<ClientTask[]>>) => {
-      const [first] = await Promise.all([
+    (async (...args: any[]) => {
+      const tabMutators = [mutateApproved, mutatePosted, mutateRejected];
+      const [first] = args;
+
+      if (typeof first === 'function') {
+        const applyToPages = (pages?: TabPage[]) =>
+          pages ? pages.map((p) => ({ ...p, tasks: first(p.tasks) ?? p.tasks })) : pages;
+
+        const results = await Promise.all([
+          (mutatePending as any)(...args),
+          ...tabMutators.map((m) => m(applyToPages, { revalidate: false })),
+        ]);
+        await Promise.all([mutateCounts(), ...tabMutators.map((m) => m())]);
+        return results[0];
+      }
+
+      const results = await Promise.all([
         (mutatePending as any)(...args),
-        (mutateOthers as any)(...args),
+        mutateCounts(),
+        ...tabMutators.map((m) => m()),
       ]);
-      return first;
+      return results[0];
     }) as unknown as KeyedMutator<ClientTask[]>,
-    [mutatePending, mutateOthers]
+    [mutatePending, mutateCounts, mutateApproved, mutatePosted, mutateRejected],
   );
 
   // Warm up the TLS connection to the video storage host as soon as we know
   // which one it is, so the first click on "Review" doesn't pay for DNS +
   // TCP + TLS before the first video byte.
   const firstStorageUrl = useMemo(
-    () => pendingData?.flatMap((t) => t.files || []).find((f) => f.mimeType?.startsWith('video/') && f.url)?.url,
-    [pendingData]
+    () => pending.data?.flatMap((t) => t.files || []).find((f) => f.mimeType?.startsWith('video/') && f.url)?.url,
+    [pending.data],
   );
   useEffect(() => {
     if (firstStorageUrl) preconnectToUrlOrigin(firstStorageUrl);
   }, [firstStorageUrl]);
 
   // Check if any tasks have active optimization jobs
-  const hasActiveJobs = data?.some(
-    (t) => t.files?.some((f) => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING')
+  const hasActiveJobs = tasks.some(
+    (t) => t.files?.some((f) => f.optimizationStatus === 'PROCESSING' || f.optimizationStatus === 'PENDING'),
   );
 
   return {
-    tasks: data || [],
+    tasks,
+    tabTasks,
+    counts,
+    tabs,
     // Only the pending list gates the initial loading state — the other
-    // tabs fill in behind it.
+    // tabs fill in behind it, each with its own loading / error state.
     isLoading: pending.isLoading,
-    isValidating: pending.isValidating || others.isValidating,
+    isValidating:
+      pending.isValidating ||
+      countsSwr.isValidating ||
+      approved.state.isLoading ||
+      posted.state.isLoading ||
+      rejected.state.isLoading,
     error: pending.error,
+    pendingRetry: () => pending.mutate(),
     mutate,
     hasActiveJobs,
   };

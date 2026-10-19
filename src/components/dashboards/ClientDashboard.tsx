@@ -52,7 +52,7 @@ import { FilePreviewModal } from '../FileViewerModal';
 import { SocialAnalyticsDashboard } from '../client/SocialAnalyticsDashboard';
 
 // 🚀 Performance imports
-import { useClientTasks } from '../../lib/hooks/useClientTasks';
+import { useClientTasks, type ClientTab } from '../../lib/hooks/useClientTasks';
 import { ClientTaskCard, formatDeliverableTypeTitle } from '../client/ClientTaskCard';
 import { TaskGridSkeleton } from '../client/TaskCardSkeleton';
 
@@ -192,15 +192,25 @@ const persistClientResult = async ({
 /* -------------------------------------------------------------------------- */
 
 export function ClientDashboard() {
+  // Which tab is on screen. Declared before the data hook because the hook only
+  // loads Approved / Posted / Rejected once the client opens them.
+  const [currentFilter, setCurrentFilter] = useState<ClientTab>('pending');
+
   // 🚀 SWR for cached data fetching
-  const { 
-    tasks, 
-    isLoading: loading, 
-    isValidating, 
-    mutate: refreshTasks, 
-    hasActiveJobs 
+  const {
+    tasks,
+    tabTasks,
+    counts,
+    tabs,
+    isLoading: loading,
+    isValidating,
+    error: pendingError,
+    pendingRetry,
+    mutate: refreshTasks,
+    hasActiveJobs
   } = useClientTasks({
     revalidateOnFocus: true,
+    activeTab: currentFilter,
   });
 
   // 🚀 Auto-refresh when optimization jobs are active
@@ -235,7 +245,6 @@ export function ClientDashboard() {
   const [showTextPostReview, setShowTextPostReview] = useState(false);
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [showInlineFinalRevisionConfirm, setShowInlineFinalRevisionConfirm] = useState(false);
-  const [currentFilter, setCurrentFilter] = useState<'pending' | 'approved' | 'posted' | 'rejected'>('pending');
   const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<string>('all');
   const [pageView, setPageView] = useState<'content' | 'analytics'>('content');
   const [showGeneralCommentDialog, setShowGeneralCommentDialog] = useState(false);
@@ -388,6 +397,16 @@ export function ClientDashboard() {
     }
   }, [selectedTask]);
 
+  // Only a task that is waiting for the client's review can be approved or sent
+  // back. The Rejected tab lists every task the client has ever rejected, in any
+  // status (with the editor, in QC, already approved...), and those are
+  // view-only — approving a task mid-fix would skip the editor's revision.
+  const guardReviewable = (task: ClientTask | null | undefined): boolean => {
+    if (task && task.status === 'CLIENT_REVIEW') return true;
+    toast.info("This task isn't waiting for your review right now.");
+    return false;
+  };
+
   const handleMarkAsPosted = async (task?: ClientTask) => {
     const taskToMark = task || selectedTask;
     if (!taskToMark) return;
@@ -457,6 +476,7 @@ export function ClientDashboard() {
   const handleApprove = async (task?: ClientTask) => {
     const taskToApprove = task || selectedTask;
     if (!taskToApprove) return;
+    if (!guardReviewable(taskToApprove)) return;
 
     try {
       setIsSubmitting(true);
@@ -526,6 +546,7 @@ export function ClientDashboard() {
 
   const handleRequestRevisions = async (finalRevision = false) => {
     if (!selectedTask) return;
+    if (!guardReviewable(selectedTask)) return;
 
     if (!revisionNotes.trim()) {
       toast.error("Please provide feedback for the revision request");
@@ -603,6 +624,7 @@ export function ClientDashboard() {
   // Called from FullScreenReviewModal when client approves
   const handleVideoApprove = async (asset: any) => {
     if (!selectedTask) return;
+    if (!guardReviewable(selectedTask)) return;
 
     // Mark video as approved locally
     setVideoApprovedTasks(prev => new Set(prev).add(selectedTask.id));
@@ -624,6 +646,7 @@ export function ClientDashboard() {
   // Called from FullScreenReviewModal when client requests revisions
   const handleVideoRequestRevisions = async (asset: any, revisionData: any) => {
     if (!selectedTask) return;
+    if (!guardReviewable(selectedTask)) return;
 
     const notes = revisionData?.notes || revisionData?.feedback || "";
 
@@ -685,6 +708,7 @@ export function ClientDashboard() {
 
   const handleThumbnailApprove = async (file: TaskFile) => {
     if (!selectedTask) return;
+    if (!guardReviewable(selectedTask)) return;
 
     // Mark thumbnail as approved locally
     setThumbApprovedTasks(prev => new Set(prev).add(selectedTask.id));
@@ -709,6 +733,7 @@ export function ClientDashboard() {
     options?: { finalRevision?: boolean }
   ) => {
     if (!selectedTask) return;
+    if (!guardReviewable(selectedTask)) return;
 
     // Summary of feedback
     const notesArr = feedback.map(f => `[${f.category}] ${f.feedback}`);
@@ -1019,7 +1044,7 @@ export function ClientDashboard() {
       versions: versions,
       currentVersion: file.id,
       downloadEnabled: true,
-      approvalLocked: selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED'
+      approvalLocked: selectedTask.status !== 'CLIENT_REVIEW'
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTask, selectedFile]);
@@ -1206,15 +1231,13 @@ export function ClientDashboard() {
 
   /* ----------------------------- STATS (memoized) -------------------------- */
 
-  const { pendingReviews, approvedCount, postedCount, rejectedCount, overdueReviews } = useMemo(() => ({
-    pendingReviews: tasks.filter(task => task.status === 'CLIENT_REVIEW').length,
-    approvedCount: tasks.filter(task => task.status === 'COMPLETED').length,
-    postedCount: tasks.filter(task => task.status === 'POSTED' || task.status === 'SCHEDULED').length,
-    rejectedCount: tasks.filter(task =>
-      task.status === 'REJECTED_BY_CLIENT' || task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED'
-    ).length,
-    overdueReviews: tasks.filter(task => isOverdue(task)).length,
-  }), [tasks]);
+  // Tab badges are exact server counts (not the length of whatever happens to
+  // be loaded). `null` = still loading → shown as "–".
+  const formatTabCount = (n: number | null) => (n === null ? '–' : n);
+  const pendingReviews = formatTabCount(counts.pending);
+  const approvedCount = formatTabCount(counts.approved);
+  const postedCount = formatTabCount(counts.posted);
+  const rejectedCount = formatTabCount(counts.rejected);
 
   const availableDeliverableTypes = useMemo(() => {
     const types = new Set<string>();
@@ -1227,30 +1250,31 @@ export function ClientDashboard() {
     return Array.from(types).sort();
   }, [tasks]);
 
+  // Each tab shows its own server-loaded list. Rejected is every task the client
+  // has ever rejected, in ANY current status, so it is NOT filtered by status
+  // here — it stays listed while the editor fixes it and after it's approved.
+  // (The deliverable-type dropdown filters whatever pages are loaded.)
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
-      // Deliverable type filter
-      if (deliverableTypeFilter !== 'all') {
-        const rawType = (task as any).deliverableType || task.monthlyDeliverable?.type || task.taskType || '';
-        const formatted = formatDeliverableTypeTitle(rawType);
-        if (formatted !== deliverableTypeFilter) return false;
-      }
-
-      if (currentFilter === "pending") {
-        return task.status === "CLIENT_REVIEW";
-      }
-      if (currentFilter === 'approved') {
-        return task.status === 'COMPLETED';
-      }
-      if (currentFilter === 'posted') {
-        return task.status === 'POSTED' || task.status === 'SCHEDULED';
-      }
-      if (currentFilter === 'rejected') {
-        return task.status === 'REJECTED_BY_CLIENT' || task.status === 'CHANGES_REQUESTED' || task.status === 'REJECTED';
-      }
-      return true;
+    const list = tabTasks[currentFilter] ?? [];
+    if (deliverableTypeFilter === 'all') return list;
+    return list.filter(task => {
+      const rawType = (task as any).deliverableType || task.monthlyDeliverable?.type || task.taskType || '';
+      return formatDeliverableTypeTitle(rawType) === deliverableTypeFilter;
     });
-  }, [tasks, currentFilter, deliverableTypeFilter]);
+  }, [tabTasks, currentFilter, deliverableTypeFilter]);
+
+  // Loading / error / paging state of the tab on screen. Pending has its own
+  // request; the other three are paged ("Load more").
+  const activeTabState = currentFilter === 'pending' ? null : tabs[currentFilter];
+  const activeTabLoading = currentFilter === 'pending' ? loading : activeTabState!.isLoading;
+  const activeTabError: Error | null =
+    currentFilter === 'pending'
+      ? (tabTasks.pending.length === 0 ? ((pendingError as Error | undefined) ?? null) : null)
+      : activeTabState!.error;
+  const retryActiveTab = () => {
+    if (currentFilter === 'pending') pendingRetry();
+    else activeTabState!.retry();
+  };
 
   /* -------------------------------------------------------------------------- */
 
@@ -1437,16 +1461,41 @@ export function ClientDashboard() {
         />
 
         <div className="flex-1">
-          {loading ? (
+          {activeTabLoading ? (
             /* 🚀 Skeleton loading for perceived performance */
             <TaskGridSkeleton count={8} />
+          ) : activeTabError ? (
+            /* A failed request must never look like an empty tab */
+            <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed border-red-200 rounded-2xl bg-red-50/40">
+              <p className="font-medium text-red-700">Couldn&apos;t load these tasks</p>
+              <p className="text-sm mt-1">Please check your connection and try again.</p>
+              <Button variant="outline" size="sm" className="mt-4 gap-2" onClick={retryActiveTab}>
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </Button>
+            </div>
           ) : filteredTasks.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-muted-foreground w-full border-2 border-dashed rounded-2xl bg-muted/20">
               <CheckCircle className="h-12 w-12 mx-auto mb-4 opacity-40 text-emerald-500" />
               <p className="font-medium">No tasks found</p>
               <p className="text-sm mt-1">
-                {`No tasks currently in ${currentFilter} status`}
+                {deliverableTypeFilter !== 'all' && activeTabState?.hasMore
+                  ? 'None of the tasks loaded so far match this deliverable type'
+                  : currentFilter === 'rejected'
+                    ? "You haven't rejected any tasks"
+                    : `No tasks currently in ${currentFilter} status`}
               </p>
+              {deliverableTypeFilter !== 'all' && activeTabState?.hasMore && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={activeTabState.loadMore}
+                  disabled={activeTabState.isLoadingMore}
+                >
+                  {activeTabState.isLoadingMore ? 'Loading…' : 'Load more'}
+                </Button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
@@ -1468,8 +1517,38 @@ export function ClientDashboard() {
                   onShare={handleShare}
                   onDownload={handleDownloadAllFiles}
                   isSharing={isSharing}
+                  showRejectionInfo={currentFilter === 'rejected'}
                 />
               ))}
+            </div>
+          )}
+
+          {/* Paging for Approved / Posted / Rejected: the server holds the full
+              history, the screen loads it a page at a time. */}
+          {!activeTabLoading && !activeTabError && activeTabState && filteredTasks.length > 0 && (
+            <div className="flex flex-col items-center gap-2 py-6">
+              <p className="text-xs text-muted-foreground">
+                {activeTabState.total !== null
+                  ? `Showing ${tabTasks[currentFilter].length} of ${activeTabState.total}`
+                  : `Showing ${tabTasks[currentFilter].length}`}
+              </p>
+              {activeTabState.hasMore && (
+                <Button
+                  variant="outline"
+                  onClick={activeTabState.loadMore}
+                  disabled={activeTabState.isLoadingMore}
+                  className="gap-2"
+                >
+                  {activeTabState.isLoadingMore ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Loading…
+                    </>
+                  ) : (
+                    'Load more'
+                  )}
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -1684,7 +1763,7 @@ export function ClientDashboard() {
                   Download Files
                 </Button>
 
-                {!(selectedTask.status === 'COMPLETED' || selectedTask.status === 'SCHEDULED' || selectedTask.status === 'POSTED') && (
+                {selectedTask.status === 'CLIENT_REVIEW' && (
                   <>
                     <Button
                       variant="outline"
@@ -1975,6 +2054,8 @@ export function ClientDashboard() {
               onRequestRevisions={handleThumbnailRequestRevisions}
               allowFinalRevision
               userRole="client"
+              // Tasks still being fixed (Rejected tab) are view-only.
+              readOnly={['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'VIDEOGRAPHER_ASSIGNED', 'ON_HOLD'].includes(selectedTask.status)}
               imageLabel={selectedTask && isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
               onSwitchToVideo={
                 switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined
