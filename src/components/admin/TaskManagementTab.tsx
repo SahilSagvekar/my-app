@@ -30,6 +30,7 @@ import {
 } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { TagPicker } from '../workflow/TagPicker';
+import { groupDeliverableTypes } from '@/lib/deliverable-types';
 
 // ─────────────────────────────────────────
 // Types
@@ -332,6 +333,11 @@ export function TaskManagementTab() {
   const stats = taskData?.stats || null;
   const availableMonths: string[] = taskData?.availableMonths || [];
   const availableDeliverableTypes: string[] = taskData?.deliverableTypes || [];
+  // One option per type, e.g. "Long Form Videos (LF)" — merges long labels and short codes.
+  const deliverableTypeOptions = useMemo(
+    () => groupDeliverableTypes(availableDeliverableTypes),
+    [availableDeliverableTypes]
+  );
 
   const teamMembers: TeamMember[] = teamData?.employees || [];
   // Match on primary role OR the roles[] array — a multi-role account (e.g.
@@ -788,7 +794,7 @@ export function TaskManagementTab() {
                 placeholder="All Types"
                 options={[
                   { value: 'all', label: 'All Types' },
-                  ...availableDeliverableTypes.map((t) => ({ value: t, label: t.replace(/_/g, ' ') })),
+                  ...deliverableTypeOptions,
                 ]}
               />
 

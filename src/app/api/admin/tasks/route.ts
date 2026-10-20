@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/schema";
 import { and, or, eq, ne, gt, isNull, gte, lte, lt, inArray, notInArray, isNotNull, ilike, desc, asc, count } from "drizzle-orm";
 import { getCurrentUser2 } from '@/lib/auth';
+import { canonicalDeliverableCode } from "@/lib/deliverable-types";
 
 // 🔥 Role-switch support — mirrors src/app/api/tasks/route.ts and
 // src/app/api/tasks/qc-completed/route.ts. A multi-role account (e.g. a
@@ -324,8 +325,22 @@ export async function GET(req: NextRequest) {
         // the MonthlyDeliverable relation (as this used to) silently
         // excluded every task that wasn't month-recurring-linked.
         if (deliverableType) {
+            // The dropdown sends a canonical code (e.g. "LF"), but rows store
+            // mixed spellings ("LF", "Long Form Videos", "long_form_videos").
+            // Expand the code to every stored spelling that maps to it.
+            const [taskTypes, monthlyTypes, oneOffTypes] = await Promise.all([
+                db.selectDistinct({ t: taskTable.deliverableType }).from(taskTable).where(isNotNull(taskTable.deliverableType)),
+                db.selectDistinct({ t: monthlyDeliverableTable.type }).from(monthlyDeliverableTable),
+                db.selectDistinct({ t: oneOffDeliverableTable.type }).from(oneOffDeliverableTable),
+            ]);
+            const variants = new Set<string>([deliverableType]);
+            for (const row of [...taskTypes, ...monthlyTypes, ...oneOffTypes]) {
+                const raw = row.t as string | null;
+                if (raw && canonicalDeliverableCode(raw) === deliverableType) variants.add(raw);
+            }
+            const typeList = Array.from(variants);
             conditions.push(or(
-                eq(taskTable.deliverableType, deliverableType),
+                inArray(taskTable.deliverableType, typeList),
                 // Uncorrelated inArray, NOT a correlated exists(): this `where`
                 // is also passed to db.query.task.findMany, which aliases the
                 // outer table as "task" and does not rewrite columns nested
@@ -334,12 +349,12 @@ export async function GET(req: NextRequest) {
                 inArray(
                     taskTable.monthlyDeliverableId,
                     db.select({ id: monthlyDeliverableTable.id }).from(monthlyDeliverableTable)
-                        .where(eq(monthlyDeliverableTable.type, deliverableType))
+                        .where(inArray(monthlyDeliverableTable.type, typeList))
                 ),
                 inArray(
                     taskTable.oneOffDeliverableId,
                     db.select({ id: oneOffDeliverableTable.id }).from(oneOffDeliverableTable)
-                        .where(eq(oneOffDeliverableTable.type, deliverableType))
+                        .where(inArray(oneOffDeliverableTable.type, typeList))
                 ),
             ));
         }
