@@ -771,7 +771,7 @@ export function ReviewScreenMobile(p: ReviewScreenProps) {
                                                                 }}
                                                             />
                                                             <div className="flex gap-1">
-                                                                <Button size="sm" onClick={commitMobileEdit} className="h-7 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
+                                                                <Button size="sm" onClick={commitMobileEdit} className="h-7 px-2 text-[10px] bg-white text-black hover:bg-gray-200">Save</Button>
                                                                 <Button size="sm" variant="ghost" onClick={() => { setMobileEditId(null); setMobileEditText(''); setMobileEditType(null); }} className="h-7 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
                                                             </div>
                                                         </div>

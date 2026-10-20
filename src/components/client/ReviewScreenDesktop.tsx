@@ -1300,7 +1300,7 @@ export function ReviewScreenDesktop(p: ReviewScreenProps) {
                                                             }}
                                                         />
                                                         <div className="flex gap-1">
-                                                            <Button size="sm" onClick={() => commitEdit('titles')} className="h-6 px-2 text-[10px] bg-[var(--review-status-approved)] text-white">Save</Button>
+                                                            <Button size="sm" onClick={() => commitEdit('titles')} className="h-6 px-2 text-[10px] bg-white text-black hover:bg-gray-200">Save</Button>
                                                             <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setEditingText(''); }} className="h-6 px-2 text-[10px] text-[var(--review-text-muted)]">Cancel</Button>
                                                         </div>
                                                     </div>
