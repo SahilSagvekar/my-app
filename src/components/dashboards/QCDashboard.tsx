@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { groupDeliverableTypes } from '@/lib/deliverable-types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -1522,7 +1523,7 @@ useEffect(() => {
                 placeholder="All Deliverables"
                 options={[
                   { value: 'all', label: 'All Deliverables' },
-                  ...availableDeliverableTypes.map((type) => ({ value: type, label: type })),
+                  ...groupDeliverableTypes(availableDeliverableTypes),
                 ]}
               />
 

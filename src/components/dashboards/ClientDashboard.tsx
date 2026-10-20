@@ -1,4 +1,5 @@
 import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { groupDeliverableTypes, canonicalDeliverableCode } from '@/lib/deliverable-types';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Switch } from '../ui/switch';
 import { PageHeader } from '../ui/page-header';
@@ -1291,7 +1292,7 @@ export function ClientDashboard() {
     tasks.forEach((task) => {
       const rawType = (task as any).deliverableType || task.monthlyDeliverable?.type || task.taskType;
       if (rawType) {
-        types.add(formatDeliverableTypeTitle(rawType));
+        types.add(rawType);
       }
     });
     return Array.from(types).sort();
@@ -1306,7 +1307,7 @@ export function ClientDashboard() {
     if (deliverableTypeFilter === 'all') return list;
     return list.filter(task => {
       const rawType = (task as any).deliverableType || task.monthlyDeliverable?.type || task.taskType || '';
-      return formatDeliverableTypeTitle(rawType) === deliverableTypeFilter;
+      return (canonicalDeliverableCode(rawType) ?? formatDeliverableTypeTitle(rawType)) === deliverableTypeFilter;
     });
   }, [tabTasks, currentFilter, deliverableTypeFilter]);
 
@@ -1433,7 +1434,7 @@ export function ClientDashboard() {
               className="w-[165px] sm:w-[176px] rounded-lg border-[#d3d3d6] text-[#0a0a0b] hover:border-[#8a8a91] shadow-none"
               options={[
                 { value: 'all', label: 'All Deliverables' },
-                ...availableDeliverableTypes.map((type) => ({ value: type, label: type })),
+                ...groupDeliverableTypes(availableDeliverableTypes),
               ]}
             />
 

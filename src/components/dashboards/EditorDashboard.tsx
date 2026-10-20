@@ -1,5 +1,6 @@
 "use client";
 
+import { groupDeliverableTypes, canonicalDeliverableCode } from '@/lib/deliverable-types';
 import { useState, useEffect, useMemo, useCallback, useRef, DragEvent } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
@@ -3016,7 +3017,8 @@ export function EditorDashboard() {
 
     if (deliverableTypeFilter !== "all") {
       result = result.filter(
-        (task) => task.deliverableType === deliverableTypeFilter
+        (task) =>
+          (canonicalDeliverableCode(task.deliverableType) ?? task.deliverableType) === deliverableTypeFilter
       );
     }
 
@@ -3522,7 +3524,7 @@ export function EditorDashboard() {
               placeholder="Deliverables"
               options={[
                 { value: "all", label: "Deliverables" },
-                ...availableDeliverableTypes.map((type) => ({ value: type, label: type.replace(/_/g, " ") })),
+                ...groupDeliverableTypes(availableDeliverableTypes),
               ]}
             />
 

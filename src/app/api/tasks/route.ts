@@ -17,6 +17,7 @@ import {
   mediaPreview,
 } from "@/lib/db/schema";
 import { createId } from "@/lib/db/id";
+import { canonicalDeliverableCode } from "@/lib/deliverable-types";
 import { and, or, eq, inArray, isNull, isNotNull, ne, desc, asc, count, getTableColumns, sql as drizzleSql } from "drizzle-orm";
 import { uploadBufferToS3, addSignedUrlsToFiles } from "@/lib/s3";
 // import { TaskStatus } from "@prisma/client";
@@ -407,7 +408,21 @@ const clientOverrideId =
     const baseWhere = conditions.length ? and(...conditions) : undefined;
 
     if (queueMode && deliverableTypeFilter && deliverableTypeFilter !== "all") {
-      conditions.push(drizzleSql`${deliverableTypeExpr} = ${deliverableTypeFilter}`);
+      // The dropdown sends a canonical code (e.g. "LF"); rows store mixed
+      // spellings ("LF", "Long Form Videos", ...). Expand to every spelling
+      // present in the queue that maps to the same type.
+      const typeRows = await db
+        .selectDistinct({ t: deliverableTypeExpr.as("effective_type") })
+        .from(taskTable)
+        .where(baseWhere);
+      const typeVariants = new Set<string>([deliverableTypeFilter]);
+      for (const r of typeRows as any[]) {
+        const raw = r.t ? String(r.t) : "";
+        if (raw && canonicalDeliverableCode(raw) === deliverableTypeFilter) typeVariants.add(raw);
+      }
+      conditions.push(
+        drizzleSql`${deliverableTypeExpr} in (${drizzleSql.join(Array.from(typeVariants).map((v) => drizzleSql`${v}`), drizzleSql`, `)})`
+      );
     }
     if (queueMode && tagFilter && tagFilter !== "all") {
       conditions.push(
