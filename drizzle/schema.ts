@@ -1,26 +1,29 @@
 import { pgTable, uniqueIndex, text, timestamp, foreignKey, integer, boolean, serial, numeric, varchar, type AnyPgColumn, index, jsonb, bigint, doublePrecision, date, primaryKey, pgEnum } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
+// Financials 2 enums
 export const accountType = pgEnum("AccountType", ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'])
 export const bankAccountType = pgEnum("BankAccountType", ['CHECKING', 'SAVINGS', 'CREDIT_CARD', 'CASH', 'OTHER'])
+export const contractorStatus = pgEnum("ContractorStatus", ['ACTIVE', 'INACTIVE'])
+export const expenseStatus = pgEnum("ExpenseStatus", ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'REIMBURSED'])
+export const goalMetricType = pgEnum("GoalMetricType", ['REVENUE', 'PROFIT', 'EXPENSE_CAP', 'CUSTOM'])
+export const goalPeriod = pgEnum("GoalPeriod", ['MONTHLY', 'QUARTERLY', 'YEARLY'])
+export const ledgerSourceType = pgEnum("LedgerSourceType", ['CLIENT_PAYMENT', 'CONTRACTOR_PAYOUT', 'PAYROLL', 'EXPENSE_REIMBURSEMENT', 'MANUAL'])
+export const w9Status = pgEnum("W9Status", ['PENDING', 'SUBMITTED', 'VERIFIED', 'EXPIRED'])
+
 export const bidStatus = pgEnum("BidStatus", ['PENDING', 'ACCEPTED', 'REJECTED'])
 export const clientExpenseStatus = pgEnum("ClientExpenseStatus", ['PENDING', 'INVOICED', 'PAID'])
 export const contractStatus = pgEnum("ContractStatus", ['DRAFT', 'SENT', 'PARTIALLY_SIGNED', 'COMPLETED', 'CANCELLED', 'EXPIRED'])
-export const contractorStatus = pgEnum("ContractorStatus", ['ACTIVE', 'INACTIVE'])
 export const employeeStatus = pgEnum("EmployeeStatus", ['ACTIVE', 'INACTIVE', 'TERMINATED'])
-export const expenseStatus = pgEnum("ExpenseStatus", ['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'REIMBURSED'])
 export const feedbackCategory = pgEnum("FeedbackCategory", ['GENERAL', 'TECHNICAL', 'WORKFLOW', 'SUGGESTION', 'BUG_REPORT'])
 export const feedbackPriority = pgEnum("FeedbackPriority", ['LOW', 'MEDIUM', 'HIGH'])
 export const feedbackStatus = pgEnum("FeedbackStatus", ['PENDING', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED'])
 export const fileDeletionRequestStatus = pgEnum("FileDeletionRequestStatus", ['PENDING', 'APPROVED', 'REJECTED'])
-export const goalMetricType = pgEnum("GoalMetricType", ['REVENUE', 'PROFIT', 'EXPENSE_CAP', 'CUSTOM'])
-export const goalPeriod = pgEnum("GoalPeriod", ['MONTHLY', 'QUARTERLY', 'YEARLY'])
 export const hiringCandidateStatus = pgEnum("HiringCandidateStatus", ['NEW', 'CONTACTED', 'TEST_SENT', 'TEST_SUBMITTED', 'IN_REVIEW', 'HIRED', 'REJECTED'])
 export const hiringTestTaskStatus = pgEnum("HiringTestTaskStatus", ['PENDING', 'SENT', 'SUBMITTED', 'IN_REVIEW', 'APPROVED', 'REJECTED'])
 export const invoiceStatus = pgEnum("InvoiceStatus", ['DRAFT', 'PENDING', 'SENT', 'PAID', 'PARTIALLY_PAID', 'OVERDUE', 'CANCELED', 'REFUNDED'])
 export const jobStatus = pgEnum("JobStatus", ['OPEN', 'ASSIGNED', 'COMPLETED', 'CANCELLED'])
 export const leaveStatus = pgEnum("LeaveStatus", ['PENDING', 'APPROVED', 'REJECTED'])
-export const ledgerSourceType = pgEnum("LedgerSourceType", ['CLIENT_PAYMENT', 'CONTRACTOR_PAYOUT', 'PAYROLL', 'EXPENSE_REIMBURSEMENT', 'MANUAL'])
 export const logEntryStatus = pgEnum("LogEntryStatus", ['PLANNED', 'COMPLETED'])
 export const logEntryType = pgEnum("LogEntryType", ['CALL', 'MEETING', 'ANALYTICS_REVIEW'])
 export const paymentStatus = pgEnum("PaymentStatus", ['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'CANCELED', 'REFUNDED'])
@@ -35,7 +38,6 @@ export const signerStatus = pgEnum("SignerStatus", ['PENDING', 'VIEWED', 'SIGNED
 export const subscriptionStatus = pgEnum("SubscriptionStatus", ['ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID', 'TRIALING', 'PAUSED'])
 export const syncStatus = pgEnum("SyncStatus", ['PENDING', 'SYNCING', 'COMPLETED', 'FAILED'])
 export const taskStatus = pgEnum("TaskStatus", ['PENDING', 'IN_PROGRESS', 'READY_FOR_QC', 'QC_IN_PROGRESS', 'COMPLETED', 'SCHEDULED', 'ON_HOLD', 'REJECTED_BY_QC', 'REJECTED_BY_CLIENT', 'CLIENT_REVIEW', 'VIDEOGRAPHER_ASSIGNED', 'POSTED', 'HIDDEN', 'CANCELLED'])
-export const w9Status = pgEnum("W9Status", ['PENDING', 'SUBMITTED', 'VERIFIED', 'EXPIRED'])
 
 
 export const verificationToken = pgTable("VerificationToken", {
@@ -584,12 +586,16 @@ export const task = pgTable("Task", {
 	postingDescriptions: jsonb(),
 	postingTags: jsonb(),
 	postingTitles: jsonb(),
+	clientRejectionCount: integer().default(0).notNull(),
+	lastClientRejectedAt: timestamp({ precision: 3, mode: 'string' }),
+	isFinalRevision: boolean().default(false).notNull(),
 	textContent: text(),
 	clientReviewStartedAt: timestamp({ precision: 3, mode: 'string' }),
 	lastReminderSentAt: timestamp({ precision: 3, mode: 'string' }),
 	shootScriptRef: text(),
 	linkedRawFootagePaths: text().array(),
 }, (table) => [
+	index("Task_clientRejectionCount_status_idx").using("btree", table.clientRejectionCount.asc().nullsLast().op("int4_ops"), table.status.asc().nullsLast().op("enum_ops")),
 	index("Task_assignedTo_idx").using("btree", table.assignedTo.asc().nullsLast().op("int4_ops")),
 	index("Task_assignedTo_status_idx").using("btree", table.assignedTo.asc().nullsLast().op("enum_ops"), table.status.asc().nullsLast().op("int4_ops")),
 	index("Task_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
@@ -3235,6 +3241,9 @@ export const timeClockEntry = pgTable("TimeClockEntry", {
 	clockInAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 	clockOutAt: timestamp({ precision: 3, mode: 'string' }),
 	autoClosedOut: boolean().default(false).notNull(),
+	// Set by the forgot-to-clock-out sweep when an entry has been open too long.
+	// A manager should check/correct the time; cleared when they fix it.
+	flaggedAt: timestamp({ precision: 3, mode: 'string' }),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
 	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
@@ -3250,10 +3259,6 @@ export const timeClockEntry = pgTable("TimeClockEntry", {
 
 // ---------------------------------------------------------------------------
 // Financials 2 — ledger, contractors (W-9), expenses, goals/KPIs
-// See docs: Financial Tracker — Architecture Plan
-//
-// Named "LedgerAccount" (not "Account") to avoid colliding with the existing
-// NextAuth "Account" table above.
 // ---------------------------------------------------------------------------
 
 export const ledgerAccount = pgTable("LedgerAccount", {
@@ -3472,31 +3477,241 @@ export const financialGoal = pgTable("FinancialGoal", {
 		}).onUpdate("cascade").onDelete("setnull"),
 ]);
 
-// ---------------------------------------------------------------------------
-// Client general comments — a freeform note a client can send from the
-// Content Review page that isn't tied to any specific video/task. Delivered
-// to the client's Slack channel (with the scheduler @mentioned inline); not
-// shown back to the client as a thread/history — see ClientGeneralCommentButton.
-// ---------------------------------------------------------------------------
 
-export const clientGeneralComment = pgTable("ClientGeneralComment", {
+
+// Financials 2 — Client Payments: money received outside Stripe (cash, check,
+// Zelle, wire…) recorded by an admin. Counts toward revenue in the month it
+// was RECEIVED. Amounts are integer cents, like Invoice. Never hard-deleted —
+// a mistaken entry is voided (voidedAt set) so there is an audit trail.
+export const manualPaymentMethod = pgEnum("ManualPaymentMethod", ['CASH', 'CHECK', 'ZELLE', 'WIRE', 'OTHER'])
+
+export const clientManualPayment = pgTable("ClientManualPayment", {
 	id: text().primaryKey().notNull(),
 	clientId: text().notNull(),
-	createdBy: integer().notNull(),
-	body: text().notNull(),
-	slackDeliveredAt: timestamp({ precision: 3, mode: 'string' }),
+	// optional: the invoice this payment settles (all or part of)
+	invoiceId: text(),
+	amount: integer().notNull(),
+	method: manualPaymentMethod().notNull(),
+	receivedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	reference: text(),
+	notes: text(),
+	createdById: integer(),
+	voidedAt: timestamp({ precision: 3, mode: 'string' }),
+	voidedById: integer(),
+	voidReason: text(),
 	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
-	index("ClientGeneralComment_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
-	index("ClientGeneralComment_createdAt_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamp_ops")),
+	index("ClientManualPayment_receivedAt_idx").using("btree", table.receivedAt.asc().nullsLast().op("timestamp_ops")),
+	index("ClientManualPayment_clientId_idx").using("btree", table.clientId.asc().nullsLast().op("text_ops")),
+	index("ClientManualPayment_invoiceId_idx").using("btree", table.invoiceId.asc().nullsLast().op("text_ops")),
 	foreignKey({
 			columns: [table.clientId],
 			foreignColumns: [client.id],
-			name: "ClientGeneralComment_clientId_fkey"
+			name: "ClientManualPayment_clientId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.invoiceId],
+			foreignColumns: [invoice.id],
+			name: "ClientManualPayment_invoiceId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "ClientManualPayment_createdById_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.voidedById],
+			foreignColumns: [user.id],
+			name: "ClientManualPayment_voidedById_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+
+// ── User invites (admin invites a new staff member by email) ─────────────
+export const userInvite = pgTable("UserInvite", {
+	id: text().primaryKey().notNull(),
+	email: text().notNull(),
+	name: text(),
+	role: role().notNull(),
+	tokenHash: text().notNull(),
+	status: text().default('PENDING').notNull(), // PENDING | ACCEPTED | REVOKED
+	invitedById: integer().notNull(),
+	expiresAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	acceptedAt: timestamp({ precision: 3, mode: 'string' }),
+	acceptedUserId: integer(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	uniqueIndex("UserInvite_tokenHash_key").using("btree", table.tokenHash.asc().nullsLast().op("text_ops")),
+	index("UserInvite_email_idx").using("btree", table.email.asc().nullsLast().op("text_ops")),
+	index("UserInvite_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.invitedById],
+			foreignColumns: [user.id],
+			name: "UserInvite_invitedById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+// ── Dev portal (internal + client-reported problems / requests) ──────────
+export const devTicket = pgTable("DevTicket", {
+	id: text().primaryKey().notNull(),
+	title: text().notNull(),
+	description: text(),
+	type: text().default('BUG').notNull(), // BUG | REQUEST | IMPROVEMENT | QUESTION
+	source: text().default('INTERNAL').notNull(), // INTERNAL | CLIENT
+	clientId: text(),
+	clientName: text(),
+	priority: text().default('UNSET').notNull(), // UNSET | LOW | MEDIUM | HIGH | URGENT (set by admins)
+	status: text().default('OPEN').notNull(), // OPEN | IN_PROGRESS | DONE | WONT_FIX
+	loomUrl: text(),
+	reporterId: integer().notNull(),
+	assigneeId: integer(),
+	resolvedAt: timestamp({ precision: 3, mode: 'string' }),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("DevTicket_status_idx").using("btree", table.status.asc().nullsLast().op("text_ops")),
+	index("DevTicket_priority_idx").using("btree", table.priority.asc().nullsLast().op("text_ops")),
+	index("DevTicket_assigneeId_idx").using("btree", table.assigneeId.asc().nullsLast().op("int4_ops")),
+	index("DevTicket_createdAt_idx").using("btree", table.createdAt.desc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.reporterId],
+			foreignColumns: [user.id],
+			name: "DevTicket_reporterId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.assigneeId],
+			foreignColumns: [user.id],
+			name: "DevTicket_assigneeId_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+]);
+
+export const devTicketAttachment = pgTable("DevTicketAttachment", {
+	id: text().primaryKey().notNull(),
+	ticketId: text().notNull(),
+	r2Key: text().notNull(),
+	fileName: text().notNull(),
+	mimeType: text(),
+	size: integer(),
+	uploadedById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("DevTicketAttachment_ticketId_idx").using("btree", table.ticketId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.ticketId],
+			foreignColumns: [devTicket.id],
+			name: "DevTicketAttachment_ticketId_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 	foreignKey({
-			columns: [table.createdBy],
+			columns: [table.uploadedById],
 			foreignColumns: [user.id],
-			name: "ClientGeneralComment_createdBy_fkey"
+			name: "DevTicketAttachment_uploadedById_fkey"
 		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const devTicketComment = pgTable("DevTicketComment", {
+	id: text().primaryKey().notNull(),
+	ticketId: text().notNull(),
+	authorId: integer().notNull(),
+	message: text().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("DevTicketComment_ticketId_idx").using("btree", table.ticketId.asc().nullsLast().op("text_ops")),
+	foreignKey({
+			columns: [table.ticketId],
+			foreignColumns: [devTicket.id],
+			name: "DevTicketComment_ticketId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.authorId],
+			foreignColumns: [user.id],
+			name: "DevTicketComment_authorId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+
+export const announcement = pgTable("Announcement", {
+	id: text().primaryKey().notNull(),
+	title: text().notNull(),
+	body: text().notNull(),
+	type: text().default('NEW_FEATURE').notNull(),
+	linkUrl: text(),
+	linkLabel: text(),
+	audienceAll: boolean().default(false).notNull(),
+	audienceRoles: text().array().default(sql`ARRAY[]::text[]`).notNull(),
+	audienceUserIds: integer().array().default(sql`ARRAY[]::integer[]`).notNull(),
+	sendEmail: boolean().default(false).notNull(),
+	sendSlack: boolean().default(false).notNull(),
+	slackChannels: text().array().default(sql`ARRAY[]::text[]`).notNull(),
+	showPopup: boolean().default(false).notNull(),
+	status: text().default('DRAFT').notNull(),
+	publishAt: timestamp({ precision: 3, mode: 'string' }),
+	publishedAt: timestamp({ precision: 3, mode: 'string' }),
+	expiresAt: timestamp({ precision: 3, mode: 'string' }),
+	recipientCount: integer().default(0).notNull(),
+	emailSentCount: integer().default(0).notNull(),
+	createdById: integer().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+}, (table) => [
+	index("Announcement_status_publishAt_idx").using("btree", table.status.asc().nullsLast().op("text_ops"), table.publishAt.asc().nullsLast().op("timestamp_ops")),
+	index("Announcement_publishedAt_idx").using("btree", table.publishedAt.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.createdById],
+			foreignColumns: [user.id],
+			name: "Announcement_createdById_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+]);
+
+export const announcementRead = pgTable("AnnouncementRead", {
+	id: text().primaryKey().notNull(),
+	announcementId: text().notNull(),
+	userId: integer().notNull(),
+	readAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	dismissedAt: timestamp({ precision: 3, mode: 'string' }),
+}, (table) => [
+	uniqueIndex("AnnouncementRead_announcementId_userId_key").using("btree", table.announcementId.asc().nullsLast().op("text_ops"), table.userId.asc().nullsLast().op("int4_ops")),
+	index("AnnouncementRead_userId_idx").using("btree", table.userId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.announcementId],
+			foreignColumns: [announcement.id],
+			name: "AnnouncementRead_announcementId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [user.id],
+			name: "AnnouncementRead_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+// Three-strike discipline (see src/lib/strikes.ts). Active strikes = revokedAt IS NULL.
+export const strike = pgTable("Strike", {
+	id: text().primaryKey().notNull(),
+	recipientId: integer().notNull(),
+	senderId: integer().notNull(),
+	reason: text().notNull(),
+	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	triggeredTermination: boolean().default(false).notNull(),
+	revokedAt: timestamp({ precision: 3, mode: 'string' }),
+	revokedById: integer(),
+	revokeReason: text(),
+}, (table) => [
+	index("Strike_recipientId_revokedAt_idx").using("btree", table.recipientId.asc().nullsLast().op("int4_ops"), table.revokedAt.asc().nullsLast().op("timestamp_ops")),
+	index("Strike_senderId_idx").using("btree", table.senderId.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.recipientId],
+			foreignColumns: [user.id],
+			name: "Strike_recipientId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.senderId],
+			foreignColumns: [user.id],
+			name: "Strike_senderId_fkey"
+		}).onUpdate("cascade").onDelete("restrict"),
+	foreignKey({
+			columns: [table.revokedById],
+			foreignColumns: [user.id],
+			name: "Strike_revokedById_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
 ]);

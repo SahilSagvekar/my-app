@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         status: "clocked_in",
         clockInAt: dbTimestampToIso(entry.clockInAt),
+        flagged: !!entry.flaggedAt,
       });
     }
 

@@ -7,7 +7,8 @@ import { and, eq } from "drizzle-orm";
 import { getDbHttp } from "@/lib/db";
 import { timeClockEntry } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
-import { dbTimestampToIso, getESTDateString } from "@/lib/est-date";
+import { dbTimestampToIso, formatEasternTime, getESTDateString } from "@/lib/est-date";
+import { formatDuration, postAttendance, roleLabel } from "@/lib/time-clock-notify";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,10 +44,19 @@ export async function POST(req: NextRequest) {
       .where(and(eq(timeClockEntry.userId, user.id), eq(timeClockEntry.workDate, workDate)))
       .returning();
 
+    const clockInAt = dbTimestampToIso(entry.clockInAt);
+    const clockOutAt = dbTimestampToIso(entry.clockOutAt!);
+    const personName = user.name || user.email || "Team member";
+    const slackPosted = await postAttendance(
+      "attendance_clock_out",
+      `:red_circle: *Clocked OUT* — *${personName}* (${roleLabel(user.role)}) at ${formatEasternTime(clockOutAt)} · worked ${formatDuration(clockInAt, clockOutAt)}`
+    );
+
     return NextResponse.json({
       status: "clocked_out",
-      clockInAt: dbTimestampToIso(entry.clockInAt),
-      clockOutAt: dbTimestampToIso(entry.clockOutAt!),
+      clockInAt,
+      clockOutAt,
+      slackPosted,
     });
   } catch (err: any) {
     console.error("❌ /api/time-clock/stop error:", err.message);

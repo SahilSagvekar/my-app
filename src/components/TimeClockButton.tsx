@@ -18,7 +18,7 @@ import { usesTimeClock } from '@/lib/time-clock-access';
 type ClockStatus =
   | { state: 'loading' }
   | { state: 'not_started' }
-  | { state: 'clocked_in'; clockInAt: string }
+  | { state: 'clocked_in'; clockInAt: string; flagged?: boolean }
   | { state: 'clocked_out'; clockInAt: string; clockOutAt: string; autoClosedOut?: boolean };
 
 export function TimeClockButton() {
@@ -43,7 +43,7 @@ export function TimeClockButton() {
       if (data.status === 'not_started') {
         setStatus({ state: 'not_started' });
       } else if (data.status === 'clocked_in') {
-        setStatus({ state: 'clocked_in', clockInAt: data.clockInAt });
+        setStatus({ state: 'clocked_in', clockInAt: data.clockInAt, flagged: data.flagged });
       } else if (data.status === 'clocked_out') {
         setStatus({
           state: 'clocked_out',
@@ -60,6 +60,15 @@ export function TimeClockButton() {
   useEffect(() => {
     if (!user || isAdmin) return;
     fetchStatus();
+    // Re-read the server's state when the tab regains focus, so a stale tab
+    // never shows clocked-in/out when the database says otherwise.
+    const onFocus = () => fetchStatus();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, [user, isAdmin, fetchStatus]);
 
   if (!user || isAdmin) return null;
@@ -96,7 +105,13 @@ export function TimeClockButton() {
         setDialogOpen(false);
         setReport('');
         setClientId('');
-        toast.success('Clocked in — report sent');
+        // Re-read from the server so what's on screen is what's saved.
+        fetchStatus();
+        if (data.slackPosted === false) {
+          toast.warning(`Clocked in at ${formatEasternTime(data.clockInAt)} — but the #attendance message failed to send. Tell a manager.`);
+        } else {
+          toast.success(`Clocked in at ${formatEasternTime(data.clockInAt)} ✓ Posted to #attendance`);
+        }
       } else if (data.clockInAt) {
         // Already started (e.g. race with another tab) — sync to the real state.
         setStatus({ state: 'clocked_in', clockInAt: data.clockInAt });
@@ -122,6 +137,15 @@ export function TimeClockButton() {
           clockInAt: data.clockInAt,
           clockOutAt: data.clockOutAt,
         });
+        fetchStatus();
+        if (data.slackPosted === false) {
+          toast.warning(`Clocked out at ${formatEasternTime(data.clockOutAt)} — but the #attendance message failed to send. Tell a manager.`);
+        } else {
+          toast.success(`Clocked out at ${formatEasternTime(data.clockOutAt)} ✓ Posted to #attendance`);
+        }
+      } else {
+        toast.error(data.error || 'Failed to clock out');
+        fetchStatus();
       }
     } finally {
       setBusy(false);
@@ -214,7 +238,7 @@ export function TimeClockButton() {
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-3.5 w-3.5 fill-current" />}
         <span className="hidden sm:inline">
-          Stop <span className="opacity-70 font-normal">· since {formatEasternTime(status.clockInAt)}</span>
+          Clocked in since {formatEasternTime(status.clockInAt)} <span className="opacity-70 font-normal">· Stop</span>{status.flagged ? ' ⚠' : ''}
         </span>
       </Button>
     );

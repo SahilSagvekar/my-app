@@ -10,8 +10,9 @@ import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDbHttp } from "@/lib/db";
-import { timeClockEntry } from "@/lib/db/schema";
-import { getESTDateString } from "@/lib/est-date";
+import { timeClockEntry, user as userTable } from "@/lib/db/schema";
+import { dbTimestampToIso, formatEasternTime, getESTDateString } from "@/lib/est-date";
+import { postAttendance, roleLabel } from "@/lib/time-clock-notify";
 
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = req.headers.get("x-cron-secret");
@@ -46,7 +47,20 @@ export async function POST(req: NextRequest) {
       .update(timeClockEntry)
       .set({ clockOutAt: now, autoClosedOut: true, updatedAt: now })
       .where(and(eq(timeClockEntry.workDate, workDate), isNull(timeClockEntry.clockOutAt)))
-      .returning({ id: timeClockEntry.id });
+      .returning({ id: timeClockEntry.id, userId: timeClockEntry.userId, clockInAt: timeClockEntry.clockInAt });
+
+    // Tell #attendance who was auto-closed so a manager can correct the time.
+    for (const c of closed) {
+      const [u] = await db
+        .select({ name: userTable.name, email: userTable.email, role: userTable.role })
+        .from(userTable)
+        .where(eq(userTable.id, c.userId))
+        .limit(1);
+      await postAttendance(
+        "attendance_auto_closed",
+        `:warning: *${u?.name || u?.email || "Team member"}* (${roleLabel(u?.role)}) never clocked out — auto-closed at midnight (clocked in ${formatEasternTime(dbTimestampToIso(c.clockInAt))}). A manager should fix the time.`
+      );
+    }
 
     return NextResponse.json({ ok: true, closed: closed.length });
   } catch (err: any) {

@@ -12,7 +12,8 @@ import { createId } from "@/lib/db/id";
 import { getCurrentUser2 } from "@/lib/auth";
 import { dbTimestampToIso, formatEasternTime, getESTDateString } from "@/lib/est-date";
 import { usesTimeClock } from "@/lib/time-clock-access";
-import { sendClientSlackWebhook, sendToChannel } from "@/lib/slack";
+import { sendClientSlackWebhook } from "@/lib/slack";
+import { postAttendance, roleLabel } from "@/lib/time-clock-notify";
 
 const MAX_REPORT_LENGTH = 3000;
 
@@ -70,28 +71,31 @@ export async function POST(req: NextRequest) {
     const personName = user.name || user.email || "Team member";
 
     // Slack posts are best-effort — a failure here must never undo the clock-in.
+    // Each post has its own try so one failing can't skip the other, and the
+    // attendance post reports whether Slack really accepted it.
+    let clientName = "Client";
     try {
       const [clientRow] = await db
         .select({ name: clientTable.name, companyName: clientTable.companyName })
         .from(clientTable)
         .where(eq(clientTable.id, clientId))
         .limit(1);
-      const clientName = clientRow?.companyName || clientRow?.name || "Client";
+      clientName = clientRow?.companyName || clientRow?.name || "Client";
 
       await sendClientSlackWebhook(clientId, {
         type: "sod_report",
         message: `:sunrise: *Start-of-day report — ${personName}*\n${report}`,
       });
-
-      await sendToChannel("attendance", {
-        type: "attendance_clock_in",
-        message: `:sunny: Good morning! *${personName}* clocked in at ${formatEasternTime(clockInAt)} (working on ${clientName}).`,
-      });
     } catch (slackErr) {
-      console.error("❌ /api/time-clock/start slack error:", slackErr);
+      console.error("❌ /api/time-clock/start sod-report slack error:", slackErr);
     }
 
-    return NextResponse.json({ status: "clocked_in", clockInAt });
+    const slackPosted = await postAttendance(
+      "attendance_clock_in",
+      `:green_circle: *Clocked IN* — *${personName}* (${roleLabel(user.role)}) at ${formatEasternTime(clockInAt)} · working on ${clientName}`
+    );
+
+    return NextResponse.json({ status: "clocked_in", clockInAt, slackPosted });
   } catch (err: any) {
     // Race condition: two rapid clicks both pass the find check.
     // The unique constraint on [userId, workDate] catches it here (Postgres 23505).

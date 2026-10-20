@@ -159,6 +159,11 @@ const workerHandlers = {
         ctx.waitUntil(triggerCronRoute('/api/cron/close-open-time-clocks', env, ctx));
         break;
 
+      // Forgot-to-clock-out sweep — every 30 minutes.
+      case '*/30 * * * *':
+        ctx.waitUntil(triggerCronRoute('/api/cron/flag-long-clock-ins', env, ctx));
+        break;
+
       default:
         console.log(`[worker.ts] Cron fired with no handler wired: ${controller.cron}`);
     }
