@@ -191,7 +191,33 @@ export function TaskUploadSections({
     }
     setReplacingImageId(imageId);
     try {
-      await uploadService.startUpload(file, { ...task, replaceFileId: imageId }, "main", undefined, "outputs");
+      const uploadId = await uploadService.startUpload(
+        file,
+        { ...task, replaceFileId: imageId },
+        "main",
+        undefined,
+        "outputs",
+      );
+
+      // startUpload returns as soon as the upload is *prepared*, not finished.
+      // Wait for the service's own completed/failed event before refreshing.
+      await new Promise<void>((resolve, reject) => {
+        const cleanup = () => {
+          uploadService.off(uploadId, "completed", onDone);
+          uploadService.off(uploadId, "failed", onFail);
+        };
+        const onDone = () => {
+          cleanup();
+          resolve();
+        };
+        const onFail = (state: any) => {
+          cleanup();
+          reject(new Error(state?.error || "Upload failed"));
+        };
+        uploadService.on(uploadId, "completed", onDone);
+        uploadService.on(uploadId, "failed", onFail);
+      });
+
       toast.success("Image replaced");
       onUploadComplete([]);
     } catch (err: any) {
