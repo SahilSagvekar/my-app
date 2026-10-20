@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Toaster } from '../ui/sonner';
 import { FilePreviewModal } from '../FileViewerModal';
 import { formatInEST } from '@/lib/timezone';
+import { PageHeader } from '../ui/page-header';
 
 type SchedulerTask = {
   id: string;
@@ -341,13 +342,10 @@ export function SchedulerApprovedQueuePage() {
   return (
     <>
       <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1>Approved Queue</h1>
-          <p className="text-muted-foreground mt-2">
-            QC-approved content ready for scheduling
-          </p>
-        </div>
+        <PageHeader
+          title="Approved Queue"
+          description="QC-approved content ready for scheduling"
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -418,13 +416,14 @@ export function SchedulerApprovedQueuePage() {
                   <p className="text-sm mt-1">All tasks have been scheduled!</p>
                 </div>
               ) : (
-                pendingTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors ${selectedTask?.id === task.id ? "bg-muted border-l-4 border-l-primary" : ""
-                      }`}
-                    onClick={() => setSelectedTask(task)}
-                  >
+                <div className="p-4 space-y-3">
+                  {pendingTasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className={`p-4 bg-white rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-all ${selectedTask?.id === task.id ? "ring-2 ring-primary ring-offset-2" : ""
+                        }`}
+                      onClick={() => setSelectedTask(task)}
+                    >
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium truncate">{task.title}</h4>
@@ -455,8 +454,9 @@ export function SchedulerApprovedQueuePage() {
                       </div>
                     </div>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
+            )}
             </CardContent>
           </Card>
 
@@ -585,15 +585,25 @@ export function SchedulerApprovedQueuePage() {
                               onClick={() => toggleFolder(folderType)}
                             >
                               <div className="flex items-center gap-2">
-                                <span className="text-lg">
-                                  {folderInfo.icon}
-                                </span>
+                                {folderInfo.icon && folderInfo.icon.trim() !== '' ? (
+                                  <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center">
+                                    <span className="text-white text-sm">
+                                      {folderInfo.icon}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full border-2 border-black flex items-center justify-center">
+                                    <span className="text-black text-lg font-bold">+</span>
+                                  </div>
+                                )}
                                 <span className="font-medium text-sm">
                                   {folderInfo.label}
                                 </span>
-                                <Badge variant="outline" className="text-xs">
-                                  {files.length} file{files.length !== 1 ? "s" : ""}
-                                </Badge>
+                                {isExpanded && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {files.length} file{files.length !== 1 ? "s" : ""}
+                                  </Badge>
+                                )}
                               </div>
                               <ChevronDown
                                 className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""

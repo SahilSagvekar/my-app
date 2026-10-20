@@ -158,9 +158,34 @@ export function SchedulerSpreadsheetView() {
                             Mark Selected ({selectedRows.size})
                         </Button>
                     )}
+                    {/* Status pills in header */}
+                    <div className="flex items-center gap-1">
+                        {(['all', 'pending', 'scheduled'] as const).map((s) => {
+                            const count = s === 'all' ? totalTasks : tasks.filter(t =>
+                                s === 'pending' ? t.status === 'PENDING' : t.status === 'SCHEDULED'
+                            ).length;
+                            return (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => setStatusFilter(s)}
+                                    className={`h-8 px-3 text-sm font-medium rounded-full transition-colors capitalize ${
+                                        statusFilter === s
+                                            ? s === 'pending'
+                                                ? 'bg-indigo-600 text-white'
+                                                : s === 'scheduled'
+                                                ? 'bg-emerald-600 text-white'
+                                                : 'bg-gray-900 text-white'
+                                            : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'
+                                    }`}
+                                >
+                                    {s.charAt(0).toUpperCase() + s.slice(1)} {count}
+                                </button>
+                            );
+                        })}
+                    </div>
                     <Button variant="outline" size="sm" onClick={() => loadTasks()}>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Refresh
+                        <RefreshCw className="h-4 w-4" />
                     </Button>
                 </div>
                 }
@@ -194,66 +219,40 @@ export function SchedulerSpreadsheetView() {
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         {/* Header */}
-                        <thead className="bg-gray-50 border-b sticky top-0 z-10">
-                            <tr>
+                        <thead className="border-b">
+                            <tr className="text-xs text-gray-500 font-semibold uppercase tracking-wide bg-gray-50">
                                 <th className="w-10 px-3 py-3 text-left">
                                     <Checkbox
                                         checked={selectedRows.size === tasks.length && tasks.length > 0}
                                         onCheckedChange={(checked) => {
-                                            if (checked) {
-                                                setSelectedRows(new Set(tasks.map(t => t.id)));
-                                            } else {
-                                                setSelectedRows(new Set());
-                                            }
+                                            if (checked) setSelectedRows(new Set(tasks.map(t => t.id)));
+                                            else setSelectedRows(new Set());
                                         }}
                                     />
                                 </th>
                                 <th className="w-8 px-2"></th>
-                                <th
-                                    className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
-                                    onClick={() => handleSort('title')}
-                                >
+                                <th className="px-3 py-3 text-left cursor-pointer hover:text-gray-700" onClick={() => handleSort('title')}>
+                                    <div className="flex items-center gap-1">Task <ArrowUpDown className="h-3 w-3" /></div>
+                                </th>
+                                <th className="px-3 py-3 text-left">Editor</th>
+                                <th className="px-3 py-3 text-left cursor-pointer hover:text-gray-700" onClick={() => handleSort('postingDate')}>
+                                    <div className="flex items-center gap-1">Posted <ArrowUpDown className="h-3 w-3" /></div>
+                                </th>
+                                <th className="w-10 px-2 py-3 text-center">Details</th>
+                                <th className="w-10 px-2 py-3 text-center">Cover</th>
+                                <th className="px-3 py-3 text-left">
                                     <div className="flex items-center gap-1">
-                                        Task Title
-                                        <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
+                                        <Sparkles className="h-3.5 w-3.5 text-yellow-500" />Title
                                     </div>
                                 </th>
-                                <th className="px-3 py-3 text-left font-semibold">
-                                    Editor
-                                </th>
-                                <th
-                                    className="px-3 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100"
-                                    onClick={() => handleSort('postingDate')}
-                                >
-                                    <div className="flex items-center gap-1">
-                                        Posted
-                                        <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-                                    </div>
-                                </th>
-                                <th className="w-10 px-2 py-3 text-center font-semibold">
-                                    Details
-                                </th>
-                                <th className="w-10 px-2 py-3 text-center font-semibold" title="Cover image (Short Form)">
-                                    Cover
-                                </th>
-                                <th className="px-3 py-3 text-center font-semibold">
-                                    <div className="flex items-center justify-center gap-1">
-                                        <Sparkles className="h-4 w-4 text-yellow-500" />
-                                        AI Title
-                                    </div>
-                                </th>
-                                {/* Platform columns */}
                                 {Object.entries(PLATFORMS).map(([key, platform]) => (
-                                    <th key={key} className="px-2 py-3 text-center font-semibold w-12">
+                                    <th key={key} className="px-2 py-3 text-center w-10">
                                         <div className="flex justify-center" title={platform.label}>
-                                            <platform.icon className={`h-4 w-4 ${platform.color}`} />
+                                            <platform.icon className="h-4 w-4 text-black" />
                                         </div>
                                     </th>
                                 ))}
-                                <th
-                                    className="px-3 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100"
-                                    onClick={() => handleSort('status')}
-                                >
+                                <th className="px-3 py-3 text-right cursor-pointer hover:text-gray-700" onClick={() => handleSort('status')}>
                                     Status
                                 </th>
                             </tr>

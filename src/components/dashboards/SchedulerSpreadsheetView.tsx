@@ -561,7 +561,7 @@ export function SchedulerSpreadsheetView() {
 
             {/* Header */}
             <div className="flex items-center justify-between">
-                <div><h1 className="text-2xl font-bold">Scheduling Queue</h1></div>
+                <div><h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">Scheduling Queue</h1></div>
                 <div className="flex items-center gap-2">
                     {selectedRows.size > 0 && (
                         <Button onClick={bulkMarkAsScheduled} size="sm">
@@ -997,7 +997,7 @@ export function SchedulerSpreadsheetView() {
                                                     <ChevronDown className="h-3 w-3 opacity-50" />
                                                   </Button>
                                                 ) : (
-                                                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                                                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border">
                                                     Pending{" "}
                                                     {task.isSponsored && <span className="text-amber-600 font-semibold">★</span>}
                                                     <ChevronDown className="h-3 w-3 opacity-50" />

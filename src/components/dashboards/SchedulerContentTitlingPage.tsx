@@ -222,10 +222,9 @@ export function SchedulerContentTitlingPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold mb-1">AI Content Titling</h1>
-        <p className="text-sm text-muted-foreground">
+      <div className="mb-6 pb-5 border-b border-gray-200">
+        <h1 className="text-[32px] font-bold leading-tight tracking-tight text-slate-950">AI Content Titling</h1>
+        <p className="text-sm text-slate-500 mt-1">
           View and manage AI-generated titles for approved videos
         </p>
       </div>
