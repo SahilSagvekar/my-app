@@ -69,7 +69,17 @@ export async function GET(req: NextRequest) {
       orderBy: asc(client.name),
     });
 
-    const trackedClients = clients.filter((c) => c.monthlyDeliverables.length > 0);
+    // Clients hidden from the SCHEDULER's Posting Tracker (display-only; admin's board is
+    // unaffected). Filtering here, before totals are computed, keeps the grand totals correct.
+    const normalizeName = (s?: string | null) =>
+      (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const SCHEDULER_HIDDEN_CLIENTS = new Set(['william coleman']);
+    const isSchedulerViewer = String(currentUser.role || '').toLowerCase() === 'scheduler';
+    const hiddenForViewer = (c: { name?: string | null; companyName?: string | null }) =>
+      isSchedulerViewer &&
+      (SCHEDULER_HIDDEN_CLIENTS.has(normalizeName(c.companyName)) || SCHEDULER_HIDDEN_CLIENTS.has(normalizeName(c.name)));
+
+    const trackedClients = clients.filter((c) => c.monthlyDeliverables.length > 0 && !hiddenForViewer(c));
     const clientIds = trackedClients.map((c) => c.id);
 
     if (clientIds.length === 0) {
