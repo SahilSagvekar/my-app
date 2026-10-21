@@ -312,11 +312,7 @@ export function TaskRow({
                                 >
                                     <Plus className="h-3.5 w-3.5" />
                                 </button>
-                            ) : (
-                                <span className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-black text-black">
-                                    <Plus className="h-3 w-3" />
-                                </span>
-                            )}
+                            ) : null /* platform not in this deliverable — render nothing (cell kept so columns stay aligned) */}
                         </td>
                     );
                 })}
