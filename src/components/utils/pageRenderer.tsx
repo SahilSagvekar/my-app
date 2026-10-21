@@ -351,6 +351,8 @@ export function renderPage(
         return <ClientReviewPanel scope="scheduler" />;
       case "posting-tracker":
         return <SchedulerDailyTargetsPage />;
+      case "task-management":
+        return <TaskManagementTab />;
       case "scheduling":
         return <SchedulerSchedulingPage />;
       case "content-titling":

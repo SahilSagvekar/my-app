@@ -28,7 +28,9 @@ function getTokenFromCookies(req: Request) {
 function verifyAdminAccess(token: string): { userId: number; role: string } | null {
     try {
         const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        if (!["admin", "manager", "qc", "videographer"].includes(decoded.role?.toLowerCase())) {
+        // scheduler: allowed for GET/PATCH (Task Management page in the scheduler portal).
+        // DELETE below explicitly rejects scheduler — this helper is shared by all three handlers.
+        if (!["admin", "manager", "qc", "videographer", "scheduler"].includes(decoded.role?.toLowerCase())) {
             return null;
         }
         return { userId: decoded.userId, role: decoded.role };
@@ -365,6 +367,11 @@ export async function DELETE(
         const auth = verifyAdminAccess(token);
         if (!auth) {
             return NextResponse.json({ message: "Forbidden - Admin access required" }, { status: 403 });
+        }
+
+        // Schedulers can manage tasks but never delete them.
+        if (auth.role?.toLowerCase() === "scheduler") {
+            return NextResponse.json({ message: "Forbidden - Schedulers cannot delete tasks" }, { status: 403 });
         }
 
         const { id } = await params;

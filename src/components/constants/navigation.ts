@@ -94,6 +94,7 @@ export const NAVIGATION_ITEMS = {
     { id: 'approved-queue', label: 'Scheduling Queue', icon: CheckSquare },
     { id: 'client-review', label: 'Client Review', icon: Clock },
     { id: 'posting-tracker', label: 'Posting Tracker', icon: Target },
+    { id: 'task-management', label: 'Task Management', icon: FileSpreadsheet },
     { id: 'drive', label: 'Files & Drive', icon: HardDrive },
     { id: 'file-verification', label: 'File Verification', icon: FolderCheck },
     { id: 'logins', label: 'Logins', icon: LogIn },

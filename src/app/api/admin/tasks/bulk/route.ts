@@ -56,7 +56,9 @@ export async function PATCH(req: NextRequest) {
             viewingAs
         )?.toLowerCase();
 
-        if (!['admin', 'manager', 'qc', 'videographer'].includes(effectiveRole || '')) {
+        // scheduler: Task Management page in the scheduler portal. This route only PATCHes
+        // (bulk update) — it has no delete path — so allowing scheduler here grants no delete access.
+        if (!['admin', 'manager', 'qc', 'videographer', 'scheduler'].includes(effectiveRole || '')) {
             return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
         }
 
