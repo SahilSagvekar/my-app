@@ -9,11 +9,21 @@ export async function GET() {
   const db = getDbHttp();
   try {
     // 1. Fetch all unique clients that have tasks in completed/scheduled status
-    const clients = await db.select({
+    const allClientRows = await db.select({
       id: client.id,
       name: client.name,
       companyName: client.companyName,
     }).from(client).orderBy(asc(client.name));
+
+    // Clients hidden from the scheduler's Client dropdown (UI-only — no data is
+    // touched, and their tasks still load). Matched on normalized name so it
+    // survives punctuation/case differences.
+    const normalize = (s?: string | null) =>
+      (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const HIDDEN_CLIENT_NAMES = new Set(["william coleman"]);
+    const clients = allClientRows.filter(
+      (c) => !HIDDEN_CLIENT_NAMES.has(normalize(c.companyName)) && !HIDDEN_CLIENT_NAMES.has(normalize(c.name))
+    );
 
     // 2. Fetch all unique deliverable types across both tables
     const [monthlyTypes, oneOffTypes] = await Promise.all([
