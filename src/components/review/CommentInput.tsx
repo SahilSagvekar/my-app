@@ -144,9 +144,26 @@ function captureAreaFromSource(
     }
 }
 
+// Decodes a base64 data: URL straight into a Blob. Deliberately NOT
+// fetch(dataUrl): the site's Content-Security-Policy connect-src has no
+// `data:`, so that fetch is blocked in production ("Refused to connect...
+// violates the document's Content Security Policy") and the comment with a
+// screenshot/snip could never be saved.
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-    const res = await fetch(dataUrl);
-    return res.blob();
+    const commaIdx = dataUrl.indexOf(',');
+    if (!dataUrl.startsWith('data:') || commaIdx === -1) {
+        throw new Error('Invalid data URL');
+    }
+    const meta = dataUrl.slice(5, commaIdx);
+    const mime = meta.split(';')[0] || 'application/octet-stream';
+    const payload = dataUrl.slice(commaIdx + 1);
+    if (!meta.includes(';base64')) {
+        return new Blob([decodeURIComponent(payload)], { type: mime });
+    }
+    const binary = atob(payload);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
 }
 
 // Uploads a single File/Blob to R2 via the comment-attachments endpoint.
