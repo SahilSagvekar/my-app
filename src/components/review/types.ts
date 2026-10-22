@@ -28,6 +28,7 @@ export interface ReviewComment {
     replies?: ReviewComment[];
     resolved: boolean;
     version?: number; // Version number of the file when comment was made
+    fileId?: string; // Task file the comment was left on (image/hard post reviews)
     createdAt: Date;
     updatedAt?: Date;
 }

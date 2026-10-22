@@ -13,3 +13,4 @@ export { ReviewDrawOverlay } from './ReviewDrawOverlay';
 export { ReviewInstagramOverlay } from './ReviewInstagramOverlay';
 export { StatusDropdown } from './StatusDropdown';
 export { ReviewStepProgress } from './ReviewStepProgress';
+export { ClientCommentsDropdown } from './ClientCommentsDropdown';

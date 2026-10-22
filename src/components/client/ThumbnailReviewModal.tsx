@@ -28,7 +28,7 @@ import {
     CheckSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ReviewCommentCard, CommentInput } from '../review';
+import { ReviewCommentCard, CommentInput, ClientCommentsDropdown } from '../review';
 import { ReviewComment } from '../review/types';
 import { useAuth } from '../auth/AuthContext';
 import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
@@ -131,6 +131,10 @@ export function ThumbnailReviewModal({
     /* ── UI state ── */
     const [currentFile, setCurrentFile] = useState<TaskFile | null>(null);
     const [comments, setComments] = useState<ReviewComment[]>([]);
+    // Every client comment on this task's images, across all images and
+    // versions (feeds the "Client comments — all versions" toolbar button).
+    // Separate from `comments`, which only holds the opened file's thread.
+    const [clientFeedback, setClientFeedback] = useState<ReviewComment[]>([]);
     const [showCommentInput, setShowCommentInput] = useState(true);
     const imageRef = useRef<HTMLImageElement>(null);
     const [savingFeedback, setSavingFeedback] = useState(false);
@@ -324,6 +328,39 @@ export function ThumbnailReviewModal({
         return orderedThumbnails.findIndex(t => t.id === currentFile.id) + 1;
     }, [currentFile, orderedThumbnails]);
 
+    // Client comments that belong to an image in this set, with their image
+    // position (slot) resolved, ordered image 1..N then oldest version first.
+    // Comments on files outside this set (e.g. the video) are left out.
+    const clientCommentsWithSlot = useMemo(() => {
+        return clientFeedback
+            .map(c => ({
+                comment: c,
+                slotIndex: imageSlots.findIndex(chain => chain.some(f => f.id === c.fileId)),
+            }))
+            .filter(x => x.slotIndex >= 0)
+            .sort((a, b) =>
+                a.slotIndex - b.slotIndex ||
+                (a.comment.version ?? 1) - (b.comment.version ?? 1) ||
+                a.comment.createdAt.getTime() - b.comment.createdAt.getTime(),
+            );
+    }, [clientFeedback, imageSlots]);
+
+    const slotIndexByCommentId = useMemo(
+        () => new Map(clientCommentsWithSlot.map(x => [x.comment.id, x.slotIndex])),
+        [clientCommentsWithSlot],
+    );
+
+    // Jump to the image + version a client comment was left on.
+    const handleJumpToClientComment = (comment: ReviewComment) => {
+        const chain = imageSlots.find(c => c.some(f => f.id === comment.fileId));
+        const target = chain?.find(f => f.id === comment.fileId);
+        if (!target) return;
+        setViewMode('single');
+        setSidebarTab('comments');
+        setViewingVersion(target.version || 1);
+        setCurrentFile(target);
+    };
+
     /* ── ← / → arrow keys: previous / next image (single-image view only) ──
        Same effect as clicking the numbered buttons under the image. Doesn't
        wrap around, ignores keys while typing a comment, while the reorder
@@ -358,6 +395,7 @@ export function ThumbnailReviewModal({
         if (file) {
             setCurrentFile(file);
             setComments([]);
+            setClientFeedback([]);
             setShowCommentInput(false);
             setImgCrossOriginFailed(false);
             // Snap back to latest whenever a new task/file is opened — only
@@ -389,12 +427,47 @@ export function ThumbnailReviewModal({
     }, [open]);
 
     /* ── Data fetching ── */
+    // All client-authored comments on this task, mapped for the toolbar
+    // dropdown. A client viewer only gets their own, same as the thread below.
+    const buildClientFeedback = (feedback: any[]): ReviewComment[] =>
+        feedback
+            .filter((fb: any) => fb.user?.role === 'client' && fb.fileId)
+            .filter((fb: any) => userRole !== 'client' || String(fb.user?.id || 0) === String(user?.id || 0))
+            .map((fb: any) => ({
+                id: fb.id,
+                taskId,
+                authorId: String(fb.user?.id || 0),
+                authorName: fb.user?.name || 'Client',
+                authorRole: 'client',
+                content: fb.feedback,
+                timestamp: fb.timestamp || '',
+                timestampSeconds: 0,
+                category: fb.category ? fb.category.split(',') : ['other'],
+                createdAt: new Date(fb.createdAt),
+                resolved: fb.status === 'resolved',
+                version: fb.file?.version || 1,
+                fileId: fb.fileId,
+            }));
+
+    // Re-reads only the client comment list (used after a new comment is saved).
+    const refreshClientFeedback = async () => {
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/feedback`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.feedback) setClientFeedback(buildClientFeedback(data.feedback));
+        } catch (err) {
+            console.error('Error fetching client comments:', err);
+        }
+    };
+
     const fetchFeedback = async (fileId: string) => {
         try {
             const res = await fetch(`/api/tasks/${taskId}/feedback`);
             if (!res.ok) return;
             const data = await res.json();
             if (data.feedback) {
+                setClientFeedback(buildClientFeedback(data.feedback));
                 const fileFeedback = data.feedback
                     .filter((fb: any) => fb.fileId === fileId)
                     // QC sees every comment; clients only see comments they authored themselves.
@@ -463,6 +536,7 @@ export function ThumbnailReviewModal({
                         authorName: data.feedback.user?.name || user?.name || 'Member',
                     } : c));
                 }
+                refreshClientFeedback();
             } else {
                 toast.error('Failed to save comment to server');
             }
@@ -709,6 +783,15 @@ export function ThumbnailReviewModal({
                                         <TooltipContent side="bottom">Switch to Video Review</TooltipContent>
                                     </Tooltip>
                                 )}
+
+                                <ClientCommentsDropdown
+                                    comments={clientCommentsWithSlot.map(x => x.comment)}
+                                    onJump={handleJumpToClientComment}
+                                    getLocationLabel={c => {
+                                        const idx = slotIndexByCommentId.get(c.id);
+                                        return idx === undefined ? null : `#${idx + 1}`;
+                                    }}
+                                />
 
                                 <Tooltip>
                                     <TooltipTrigger asChild>
