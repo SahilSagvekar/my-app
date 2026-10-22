@@ -1,14 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { Clock, Check, RefreshCw, LogOut } from "lucide-react";
 import { useAuth } from "./AuthContext";
 
 // Design handoff calls for Inter specifically; the rest of the app uses a
 // system-ui stack, so this is scoped to just this screen rather than
 // changing the global font.
-const inter = Inter({ subsets: ["latin"], weight: ["400", "600", "700"] });
+//
+// Self-hosted (src/fonts/inter, latin subset, OFL license) instead of
+// next/font/google: that loader downloads from Google Fonts at BUILD time,
+// and the Cloudflare build started failing with "Cannot read properties of
+// null (reading '1')" because Google now serves font URLs with no file
+// extension, which next/font 15.5.x can't parse.
+const inter = localFont({
+    src: [
+        { path: "../../fonts/inter/inter-latin-400-normal.woff2", weight: "400", style: "normal" },
+        { path: "../../fonts/inter/inter-latin-600-normal.woff2", weight: "600", style: "normal" },
+        { path: "../../fonts/inter/inter-latin-700-normal.woff2", weight: "700", style: "normal" },
+    ],
+    display: "swap",
+    fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+});
 
 interface PendingRoleScreenProps {
     user: {
