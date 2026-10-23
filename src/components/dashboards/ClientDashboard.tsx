@@ -2089,6 +2089,16 @@ export function ClientDashboard() {
               onPostingTitlesChange={setPostingTitles}
               onPostingDescriptionsChange={setPostingDescriptions}
               onPostingTagsChange={setPostingTags}
+              templateHashtags={clientTemplateHashtags}
+              onImageReplaced={(oldId: string, newFile: any) => {
+              setSelectedTask((prev: any) => prev ? {
+                ...prev,
+                files: [
+                  ...(prev.files || []).map((f: any) => f.id === oldId ? { ...f, isActive: false, replacedBy: newFile.id } : f),
+                  newFile,
+                ],
+              } : prev);
+            }}
             />
           )}
 

@@ -2206,6 +2206,17 @@ useEffect(() => {
             finalRevisionLocked={(selectedTask as any).isFinalRevision === true}
             userRole="qc"
             imageLabel={isHardPostTask(selectedTask) ? 'Images' : 'Thumbnails'}
+            editorName={getEditorName(selectedTask) || undefined}
+            templateHashtags={clientTemplateHashtags}
+            onImageReplaced={(oldId: string, newFile: any) => {
+              setSelectedTask((prev: any) => prev ? {
+                ...prev,
+                files: [
+                  ...(prev.files || []).map((f: any) => f.id === oldId ? { ...f, isActive: false, replacedBy: newFile.id } : f),
+                  newFile,
+                ],
+              } : prev);
+            }}
             onSwitchToVideo={
               switchToVideoFile ? () => handleFileSelect(switchToVideoFile) : undefined
             }

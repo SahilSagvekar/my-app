@@ -36,6 +36,8 @@ interface ReviewModePillsProps {
      * defaults to true everywhere else.
      */
     showDraw?: boolean;
+    /** Pills to leave out entirely, e.g. ['range'] on still-image reviews where there is no timeline. */
+    hiddenModes?: ReviewMode[];
 }
 
 const ALL_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
@@ -45,8 +47,8 @@ const ALL_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
     { id: 'attach', label: 'Attach', Icon: Paperclip },
 ];
 
-export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, gridActive, showInstagram, showGrid, showDraw = true }: ReviewModePillsProps) {
-    const BASE_MODES = showDraw ? ALL_MODES : ALL_MODES.filter(m => m.id !== 'draw');
+export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, gridActive, showInstagram, showGrid, showDraw = true, hiddenModes }: ReviewModePillsProps) {
+    const BASE_MODES = ALL_MODES.filter(m => (showDraw || m.id !== 'draw') && !hiddenModes?.includes(m.id));
     const showGridDropdown = showInstagram || showGrid;
     const gridDropdownActive = !!instagramActive || !!gridActive;
     const pillCount = BASE_MODES.length + (showGridDropdown ? 1 : 0);

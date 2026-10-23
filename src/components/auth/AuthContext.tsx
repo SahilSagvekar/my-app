@@ -116,6 +116,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [refreshUser]);
 
+  // Browser Back after logging out must not show authenticated pages again.
+  // The browser can restore a page from its back/forward cache (pageshow with
+  // persisted=true) or step through history (popstate) with the old signed-in
+  // UI still in memory, so re-check the real session and bounce to the login
+  // screen if the server says we're signed out. A failed check (offline,
+  // 5xx) is not a sign-out and is ignored.
+  useEffect(() => {
+    let checking = false;
+    const recheckSession = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store", credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.user) {
+          const wasSignedIn = authStateRef.current.isAuthenticated;
+          setUser(null);
+          setIsAuthenticated(false);
+          if (wasSignedIn || window.location.pathname !== "/") router.replace("/");
+        }
+      } catch {
+        // transient — leave state alone
+      } finally {
+        checking = false;
+      }
+    };
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) recheckSession();
+    };
+    const onPopState = () => {
+      recheckSession();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [router]);
+
   // Keep the hint in step with the real auth result (login, logout, expiry).
   useEffect(() => {
     if (!loading) writeSessionHint(isAuthenticated);
@@ -271,7 +312,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(null);
       setIsAuthenticated(false);
-      router.push("/");
+      // replace, not push: keeps the signed-in page out of the Back history
+      router.replace("/");
     }
   };
 

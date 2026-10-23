@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent } from '../ui/card';
@@ -26,9 +26,14 @@ import {
     ImageIcon,
     Send,
     CheckSquare,
+    Crop,
+    Ban,
+    Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ReviewCommentCard, CommentInput, ClientCommentsDropdown } from '../review';
+import { ReviewCommentCard, CommentInput, ClientCommentsDropdown, ReviewModePills, ReviewDrawOverlay, captureFullFrameFromSource } from '../review';
+import type { CommentInputHandle, ReviewMode } from '../review';
+import { ImageCropDialog } from './ImageCropDialog';
 import { ReviewComment } from '../review/types';
 import { useAuth } from '../auth/AuthContext';
 import { useHideFeedbackWidgetWhileOpen } from '@/hooks/useFeedbackWidgetVisibility';
@@ -93,6 +98,14 @@ interface ThumbnailReviewModalProps {
     // Pure playback mode — hides the entire sidebar (comments/titles tabs,
     // approve/reject actions). Used for the client's "Rejected" section.
     readOnly?: boolean;
+    // QC screen only: name of the editor who made this task, shown in the top bar.
+    editorName?: string;
+    // Client's saved hashtag templates — offered as one-click tags and used to
+    // seed the tag list when it is empty.
+    templateHashtags?: string[];
+    // Called after a reviewer crop saves, so the parent can patch its copy of
+    // the task's files (old file goes inactive, the new version is added).
+    onImageReplaced?: (oldFileId: string, newFile: TaskFile) => void;
 }
 
 /* ─── Component ─────────────────────────────────────────────────── */
@@ -120,6 +133,9 @@ export function ThumbnailReviewModal({
     imageOrder: propImageOrder,
     onImageOrderChange,
     readOnly = false,
+    editorName,
+    templateHashtags,
+    onImageReplaced,
 }: ThumbnailReviewModalProps) {
     const { user } = useAuth();
 
@@ -176,6 +192,28 @@ export function ThumbnailReviewModal({
     // crossOrigin so the client still sees the image — screenshot capture just
     // won't be available on this image until it loads cleanly again.
     const [imgCrossOriginFailed, setImgCrossOriginFailed] = useState(false);
+
+    // Review tools (Draw / Voice / Attach) — same pills the video review uses.
+    const commentInputRef = useRef<CommentInputHandle>(null);
+    const imageStageRef = useRef<HTMLDivElement>(null);
+    const [activeMode, setActiveMode] = useState<ReviewMode | null>(null);
+    const [drawBaseUrl, setDrawBaseUrl] = useState<string | null>(null);
+    const [drawBox, setDrawBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+    const [drawBoxEl, setDrawBoxEl] = useState<HTMLDivElement | null>(null);
+
+    // Crop / aspect ratio
+    const [showCrop, setShowCrop] = useState(false);
+    const [cropSaving, setCropSaving] = useState(false);
+    // Local copy of crops saved this session so the review reflects them
+    // immediately, whether or not the parent patches its own file list.
+    const [cropPatches, setCropPatches] = useState<{ oldId: string; file: TaskFile }[]>([]);
+    const [orderPatch, setOrderPatch] = useState<Record<string, string>>({});
+
+    // Fully rejecting an image: fileId → the saved rejection feedback row.
+    const [rejections, setRejections] = useState<Record<string, { id: string; reason: string; content: string }>>({});
+    const [showRejectDialog, setShowRejectDialog] = useState(false);
+    const [rejectReason, setRejectReason] = useState('');
+    const [rejecting, setRejecting] = useState(false);
 
     /* ── Sidebar tabs & 3-step state ── */
     type SidebarTab = 'comments' | 'titles' | 'thumbnails';
@@ -234,17 +272,30 @@ export function ThumbnailReviewModal({
     /* ── Titles / descriptions editing state ── */
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingText, setEditingText] = useState('');
-    const [newTexts, setNewTexts] = useState({ titles: '', descriptions: '' });
-    const CAPS = { titles: 3, descriptions: 3 };
+    const [newTexts, setNewTexts] = useState({ titles: '', descriptions: '', tags: '' });
+    const CAPS = { titles: 3, descriptions: 3, tags: 10 };
+    type PostingType = 'titles' | 'descriptions' | 'tags';
 
     /* ── Initial image order computation ── */
     const initialImageOrder = useMemo(() => {
-        if (Array.isArray(propImageOrder) && propImageOrder.length > 0) return propImageOrder;
-        if (taskAttachments?.imageOrder && Array.isArray(taskAttachments.imageOrder)) {
-            return taskAttachments.imageOrder;
+        let base: string[] | undefined;
+        if (Array.isArray(propImageOrder) && propImageOrder.length > 0) base = propImageOrder;
+        else if (taskAttachments?.imageOrder && Array.isArray(taskAttachments.imageOrder)) {
+            base = taskAttachments.imageOrder;
         }
-        return undefined;
-    }, [propImageOrder, taskAttachments]);
+        // Crops swap an image's ID — keep its position in a saved order.
+        return base ? base.map(id => orderPatch[id] ?? id) : undefined;
+    }, [propImageOrder, taskAttachments, orderPatch]);
+
+    // allFiles + crops saved in this session (old file inactive, new added).
+    const effectiveFiles = useMemo(() => {
+        if (cropPatches.length === 0) return allFiles;
+        const replacedBy = new Map(cropPatches.map(c => [c.oldId, c.file.id]));
+        const merged = allFiles.map(f => replacedBy.has(f.id) ? { ...f, isActive: false, replacedBy: replacedBy.get(f.id) } : f);
+        const have = new Set(merged.map(f => f.id));
+        cropPatches.forEach(c => { if (!have.has(c.file.id)) merged.push(c.file); });
+        return merged;
+    }, [allFiles, cropPatches]);
 
     /* ── Ordered Thumbnails State ── */
     const [orderedThumbnails, setOrderedThumbnails] = useState<TaskFile[]>([]);
@@ -257,7 +308,7 @@ export function ThumbnailReviewModal({
     // the rest are still v1).
     const imageSlots = useMemo(() => {
         const folder = file?.folderType || 'thumbnails';
-        const imagesInFolder = allFiles.filter(f => f.folderType === folder);
+        const imagesInFolder = effectiveFiles.filter(f => f.folderType === folder);
         const predecessorOf = new Map<string, TaskFile>();
         imagesInFolder.forEach(f => {
             if (f.replacedBy) predecessorOf.set(f.replacedBy, f);
@@ -276,7 +327,7 @@ export function ThumbnailReviewModal({
             }
             return chain; // ordered v1 → current, one entry per revision
         });
-    }, [allFiles, file?.folderType, initialImageOrder]);
+    }, [effectiveFiles, file?.folderType, initialImageOrder]);
 
     // True latest version — independent of what's currently being viewed.
     const latestVersion = useMemo(() => {
@@ -388,7 +439,44 @@ export function ThumbnailReviewModal({
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [open, viewMode, showOrderModal, currentFile, orderedThumbnails]);
 
-    const unresolvedCount = comments.filter(c => !c.resolved).length;
+    // Comments are loaded for the whole task and filtered here: only images in
+    // this set count, the sidebar shows the image being viewed, and only the
+    // images currently on screen (latest of each slot) gate Approve / Send Back.
+    const setFileIds = useMemo(() => new Set(imageSlots.flat().map(f => f.id)), [imageSlots]);
+    const latestFileIds = useMemo(() => new Set(orderedThumbnails.map(f => f.id)), [orderedThumbnails]);
+    const imageComments = useMemo(
+        () => comments.filter(c => !c.fileId || setFileIds.has(c.fileId)),
+        [comments, setFileIds],
+    );
+    const fileComments = useMemo(
+        () => imageComments.filter(c => !c.fileId || c.fileId === currentFile?.id),
+        [imageComments, currentFile?.id],
+    );
+    const unresolvedCount = imageComments.filter(c => !c.resolved && (!c.fileId || latestFileIds.has(c.fileId))).length;
+    const rejectedThumbs = orderedThumbnails
+        .map((t, idx) => ({ t, idx, rej: rejections[t.id] }))
+        .filter(x => !!x.rej);
+    const rejectedCount = rejectedThumbs.length;
+    // Everything that blocks Approve and is carried by Send Back.
+    const actionCount = unresolvedCount + rejectedCount;
+    const currentRejection = currentFile ? rejections[currentFile.id] : undefined;
+
+    // Reset per-task local state when a different task is opened.
+    useEffect(() => {
+        setCropPatches([]);
+        setOrderPatch({});
+        setRejections({});
+        setActiveMode(null);
+        setDrawBaseUrl(null);
+        setDrawBox(null);
+    }, [taskId]);
+
+    // Leaving the image (or switching view) cancels any draw in progress.
+    useEffect(() => {
+        setDrawBaseUrl(null);
+        setDrawBox(null);
+        setActiveMode(null);
+    }, [currentFile?.id, viewMode]);
 
     /* ── Initialise on file change ── */
     useEffect(() => {
@@ -426,6 +514,8 @@ export function ThumbnailReviewModal({
         };
     }, [open]);
 
+    const REJECT_CATEGORY = 'image_rejected';
+
     /* ── Data fetching ── */
     // All client-authored comments on this task, mapped for the toolbar
     // dropdown. A client viewer only gets their own, same as the thread below.
@@ -461,32 +551,54 @@ export function ThumbnailReviewModal({
         }
     };
 
-    const fetchFeedback = async (fileId: string) => {
+    const mapFeedbackRow = (fb: any): ReviewComment => ({
+        id: fb.id,
+        taskId,
+        authorId: String(fb.user?.id || 0),
+        authorName: fb.user?.name || 'Member',
+        authorRole: fb.user?.role || undefined,
+        content: fb.feedback,
+        timestamp: fb.timestamp || '0:00',
+        timestampSeconds: 0,
+        isGeneral: fb.timestamp === 'General' || undefined,
+        category: fb.category ? fb.category.split(',') : ['other'],
+        createdAt: new Date(fb.createdAt),
+        resolved: fb.status === 'resolved',
+        version: fb.file?.version || 1,
+        fileId: fb.fileId || undefined,
+        screenshotUrl: fb.screenshotUrl || undefined,
+        annotations: fb.annotations || undefined,
+        voiceUrl: fb.voiceUrl || undefined,
+        voiceDurationSec: fb.voiceDurationSec || undefined,
+        attachments: fb.attachments || undefined,
+    });
+
+    // Loads the task's feedback once: comments (with their media) plus any
+    // "image rejected" rows, which are kept apart from the comment thread.
+    const fetchFeedback = async (_fileId?: string) => {
         try {
             const res = await fetch(`/api/tasks/${taskId}/feedback`);
             if (!res.ok) return;
             const data = await res.json();
             if (data.feedback) {
                 setClientFeedback(buildClientFeedback(data.feedback));
-                const fileFeedback = data.feedback
-                    .filter((fb: any) => fb.fileId === fileId)
+                const visible = data.feedback
+                    .filter((fb: any) => fb.fileId)
                     // QC sees every comment; clients only see comments they authored themselves.
-                    .filter((fb: any) => userRole !== 'client' || String(fb.user?.id || 0) === String(user?.id || 0))
-                    .map((fb: any) => ({
-                        id: fb.id,
-                        taskId,
-                        authorId: String(fb.user?.id || 0),
-                        authorName: fb.user?.name || 'Member',
-                        content: fb.feedback,
-                        timestamp: fb.timestamp || '0:00',
-                        timestampSeconds: 0,
-                        isGeneral: fb.timestamp === 'General' || undefined,
-                        category: fb.category ? fb.category.split(',') : ['other'],
-                        createdAt: new Date(fb.createdAt),
-                        resolved: fb.status === 'resolved',
-                        version: fb.file?.version || 1,
-                    }));
-                setComments(fileFeedback);
+                    .filter((fb: any) => userRole !== 'client' || String(fb.user?.id || 0) === String(user?.id || 0));
+                const isRejection = (fb: any) => String(fb.category || '').split(',').includes(REJECT_CATEGORY);
+                const rej: Record<string, { id: string; reason: string; content: string }> = {};
+                visible
+                    .filter((fb: any) => isRejection(fb) && fb.status !== 'resolved')
+                    .forEach((fb: any) => {
+                        rej[fb.fileId] = {
+                            id: fb.id,
+                            content: fb.feedback,
+                            reason: String(fb.feedback || '').replace(/^Image #\d+ rejected:?\s*/i, ''),
+                        };
+                    });
+                setRejections(rej);
+                setComments(visible.filter((fb: any) => !isRejection(fb)).map(mapFeedbackRow));
             }
         } catch (err) {
             console.error('Error fetching feedback:', err);
@@ -501,6 +613,7 @@ export function ThumbnailReviewModal({
             id: tempId,
             createdAt: new Date(),
             version: currentNumber,
+            fileId: currentFile?.id,
         };
         // Optimistic UI update
         setComments(prev => [newComment, ...prev]);
@@ -562,21 +675,35 @@ export function ThumbnailReviewModal({
 
     const handleRequestRevisionsClick = async (finalRevision = false) => {
         if (!currentFile) return;
-        if (unresolvedCount === 0) {
-            toast.error('Please add at least one comment for revisions');
+        if (actionCount === 0) {
+            toast.error('Please add at least one comment or reject an image for revisions');
             return;
         }
         try {
             setSavingFeedback(true);
-            const feedbackItems = comments
-                .filter(c => !c.resolved)
+            const commentItems = imageComments
+                .filter(c => !c.resolved && (!c.fileId || latestFileIds.has(c.fileId)))
                 .map(c => ({
                     folderType: currentFile.folderType || 'thumbnails',
-                    fileId: currentFile.id,
+                    fileId: c.fileId || currentFile.id,
                     feedback: c.content,
                     category: Array.isArray(c.category) ? c.category.join(',') : c.category,
-                    timestamp: '0:00',
+                    timestamp: c.timestamp || '0:00',
+                    screenshotUrl: c.screenshotUrl || null,
+                    annotations: c.annotations || null,
+                    voiceUrl: c.voiceUrl || null,
+                    voiceDurationSec: c.voiceDurationSec || null,
+                    attachments: c.attachments || null,
                 }));
+            // Rejected images ride along so the editor sees them in the revision.
+            const rejectionItems = rejectedThumbs.map(({ t, idx, rej }) => ({
+                folderType: t.folderType || currentFile.folderType || 'thumbnails',
+                fileId: t.id,
+                feedback: rej!.content,
+                category: REJECT_CATEGORY,
+                timestamp: `#${idx + 1}`,
+            }));
+            const feedbackItems = [...commentItems, ...rejectionItems];
             const res = await fetch(`/api/tasks/${taskId}/feedback`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -611,21 +738,25 @@ export function ThumbnailReviewModal({
         }
     };
 
-    /* ── Titles / descriptions CRUD ── */
-    const addItem = (type: 'titles' | 'descriptions') => {
+    /* ── Titles / descriptions / tags CRUD ── */
+    const getList = (type: PostingType) =>
+        type === 'titles' ? postingTitles : type === 'descriptions' ? postingDescriptions : postingTags;
+    const getSetter = (type: PostingType) =>
+        type === 'titles' ? onPostingTitlesChange : type === 'descriptions' ? onPostingDescriptionsChange : onPostingTagsChange;
+
+    const addItem = (type: PostingType) => {
         const text = newTexts[type].trim();
         if (!text) return;
-        const cap = CAPS[type];
-        const currentList = type === 'titles' ? postingTitles : postingDescriptions;
-        const setCurrentList = type === 'titles' ? onPostingTitlesChange : onPostingDescriptionsChange;
-        if (!setCurrentList || currentList.length >= cap) return;
+        const currentList = getList(type);
+        const setCurrentList = getSetter(type);
+        if (!setCurrentList || currentList.length >= CAPS[type]) return;
         setCurrentList([...currentList, { id: `${Date.now()}-${Math.random()}`, text }]);
         setNewTexts(prev => ({ ...prev, [type]: '' }));
     };
 
-    const deleteItem = (type: 'titles' | 'descriptions', id: string) => {
-        const currentList = type === 'titles' ? postingTitles : postingDescriptions;
-        const setCurrentList = type === 'titles' ? onPostingTitlesChange : onPostingDescriptionsChange;
+    const deleteItem = (type: PostingType, id: string) => {
+        const currentList = getList(type);
+        const setCurrentList = getSetter(type);
         if (!setCurrentList) return;
         if (type === 'titles' && userRole === 'client' && currentList.length <= 1) return;
         setCurrentList(currentList.filter(i => i.id !== id));
@@ -633,10 +764,10 @@ export function ThumbnailReviewModal({
 
     const startEdit = (id: string, text: string) => { setEditingId(id); setEditingText(text); };
 
-    const commitEdit = (type: 'titles' | 'descriptions') => {
+    const commitEdit = (type: PostingType) => {
         if (!editingId) return;
-        const currentList = type === 'titles' ? postingTitles : postingDescriptions;
-        const setCurrentList = type === 'titles' ? onPostingTitlesChange : onPostingDescriptionsChange;
+        const currentList = getList(type);
+        const setCurrentList = getSetter(type);
         if (!setCurrentList) return;
         const text = editingText.trim();
         if (text) setCurrentList(currentList.map(i => i.id === editingId ? { ...i, text } : i));
@@ -644,11 +775,166 @@ export function ThumbnailReviewModal({
         setEditingText('');
     };
 
+    const toggleTemplateHashtag = (tag: string) => {
+        if (!onPostingTagsChange) return;
+        if (postingTags.some(t => t.text === tag)) {
+            onPostingTagsChange(postingTags.filter(t => t.text !== tag));
+        } else if (postingTags.length < CAPS.tags) {
+            onPostingTagsChange([...postingTags, { id: `${Date.now()}-${Math.random()}`, text: tag }]);
+        }
+    };
+
+    // Start the tag list from the client's template hashtags when it's empty.
+    const hasSeededTags = useRef(false);
+    useEffect(() => {
+        if (hasSeededTags.current || !onPostingTagsChange) return;
+        if (!templateHashtags || templateHashtags.length === 0) return;
+        if (postingTags.length > 0) { hasSeededTags.current = true; return; }
+        onPostingTagsChange(templateHashtags.slice(0, CAPS.tags).map(tag => ({ id: `${Date.now()}-${Math.random()}`, text: tag })));
+        hasSeededTags.current = true;
+    }, [templateHashtags, postingTags, onPostingTagsChange]);
+
     const handleTabChange = (tab: SidebarTab) => {
         setSidebarTab(tab);
-        setNewTexts({ titles: '', descriptions: '' });
+        setNewTexts({ titles: '', descriptions: '', tags: '' });
         setEditingId(null);
         setEditingText('');
+    };
+
+    /* ── Reject whole image ── */
+    const handleRejectImage = async () => {
+        if (!currentFile) return;
+        const reason = rejectReason.trim();
+        if (!reason) {
+            toast.error('Please say why this image is rejected');
+            return;
+        }
+        const n = Math.max(1, currentNumber);
+        const content = `Image #${n} rejected: ${reason}`;
+        setRejecting(true);
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    folderType: currentFile.folderType || 'thumbnails',
+                    fileId: currentFile.id,
+                    feedback: content,
+                    timestamp: `#${n}`,
+                    category: REJECT_CATEGORY,
+                    createdBy: user?.id || 0,
+                }),
+            });
+            if (!res.ok) throw new Error('Failed to save rejection');
+            const data = await res.json();
+            setRejections(prev => ({ ...prev, [currentFile.id]: { id: data.feedback?.id || String(Date.now()), reason, content } }));
+            setShowRejectDialog(false);
+            setRejectReason('');
+            toast.success(`Image #${n} rejected`);
+        } catch (err) {
+            console.error('Error rejecting image:', err);
+            toast.error('Failed to reject image');
+        } finally {
+            setRejecting(false);
+        }
+    };
+
+    const handleUndoReject = async (fileId: string) => {
+        const rej = rejections[fileId];
+        if (!rej) return;
+        setRejections(prev => { const next = { ...prev }; delete next[fileId]; return next; });
+        try {
+            const res = await fetch(`/api/tasks/${taskId}/feedback?feedbackId=${rej.id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('delete failed');
+        } catch (err) {
+            console.error('Error undoing rejection:', err);
+            setRejections(prev => ({ ...prev, [fileId]: rej }));
+            toast.error('Failed to undo rejection');
+        }
+    };
+
+    /* ── Crop / aspect ratio ── */
+    const handleCropSave = async (blob: Blob) => {
+        if (!currentFile) return;
+        setCropSaving(true);
+        try {
+            const oldId = currentFile.id;
+            const fd = new FormData();
+            fd.append('file', blob, currentFile.name);
+            const res = await fetch(`/api/tasks/${taskId}/files/${oldId}/crop`, { method: 'POST', body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.file) throw new Error(data.error || data.message || 'Failed to save crop');
+            const newFile = data.file as TaskFile;
+            setCropPatches(prev => [...prev, { oldId, file: newFile }]);
+            setOrderPatch(prev => {
+                const next = { ...prev };
+                Object.keys(next).forEach(k => { if (next[k] === oldId) next[k] = newFile.id; });
+                next[oldId] = newFile.id;
+                return next;
+            });
+            // A rejection belongs to the old picture, not the corrected one.
+            setViewingVersion(newFile.version || 1);
+            setCurrentFile(newFile);
+            setImgCrossOriginFailed(false);
+            onImageReplaced?.(oldId, newFile);
+            setShowCrop(false);
+            toast.success('Crop saved as a new version — the original is kept in version history');
+        } catch (err: any) {
+            console.error('Error saving crop:', err);
+            toast.error(err?.message || 'Failed to save crop');
+        } finally {
+            setCropSaving(false);
+        }
+    };
+
+    /* ── Review tools: Draw / Voice / Attach ── */
+    const exitDrawMode = () => {
+        setDrawBaseUrl(null);
+        setDrawBox(null);
+        setActiveMode(null);
+    };
+
+    const handleModeSelect = (mode: ReviewMode) => {
+        setSidebarTab('comments');
+        setShowCommentInput(true);
+
+        if (mode === 'draw') {
+            if (drawBaseUrl) { exitDrawMode(); return; }
+            const img = imageRef.current;
+            const stage = imageStageRef.current;
+            if (!img || !stage) return;
+            const dataUrl = captureFullFrameFromSource(img);
+            if (!dataUrl) {
+                toast.error("Can't draw on this image right now — it couldn't be read. Try reloading it.");
+                return;
+            }
+            const ir = img.getBoundingClientRect();
+            const sr = stage.getBoundingClientRect();
+            setDrawBox({ left: ir.left - sr.left, top: ir.top - sr.top, width: ir.width, height: ir.height });
+            setDrawBaseUrl(dataUrl);
+            setActiveMode('draw');
+            return;
+        }
+
+        if (drawBaseUrl) exitDrawMode();
+        setActiveMode(mode);
+        window.requestAnimationFrame(() => {
+            const api = commentInputRef.current;
+            if (!api) return;
+            if (mode === 'voice') api.startVoice();
+            else if (mode === 'attach') api.openAttach();
+            else api.openComment();
+        });
+    };
+
+    const handleDrawComplete = (composedDataUrl: string) => {
+        setDrawBaseUrl(null);
+        setDrawBox(null);
+        setActiveMode('comment');
+        setShowCommentInput(true);
+        window.requestAnimationFrame(() => {
+            commentInputRef.current?.setScreenshot(composedDataUrl);
+        });
     };
 
     /* ── Guard ── */
@@ -683,6 +969,49 @@ export function ThumbnailReviewModal({
 
                     <div className="relative w-full h-full flex flex-col min-h-0 overflow-hidden" style={{ background: 'var(--review-bg-primary)' }}>
 
+                        {/* ── Reject image dialog ── */}
+                        {showRejectDialog && (
+                            <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={() => !rejecting && setShowRejectDialog(false)}>
+                                <div
+                                    className="w-[440px] max-w-[92vw] rounded-xl border border-[var(--review-border)] p-5 space-y-3"
+                                    style={{ background: 'var(--review-bg-secondary)' }}
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    <div className="flex items-center gap-2 text-white">
+                                        <Ban className="h-5 w-5 text-red-400" />
+                                        <h3 className="text-base font-semibold">Reject image #{currentNumber}</h3>
+                                    </div>
+                                    <p className="text-xs text-[var(--review-text-muted)] leading-relaxed">
+                                        This image is not usable for the set. The set can't be approved while it is rejected, and it is sent back to the editor with your reason.
+                                    </p>
+                                    <textarea
+                                        value={rejectReason}
+                                        onChange={e => setRejectReason(e.target.value)}
+                                        placeholder="Why is this image rejected?"
+                                        rows={3}
+                                        autoFocus
+                                        className="w-full text-sm rounded-lg bg-[var(--review-bg-tertiary)] border border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] p-2.5 resize-none outline-none focus:border-white/40"
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                        <button
+                                            onClick={() => setShowRejectDialog(false)}
+                                            disabled={rejecting}
+                                            className="px-3 py-2 rounded-lg text-sm text-zinc-300 hover:bg-white/10 cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleRejectImage}
+                                            disabled={rejecting || !rejectReason.trim()}
+                                            className="px-3 py-2 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                        >
+                                            {rejecting ? 'Rejecting…' : 'Reject image'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* ── Success overlays ── */}
                         {showApprovalSuccess && (
                             <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 review-animate-fade-in">
@@ -701,7 +1030,7 @@ export function ThumbnailReviewModal({
                                     <CardContent className="p-8 text-center">
                                         <MessageSquare className="h-16 w-16 text-orange-400 mx-auto mb-4" />
                                         <h3 className="text-xl font-medium text-orange-100 mb-2">Revisions Requested</h3>
-                                        <p className="text-orange-300/80">{comments.length} comment{comments.length !== 1 ? 's' : ''} saved to task.</p>
+                                        <p className="text-orange-300/80">{actionCount} item{actionCount !== 1 ? "s" : ""} saved to task.</p>
                                     </CardContent>
                                 </Card>
                             </div>
@@ -763,6 +1092,14 @@ export function ThumbnailReviewModal({
                                     <span className="text-xs text-[var(--review-text-muted)] font-medium">
                                         {imageLabel} &bull; {orderedThumbnails.length} image{orderedThumbnails.length !== 1 ? 's' : ''}
                                     </span>
+                                    {userRole === 'qc' && editorName && (
+                                        <>
+                                            <span style={{ width: 1, height: 14, background: 'var(--review-border)', flex: 'none', alignSelf: 'center' }} />
+                                            <span className="text-xs text-[var(--review-text-muted)] font-medium truncate max-w-[220px]" title={`Editor: ${editorName}`}>
+                                                Editor: <span className="text-white font-semibold">{editorName}</span>
+                                            </span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
@@ -861,7 +1198,12 @@ export function ThumbnailReviewModal({
                                                     {/* Show the full image at its natural ratio (no 16:9 crop). Very tall
                                                         images are capped to the viewport height and letterboxed. */}
                                                     <div className="relative bg-black flex items-center justify-center min-h-[160px]">
-                                                        <img src={t.url} alt={t.name} className="w-full h-auto max-h-[75vh] object-contain" />
+                                                        <img src={t.url} alt={t.name} className={`w-full h-auto max-h-[75vh] object-contain ${rejections[t.id] ? 'opacity-40' : ''}`} />
+                                                        {rejections[t.id] && (
+                                                            <div className="absolute top-2 left-2 flex items-center gap-1 rounded-md bg-red-600 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-1 shadow">
+                                                                <Ban className="h-3 w-3" /> Rejected
+                                                            </div>
+                                                        )}
                                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                             <Button variant="secondary" size="sm" className="bg-white text-black hover:bg-zinc-200">
                                                                 Review Details
@@ -870,10 +1212,10 @@ export function ThumbnailReviewModal({
                                                     </div>
                                                     <div className="p-3 bg-[var(--review-bg-secondary)] border-t border-[var(--review-border)] flex items-center justify-between">
                                                         <span className="text-[11px] text-[var(--review-text-muted)] font-medium truncate max-w-[160px]">{t.name}</span>
-                                                        {comments.some(c => c.version === (idx + 1)) && (
+                                                        {imageComments.some(c => c.fileId === t.id) && (
                                                             <Badge className="bg-orange-500/20 text-orange-500 text-[9px] border-none flex items-center gap-1">
                                                                 <MessageSquare className="h-2.5 w-2.5" />
-                                                                {comments.filter(c => c.version === (idx + 1)).length}
+                                                                {imageComments.filter(c => c.fileId === t.id).length}
                                                             </Badge>
                                                         )}
                                                     </div>
@@ -884,14 +1226,14 @@ export function ThumbnailReviewModal({
                                 ) : (
                                     /* Single image view */
                                     <div className="flex-1 relative bg-black flex flex-col items-center justify-between overflow-hidden p-4 sm:p-6 gap-3">
-                                        <div className="flex-1 w-full min-h-0 relative group flex items-center justify-center">
+                                        <div ref={imageStageRef} className="flex-1 w-full min-h-0 relative group flex items-center justify-center">
                                             <img
                                                 key={currentFile.id + (imgCrossOriginFailed ? '-nocors' : '')}
                                                 ref={imageRef}
                                                 crossOrigin={imgCrossOriginFailed ? undefined : "anonymous"}
                                                 src={currentFile.url}
                                                 alt={currentFile.name}
-                                                className="max-w-full max-h-full object-contain shadow-2xl rounded-sm"
+                                                className={`max-w-full max-h-full object-contain shadow-2xl rounded-sm ${currentRejection ? 'opacity-50 ring-2 ring-red-500' : ''}`}
                                                 onError={() => {
                                                     if (!imgCrossOriginFailed) {
                                                         console.warn(`[ThumbnailReviewModal] "${currentFile.name}" failed to load with crossOrigin="anonymous" — retrying without it. Screenshot/draw capture will be unavailable for this image until it reloads cleanly.`);
@@ -899,6 +1241,39 @@ export function ThumbnailReviewModal({
                                                     }
                                                 }}
                                             />
+                                            {drawBaseUrl && drawBox && (
+                                                <div
+                                                    ref={setDrawBoxEl}
+                                                    className="absolute"
+                                                    style={{ left: drawBox.left, top: drawBox.top, width: drawBox.width, height: drawBox.height }}
+                                                >
+                                                    {drawBoxEl && (
+                                                        <ReviewDrawOverlay
+                                                            baseImageUrl={drawBaseUrl}
+                                                            container={drawBoxEl}
+                                                            onComplete={handleDrawComplete}
+                                                            onCancel={exitDrawMode}
+                                                        />
+                                                    )}
+                                                </div>
+                                            )}
+                                            {currentRejection && (
+                                                <div className="absolute top-4 left-4 z-20 max-w-[70%] flex items-center gap-2 rounded-lg bg-red-600/95 text-white px-3 py-2 shadow-lg">
+                                                    <Ban className="h-4 w-4 shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="text-[10px] font-bold uppercase tracking-wide">Image #{currentNumber} rejected</p>
+                                                        <p className="text-xs truncate" title={currentRejection.reason}>{currentRejection.reason}</p>
+                                                    </div>
+                                                    {!readOnly && viewingVersion === latestVersion && (
+                                                        <button
+                                                            onClick={() => handleUndoReject(currentFile.id)}
+                                                            className="ml-1 shrink-0 flex items-center gap-1 rounded-md bg-white/20 hover:bg-white/30 px-2 py-1 text-[11px] font-semibold"
+                                                        >
+                                                            <Undo2 className="h-3 w-3" /> Undo
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
                                             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-20">
                                                 <Button
                                                     size="icon" variant="secondary"
@@ -909,6 +1284,17 @@ export function ThumbnailReviewModal({
                                                 </Button>
                                             </div>
                                         </div>
+
+                                        {!readOnly && viewingVersion === latestVersion && (
+                                            <div className="shrink-0 z-20 flex justify-center">
+                                                <ReviewModePills
+                                                    activeMode={activeMode}
+                                                    onSelect={handleModeSelect}
+                                                    hiddenModes={['range']}
+                                                    disabled={cropSaving}
+                                                />
+                                            </div>
+                                        )}
 
                                         {/* Bottom thumbnail picker — matches ReviewModePills' segmented-pill styling */}
                                         <div
@@ -941,6 +1327,35 @@ export function ThumbnailReviewModal({
                                             >
                                                 <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
                                             </button>
+                                            {!readOnly && viewingVersion === latestVersion && (
+                                                <>
+                                                    <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
+                                                    <button
+                                                        onClick={() => { exitDrawMode(); setShowCrop(true); }}
+                                                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-[var(--review-v2-gray-100)] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                                                        title="Crop or change aspect ratio — saves as a new version of this image"
+                                                    >
+                                                        <Crop className="h-4 w-4" strokeWidth={1.5} /> Crop
+                                                    </button>
+                                                    {currentRejection ? (
+                                                        <button
+                                                            onClick={() => handleUndoReject(currentFile.id)}
+                                                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-red-300 hover:bg-red-500/20 transition-all cursor-pointer"
+                                                            title="Remove the rejection from this image"
+                                                        >
+                                                            <Undo2 className="h-4 w-4" strokeWidth={1.5} /> Undo reject
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => { setRejectReason(''); setShowRejectDialog(true); }}
+                                                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/15 transition-all cursor-pointer"
+                                                            title="Reject this image for the set"
+                                                        >
+                                                            <Ban className="h-4 w-4" strokeWidth={1.5} /> Reject
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
                                             {orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
                                                 <>
                                                     <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
@@ -1032,6 +1447,7 @@ export function ThumbnailReviewModal({
                                     {viewingVersion === latestVersion ? (
                                         <div className="p-3 border-b border-[var(--review-border)] flex-shrink-0">
                                             <CommentInput
+                                                ref={commentInputRef}
                                                 taskId={taskId}
                                                 currentTime={0}
                                                 currentTimestamp={`#${currentNumber}`}
@@ -1052,7 +1468,7 @@ export function ThumbnailReviewModal({
                                         </div>
                                     )}
                                     <div className="flex-1 overflow-y-auto p-3 review-scrollbar min-h-0">
-                                        {comments.length === 0 ? (
+                                        {fileComments.length === 0 ? (
                                             <div className="text-center py-12 text-[var(--review-text-muted)]">
                                                 <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-30" />
                                                 <p className="text-sm">No comments yet</p>
@@ -1060,7 +1476,7 @@ export function ThumbnailReviewModal({
                                             </div>
                                         ) : (
                                             <div className="space-y-2">
-                                                {comments.map(comment => (
+                                                {fileComments.map(comment => (
                                                     <div key={comment.id}>
                                                         <ReviewCommentCard
                                                             comment={comment}
@@ -1088,13 +1504,14 @@ export function ThumbnailReviewModal({
                                 {/* ── TITLES TAB ── */}
                                 {sidebarTab === 'titles' && (
                                     <div className="flex-1 overflow-y-auto review-scrollbar min-h-0">
-                                        {(['titles', 'descriptions'] as const).map(type => {
-                                            const currentList = type === 'titles' ? postingTitles : postingDescriptions;
+                                        {(['titles', 'descriptions', 'tags'] as const).map(type => {
+                                            const currentList = getList(type);
                                             const cap = CAPS[type];
                                             const atCap = currentList.length >= cap;
                                             const labels = {
                                                 titles:       { singular: 'title',       placeholder: 'Add a title…'       },
                                                 descriptions: { singular: 'description', placeholder: 'Add a description…' },
+                                                tags:         { singular: 'tag',         placeholder: 'Add a tag…'         },
                                             };
                                             const { singular, placeholder } = labels[type];
 
@@ -1128,6 +1545,30 @@ export function ThumbnailReviewModal({
                                                         </div>
                                                     </div>
 
+                                                    {type === 'tags' && (templateHashtags?.length ?? 0) > 0 && (
+                                                        <div className="px-3 mt-2">
+                                                            <span className="text-[10px] font-medium text-[var(--review-text-muted)] uppercase tracking-wide">Client tags</span>
+                                                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                                {templateHashtags!.map(tag => {
+                                                                    const selected = postingTags.some(t => t.text === tag);
+                                                                    return (
+                                                                        <button
+                                                                            key={tag}
+                                                                            type="button"
+                                                                            onClick={() => toggleTemplateHashtag(tag)}
+                                                                            className="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors cursor-pointer"
+                                                                            style={selected
+                                                                                ? { background: 'var(--review-v2-gray-50)', borderColor: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }
+                                                                                : { background: 'transparent', borderColor: 'var(--review-border)', color: 'var(--review-text-muted)' }}
+                                                                        >
+                                                                            {tag}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     {/* List items */}
                                                     <div className="px-3 space-y-2 mt-2">
                                                         {currentList.length === 0 ? (
@@ -1135,7 +1576,7 @@ export function ThumbnailReviewModal({
                                                                 <p className="text-xs opacity-70">No {singular}s yet</p>
                                                             </div>
                                                         ) : currentList.map(item => (
-                                                            <div key={item.id} className={`group rounded-lg border p-2.5 ${type === 'titles' && editingId !== item.id ? 'bg-[var(--review-v2-gray-50)] border-transparent' : 'border-[var(--review-border)] bg-[var(--review-bg-tertiary)]'}`}>
+                                                            <div key={item.id} className={`group rounded-lg border p-2.5 ${editingId !== item.id ? 'bg-[var(--review-v2-gray-50)] border-transparent' : 'border-[var(--review-border)] bg-[var(--review-bg-tertiary)]'}`}>
                                                                 {editingId === item.id ? (
                                                                     <div className="space-y-1.5">
                                                                         <Input
@@ -1155,11 +1596,11 @@ export function ThumbnailReviewModal({
                                                                     </div>
                                                                 ) : (
                                                                     <div className="flex items-start gap-2">
-                                                                        <p className={`flex-1 text-xs ${type === 'titles' ? 'text-black' : 'text-[var(--review-text-secondary)]'} leading-relaxed break-words min-w-0`}>{item.text}</p>
+                                                                        <p className="flex-1 text-xs text-black leading-relaxed break-words min-w-0">{item.text}</p>
                                                                         <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             <button
                                                                                 onClick={() => startEdit(item.id, item.text)}
-                                                                                className={`p-1 rounded transition-colors ${type === 'titles' ? 'hover:bg-black/10 text-black/50 hover:text-black' : 'hover:bg-white/10 text-[var(--review-text-muted)] hover:text-white'}`}
+                                                                                className="p-1 rounded transition-colors hover:bg-black/10 text-black/50 hover:text-black"
                                                                                 title={`Edit ${singular}`}
                                                                             >
                                                                                 <PenLine className="h-3 w-3" />
@@ -1167,7 +1608,7 @@ export function ThumbnailReviewModal({
                                                                             <button
                                                                                 onClick={() => deleteItem(type, item.id)}
                                                                                 disabled={type === 'titles' && userRole === 'client' && currentList.length <= 1}
-                                                                                className={`p-1 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${type === 'titles' ? 'hover:bg-red-500/15 text-black/50 hover:text-red-600' : 'hover:bg-red-500/20 text-[var(--review-text-muted)] hover:text-red-400'}`}
+                                                                                className="p-1 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed hover:bg-red-500/15 text-black/50 hover:text-red-600"
                                                                                 title={`Delete ${singular}`}
                                                                             >
                                                                                 <X className="h-3 w-3" />
@@ -1211,6 +1652,9 @@ export function ThumbnailReviewModal({
                                                             <p className="text-xs font-medium text-white truncate">{t.name}</p>
                                                             <p className="text-[10px] text-[var(--review-text-muted)]">Option #{idx + 1}</p>
                                                         </div>
+                                                        {rejections[t.id] && (
+                                                            <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-bold">Rejected</span>
+                                                        )}
                                                         {currentFile.id === t.id && (
                                                             <span className="text-[10px] bg-white text-black px-2 py-0.5 rounded-full font-bold">Selected</span>
                                                         )}
@@ -1280,7 +1724,8 @@ export function ThumbnailReviewModal({
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={handleStepApprove}
-                                                    disabled={savingFeedback || unresolvedCount > 0}
+                                                    disabled={savingFeedback || unresolvedCount > 0 || rejectedCount > 0}
+                                                    title={rejectedCount > 0 ? 'Resolve or undo the rejected image(s) first' : undefined}
                                                     className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 px-3 rounded-lg cursor-pointer transition-all bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-sm border border-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
@@ -1289,15 +1734,15 @@ export function ThumbnailReviewModal({
 
                                                 <button
                                                     onClick={() => {
-                                                        if (unresolvedCount === 0) {
-                                                            toast.error('Please add at least one comment before sending back');
+                                                        if (actionCount === 0) {
+                                                            toast.error('Please add a comment or reject an image before sending back');
                                                             return;
                                                         }
                                                         handleRequestRevisionsClick(false);
                                                     }}
                                                     disabled={savingFeedback}
                                                     className={`w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 px-3 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed hover:bg-[#dc2626] hover:border-[#dc2626] hover:text-white ${
-                                                        unresolvedCount > 0
+                                                        actionCount > 0
                                                             ? 'bg-[#a6303a] border-[#a6303a] text-white'
                                                             : 'bg-[#18181b] border-[#38383d] text-zinc-300'
                                                     }`}
@@ -1307,7 +1752,7 @@ export function ThumbnailReviewModal({
                                                     ) : (
                                                         <MessageSquare className="h-4 w-4" strokeWidth={1.75} />
                                                     )}
-                                                    Send Back ({unresolvedCount})
+                                                    Send Back ({actionCount})
                                                 </button>
                                             </div>
 
@@ -1321,7 +1766,7 @@ export function ThumbnailReviewModal({
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={handleSendToClientReviewClick}
-                                                    disabled={savingFeedback || unresolvedCount > 0 || finalRevisionLocked}
+                                                    disabled={savingFeedback || unresolvedCount > 0 || rejectedCount > 0 || finalRevisionLocked}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#2563eb] hover:border-[#3b82f6] hover:text-white text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title={finalRevisionLocked ? "Blocked: the client chose Final Revision on this task, so it goes straight to the scheduler" : "Send directly to client review"}
                                                 >
@@ -1331,7 +1776,7 @@ export function ThumbnailReviewModal({
 
                                                 <button
                                                     onClick={handleBypassClientReviewClick}
-                                                    disabled={savingFeedback || unresolvedCount > 0}
+                                                    disabled={savingFeedback || unresolvedCount > 0 || rejectedCount > 0}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#eab308] hover:border-[#facc15] hover:text-black text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title="Bypass client review and finalize delivery"
                                                 >
@@ -1344,7 +1789,8 @@ export function ThumbnailReviewModal({
                                         <>
                                             <button
                                                 onClick={handleStepApprove}
-                                                disabled={savingFeedback || unresolvedCount > 0}
+                                                disabled={savingFeedback || unresolvedCount > 0 || rejectedCount > 0}
+                                                title={rejectedCount > 0 ? 'Resolve or undo the rejected image(s) first' : undefined}
                                                 className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-lg cursor-pointer transition-all bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-sm border border-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
@@ -1354,15 +1800,15 @@ export function ThumbnailReviewModal({
                                             <div className="flex items-stretch gap-2">
                                                 <button
                                                 onClick={() => {
-                                                    if (unresolvedCount === 0) {
-                                                        toast.error('Please add at least one comment before sending back');
+                                                    if (actionCount === 0) {
+                                                        toast.error('Please add a comment or reject an image before sending back');
                                                         return;
                                                     }
                                                     handleRequestRevisionsClick(false);
                                                 }}
                                                 disabled={savingFeedback}
                                                 className={`flex-[1.4] min-w-0 whitespace-nowrap flex items-center justify-center gap-1.5 text-sm font-medium py-3 px-2 rounded-lg cursor-pointer transition-all border disabled:cursor-not-allowed hover:bg-[#dc2626] hover:border-[#dc2626] hover:text-white ${
-                                                    unresolvedCount > 0
+                                                    actionCount > 0
                                                         ? 'bg-[#a6303a] border-[#a6303a] text-white'
                                                         : 'bg-[#18181b] border-[#38383d] text-zinc-300'
                                                 }`}
@@ -1372,13 +1818,13 @@ export function ThumbnailReviewModal({
                                                 ) : (
                                                     <MessageSquare className="h-4 w-4" strokeWidth={1.5} />
                                                 )}
-                                                Send Back ({unresolvedCount} comment{unresolvedCount === 1 ? '' : 's'})
+                                                Send Back ({actionCount} item{actionCount === 1 ? '' : 's'})
                                             </button>
                                             {allowFinalRevision && userRole === 'client' && (
                                                 <button
                                                     onClick={() => {
-                                                        if (unresolvedCount === 0) {
-                                                            toast.error('Please add at least one comment before requesting a final revision');
+                                                        if (actionCount === 0) {
+                                                            toast.error('Please add a comment or reject an image before requesting a final revision');
                                                             return;
                                                         }
                                                         setShowFinalRevisionConfirm(true);
@@ -1414,6 +1860,15 @@ export function ThumbnailReviewModal({
                         isSaving={isSavingOrder}
                     />
                 </TooltipProvider>
+                <ImageCropDialog
+                    open={showCrop}
+                    onClose={() => !cropSaving && setShowCrop(false)}
+                    imageUrl={currentFile.url}
+                    fileName={currentFile.name}
+                    mimeType={currentFile.mimeType}
+                    saving={cropSaving}
+                    onSave={handleCropSave}
+                />
                 <FinalRevisionConfirmDialog
                     open={showFinalRevisionConfirm}
                     onOpenChange={setShowFinalRevisionConfirm}
