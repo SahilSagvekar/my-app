@@ -28,7 +28,7 @@ import {
   client as clientTable,
 } from "@/lib/db/schema";
 import { getCurrentUser2 } from "@/lib/auth";
-import { uploadBufferToS3, addSignedUrlsToFiles } from "@/lib/s3";
+import { uploadBufferToS3, addSignedUrlsToFiles, generateSignedUrl } from "@/lib/s3";
 
 const MAX_BYTES = 25 * 1024 * 1024; // 25 MB — plenty for a cropped still
 const ALLOWED_MIME: Record<string, string> = {
@@ -38,6 +38,67 @@ const ALLOWED_MIME: Record<string, string> = {
 };
 // Roles that may crop any task's images.
 const STAFF_ROLES = new Set(["admin", "manager", "qc"]);
+
+// GET — streams the image bytes through this origin so the crop editor can
+// draw it on a canvas. Loading the R2 URL directly needs CORS headers on the
+// bucket; going through here does not. Same permission rules as POST.
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; fileId: string }> },
+) {
+  try {
+    const user = await getCurrentUser2(req);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id: taskId, fileId } = await params;
+    const db = getDbHttp();
+
+    const [taskRow] = await db
+      .select({ id: taskTable.id, clientId: taskTable.clientId })
+      .from(taskTable)
+      .where(eq(taskTable.id, taskId))
+      .limit(1);
+    if (!taskRow) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+
+    const role = (user.role || "").toLowerCase();
+    let allowed = STAFF_ROLES.has(role);
+    if (!allowed && role === "client" && taskRow.clientId) {
+      if (user.linkedClientId && user.linkedClientId === taskRow.clientId) {
+        allowed = true;
+      } else {
+        const [ownClient] = await db
+          .select({ id: clientTable.id })
+          .from(clientTable)
+          .where(and(eq(clientTable.id, taskRow.clientId), eq(clientTable.userId, user.id)))
+          .limit(1);
+        allowed = !!ownClient;
+      }
+    }
+    if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const [f] = await db
+      .select()
+      .from(fileTable)
+      .where(and(eq(fileTable.id, fileId), eq(fileTable.taskId, taskId)))
+      .limit(1);
+    if (!f || !f.s3Key || !(f.mimeType || "").startsWith("image/")) {
+      return NextResponse.json({ error: "Image not found" }, { status: 404 });
+    }
+
+    const upstream = await fetch(await generateSignedUrl(f.s3Key, 300));
+    if (!upstream.ok || !upstream.body) {
+      return NextResponse.json({ error: "Could not read image from storage" }, { status: 502 });
+    }
+    return new Response(upstream.body, {
+      headers: {
+        "Content-Type": f.mimeType || upstream.headers.get("content-type") || "image/jpeg",
+        "Cache-Control": "private, max-age=300",
+      },
+    });
+  } catch (error: any) {
+    console.error("Error streaming image for crop:", error);
+    return NextResponse.json({ error: "Failed to load image" }, { status: 500 });
+  }
+}
 
 export async function POST(
   req: NextRequest,

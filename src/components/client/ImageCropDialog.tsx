@@ -169,7 +169,7 @@ export function ImageCropDialog({
         };
         img.onerror = () => {
             setLoadError(
-                "This image can't be opened for editing in the browser (the storage server blocked it). Ask for the storage CORS setting to be checked.",
+                "This image can't be opened for editing in the browser (it failed to load). Close this and try again.",
             );
         };
         img.src = imageUrl;

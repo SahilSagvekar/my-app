@@ -1863,7 +1863,7 @@ export function ThumbnailReviewModal({
                 <ImageCropDialog
                     open={showCrop}
                     onClose={() => !cropSaving && setShowCrop(false)}
-                    imageUrl={currentFile.url}
+                    imageUrl={`/api/tasks/${taskId}/files/${currentFile.id}/crop`}
                     fileName={currentFile.name}
                     mimeType={currentFile.mimeType}
                     saving={cropSaving}
