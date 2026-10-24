@@ -1341,33 +1341,34 @@ export function ThumbnailReviewModal({
                                                             onSelect={handleModeSelect}
                                                             hiddenModes={['range']}
                                                             disabled={cropSaving}
+                                                            extraActions={[
+                                                                {
+                                                                    id: 'crop',
+                                                                    label: 'Crop',
+                                                                    Icon: Crop,
+                                                                    title: 'Crop or change aspect ratio — saves as a new version of this image',
+                                                                    onClick: () => { exitDrawMode(); setShowCrop(true); },
+                                                                },
+                                                                currentRejection
+                                                                    ? {
+                                                                        id: 'reject',
+                                                                        label: 'Undo reject',
+                                                                        Icon: Undo2,
+                                                                        danger: true,
+                                                                        title: 'Remove the rejection from this image',
+                                                                        onClick: () => handleUndoReject(currentFile.id),
+                                                                    }
+                                                                    : {
+                                                                        id: 'reject',
+                                                                        label: 'Reject',
+                                                                        Icon: Ban,
+                                                                        danger: true,
+                                                                        title: 'Reject this image for the set',
+                                                                        onClick: () => { setRejectReason(''); setShowRejectDialog(true); },
+                                                                    },
+                                                            ]}
                                                         />
                                                     </div>
-                                                    <div className="h-4 w-px mx-1 shrink-0" style={{ background: 'var(--review-v2-gray-600)' }} />
-                                                    <button
-                                                        onClick={() => { exitDrawMode(); setShowCrop(true); }}
-                                                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-[var(--review-v2-gray-100)] hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0"
-                                                        title="Crop or change aspect ratio — saves as a new version of this image"
-                                                    >
-                                                        <Crop className="h-4 w-4" strokeWidth={1.5} /> Crop
-                                                    </button>
-                                                    {currentRejection ? (
-                                                        <button
-                                                            onClick={() => handleUndoReject(currentFile.id)}
-                                                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-red-300 hover:bg-red-500/20 transition-all cursor-pointer shrink-0"
-                                                            title="Remove the rejection from this image"
-                                                        >
-                                                            <Undo2 className="h-4 w-4" strokeWidth={1.5} /> Undo reject
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => { setRejectReason(''); setShowRejectDialog(true); }}
-                                                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/15 transition-all cursor-pointer shrink-0"
-                                                            title="Reject this image for the set"
-                                                        >
-                                                            <Ban className="h-4 w-4" strokeWidth={1.5} /> Reject
-                                                        </button>
-                                                    )}
                                                 </>
                                             )}
                                         </div>

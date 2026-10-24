@@ -38,6 +38,18 @@ interface ReviewModePillsProps {
     showDraw?: boolean;
     /** Pills to leave out entirely, e.g. ['range'] on still-image reviews where there is no timeline. */
     hiddenModes?: ReviewMode[];
+    /** One-shot actions (e.g. Crop, Reject) shown as extra segments in the same group, after the mode pills. */
+    extraActions?: ReviewExtraAction[];
+}
+
+export interface ReviewExtraAction {
+    id: string;
+    label: string;
+    Icon: typeof Pencil;
+    onClick: () => void;
+    title?: string;
+    /** Red text, for destructive actions like Reject. */
+    danger?: boolean;
 }
 
 const ALL_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
@@ -47,7 +59,7 @@ const ALL_MODES: { id: ReviewMode; label: string; Icon: typeof Pencil }[] = [
     { id: 'attach', label: 'Attach', Icon: Paperclip },
 ];
 
-export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, gridActive, showInstagram, showGrid, showDraw = true, hiddenModes }: ReviewModePillsProps) {
+export function ReviewModePills({ activeMode, onSelect, disabled, instagramActive, gridActive, showInstagram, showGrid, showDraw = true, hiddenModes, extraActions }: ReviewModePillsProps) {
     const BASE_MODES = ALL_MODES.filter(m => (showDraw || m.id !== 'draw') && !hiddenModes?.includes(m.id));
     const showGridDropdown = showInstagram || showGrid;
     const gridDropdownActive = !!instagramActive || !!gridActive;
@@ -83,6 +95,23 @@ export function ReviewModePills({ activeMode, onSelect, disabled, instagramActiv
                         </div>
                     );
                 })}
+
+                {extraActions?.map(({ id, label, Icon, onClick, title, danger }, i) => (
+                    <div key={id} className="flex items-stretch">
+                        {(BASE_MODES.length > 0 || i > 0) && <span style={{ width: 1, background: 'var(--review-v2-gray-600)' }} />}
+                        <button
+                            type="button"
+                            disabled={disabled}
+                            onClick={onClick}
+                            title={title}
+                            className="relative flex items-center gap-2 px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 border-none disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:bg-white/10"
+                            style={{ background: 'transparent', color: danger ? '#f87171' : 'var(--review-v2-gray-100)' }}
+                        >
+                            <Icon className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                            <span>{label}</span>
+                        </button>
+                    </div>
+                ))}
 
                 {showGridDropdown && (
                     <div className="flex items-stretch">
