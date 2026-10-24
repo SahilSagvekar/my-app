@@ -25,6 +25,8 @@ import {
     ImageIcon,
     Send,
     CheckSquare,
+    ChevronLeft,
+    ChevronRight,
     Crop,
     Ban,
     Undo2,
@@ -992,37 +994,48 @@ export function ThumbnailReviewModal({
                         {showRejectDialog && (
                             <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/70" onClick={() => !rejecting && setShowRejectDialog(false)}>
                                 <div
-                                    className="w-[440px] max-w-[92vw] rounded-xl border border-[var(--review-border)] p-5 space-y-3"
+                                    className="w-[460px] max-w-[92vw] rounded-2xl border border-[var(--review-border)] overflow-hidden shadow-2xl"
                                     style={{ background: 'var(--review-bg-secondary)' }}
                                     onClick={e => e.stopPropagation()}
                                 >
-                                    <div className="flex items-center gap-2 text-white">
-                                        <Ban className="h-5 w-5 text-red-400" />
-                                        <h3 className="text-base font-semibold">Reject image #{currentNumber}</h3>
+                                    <div className="flex items-start gap-3 p-5 pb-4">
+                                        <span className="h-10 w-10 shrink-0 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+                                            <Ban className="h-5 w-5 text-red-400" />
+                                        </span>
+                                        <div className="min-w-0 flex-1">
+                                            <h3 className="text-base font-semibold text-white">Reject image #{currentNumber}</h3>
+                                            <p className="text-sm text-[var(--review-text-muted)]">Tell the editor what to fix.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => !rejecting && setShowRejectDialog(false)}
+                                            className="p-1 rounded-md text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 cursor-pointer"
+                                            aria-label="Close"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
                                     </div>
-                                    <p className="text-xs text-[var(--review-text-muted)] leading-relaxed">
-                                        This image is not usable for the set. The set can't be approved while it is rejected, and it is sent back to the editor with your reason.
-                                    </p>
-                                    <textarea
-                                        value={rejectReason}
-                                        onChange={e => setRejectReason(e.target.value)}
-                                        placeholder="Why is this image rejected?"
-                                        rows={3}
-                                        autoFocus
-                                        className="w-full text-sm rounded-lg bg-[var(--review-bg-tertiary)] border border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] p-2.5 resize-none outline-none focus:border-white/40"
-                                    />
-                                    <div className="flex justify-end gap-2">
+                                    <div className="px-5 pb-5">
+                                        <textarea
+                                            value={rejectReason}
+                                            onChange={e => setRejectReason(e.target.value)}
+                                            placeholder="e.g. Horizon is tilted, re-export straight"
+                                            rows={3}
+                                            autoFocus
+                                            className="w-full text-sm rounded-xl bg-[var(--review-bg-tertiary)] border border-[var(--review-border)] text-white placeholder:text-[var(--review-text-muted)] p-3 resize-none outline-none focus:border-white/40"
+                                        />
+                                    </div>
+                                    <div className="flex justify-end items-center gap-3 px-5 py-3 border-t border-[var(--review-border)]">
                                         <button
                                             onClick={() => setShowRejectDialog(false)}
                                             disabled={rejecting}
-                                            className="px-3 py-2 rounded-lg text-sm text-zinc-300 hover:bg-white/10 cursor-pointer"
+                                            className="px-3 py-2 rounded-lg text-sm font-semibold text-zinc-200 hover:bg-white/10 cursor-pointer"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             onClick={handleRejectImage}
                                             disabled={rejecting || !rejectReason.trim()}
-                                            className="px-3 py-2 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:bg-red-900/50 disabled:text-red-200/60 disabled:cursor-not-allowed cursor-pointer transition-colors"
                                         >
                                             {rejecting ? 'Rejecting…' : 'Reject image'}
                                         </button>
@@ -1247,14 +1260,14 @@ export function ThumbnailReviewModal({
                                 ) : (
                                     /* Single image view */
                                     <div className="flex-1 relative bg-black flex flex-col items-center justify-between overflow-hidden p-4 sm:p-6 gap-3">
-                                        <div ref={imageStageRef} className="flex-1 w-full min-h-0 relative group flex items-center justify-center">
+                                        <div ref={imageStageRef} className={`flex-1 w-full min-h-0 relative group flex items-center justify-center ${currentRejection ? 'ring-1 ring-inset ring-red-500' : ''}`}>
                                             <img
                                                 key={currentFile.id + (imgCrossOriginFailed ? '-nocors' : '')}
                                                 ref={imageRef}
                                                 crossOrigin={imgCrossOriginFailed ? undefined : "anonymous"}
                                                 src={currentFile.url}
                                                 alt={currentFile.name}
-                                                className={`max-w-full max-h-full object-contain shadow-2xl rounded-sm ${currentRejection ? 'opacity-50 ring-2 ring-red-500' : ''}`}
+                                                className="max-w-full max-h-full object-contain shadow-2xl rounded-sm"
                                                 onError={() => {
                                                     if (!imgCrossOriginFailed) {
                                                         console.warn(`[ThumbnailReviewModal] "${currentFile.name}" failed to load with crossOrigin="anonymous" — retrying without it. Screenshot/draw capture will be unavailable for this image until it reloads cleanly.`);
@@ -1279,20 +1292,12 @@ export function ThumbnailReviewModal({
                                                 </div>
                                             )}
                                             {currentRejection && (
-                                                <div className="absolute top-4 left-4 z-20 max-w-[70%] flex items-center gap-2 rounded-lg bg-red-600/95 text-white px-3 py-2 shadow-lg">
-                                                    <Ban className="h-4 w-4 shrink-0" />
-                                                    <div className="min-w-0">
-                                                        <p className="text-[10px] font-bold uppercase tracking-wide">Image #{currentNumber} rejected</p>
-                                                        <p className="text-xs truncate" title={currentRejection.reason}>{currentRejection.reason}</p>
-                                                    </div>
-                                                    {!readOnly && viewingVersion === latestVersion && (
-                                                        <button
-                                                            onClick={() => handleUndoReject(currentFile.id)}
-                                                            className="ml-1 shrink-0 flex items-center gap-1 rounded-md bg-white/20 hover:bg-white/30 px-2 py-1 text-[11px] font-semibold"
-                                                        >
-                                                            <Undo2 className="h-3 w-3" /> Undo
-                                                        </button>
-                                                    )}
+                                                <div className="absolute top-4 left-4 z-20 max-w-[75%] flex items-center gap-3 rounded-lg border border-red-500/70 bg-black/70 backdrop-blur-sm px-3 py-2 text-sm">
+                                                    <span className="flex items-center gap-1.5 font-semibold text-red-400 shrink-0">
+                                                        <Ban className="h-4 w-4" /> Rejected
+                                                    </span>
+                                                    <span className="h-4 w-px bg-white/25 shrink-0" />
+                                                    <span className="truncate text-zinc-200" title={currentRejection.reason}>{currentRejection.reason}</span>
                                                 </div>
                                             )}
                                             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-20">
@@ -1306,119 +1311,136 @@ export function ThumbnailReviewModal({
                                             </div>
                                         </div>
 
-                                        {/* Bottom bar: Images · Gallery · 1…N · Order · Draw/Voice/Attach · Crop · Reject */}
+                                        {/* Bottom bar: All · ‹ n / N › · Order · Draw/Voice/Attach/Crop/Reject */}
                                         <div
-                                            className="shrink-0 z-20 max-w-full flex-wrap justify-center rounded-md px-4 py-2 flex items-center gap-2"
+                                            className="shrink-0 z-20 max-w-full flex-wrap justify-center rounded-xl px-3 py-2.5 flex items-center gap-2"
                                             style={{
                                                 background: 'var(--review-v2-gray-950)',
                                                 border: '1px solid var(--review-v2-gray-600)',
                                             }}
                                         >
-                                            <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-1 shrink-0">
-                                                {imageLabel}
-                                            </span>
                                             <button
                                                 onClick={() => setViewMode('gallery')}
-                                                className="p-1.5 rounded-md text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0"
-                                                title="Gallery view"
+                                                className="flex items-center gap-2 px-3.5 py-2.5 rounded-md text-sm font-semibold text-[var(--review-v2-gray-100)] hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0"
+                                                style={{ border: '1px solid var(--review-v2-gray-600)' }}
+                                                title="Show all images"
                                             >
-                                                <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
+                                                <LayoutGrid className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                                <span>All</span>
                                             </button>
-                                            {orderedThumbnails.map((t, idx) => (
+
+                                            <div
+                                                className="flex items-stretch rounded-md shrink-0"
+                                                style={{ border: '1px solid var(--review-v2-gray-600)' }}
+                                            >
                                                 <button
-                                                    key={t.id}
-                                                    onClick={() => setCurrentFile(t)}
-                                                    className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold transition-all cursor-pointer shrink-0"
-                                                    style={currentFile.id === t.id
-                                                        ? { background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }
-                                                        : { background: 'transparent', color: 'var(--review-v2-gray-100)' }}
+                                                    onClick={() => { if (currentNumber > 1) setCurrentFile(orderedThumbnails[currentNumber - 2]); }}
+                                                    disabled={currentNumber <= 1}
+                                                    className="px-3 text-[var(--review-v2-gray-100)] hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer rounded-l-md"
+                                                    title="Previous image (←)"
                                                 >
-                                                    {idx + 1}
+                                                    <ChevronLeft className="h-4 w-4" />
                                                 </button>
-                                            ))}
+                                                <span className="px-4 py-2.5 text-sm font-semibold text-white tabular-nums border-x border-[var(--review-v2-gray-600)] min-w-[88px] text-center">
+                                                    {Math.max(1, currentNumber)} <span className="text-[var(--review-text-muted)]">/ {orderedThumbnails.length}</span>
+                                                </span>
+                                                <button
+                                                    onClick={() => { if (currentNumber < orderedThumbnails.length) setCurrentFile(orderedThumbnails[currentNumber]); }}
+                                                    disabled={currentNumber >= orderedThumbnails.length}
+                                                    className="px-3 text-[var(--review-v2-gray-100)] hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer rounded-r-md"
+                                                    title="Next image (→)"
+                                                >
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </button>
+                                            </div>
+
                                             {orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
-                                                <>
-                                                    <div className="h-4 w-px mx-1 shrink-0" style={{ background: 'var(--review-v2-gray-600)' }} />
-                                                    <div className="shrink-0">
-                                                        <ImageOrderPopover
-                                                            files={orderedThumbnails}
-                                                            currentFileId={currentFile?.id}
-                                                            onSelectFile={(f) => {
-                                                                setCurrentFile(f);
-                                                                setViewMode('single');
-                                                            }}
-                                                            onReorder={handleReorderImages}
-                                                            isSaving={isSavingOrder}
-                                                        />
-                                                    </div>
-                                                </>
+                                                <div className="shrink-0">
+                                                    <ImageOrderPopover
+                                                        files={orderedThumbnails}
+                                                        currentFileId={currentFile?.id}
+                                                        onSelectFile={(f) => {
+                                                            setCurrentFile(f);
+                                                            setViewMode('single');
+                                                        }}
+                                                        onReorder={handleReorderImages}
+                                                        isSaving={isSavingOrder}
+                                                    />
+                                                </div>
                                             )}
+
                                             {!readOnly && viewingVersion === latestVersion && (
-                                                <>
-                                                    <div className="h-4 w-px mx-1 shrink-0" style={{ background: 'var(--review-v2-gray-600)' }} />
-                                                    <div className="shrink-0">
-                                                        <ReviewModePills
-                                                            activeMode={activeMode}
-                                                            onSelect={handleModeSelect}
-                                                            hiddenModes={['range']}
-                                                            disabled={cropSaving}
-                                                            extraActions={[
-                                                                {
-                                                                    id: 'crop',
-                                                                    label: 'Crop',
-                                                                    Icon: Crop,
-                                                                    title: 'Crop or change aspect ratio — saves as a new version of this image',
-                                                                    onClick: () => { exitDrawMode(); setShowCrop(true); },
+                                                <div className="shrink-0">
+                                                    <ReviewModePills
+                                                        activeMode={activeMode}
+                                                        onSelect={handleModeSelect}
+                                                        hiddenModes={['range']}
+                                                        disabled={cropSaving}
+                                                        extraActions={[
+                                                            {
+                                                                id: 'crop',
+                                                                label: 'Crop',
+                                                                Icon: Crop,
+                                                                title: 'Crop or change aspect ratio — saves as a new version of this image',
+                                                                onClick: () => { exitDrawMode(); setShowCrop(true); },
+                                                            },
+                                                            currentRejection
+                                                                ? {
+                                                                    id: 'reject',
+                                                                    label: 'Undo Reject',
+                                                                    Icon: Undo2,
+                                                                    danger: true,
+                                                                    title: 'Remove the rejection from this image',
+                                                                    onClick: () => handleUndoReject(currentFile.id),
+                                                                }
+                                                                : {
+                                                                    id: 'reject',
+                                                                    label: 'Reject Single Image',
+                                                                    Icon: Ban,
+                                                                    danger: true,
+                                                                    title: 'Reject this image for the set',
+                                                                    onClick: () => { setRejectReason(''); setShowRejectDialog(true); },
                                                                 },
-                                                                currentRejection
-                                                                    ? {
-                                                                        id: 'reject',
-                                                                        label: 'Undo reject',
-                                                                        Icon: Undo2,
-                                                                        danger: true,
-                                                                        title: 'Remove the rejection from this image',
-                                                                        onClick: () => handleUndoReject(currentFile.id),
-                                                                    }
-                                                                    : {
-                                                                        id: 'reject',
-                                                                        label: 'Reject',
-                                                                        Icon: Ban,
-                                                                        danger: true,
-                                                                        title: 'Reject this image for the set',
-                                                                        onClick: () => { setRejectReason(''); setShowRejectDialog(true); },
-                                                                    },
-                                                            ]}
-                                                        />
-                                                    </div>
-                                                </>
+                                                        ]}
+                                                    />
+                                                </div>
                                             )}
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Floating Order button in gallery view — matches ReviewModePills' segmented-pill styling */}
-                                {viewMode === 'gallery' && orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
+                                {/* Gallery view pill: back to single view + Order */}
+                                {viewMode === 'gallery' && (
                                     <div
-                                        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-md px-4 py-2 flex items-center gap-2 z-20"
+                                        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-xl px-3 py-2.5 flex items-center gap-3 z-20 max-w-[95%] flex-wrap justify-center"
                                         style={{
                                             background: 'var(--review-v2-gray-950)',
                                             border: '1px solid var(--review-v2-gray-600)',
                                         }}
                                     >
-                                        <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-1">
+                                        <button
+                                            onClick={() => setViewMode('single')}
+                                            className="flex items-center gap-2 px-3.5 py-2.5 rounded-md text-sm font-semibold text-[var(--review-v2-gray-100)] hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0"
+                                            style={{ border: '1px solid var(--review-v2-gray-600)' }}
+                                        >
+                                            <Maximize className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                            <span>Single Image View</span>
+                                        </button>
+                                        <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest">
                                             {imageLabel} ({orderedThumbnails.length})
                                         </span>
-                                        <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
-                                        <ImageOrderPopover
-                                            files={orderedThumbnails}
-                                            currentFileId={currentFile?.id}
-                                            onSelectFile={(f) => {
-                                                setCurrentFile(f);
-                                                setViewMode('single');
-                                            }}
-                                            onReorder={handleReorderImages}
-                                            isSaving={isSavingOrder}
-                                        />
+                                        {orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
+                                            <ImageOrderPopover
+                                                files={orderedThumbnails}
+                                                currentFileId={currentFile?.id}
+                                                onSelectFile={(f) => {
+                                                    setCurrentFile(f);
+                                                    setViewMode('single');
+                                                }}
+                                                onReorder={handleReorderImages}
+                                                isSaving={isSavingOrder}
+                                            />
+                                        )}
                                     </div>
                                 )}
                             </div>

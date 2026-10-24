@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ListOrdered, ChevronUp, ChevronDown, Check, GripVertical, Loader2, X } from 'lucide-react';
+import { ListOrdered, ChevronDown, Check, GripVertical, Loader2, X } from 'lucide-react';
 import { TaskFile } from './ThumbnailReviewModal';
 
 interface ImageOrderPopoverProps {
@@ -118,7 +118,7 @@ export function ImageOrderPopover({
                                 Order Images ({items.length})
                             </span>
                             <span className="text-[10px] text-[var(--review-text-muted)]">
-                                Drag to reorder
+                                Drag to reorder · click to open
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -139,8 +139,8 @@ export function ImageOrderPopover({
 
                     {/* 4-column Grid that expands vertically */}
                     <div
-                        className="grid grid-cols-4 gap-2.5 max-h-[380px] overflow-y-auto p-1 review-scrollbar"
-                        style={{ minWidth: 'min(360px, 85vw)' }}
+                        className="grid grid-cols-5 gap-2.5 max-h-[380px] overflow-y-auto p-1 review-scrollbar"
+                        style={{ minWidth: 'min(520px, 85vw)' }}
                     >
                         {items.map((file, index) => {
                             const isCurrent = file.id === currentFileId;
@@ -212,7 +212,7 @@ export function ImageOrderPopover({
             >
                 <ListOrdered className="h-[15px] w-[15px]" strokeWidth={1.5} />
                 <span>{buttonLabel}</span>
-                <ChevronUp className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} strokeWidth={1.75} />
+                <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} strokeWidth={1.75} />
             </button>
         </div>
     );
