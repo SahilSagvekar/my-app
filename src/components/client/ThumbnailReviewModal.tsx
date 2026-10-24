@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dia
 import { E8Logo } from '../ui/E8Logo';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import {
     X,
     Download,
@@ -21,8 +22,6 @@ import {
     Film,
     ListOrdered,
     ChevronDown,
-    ChevronLeft,
-    ChevronRight,
     ImageIcon,
     Send,
     CheckSquare,
@@ -333,6 +332,26 @@ export function ThumbnailReviewModal({
     const latestVersion = useMemo(() => {
         return imageSlots.reduce((max, chain) => Math.max(max, ...chain.map(f => f.version || 1)), 1);
     }, [imageSlots]);
+
+    // One entry per version of the set (1…latest), dated by the newest file
+    // uploaded at that version — feeds the same version dropdown the video
+    // review has.
+    const versionOptions = useMemo(() => {
+        const dates = new Map<number, number>();
+        imageSlots.flat().forEach(f => {
+            const v = f.version || 1;
+            const t = f.uploadedAt ? new Date(f.uploadedAt).getTime() : 0;
+            if (!dates.has(v) || t > (dates.get(v) || 0)) dates.set(v, t);
+        });
+        return Array.from({ length: latestVersion }, (_, i) => {
+            const n = i + 1;
+            const t = dates.get(n);
+            return {
+                number: n,
+                label: t ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+            };
+        });
+    }, [imageSlots, latestVersion]);
 
     const [viewingVersion, setViewingVersion] = useState(() => latestVersion);
 
@@ -1065,29 +1084,6 @@ export function ThumbnailReviewModal({
 
                                 <div className="flex items-baseline gap-3 min-w-0">
                                     <h1 className="text-base font-semibold text-white truncate max-w-md" style={{ letterSpacing: '-0.01em' }}>{taskTitle}</h1>
-                                    {latestVersion > 1 && (
-                                        <div className="flex items-center gap-0.5 bg-white/15 rounded-full pl-1 pr-2 py-0.5 shrink-0">
-                                            <button
-                                                onClick={() => setViewingVersion(v => Math.max(1, v - 1))}
-                                                disabled={viewingVersion <= 1}
-                                                className="disabled:opacity-30 disabled:cursor-not-allowed text-white hover:bg-white/15 rounded-full p-0.5 transition-colors"
-                                                title="Previous version"
-                                            >
-                                                <ChevronLeft className="h-3 w-3" />
-                                            </button>
-                                            <span className="text-[11px] font-semibold text-white px-0.5">
-                                                Version {viewingVersion}{viewingVersion === latestVersion ? ' (Latest)' : ''}
-                                            </span>
-                                            <button
-                                                onClick={() => setViewingVersion(v => Math.min(latestVersion, v + 1))}
-                                                disabled={viewingVersion >= latestVersion}
-                                                className="disabled:opacity-30 disabled:cursor-not-allowed text-white hover:bg-white/15 rounded-full p-0.5 transition-colors"
-                                                title="Next version"
-                                            >
-                                                <ChevronRight className="h-3 w-3" />
-                                            </button>
-                                        </div>
-                                    )}
                                     <span style={{ width: 1, height: 14, background: 'var(--review-border)', flex: 'none', alignSelf: 'center' }} />
                                     <span className="text-xs text-[var(--review-text-muted)] font-medium">
                                         {imageLabel} &bull; {orderedThumbnails.length} image{orderedThumbnails.length !== 1 ? 's' : ''}
@@ -1119,6 +1115,31 @@ export function ThumbnailReviewModal({
                                         </TooltipTrigger>
                                         <TooltipContent side="bottom">Switch to Video Review</TooltipContent>
                                     </Tooltip>
+                                )}
+
+                                {latestVersion > 1 ? (
+                                    <Select value={String(viewingVersion)} onValueChange={v => setViewingVersion(Number(v))}>
+                                        <SelectTrigger
+                                            className="!h-[38px] h-[38px] w-auto min-w-[170px] text-sm font-medium rounded-md py-0"
+                                            style={{ height: '38px', minHeight: '38px', maxHeight: '38px', background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
+                                        >
+                                            <SelectValue placeholder="Version" />
+                                        </SelectTrigger>
+                                        <SelectContent style={{ background: 'var(--review-bg-secondary)', border: '1px solid var(--review-border)' }}>
+                                            {[...versionOptions].reverse().map(v => (
+                                                <SelectItem key={v.number} value={String(v.number)} className="text-sm" style={{ color: 'var(--review-v2-gray-100)' }}>
+                                                    Version {v.number}{v.label ? ` — ${v.label}` : ''}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <Badge
+                                        className="text-xs !h-[38px] h-[38px] w-[38px] p-0 flex items-center justify-center rounded-md"
+                                        style={{ height: '38px', minHeight: '38px', maxHeight: '38px', background: 'var(--review-bg-tertiary)', border: '1px solid var(--review-border-hover)', color: 'var(--review-v2-gray-100)' }}
+                                    >
+                                        V1
+                                    </Badge>
                                 )}
 
                                 <ClientCommentsDropdown
