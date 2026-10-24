@@ -1285,33 +1285,29 @@ export function ThumbnailReviewModal({
                                             </div>
                                         </div>
 
-                                        {!readOnly && viewingVersion === latestVersion && (
-                                            <div className="shrink-0 z-20 flex justify-center">
-                                                <ReviewModePills
-                                                    activeMode={activeMode}
-                                                    onSelect={handleModeSelect}
-                                                    hiddenModes={['range']}
-                                                    disabled={cropSaving}
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* Bottom thumbnail picker — matches ReviewModePills' segmented-pill styling */}
+                                        {/* Bottom bar: Images · Gallery · 1…N · Order · Draw/Voice/Attach · Crop · Reject */}
                                         <div
-                                            className="shrink-0 z-20 rounded-md px-4 py-2 flex items-center gap-2"
+                                            className="shrink-0 z-20 max-w-full flex-wrap justify-center rounded-md px-4 py-2 flex items-center gap-2"
                                             style={{
                                                 background: 'var(--review-v2-gray-950)',
                                                 border: '1px solid var(--review-v2-gray-600)',
                                             }}
                                         >
-                                            <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-2">
+                                            <span className="text-[10px] font-bold text-[var(--review-text-muted)] uppercase tracking-widest mr-1 shrink-0">
                                                 {imageLabel}
                                             </span>
+                                            <button
+                                                onClick={() => setViewMode('gallery')}
+                                                className="p-1.5 rounded-md text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0"
+                                                title="Gallery view"
+                                            >
+                                                <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
+                                            </button>
                                             {orderedThumbnails.map((t, idx) => (
                                                 <button
                                                     key={t.id}
                                                     onClick={() => setCurrentFile(t)}
-                                                    className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold transition-all cursor-pointer"
+                                                    className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold transition-all cursor-pointer shrink-0"
                                                     style={currentFile.id === t.id
                                                         ? { background: 'var(--review-v2-gray-50)', color: 'var(--review-v2-gray-950)' }
                                                         : { background: 'transparent', color: 'var(--review-v2-gray-100)' }}
@@ -1319,20 +1315,38 @@ export function ThumbnailReviewModal({
                                                     {idx + 1}
                                                 </button>
                                             ))}
-                                            <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
-                                            <button
-                                                onClick={() => setViewMode('gallery')}
-                                                className="p-1.5 rounded-md text-[var(--review-text-muted)] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                                                title="Gallery view"
-                                            >
-                                                <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
-                                            </button>
+                                            {orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
+                                                <>
+                                                    <div className="h-4 w-px mx-1 shrink-0" style={{ background: 'var(--review-v2-gray-600)' }} />
+                                                    <div className="shrink-0">
+                                                        <ImageOrderPopover
+                                                            files={orderedThumbnails}
+                                                            currentFileId={currentFile?.id}
+                                                            onSelectFile={(f) => {
+                                                                setCurrentFile(f);
+                                                                setViewMode('single');
+                                                            }}
+                                                            onReorder={handleReorderImages}
+                                                            isSaving={isSavingOrder}
+                                                        />
+                                                    </div>
+                                                </>
+                                            )}
                                             {!readOnly && viewingVersion === latestVersion && (
                                                 <>
-                                                    <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
+                                                    <div className="h-4 w-px mx-1 shrink-0" style={{ background: 'var(--review-v2-gray-600)' }} />
+                                                    <div className="shrink-0">
+                                                        <ReviewModePills
+                                                            activeMode={activeMode}
+                                                            onSelect={handleModeSelect}
+                                                            hiddenModes={['range']}
+                                                            disabled={cropSaving}
+                                                        />
+                                                    </div>
+                                                    <div className="h-4 w-px mx-1 shrink-0" style={{ background: 'var(--review-v2-gray-600)' }} />
                                                     <button
                                                         onClick={() => { exitDrawMode(); setShowCrop(true); }}
-                                                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-[var(--review-v2-gray-100)] hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                                                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-[var(--review-v2-gray-100)] hover:text-white hover:bg-white/10 transition-all cursor-pointer shrink-0"
                                                         title="Crop or change aspect ratio — saves as a new version of this image"
                                                     >
                                                         <Crop className="h-4 w-4" strokeWidth={1.5} /> Crop
@@ -1340,7 +1354,7 @@ export function ThumbnailReviewModal({
                                                     {currentRejection ? (
                                                         <button
                                                             onClick={() => handleUndoReject(currentFile.id)}
-                                                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-red-300 hover:bg-red-500/20 transition-all cursor-pointer"
+                                                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-red-300 hover:bg-red-500/20 transition-all cursor-pointer shrink-0"
                                                             title="Remove the rejection from this image"
                                                         >
                                                             <Undo2 className="h-4 w-4" strokeWidth={1.5} /> Undo reject
@@ -1348,27 +1362,12 @@ export function ThumbnailReviewModal({
                                                     ) : (
                                                         <button
                                                             onClick={() => { setRejectReason(''); setShowRejectDialog(true); }}
-                                                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/15 transition-all cursor-pointer"
+                                                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/15 transition-all cursor-pointer shrink-0"
                                                             title="Reject this image for the set"
                                                         >
                                                             <Ban className="h-4 w-4" strokeWidth={1.5} /> Reject
                                                         </button>
                                                     )}
-                                                </>
-                                            )}
-                                            {orderedThumbnails.length > 1 && viewingVersion === latestVersion && (
-                                                <>
-                                                    <div className="h-4 w-px mx-1" style={{ background: 'var(--review-v2-gray-600)' }} />
-                                                    <ImageOrderPopover
-                                                        files={orderedThumbnails}
-                                                        currentFileId={currentFile?.id}
-                                                        onSelectFile={(f) => {
-                                                            setCurrentFile(f);
-                                                            setViewMode('single');
-                                                        }}
-                                                        onReorder={handleReorderImages}
-                                                        isSaving={isSavingOrder}
-                                                    />
                                                 </>
                                             )}
                                         </div>
