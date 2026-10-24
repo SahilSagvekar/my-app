@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { FullScreenReviewModalFrameIO } from '@/components/client/FullScreenReviewModalFrameIO';
-import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, Lock, Clock, Eye, Link, ExternalLink, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { E8Logo } from '@/components/ui/E8Logo';
+import {
+    AlertCircle, Lock, Clock, Eye, Link as LinkIcon, ExternalLink, ArrowRight,
+    ChevronDown, Mail, Video, FileText, Image as ImageIcon, File as FileIcon,
+} from 'lucide-react';
 
 interface SharedReviewData {
     task: {
@@ -26,6 +28,29 @@ interface SharedReviewData {
     };
 }
 
+// What a resource link points at, from its file extension — drives the icon
+// tile and the "Video · MP4" caption in the Resource Links card.
+function describeLink(link: string) {
+    let name = 'External Resource';
+    let host = '';
+    let ext = '';
+    try {
+        const url = new URL(link);
+        host = url.hostname;
+        const last = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() || '');
+        if (last) name = last;
+        const m = last.match(/\.([a-z0-9]{2,5})$/i);
+        ext = m ? m[1].toLowerCase() : '';
+    } catch {
+        name = link.split('/').pop()?.split('?')[0] || name;
+    }
+    const upper = ext.toUpperCase();
+    if (['mp4', 'mov', 'webm', 'mkv', 'avi', 'm4v'].includes(ext)) return { name, kind: `Video · ${upper}`, Icon: Video };
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return { name, kind: `Image · ${upper}`, Icon: ImageIcon };
+    if (['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return { name, kind: `Document · ${upper}`, Icon: FileText };
+    return { name, kind: host || 'Link', Icon: FileIcon };
+}
+
 export default function SharedReviewPage() {
     const params = useParams();
     const shareToken = params.shareToken as string;
@@ -34,6 +59,7 @@ export default function SharedReviewPage() {
     const [error, setError] = useState<string | null>(null);
     const [reviewData, setReviewData] = useState<SharedReviewData | null>(null);
     const [showReview, setShowReview] = useState(false);
+    const [linksOpen, setLinksOpen] = useState(true);
 
     // No account, no password — just a name, so the activity log (and any
     // team member reading the feedback) knows who actually reviewed it.
@@ -188,80 +214,80 @@ export default function SharedReviewPage() {
         return Math.round((size / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
     };
 
+    // Shared light page chrome for the loading / error / landing states.
+    const pageShell = 'min-h-screen bg-[#f3f3f3] text-[#0a0a0a] antialiased';
+
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-                <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-xl">
-                    <CardContent className="p-12 text-center">
-                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-6"></div>
-                        <h3 className="text-xl font-medium text-white mb-2">Loading Review...</h3>
-                        <p className="text-gray-400">Please wait while we load the shared content</p>
-                    </CardContent>
-                </Card>
+            <div className={`${pageShell} flex items-center justify-center`}>
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-2 border-neutral-300 border-t-black mx-auto mb-4" />
+                    <h3 className="text-base font-semibold">Loading review…</h3>
+                    <p className="text-sm text-neutral-500 mt-1">Please wait while we load the shared content</p>
+                </div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
-                <Card className="bg-gray-800/50 border-red-500/20 backdrop-blur-xl max-w-md">
-                    <CardContent className="p-12 text-center">
-                        <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-6" />
-                        <h3 className="text-xl font-medium text-white mb-3">Unable to Load Review</h3>
-                        <p className="text-gray-400 mb-6">{error}</p>
-                        {error.includes('expired') && (
-                            <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 mb-6">
-                                <Clock className="h-5 w-5 text-orange-400 mx-auto mb-2" />
-                                <p className="text-sm text-orange-300">This share link has expired</p>
-                            </div>
-                        )}
-                        {error.includes('deactivated') && (
-                            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
-                                <Lock className="h-5 w-5 text-red-400 mx-auto mb-2" />
-                                <p className="text-sm text-red-300">This share link is no longer active</p>
-                            </div>
-                        )}
-                        <Button
-                            variant="outline"
-                            onClick={() => window.location.reload()}
-                            className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                        >
-                            Try Again
-                        </Button>
-                    </CardContent>
-                </Card>
+            <div className={`${pageShell} flex items-center justify-center p-4`}>
+                <div className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-10 text-center">
+                    <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-5" />
+                    <h3 className="text-xl font-bold mb-2">Unable to load review</h3>
+                    <p className="text-sm text-neutral-500 mb-6">{error}</p>
+                    {error.includes('expired') && (
+                        <div className="flex items-center justify-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-6 text-sm text-amber-800">
+                            <Clock className="h-4 w-4" /> This share link has expired
+                        </div>
+                    )}
+                    {error.includes('deactivated') && (
+                        <div className="flex items-center justify-center gap-2 rounded-xl bg-red-50 border border-red-200 px-4 py-3 mb-6 text-sm text-red-800">
+                            <Lock className="h-4 w-4" /> This share link is no longer active
+                        </div>
+                    )}
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="h-11 px-6 rounded-xl bg-black text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+                    >
+                        Try again
+                    </button>
+                </div>
             </div>
         );
     }
 
     const asset = getReviewAsset();
 
+    const links = reviewData?.task.driveLinks ?? [];
+    const canOpen = !!reviewerName.trim();
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <div className={pageShell}>
             {/* Header */}
-            <div className="bg-black/40 backdrop-blur-sm border-b border-white/10 py-4 px-6">
-                <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white">E8 Productions</h1>
-                        <p className="text-sm text-gray-400">Shared Client Review</p>
+            <header className="bg-white border-b border-neutral-200">
+                <div className="max-w-5xl mx-auto h-[72px] px-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <E8Logo height={30} color="#000" />
+                        <span className="h-7 w-px bg-neutral-300" />
+                        <h1 className="text-base font-semibold">Shared Client Review</h1>
                     </div>
                     {reviewData?.shareInfo && (
-                        <div className="flex items-center gap-4 text-sm text-gray-400">
-                            <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-4 text-sm text-neutral-500">
+                            <span className="flex items-center gap-2">
                                 <Eye className="h-4 w-4" />
-                                <span>{reviewData.shareInfo.viewCount} views</span>
-                            </div>
+                                {reviewData.shareInfo.viewCount} view{reviewData.shareInfo.viewCount === 1 ? '' : 's'}
+                            </span>
                             {reviewData.shareInfo.expiresAt && (
-                                <div className="flex items-center gap-2">
+                                <span className="hidden sm:flex items-center gap-2">
                                     <Clock className="h-4 w-4" />
-                                    <span>Expires {new Date(reviewData.shareInfo.expiresAt).toLocaleDateString()}</span>
-                                </div>
+                                    Expires {new Date(reviewData.shareInfo.expiresAt).toLocaleDateString()}
+                                </span>
                             )}
                         </div>
                     )}
                 </div>
-            </div>
+            </header>
 
             {/* Review Modal */}
             {asset && (
@@ -323,98 +349,104 @@ export default function SharedReviewPage() {
                 />
             )}
 
-            {/* Landing message when modal is closed */}
+            {/* Landing page when the review is closed */}
             {!showReview && asset && (
-                <div className="flex items-center justify-center min-h-[calc(100vh-80px)] p-4">
-                    <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-xl max-w-2xl">
-                        <CardContent className="p-12 text-center">
-                            <div className="mb-8">
-                                <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <Eye className="h-10 w-10 text-blue-400" />
-                                </div>
-                                <h2 className="text-3xl font-bold text-white mb-4">
-                                    {asset.title}
-                                </h2>
-                                <p className="text-gray-400 mb-2">{asset.subtitle}</p>
-                                <p className="text-sm text-gray-500">
-                                    Shared by E8 Productions for your review
-                                </p>
-                            </div>
-
-                            <div className="mb-5 max-w-xs mx-auto text-left">
-                                <label htmlFor="reviewer-name" className="block text-xs font-medium text-gray-400 mb-1.5">
-                                    Your name
-                                </label>
-                                <input
-                                    id="reviewer-name"
-                                    type="text"
-                                    value={reviewerName}
-                                    onChange={(e) => setReviewerName(e.target.value)}
-                                    placeholder="e.g. Jane Smith"
-                                    className="w-full rounded-lg bg-gray-900/60 border border-gray-700 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                />
-                            </div>
-
-                            <Button
-                                size="lg"
-                                disabled={!reviewerName.trim()}
-                                onClick={() => {
-                                    confirmReviewerName(reviewerName);
-                                    setShowReview(true);
-                                }}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-8 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                Open Visual Review
-                            </Button>
-                            {!reviewerName.trim() && (
-                                <p className="text-xs text-gray-500 mt-2">Enter your name to continue</p>
+                <main className="max-w-[560px] mx-auto px-4 pt-14 pb-16 space-y-5">
+                    <section className="rounded-[28px] border border-neutral-200 bg-white px-10 py-9">
+                        <div className="text-center">
+                            {asset.subtitle && (
+                                <p className="text-xs font-bold uppercase tracking-wider text-neutral-500">{asset.subtitle}</p>
                             )}
+                            <h2 className="mt-2 text-[22px] leading-tight font-extrabold break-words">{asset.title}</h2>
+                            <p className="mt-2 text-sm text-neutral-600">Shared by E8 Productions for your review.</p>
+                        </div>
 
-                            {reviewData && reviewData.task.driveLinks && reviewData.task.driveLinks.length > 0 && (
-                                <div className="mt-12 text-left">
-                                    <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-4 border-b border-gray-700 pb-2 flex items-center gap-2">
-                                        <Link className="h-4 w-4" />
-                                        Resource Links
-                                    </h3>
-                                    <div className="grid grid-cols-1 gap-3">
-                                        {reviewData.task.driveLinks.map((link, idx) => (
+                        <form
+                            className="mt-8"
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!canOpen) return;
+                                confirmReviewerName(reviewerName);
+                                setShowReview(true);
+                            }}
+                        >
+                            <label htmlFor="reviewer-name" className="block text-sm font-semibold mb-2">Your name</label>
+                            <input
+                                id="reviewer-name"
+                                type="text"
+                                value={reviewerName}
+                                onChange={(e) => setReviewerName(e.target.value)}
+                                placeholder="e.g. Jane Smith"
+                                autoComplete="name"
+                                className="w-full h-12 rounded-xl border border-neutral-300 bg-white px-4 text-sm placeholder:text-neutral-400 focus:outline-none focus:border-black focus:ring-1 focus:ring-black"
+                            />
+                            <button
+                                type="submit"
+                                disabled={!canOpen}
+                                className="mt-4 w-full h-12 rounded-xl bg-black text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors hover:bg-neutral-800 disabled:bg-neutral-200 disabled:text-neutral-400 disabled:cursor-not-allowed"
+                            >
+                                Open Visual Review <ArrowRight className="h-4 w-4" />
+                            </button>
+                            <p className="mt-4 text-center text-xs text-neutral-500">
+                                By continuing, you agree to the{' '}
+                                <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold underline text-neutral-700">Terms of Service</a>{' '}
+                                and{' '}
+                                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold underline text-neutral-700">Privacy Policy</a>.
+                            </p>
+                        </form>
+                    </section>
+
+                    {links.length > 0 && (
+                        <section className="rounded-[28px] border border-neutral-200 bg-white px-4 py-4">
+                            <button
+                                type="button"
+                                onClick={() => setLinksOpen(o => !o)}
+                                aria-expanded={linksOpen}
+                                className="w-full flex items-center justify-between px-3 py-2 text-neutral-500"
+                            >
+                                <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+                                    <LinkIcon className="h-4 w-4" /> Resource links
+                                </span>
+                                <span className="flex items-center gap-2 text-sm">
+                                    {links.length} file{links.length === 1 ? '' : 's'}
+                                    <ChevronDown className={`h-4 w-4 transition-transform ${linksOpen ? 'rotate-180' : ''}`} />
+                                </span>
+                            </button>
+                            {linksOpen && (
+                                <div className="mt-3 space-y-3">
+                                    {links.map((link, idx) => {
+                                        const { name, kind, Icon } = describeLink(link);
+                                        return (
                                             <a
                                                 key={idx}
                                                 href={link}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="flex items-center justify-between p-4 bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/50 rounded-xl transition-all group"
+                                                className="group flex items-center gap-4 rounded-2xl border border-neutral-200 bg-white p-3 hover:border-neutral-400 transition-colors"
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-colors">
-                                                        <ExternalLink className="h-5 w-5 text-blue-400" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-white font-medium text-sm truncate max-w-[400px]">
-                                                            {link.split('/').pop()?.split('?')[0] || 'External Resource'}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">
-                                                            {new URL(link).hostname}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <ArrowRight className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
+                                                <span className="h-12 w-12 shrink-0 rounded-xl bg-neutral-200 flex items-center justify-center">
+                                                    <Icon className="h-5 w-5 text-neutral-800" />
+                                                </span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block truncate text-[15px] font-bold" title={name}>{name}</span>
+                                                    <span className="block text-sm text-neutral-500">{kind}</span>
+                                                </span>
+                                                <ExternalLink className="h-4 w-4 shrink-0 text-neutral-400 group-hover:text-black transition-colors" />
                                             </a>
-                                        ))}
-                                    </div>
+                                        );
+                                    })}
                                 </div>
                             )}
+                        </section>
+                    )}
 
-                            <div className="mt-8 pt-8 border-t border-gray-700">
-                                <p className="text-xs text-gray-500">
-                                    This is a shared review link. The content is view-only and for feedback purposes.
-                                    <br />
-                                    Contact E8 Productions directly to submit your final approval or revision requests.
-                                </p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
+                    <footer className="border-t border-neutral-300 pt-4 px-1 flex items-center justify-between gap-4 text-sm text-neutral-500">
+                        <span className="flex items-center gap-2"><Eye className="h-4 w-4" /> View-only link for feedback</span>
+                        <a href="mailto:support@e8productions.com" className="flex items-center gap-2 font-semibold text-neutral-700 hover:text-black">
+                            <Mail className="h-4 w-4" /> support@e8productions.com
+                        </a>
+                    </footer>
+                </main>
             )}
         </div>
     );
