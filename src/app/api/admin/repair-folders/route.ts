@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { HeadObjectCommand, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getDbHttp } from '@/lib/db';
 import { client as clientTable, task as taskTable } from '@/lib/db/schema';
 import { eq, isNotNull, and, desc, count } from 'drizzle-orm';
@@ -12,28 +12,54 @@ import { getDeliverableShortCode } from '@/lib/recurring/generateMonthly';
 
 const s3 = getS3();
 
-// ─── Check if an R2 "folder" key exists ──────────────────────────────────────
-// R2 folders are zero-byte objects ending in '/'. We check two ways:
-//   1. HeadObject on the exact key (the zero-byte folder marker)
-//   2. ListObjectsV2 with the prefix — if anything is inside, the folder exists
-async function folderExists(key: string): Promise<boolean> {
-  const prefix = key.endsWith('/') ? key : `${key}/`;
-  try {
-    // Fast path: check for the explicit marker object
-    await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: prefix }));
-    return true;
-  } catch {
-    // Slow path: see if any objects exist under this prefix
-    try {
-      const res = await s3.send(new ListObjectsV2Command({
-        Bucket: BUCKET,
-        Prefix: prefix,
-        MaxKeys: 1,
-      }));
-      return (res.Contents?.length ?? 0) > 0 || (res.CommonPrefixes?.length ?? 0) > 0;
-    } catch {
-      return false;
+// ─── Folder existence, via one listing per parent folder ─────────────────────
+// Used to HeadObject + List every expected folder one by one — thousands of
+// R2 calls per scan across all clients, which blows past the Worker's
+// subrequest/CPU limits and comes back as a 503. Now each parent folder is
+// listed ONCE (Delimiter '/', so its direct subfolders come back as
+// CommonPrefixes) and every child is answered from that cached listing. A
+// folder whose parent is missing is missing too, so its children cost nothing.
+class FolderIndex {
+  private children = new Map<string, Promise<Set<string>>>();
+  private exists_ = new Map<string, Promise<boolean>>();
+
+  // Direct children (subfolders + marker/files) of a prefix ('' = bucket root).
+  private list(prefix: string): Promise<Set<string>> {
+    let p = this.children.get(prefix);
+    if (!p) {
+      p = (async () => {
+        const out = new Set<string>();
+        let token: string | undefined;
+        do {
+          const res = await s3.send(new ListObjectsV2Command({
+            Bucket: BUCKET,
+            Prefix: prefix,
+            Delimiter: '/',
+            ContinuationToken: token,
+          }));
+          res.CommonPrefixes?.forEach(c => c.Prefix && out.add(c.Prefix));
+          res.Contents?.forEach(o => o.Key && out.add(o.Key));
+          token = res.IsTruncated ? res.NextContinuationToken : undefined;
+        } while (token);
+        return out;
+      })();
+      this.children.set(prefix, p);
     }
+    return p;
+  }
+
+  has(key: string): Promise<boolean> {
+    const prefix = key.endsWith('/') ? key : `${key}/`;
+    let p = this.exists_.get(prefix);
+    if (!p) {
+      p = (async () => {
+        const parent = prefix.slice(0, prefix.lastIndexOf('/', prefix.length - 2) + 1);
+        if (parent !== '' && !(await this.has(parent))) return false;
+        return (await this.list(parent)).has(prefix);
+      })();
+      this.exists_.set(prefix, p);
+    }
+    return p;
   }
 }
 
@@ -217,14 +243,14 @@ export async function GET(req: NextRequest) {
 
     const expected = await buildExpectedFolders();
 
-    // Check all in parallel with concurrency cap to avoid R2 rate limits
+    const index = new FolderIndex();
     const CONCURRENCY = 20;
     const missing: ExpectedFolder[] = [];
     const present: ExpectedFolder[] = [];
 
     for (let i = 0; i < expected.length; i += CONCURRENCY) {
       const batch = expected.slice(i, i + CONCURRENCY);
-      const results = await Promise.all(batch.map(f => folderExists(f.key)));
+      const results = await Promise.all(batch.map(f => index.has(f.key)));
       batch.forEach((f, idx) => {
         if (results[idx]) present.push(f);
         else missing.push(f);
