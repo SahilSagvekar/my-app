@@ -478,6 +478,7 @@ export function ThumbnailReviewModal({
         .map((t, idx) => ({ t, idx, rej: rejections[t.id] }))
         .filter(x => !!x.rej);
     const rejectedCount = rejectedThumbs.length;
+    const allRejected = rejectedCount > 0 && rejectedCount >= orderedThumbnails.length;
     // Everything that blocks Approve and is carried by Send Back.
     const actionCount = unresolvedCount + rejectedCount;
     const currentRejection = currentFile ? rejections[currentFile.id] : undefined;
@@ -1238,20 +1239,17 @@ export function ThumbnailReviewModal({
                                                                 <Ban className="h-3 w-3" /> Rejected
                                                             </div>
                                                         )}
+                                                        {imageComments.some(c => c.fileId === t.id) && (
+                                                            <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 shadow">
+                                                                <MessageSquare className="h-2.5 w-2.5" />
+                                                                {imageComments.filter(c => c.fileId === t.id).length}
+                                                            </div>
+                                                        )}
                                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                             <Button variant="secondary" size="sm" className="bg-white text-black hover:bg-zinc-200">
                                                                 Review Details
                                                             </Button>
                                                         </div>
-                                                    </div>
-                                                    <div className="p-3 bg-[var(--review-bg-secondary)] border-t border-[var(--review-border)] flex items-center justify-between">
-                                                        <span className="text-[11px] text-[var(--review-text-muted)] font-medium truncate max-w-[160px]">{t.name}</span>
-                                                        {imageComments.some(c => c.fileId === t.id) && (
-                                                            <Badge className="bg-orange-500/20 text-orange-500 text-[9px] border-none flex items-center gap-1">
-                                                                <MessageSquare className="h-2.5 w-2.5" />
-                                                                {imageComments.filter(c => c.fileId === t.id).length}
-                                                            </Badge>
-                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -1749,6 +1747,15 @@ export function ThumbnailReviewModal({
                                         </div>
                                     </div>
 
+                                    {viewingVersion === latestVersion && rejectedCount > 0 && (
+                                        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300 leading-relaxed">
+                                            <span className="font-semibold">{rejectedCount} rejected image{rejectedCount === 1 ? '' : 's'}.</span>{' '}
+                                            {allRejected
+                                                ? 'Every image is rejected — send it back, or un-reject at least one.'
+                                                : 'Approving removes them from the set, so they won\'t be seen further on. Send Back returns them to the editor instead.'}
+                                        </div>
+                                    )}
+
                                     {viewingVersion !== latestVersion ? (
                                         <div className="flex flex-col items-center gap-2 text-center py-2">
                                             <span className="text-xs text-zinc-400">
@@ -1767,8 +1774,8 @@ export function ThumbnailReviewModal({
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={handleStepApprove}
-                                                    disabled={savingFeedback || unresolvedCount > 0 || rejectedCount > 0}
-                                                    title={rejectedCount > 0 ? 'Resolve or undo the rejected image(s) first' : undefined}
+                                                    disabled={savingFeedback || unresolvedCount > 0 || allRejected}
+                                                    title={allRejected ? 'Every image is rejected — send it back or un-reject at least one' : undefined}
                                                     className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2.5 px-3 rounded-lg cursor-pointer transition-all bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-sm border border-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
@@ -1809,7 +1816,7 @@ export function ThumbnailReviewModal({
                                             <div className="grid grid-cols-2 gap-2">
                                                 <button
                                                     onClick={handleSendToClientReviewClick}
-                                                    disabled={savingFeedback || unresolvedCount > 0 || rejectedCount > 0 || finalRevisionLocked}
+                                                    disabled={savingFeedback || unresolvedCount > 0 || allRejected || finalRevisionLocked}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#2563eb] hover:border-[#3b82f6] hover:text-white text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title={finalRevisionLocked ? "Blocked: the client chose Final Revision on this task, so it goes straight to the scheduler" : "Send directly to client review"}
                                                 >
@@ -1819,7 +1826,7 @@ export function ThumbnailReviewModal({
 
                                                 <button
                                                     onClick={handleBypassClientReviewClick}
-                                                    disabled={savingFeedback || unresolvedCount > 0 || rejectedCount > 0}
+                                                    disabled={savingFeedback || unresolvedCount > 0 || allRejected}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold py-2.5 px-2 rounded-lg cursor-pointer transition-all bg-white/5 hover:bg-[#eab308] hover:border-[#facc15] hover:text-black text-white border border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
                                                     title="Bypass client review and finalize delivery"
                                                 >
@@ -1832,8 +1839,8 @@ export function ThumbnailReviewModal({
                                         <>
                                             <button
                                                 onClick={handleStepApprove}
-                                                disabled={savingFeedback || unresolvedCount > 0 || rejectedCount > 0}
-                                                title={rejectedCount > 0 ? 'Resolve or undo the rejected image(s) first' : undefined}
+                                                disabled={savingFeedback || unresolvedCount > 0 || allRejected}
+                                                title={allRejected ? 'Every image is rejected — send it back or un-reject at least one' : undefined}
                                                 className="w-full flex items-center justify-center gap-2 text-sm font-semibold py-3 rounded-lg cursor-pointer transition-all bg-[#22c55e] hover:bg-[#16a34a] text-white shadow-sm border border-[#16a34a] disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 <CheckCircle2 className="h-4 w-4" strokeWidth={2} />

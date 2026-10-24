@@ -23,6 +23,7 @@ import { keepAlive } from "@/lib/keep-alive";
 import { triggerReviewMirror } from "@/lib/review-mirror";
 import { deleteYoutubeVideo } from "@/lib/youtube-mirror";
 import { getCurrentUser2 } from "@/lib/auth";
+import { checkRejectionsLeaveImages, dropRejectedImages } from "@/lib/rejected-images";
 import {
   isRejectedStatus,
   normalizeIncomingTaskStatus,
@@ -394,6 +395,17 @@ export async function PATCH(
       }
     }
 
+    // Hard post review: images QC or the client rejected are dropped from the
+    // set when it moves forward (QC → client, client → scheduler). Refuse up
+    // front if that would leave the set empty.
+    const approvesSet = finalStatus === "COMPLETED" || finalStatus === "CLIENT_REVIEW";
+    if (approvesSet) {
+      const emptySetMessage = await checkRejectionsLeaveImages(db, id);
+      if (emptySetMessage) {
+        return NextResponse.json({ message: emptySetMessage, error: emptySetMessage }, { status: 400 });
+      }
+    }
+
     // Update task
     // 🔥 Track QC reviewer when QC approves/rejects
     const isQCAction = (effectiveRole === "qc" || effectiveRole === "admin") &&
@@ -456,6 +468,15 @@ export async function PATCH(
       } catch (readErr) {
         const rawResult: any = await db.execute(drizzleSql`SELECT * FROM "Task" WHERE "id" = ${id}`);
         updatedTask = rawResult.rows?.[0] || { id, status: finalStatus };
+      }
+    }
+
+    // Drop rejected images from the set now that the approval is saved.
+    if (approvesSet) {
+      try {
+        await dropRejectedImages(db, id);
+      } catch (dropErr) {
+        console.error("Failed to drop rejected images after approval:", dropErr);
       }
     }
 

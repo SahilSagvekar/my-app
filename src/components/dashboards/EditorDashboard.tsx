@@ -1073,6 +1073,33 @@ function TaskCard({
     return counts;
   }, [task.taskFeedback, locallyAcknowledgedIds]);
   const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
+  const [removingImageId, setRemovingImageId] = useState<string | null>(null);
+  // Images QC or the client rejected: file id → their reason. Only these can
+  // be removed by the editor (and only when the set has other images).
+  const imageRejections = useMemo(() => {
+    const map: Record<string, string> = {};
+    (task.taskFeedback || []).forEach((fb) => {
+      if (!fb.fileId || !String(fb.category || '').split(',').includes('image_rejected')) return;
+      if (fb.status === 'resolved') return;
+      map[fb.fileId] = String(fb.feedback || '').replace(/^Image #\d+ rejected:?\s*/i, '');
+    });
+    return map;
+  }, [task.taskFeedback]);
+  const handleRemoveRejectedImage = async (imageId: string) => {
+    if (!window.confirm('Remove this rejected image from the set? It will no longer appear in the task.')) return;
+    setRemovingImageId(imageId);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/files/${imageId}/remove-rejected`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to remove image');
+      toast.success('Image removed from the set');
+      onUploadComplete(task.id, []);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to remove image');
+    } finally {
+      setRemovingImageId(null);
+    }
+  };
   const [showYoutubeLinkDialog, setShowYoutubeLinkDialog] = useState(false);
   const [youtubeLinkInput, setYoutubeLinkInput] = useState("");
   const [savingYoutubeLink, setSavingYoutubeLink] = useState(false);
@@ -1504,6 +1531,14 @@ function TaskCard({
                             <div className="absolute top-1 left-1 text-[10px] font-medium bg-black/60 text-white px-1.5 py-0.5 rounded">
                               #{idx + 1}
                             </div>
+                            {imageRejections[img.id] !== undefined && (
+                              <div
+                                className="absolute inset-x-0 top-6 mx-1 text-[10px] leading-snug font-semibold bg-red-600/95 text-white px-1.5 py-1 rounded"
+                                title={imageRejections[img.id]}
+                              >
+                                Rejected{imageRejections[img.id] ? `: ${imageRejections[img.id]}` : ''}
+                              </div>
+                            )}
                             {commentCount > 0 && (
                               <div
                                 className="absolute top-1 right-1 flex items-center gap-0.5 text-[10px] font-semibold bg-red-500 text-white px-1.5 py-0.5 rounded-full"
@@ -1511,6 +1546,17 @@ function TaskCard({
                               >
                                 {commentCount}
                               </div>
+                            )}
+                            {canUploadMain && imageRejections[img.id] !== undefined && hardPostImages.length > 1 && (
+                              <button
+                                type="button"
+                                disabled={removingImageId === img.id}
+                                onClick={(e) => { e.stopPropagation(); handleRemoveRejectedImage(img.id); }}
+                                className="absolute inset-x-0 bottom-6 mx-1 flex items-center justify-center bg-white text-red-600 text-[10px] font-bold py-1 rounded hover:bg-red-50 disabled:opacity-60 transition-colors"
+                                title="Remove this rejected image from the set"
+                              >
+                                {removingImageId === img.id ? 'Removing...' : 'Remove image'}
+                              </button>
                             )}
                             {canUploadMain && (
                               <label
