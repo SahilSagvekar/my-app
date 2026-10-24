@@ -1538,7 +1538,7 @@ export function ThumbnailReviewModal({
                                                                 size="sm"
                                                                 disabled={atCap || !newTexts[type].trim()}
                                                                 onClick={() => addItem(type)}
-                                                                className="h-8 px-2.5 bg-[var(--review-status-approved)] hover:bg-[var(--review-status-approved)]/90 text-white shrink-0"
+                                                                className="h-8 px-2.5 bg-white hover:bg-zinc-200 text-black disabled:opacity-40 shrink-0"
                                                             >
                                                                 <Plus className="h-3.5 w-3.5" />
                                                             </Button>
