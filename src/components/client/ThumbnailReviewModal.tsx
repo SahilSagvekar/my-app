@@ -204,6 +204,7 @@ export function ThumbnailReviewModal({
 
     // Crop / aspect ratio
     const [showCrop, setShowCrop] = useState(false);
+    const [cropRestoring, setCropRestoring] = useState(false);
     const [cropSaving, setCropSaving] = useState(false);
     // Local copy of crops saved this session so the review reflects them
     // immediately, whether or not the parent patches its own file list.
@@ -876,6 +877,47 @@ export function ThumbnailReviewModal({
     };
 
     /* ── Crop / aspect ratio ── */
+    // The image slot the open image belongs to — more than one entry means it
+    // was cropped/rotated before, so the original can be restored.
+    const currentSlotHasHistory = useMemo(() => {
+        if (!currentFile) return false;
+        const slot = imageSlots.find(chain => chain.some(f => f.id === currentFile.id));
+        return !!slot && slot.length > 1;
+    }, [imageSlots, currentFile]);
+
+    const handleRestoreOriginal = async () => {
+        if (!currentFile) return;
+        setCropRestoring(true);
+        try {
+            const oldId = currentFile.id;
+            const res = await fetch(`/api/tasks/${taskId}/files/${oldId}/restore-original`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.file) throw new Error(data.error || data.message || 'Failed to restore original');
+            applyReplacedImage(oldId, data.file as TaskFile);
+            toast.success('Original restored — saved as a new version');
+        } catch (err: any) {
+            console.error('Error restoring original:', err);
+            toast.error(err?.message || 'Failed to restore original');
+        } finally {
+            setCropRestoring(false);
+        }
+    };
+
+    const applyReplacedImage = (oldId: string, newFile: TaskFile) => {
+        setCropPatches(prev => [...prev, { oldId, file: newFile }]);
+        setOrderPatch(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach(k => { if (next[k] === oldId) next[k] = newFile.id; });
+            next[oldId] = newFile.id;
+            return next;
+        });
+        setViewingVersion(newFile.version || 1);
+        setCurrentFile(newFile);
+        setImgCrossOriginFailed(false);
+        onImageReplaced?.(oldId, newFile);
+        setShowCrop(false);
+    };
+
     const handleCropSave = async (blob: Blob) => {
         if (!currentFile) return;
         setCropSaving(true);
@@ -887,20 +929,8 @@ export function ThumbnailReviewModal({
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.file) throw new Error(data.error || data.message || 'Failed to save crop');
             const newFile = data.file as TaskFile;
-            setCropPatches(prev => [...prev, { oldId, file: newFile }]);
-            setOrderPatch(prev => {
-                const next = { ...prev };
-                Object.keys(next).forEach(k => { if (next[k] === oldId) next[k] = newFile.id; });
-                next[oldId] = newFile.id;
-                return next;
-            });
-            // A rejection belongs to the old picture, not the corrected one.
-            setViewingVersion(newFile.version || 1);
-            setCurrentFile(newFile);
-            setImgCrossOriginFailed(false);
-            onImageReplaced?.(oldId, newFile);
-            setShowCrop(false);
-            toast.success('Crop saved as a new version — the original is kept in version history');
+            applyReplacedImage(oldId, newFile);
+            toast.success('Saved as a new version — the original is kept in version history');
         } catch (err: any) {
             console.error('Error saving crop:', err);
             toast.error(err?.message || 'Failed to save crop');
@@ -908,7 +938,6 @@ export function ThumbnailReviewModal({
             setCropSaving(false);
         }
     };
-
     /* ── Review tools: Draw / Voice / Attach ── */
     const exitDrawMode = () => {
         setDrawBaseUrl(null);
@@ -1379,7 +1408,7 @@ export function ThumbnailReviewModal({
                                                                 id: 'crop',
                                                                 label: 'Crop',
                                                                 Icon: Crop,
-                                                                title: 'Crop or change aspect ratio — saves as a new version of this image',
+                                                                title: 'Crop, rotate or change aspect ratio — saves as a new version of this image',
                                                                 onClick: () => { exitDrawMode(); setShowCrop(true); },
                                                             },
                                                             currentRejection
@@ -1918,6 +1947,9 @@ export function ThumbnailReviewModal({
                     mimeType={currentFile.mimeType}
                     saving={cropSaving}
                     onSave={handleCropSave}
+                    canRestoreOriginal={currentSlotHasHistory}
+                    restoring={cropRestoring}
+                    onRestoreOriginal={handleRestoreOriginal}
                 />
                 <FinalRevisionConfirmDialog
                     open={showFinalRevisionConfirm}

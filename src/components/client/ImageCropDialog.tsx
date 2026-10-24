@@ -7,7 +7,7 @@
 // uploads as a new version of that image (see /api/tasks/[id]/files/[fileId]/crop).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, RotateCcw, Check } from 'lucide-react';
+import { Loader2, RotateCcw, RotateCw, Undo2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog';
@@ -20,6 +20,11 @@ interface ImageCropDialogProps {
     mimeType?: string;
     saving: boolean;
     onSave: (blob: Blob) => void | Promise<void>;
+    /** True when this image has earlier versions (it was cropped/rotated before). */
+    canRestoreOriginal?: boolean;
+    restoring?: boolean;
+    /** Puts the image back to the first upload (saved as a new version). */
+    onRestoreOriginal?: () => void | Promise<void>;
 }
 
 type Rect = { x: number; y: number; w: number; h: number };
@@ -134,16 +139,58 @@ export function ImageCropDialog({
     mimeType,
     saving,
     onSave,
+    canRestoreOriginal,
+    restoring,
+    onRestoreOriginal,
 }: ImageCropDialogProps) {
-    const imgRef = useRef<HTMLImageElement | null>(null);
     const boxRef = useRef<HTMLDivElement>(null);
     const dragRef = useRef<{ handle: Handle; startX: number; startY: number; start: Rect } | null>(null);
 
-    const [nat, setNat] = useState<{ w: number; h: number } | null>(null);
+    const [img, setImg] = useState<HTMLImageElement | null>(null);
+    const [rot, setRot] = useState(0); // clockwise quarter turns, 0-3
+    const [rotatedUrl, setRotatedUrl] = useState<string | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [crop, setCrop] = useState<Rect | null>(null);
     const [presetKey, setPresetKey] = useState('free');
     const [maxDisp, setMaxDisp] = useState({ w: 800, h: 480 });
+
+    // The image as it will be cropped: the loaded picture turned `rot` quarter turns.
+    const source = useMemo<{ el: CanvasImageSource; w: number; h: number } | null>(() => {
+        if (!img) return null;
+        const w0 = img.naturalWidth;
+        const h0 = img.naturalHeight;
+        if (rot === 0) return { el: img, w: w0, h: h0 };
+        const swap = rot % 2 === 1;
+        const c = document.createElement('canvas');
+        c.width = swap ? h0 : w0;
+        c.height = swap ? w0 : h0;
+        const cx = c.getContext('2d');
+        if (!cx) return { el: img, w: w0, h: h0 };
+        cx.translate(c.width / 2, c.height / 2);
+        cx.rotate((rot * Math.PI) / 2);
+        cx.drawImage(img, -w0 / 2, -h0 / 2);
+        return { el: c, w: c.width, h: c.height };
+    }, [img, rot]);
+    const nat = useMemo(() => (source ? { w: source.w, h: source.h } : null), [source]);
+
+    // Preview URL for a rotated image (the plain image is used while not rotated).
+    useEffect(() => {
+        if (!source || rot === 0 || !(source.el instanceof HTMLCanvasElement)) {
+            setRotatedUrl(null);
+            return;
+        }
+        let url: string | null = null;
+        let cancelled = false;
+        source.el.toBlob(b => {
+            if (cancelled || !b) return;
+            url = URL.createObjectURL(b);
+            setRotatedUrl(url);
+        }, 'image/jpeg', 0.85);
+        return () => {
+            cancelled = true;
+            if (url) URL.revokeObjectURL(url);
+        };
+    }, [source, rot]);
 
     const ratio = useMemo(() => {
         const p = PRESETS.find(x => x.key === presetKey);
@@ -155,27 +202,26 @@ export function ImageCropDialog({
     // Load the image fresh with CORS enabled so the canvas isn't tainted.
     useEffect(() => {
         if (!open) return;
-        setNat(null);
+        setImg(null);
+        setRot(0);
         setCrop(null);
         setLoadError(null);
         setPresetKey('free');
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-            imgRef.current = img;
-            const size = { w: img.naturalWidth, h: img.naturalHeight };
-            setNat(size);
-            setCrop({ x: 0, y: 0, w: size.w, h: size.h });
+        const el = new Image();
+        el.crossOrigin = 'anonymous';
+        el.onload = () => {
+            setImg(el);
+            setCrop({ x: 0, y: 0, w: el.naturalWidth, h: el.naturalHeight });
         };
-        img.onerror = () => {
+        el.onerror = () => {
             setLoadError(
                 "This image can't be opened for editing in the browser (it failed to load). Close this and try again.",
             );
         };
-        img.src = imageUrl;
+        el.src = imageUrl;
         return () => {
-            img.onload = null;
-            img.onerror = null;
+            el.onload = null;
+            el.onerror = null;
         };
     }, [open, imageUrl]);
 
@@ -205,10 +251,23 @@ export function ImageCropDialog({
         setCrop(fitRatio(nat, r));
     };
 
+    // Reset the box, and undo any rotation done in this dialog.
     const reset = () => {
-        if (!nat) return;
+        if (!img) return;
+        setRot(0);
         setPresetKey('free');
-        setCrop({ x: 0, y: 0, w: nat.w, h: nat.h });
+        setCrop({ x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight });
+    };
+
+    const rotate = (dir: 1 | -1) => {
+        if (!img) return;
+        const next = (rot + dir + 4) % 4;
+        const swap = next % 2 === 1;
+        const w = swap ? img.naturalHeight : img.naturalWidth;
+        const h = swap ? img.naturalWidth : img.naturalHeight;
+        setRot(next);
+        setPresetKey('free');
+        setCrop({ x: 0, y: 0, w, h });
     };
 
     const onPointerDown = (handle: Handle) => (e: React.PointerEvent) => {
@@ -235,13 +294,12 @@ export function ImageCropDialog({
     };
 
     const isUnchanged =
-        !!nat && !!crop &&
+        rot === 0 && !!nat && !!crop &&
         Math.round(crop.x) === 0 && Math.round(crop.y) === 0 &&
         Math.round(crop.w) === nat.w && Math.round(crop.h) === nat.h;
 
     const handleApply = async () => {
-        const img = imgRef.current;
-        if (!img || !crop || !nat) return;
+        if (!source || !crop || !nat) return;
         const sx = Math.round(crop.x);
         const sy = Math.round(crop.y);
         const sw = Math.max(1, Math.min(Math.round(crop.w), nat.w - sx));
@@ -262,7 +320,7 @@ export function ImageCropDialog({
             ctx.fillRect(0, 0, sw, sh);
         }
         try {
-            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+            ctx.drawImage(source.el, sx, sy, sw, sh, 0, 0, sw, sh);
             const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, outType, 0.92));
             if (!blob) throw new Error('Could not create the cropped image');
             await onSave(blob);
@@ -293,7 +351,7 @@ export function ImageCropDialog({
                 </DialogDescription>
 
                 <div className="px-5 pt-4 pb-3 border-b border-[var(--review-border)]">
-                    <h3 className="text-sm font-semibold text-white">Crop &amp; aspect ratio</h3>
+                    <h3 className="text-sm font-semibold text-white">Crop, rotate &amp; aspect ratio</h3>
                     <p className="text-xs text-[var(--review-text-muted)] mt-0.5 truncate max-w-[560px]">
                         {fileName} — saved as a new version; the original is kept in the version history.
                     </p>
@@ -301,6 +359,27 @@ export function ImageCropDialog({
 
                 <div className="px-5 py-4 flex flex-col gap-3 items-center" style={{ minWidth: Math.min(maxDisp.w, 480) }}>
                     <div className="flex flex-wrap items-center gap-1.5 w-full justify-center">
+                        <button
+                            type="button"
+                            disabled={!nat || saving}
+                            onClick={() => rotate(-1)}
+                            title="Rotate left 90°"
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-full border transition-colors disabled:opacity-40 hover:bg-white/10"
+                            style={{ borderColor: 'var(--review-border)', color: 'var(--review-v2-gray-100)' }}
+                        >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                            type="button"
+                            disabled={!nat || saving}
+                            onClick={() => rotate(1)}
+                            title="Rotate right 90°"
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-full border transition-colors disabled:opacity-40 hover:bg-white/10"
+                            style={{ borderColor: 'var(--review-border)', color: 'var(--review-v2-gray-100)' }}
+                        >
+                            <RotateCw className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="w-px h-5 mx-1" style={{ background: 'var(--review-border)' }} />
                         {PRESETS.map(p => (
                             <button
                                 key={p.key}
@@ -329,13 +408,27 @@ export function ImageCropDialog({
                         ) : (
                             <div className="relative" style={{ width: dispW, height: dispH }}>
                                 <img
-                                    src={imageUrl}
+                                    src={rotatedUrl || imageUrl}
                                     crossOrigin="anonymous"
                                     alt={fileName}
                                     draggable={false}
                                     className="absolute inset-0 w-full h-full pointer-events-none"
+                                    style={rot !== 0 && !rotatedUrl ? { visibility: 'hidden' } : undefined}
                                 />
-                                {/* Dimmed area outside the crop box (box-shadow trick) */}
+                                {/* Dim only the picture outside the crop box. The overflow-hidden
+                                    layer stops the shadow from darkening the rest of the dialog. */}
+                                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                                    <div
+                                        className="absolute"
+                                        style={{
+                                            left: crop.x * scale,
+                                            top: crop.y * scale,
+                                            width: crop.w * scale,
+                                            height: crop.h * scale,
+                                            boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)',
+                                        }}
+                                    />
+                                </div>
                                 <div
                                     className="absolute border border-white cursor-move"
                                     style={{
@@ -343,7 +436,6 @@ export function ImageCropDialog({
                                         top: crop.y * scale,
                                         width: crop.w * scale,
                                         height: crop.h * scale,
-                                        boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)',
                                         touchAction: 'none',
                                     }}
                                     onPointerDown={onPointerDown('move')}
@@ -382,16 +474,37 @@ export function ImageCropDialog({
                 </div>
 
                 <div className="px-5 py-3 border-t border-[var(--review-border)] flex items-center justify-between gap-2">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={reset}
-                        disabled={!nat || saving || isUnchanged}
-                        className="text-[var(--review-v2-gray-100)] hover:bg-white/10 gap-1.5"
-                    >
-                        <RotateCcw className="h-3.5 w-3.5" /> Reset
-                    </Button>
+                    <div className="flex items-center gap-1">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={reset}
+                            disabled={!nat || saving || isUnchanged}
+                            className="text-[var(--review-v2-gray-100)] hover:bg-white/10 gap-1.5"
+                            title="Reset the box and rotation in this dialog"
+                        >
+                            <RotateCcw className="h-3.5 w-3.5" /> Reset
+                        </Button>
+                        {canRestoreOriginal && onRestoreOriginal && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    if (window.confirm('Put this image back to the original upload? The cropped version stays in the version history.')) {
+                                        onRestoreOriginal();
+                                    }
+                                }}
+                                disabled={saving || restoring}
+                                className="text-[var(--review-v2-gray-100)] hover:bg-white/10 gap-1.5"
+                                title="Undo earlier crops and rotations — back to the first upload"
+                            >
+                                {restoring ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+                                Restore original
+                            </Button>
+                        )}
+                    </div>
                     <div className="flex items-center gap-2">
                         <Button
                             type="button"
@@ -407,12 +520,12 @@ export function ImageCropDialog({
                             type="button"
                             size="sm"
                             onClick={handleApply}
-                            disabled={!nat || !crop || saving || isUnchanged}
+                            disabled={!nat || !crop || saving || restoring || isUnchanged}
                             className="bg-white text-black hover:bg-white/90 font-semibold gap-1.5"
-                            title={isUnchanged ? 'Move or resize the box first' : undefined}
+                            title={isUnchanged ? 'Move or resize the box, or rotate, first' : undefined}
                         >
                             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                            {saving ? 'Saving…' : 'Apply crop'}
+                            {saving ? 'Saving…' : rot !== 0 ? 'Apply' : 'Apply crop'}
                         </Button>
                     </div>
                 </div>
