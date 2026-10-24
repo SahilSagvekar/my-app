@@ -8,6 +8,7 @@ import {
     forwardRef,
     useCallback,
 } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { ReviewComment, COMMENT_CATEGORIES, CommentCategory, CommentAttachment, THUMBNAIL_CATEGORIES, ThumbnailCategory } from './types';
@@ -415,7 +416,25 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             setSelectionStart(null);
             return;
         }
-        const rect = selectionRect;
+        // The drag overlay covers the source's parent. When the source is
+        // smaller than its parent (a letterboxed image), shift the selection
+        // into the source's own box and clip it to the picture.
+        let rect = selectionRect;
+        const parentEl = (source as HTMLElement).parentElement;
+        if (parentEl) {
+            const pr = parentEl.getBoundingClientRect();
+            const sr = (source as HTMLElement).getBoundingClientRect();
+            const x0 = Math.max(0, selectionRect.x - (sr.left - pr.left));
+            const y0 = Math.max(0, selectionRect.y - (sr.top - pr.top));
+            const x1 = Math.min(sr.width, selectionRect.x + selectionRect.w - (sr.left - pr.left));
+            const y1 = Math.min(sr.height, selectionRect.y + selectionRect.h - (sr.top - pr.top));
+            rect = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+            if (rect.w < 10 || rect.h < 10) {
+                setIsSelectingArea(false);
+                setSelectionStart(null);
+                return;
+            }
+        }
         window.requestAnimationFrame(() => {
             const dataUrl = captureAreaFromSource(source, rect);
             if (dataUrl) setScreenshotUrl(dataUrl);
@@ -713,9 +732,37 @@ export const CommentInput = forwardRef<CommentInputHandle, CommentInputProps>(fu
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 flex-wrap">
                     {mode === 'thumbnail' ? (
-                        <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-white text-black leading-none select-none">
-                            #{thumbnailIndex ?? 1}
-                        </span>
+                        <>
+                            <span className="px-2.5 py-1 text-xs font-bold rounded-md bg-white text-black leading-none select-none">
+                                #{thumbnailIndex ?? 1}
+                            </span>
+                            {hasCaptureSource && (
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        onClick={captureFullFrame}
+                                        title={videoRef ? 'Capture full frame' : 'Capture full image'}
+                                        className="flex items-center gap-1.5 h-7 text-xs font-bold uppercase rounded-full cursor-pointer bg-transparent transition-colors"
+                                        style={{ letterSpacing: '.06em', padding: '0 12px', border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; e.currentTarget.style.color = '#fff'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
+                                    >
+                                        <Camera className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                        Full
+                                    </button>
+                                    <button
+                                        onClick={handleStartSnip}
+                                        title="Select area to snip"
+                                        className="flex items-center gap-1.5 h-7 text-xs font-bold uppercase rounded-full cursor-pointer bg-transparent transition-colors"
+                                        style={{ letterSpacing: '.06em', padding: '0 12px', border: '1px solid var(--review-v2-gray-600)', color: 'var(--review-v2-gray-100)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--review-v2-gray-800)'; e.currentTarget.style.color = '#fff'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--review-v2-gray-100)'; }}
+                                    >
+                                        <Crop className="h-[15px] w-[15px]" strokeWidth={1.5} />
+                                        Snip
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <>
                             {/* Timestamp display with optional range */}
